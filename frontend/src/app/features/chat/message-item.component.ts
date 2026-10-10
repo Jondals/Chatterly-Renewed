@@ -3,7 +3,8 @@
  * One chat message: bubble, reactions, replies, editing, the hover menu and the right-click menu.
  */
 import { NameColorDirective } from '../../shared/util/name-color.directive';
-import { isOnlyEmoji } from '../../shared/util/emoji-only';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
+import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
   Component,
@@ -49,6 +50,7 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
     SpinlyMessageComponent,
     StatusMarkComponent,
     NameColorDirective,
+    NameFxDirective,
     IconComponent,
     TimestampPipe,
     AttachmentComponent,
@@ -89,6 +91,8 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
               class="msg-name text-base font-semibold"
               [class]="nameClass()"
               [appNameColor]="sender()?.profileColor ?? ''"
+              [nameFx]="sender()?.nameFx"
+              [fxLive]="true"
               [fallback]="mine() ? 'var(--accent)' : 'var(--fg)'"
               (click)="openProfile()"
             >
@@ -126,12 +130,13 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
           </div>
         } @else if ((m.text || m.undecryptable) && textShown()) {
           <div
-            class="anim-pop selectable max-w-full px-3.5 pb-2.5 pt-2 text-[0.95em] leading-relaxed"
+            class="anim-pop selectable w-fit max-w-full px-3.5 pb-2.5 pt-2 text-[0.95em] leading-relaxed"
             [class.bubble-out]="bubbles() && mine()"
             [class.bubble-in]="bubbles() && !mine()"
             [class.bubble-emoji]="bigEmoji()"
             [class.is-single]="bigEmoji() && singleEmoji()"
             [attr.data-pop]="bigEmoji() ? emojiPop() : null"
+            [attr.data-mood]="bigEmoji() && singleEmoji() ? emojiMoodOf() : null"
             [class.px-0]="!bubbles()"
             [class.opacity-60]="m.pending"
             [class.text-red-300]="m.failed"
@@ -361,6 +366,12 @@ export class MessageItemComponent {
     function (this: MessageItemComponent) {
       const message = this.message();
       return !message.undecryptable && !message.attachments?.length && isOnlyEmoji(message.text);
+    }.bind(this),
+  );
+  /** The kind of animation of a lone emoji (a heart beats, a kiss sends a heart, a laugh shakes...). */
+  protected readonly emojiMoodOf = computed(
+    function (this: MessageItemComponent) {
+      return emojiMood(this.message().text);
     }.bind(this),
   );
   /** Which of the entrance animations this emoji message uses: always the same for the same message, but different between messages. */

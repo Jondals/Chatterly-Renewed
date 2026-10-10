@@ -26,6 +26,7 @@ export interface UserRow {
   banner_color: string;
   profile_color: string;
   name_font: string;
+  name_fx: string;
   avatar_color: string;
   presence_visibility: 'everyone' | 'friends' | 'nobody';
   friend_requests: 'everyone' | 'nobody';
@@ -55,6 +56,7 @@ export interface PublicUser {
   bannerColor: string;
   profileColor: string;
   nameFont: string;
+  nameFx: string;
   avatarColor: string;
   publicKeys: { ecdh: string; ecdsa: string };
   createdAt: number;
@@ -77,6 +79,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     bannerColor: row.banner_color,
     profileColor: row.profile_color,
     nameFont: row.name_font,
+    nameFx: row.name_fx,
     avatarColor: row.avatar_color,
     publicKeys: { ecdh: row.pub_ecdh, ecdsa: row.pub_ecdsa },
     createdAt: row.created_at,

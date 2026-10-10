@@ -160,6 +160,52 @@
   animation: spin 3.5s linear infinite;
 }
 
+/* Comet: a bright head with a tail that fades behind it, circling the picture */
+.aura-comet::before {
+  inset: calc(var(--ring, 6px) * -1);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 150deg,
+    color-mix(in oklab, var(--c1) 55%, transparent) 280deg,
+    var(--c1) 340deg,
+    #fff 360deg
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--ring, 6px) * 0.9),
+    #000 calc(100% - var(--ring, 6px) * 0.9 + 1px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--ring, 6px) * 0.9),
+    #000 calc(100% - var(--ring, 6px) * 0.9 + 1px)
+  );
+  animation: spin 1.9s linear infinite;
+}
+.aura-comet::after {
+  inset: calc(var(--ring, 6px) * -1);
+  border: 1px solid color-mix(in oklab, var(--c2) 35%, transparent);
+}
+/* Nebula: two soft clouds of color that drift around the picture inside a thin ring */
+.aura-nebula::before {
+  inset: calc(var(--ring, 6px) * -1);
+  background:
+    radial-gradient(circle at 25% 25%, var(--c1) 0 28%, transparent 62%),
+    radial-gradient(circle at 78% 72%, var(--c2) 0 28%, transparent 62%),
+    conic-gradient(from 0deg, var(--c1), var(--c2), var(--c1));
+  animation: spin 9s linear infinite;
+}
+.aura-nebula::after {
+  inset: calc(var(--ring, 6px) * -2);
+  background: radial-gradient(
+    circle,
+    transparent 58%,
+    color-mix(in oklab, var(--c2) 45%, transparent) 70%,
+    transparent 74%
+  );
+  animation: aura-breathe 3.2s ease-in-out infinite;
+}
 .aura > .aura-core {
   position: relative;
   z-index: 1;

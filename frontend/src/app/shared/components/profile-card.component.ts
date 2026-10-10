@@ -14,12 +14,14 @@ import { RichTextComponent } from './rich-text.component';
 
 /** A user's public card: custom banner, picture, name font, pronouns, status and bio. */
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../util/name-fx.directive';
 import { fontClassOf } from '../util/user-font.directive';
 @Component({
   selector: 'app-profile-card',
   standalone: true,
   imports: [
     UserFontDirective,
+    NameFxDirective,
     AvatarComponent,
     BannerComponent,
     NameColorDirective,
@@ -42,6 +44,7 @@ import { fontClassOf } from '../util/user-font.directive';
             [class]="nameClass()"
             [appNameColor]="u.profileColor"
             [appUserFont]="u.nameFont"
+            [nameFx]="u.nameFx"
           >
             {{ u.displayName }}
           </h2>

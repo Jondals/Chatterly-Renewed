@@ -329,7 +329,131 @@ button:disabled,
   animation: emoji-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* Each kind of lone emoji moves in its own way (like WhatsApp: the heart beats, the kiss sends a kiss, the fire flickers...).
+   The moods come from emojiMood() in emoji-only.ts. Only transform and opacity change. */
+.bubble-emoji.is-single {
+  position: relative;
+}
+.bubble-emoji.is-single::after {
+  position: absolute;
+  left: 62%;
+  top: 8%;
+  font-size: 0.45em;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+.bubble-emoji.is-single[data-mood='heart'],
+.bubble-emoji.is-single[data-mood='love'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-heart 1.9s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='love']::after {
+  content: '💕';
+  animation: emo-float 2.4s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='kiss'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-kiss 2.6s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='kiss']::after {
+  content: '💋';
+  animation: emo-blow 2.6s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='laugh'],
+.bubble-emoji.is-single[data-mood='skull'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-laugh 2.4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='cry'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-sob 2.2s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='cry']::after {
+  content: '💧';
+  left: 30%;
+  top: 55%;
+  animation: emo-drop 1.6s ease-in 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='fire'] {
+  transform-origin: 50% 90%;
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-fire 0.9s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='thumb'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-thumb 2.4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='clap'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-clap 1.4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='wave'] {
+  transform-origin: 70% 85%;
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-wave 2s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='party'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-party 2.2s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='party']::after {
+  content: '🎊';
+  animation: emo-float 2.2s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='gasp'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-gasp 2.8s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='sleep'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-breathe 3.4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='sleep']::after {
+  content: '💤';
+  animation: emo-float 2.8s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='star'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-spin 4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='cool'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-cool 3s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='angry'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-rage 1.2s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='pray'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-pray 2.4s ease-in-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='muscle'] {
+  animation:
+    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    emo-flex 1.8s ease-in-out 0.8s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .bubble-emoji.is-single::after {
+    animation: none !important;
+  }
   .bubble-emoji.is-single {
     animation: none;
   }
@@ -406,4 +530,67 @@ button:disabled,
     font-family: var(--font-code);
     font-size: 0.78rem;
   }
+}
+
+/* The animations of the names (see name-fx.directive.ts). They play under the pointer and, in the chat (nfx-live), all the time.
+   Only transform, opacity and text-shadow move, and nobody who asked for less motion sees them. */
+/* in the components layer, so a name that is already block or flex (the utility classes) keeps its own display */
+@layer components {
+  .nfx {
+    display: inline-block;
+    transform-origin: 50% 60%;
+  }
+}
+.nfx-float:hover,
+.nfx-float.nfx-live {
+  animation: nfx-float 3.2s ease-in-out infinite;
+}
+.nfx-bounce:hover,
+.nfx-bounce.nfx-live {
+  animation: nfx-bounce 2.2s ease-in-out infinite;
+}
+.nfx-pulse:hover,
+.nfx-pulse.nfx-live {
+  animation: nfx-pulse 1.6s ease-in-out infinite;
+}
+.nfx-shake:hover,
+.nfx-shake.nfx-live {
+  animation: nfx-shake 2.4s ease-in-out infinite;
+}
+.nfx-swing:hover,
+.nfx-swing.nfx-live {
+  animation: nfx-swing 2.8s ease-in-out infinite;
+  transform-origin: 50% 0;
+}
+.nfx-glow:hover,
+.nfx-glow.nfx-live {
+  animation: nfx-glow 2.6s ease-in-out infinite;
+}
+.nfx-neon:hover,
+.nfx-neon.nfx-live {
+  animation: nfx-neon 3.4s steps(1, end) infinite;
+}
+.nfx-glitch:hover,
+.nfx-glitch.nfx-live {
+  animation: nfx-glitch 3s steps(1, end) infinite;
+}
+.nfx-flip:hover,
+.nfx-flip.nfx-live {
+  animation: nfx-flip 4.2s ease-in-out infinite;
+}
+.nfx-sparkle::after {
+  content: '✦';
+  margin-left: 0.2em;
+  font-size: 0.7em;
+  vertical-align: 0.25em;
+  color: var(--accent);
+  opacity: 0;
+}
+.nfx-sparkle:hover::after,
+.nfx-sparkle.nfx-live::after {
+  animation: nfx-twinkle 2.2s ease-in-out infinite;
+}
+:root[data-motion='reduced'] .nfx,
+:root[data-motion='reduced'] .nfx::after {
+  animation: none !important;
 }

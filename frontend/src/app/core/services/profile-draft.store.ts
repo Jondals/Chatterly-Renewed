@@ -14,6 +14,7 @@ export interface ProfileDraft {
   statusText: string;
   bio: string;
   nameFont: NameFont;
+  nameFx: string;
   profileColor: string;
   bannerColor: string;
   aura: AuraId;

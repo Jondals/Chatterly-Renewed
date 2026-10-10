@@ -1,49 +1,15 @@
 /**
  * src/app/shared/util/arrival-fx.ts
- * The light show behind the arrival animations, drawn on a canvas: points of light that spiral in from the edges of
- * the screen and gather into a ring (then burst outward), fireworks with gravity for the celebration, and slow dust that
- * floats and twinkles in the background all through.
- * It is plain math on a 2D canvas, with no library, and it stops by itself when the show ends.
+ * The light show behind the arrival animations, drawn on a canvas: points of light that spiral in from the edges of the
+ * screen and gather into a ring (then burst outward), fireworks with gravity for the celebration, and slow dust that
+ * floats and twinkles in the background all through. It is plain math on a 2D canvas, with no library.
+ *
+ * * Where the browser can (OffscreenCanvas and workers) the whole show runs in a worker: the page is busy while the app
+ * starts, and a show drawn there lags. Elsewhere it runs on the page, as it always did (see arrival-fx-engine.ts).
  */
+import { startShow, type Fx, type FxMode, type Rgb, type ShowConfig } from './arrival-fx-engine';
 
-/** Which show to put on. */
-export type FxMode = 'intro' | 'login' | 'register';
-
-/** What the caller can do while the show runs. */
-export interface Fx {
-  /** The ring of light explodes outward. */
-  explode(): void;
-  /** A burst of sparks at a point of the screen (0 to 1 on each side), with gravity or without. */
-  burst(x: number, y: number, count: number, gravity?: number): void;
-  /** Stops the show and frees the canvas. */
-  stop(): void;
-}
-
-/** One point of light. */
-interface Spark {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  age: number;
-  life: number;
-  size: number;
-  hue: number;
-  gravity: number;
-  /** While true the spark follows its path into the ring instead of flying free. */
-  gathering: boolean;
-  fromR: number;
-  toR: number;
-  angle: number;
-  spin: number;
-  delay: number;
-}
-
-/** Which color each light has: a position in the palette read from the theme (see `readPalette`). */
-const HUES = [0, 1, 2, 3, 4, 5];
-
-/** A color as red, green and blue. */
-type Rgb = [number, number, number];
+export type { Fx, FxMode } from './arrival-fx-engine';
 
 /** Reads a #rrggbb color (null when it is something else). */
 function parseHex(value: string): Rgb | null {
@@ -84,9 +50,25 @@ function readPalette(element: Element): Rgb[] {
   ];
 }
 
-/** Smooth start and end of a movement, from 0 to 1. */
-function ease(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+/** A canvas for a sprite, on the page. */
+function pageCanvas(size: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  return canvas;
+}
+
+/** The whole page goes to the light mode (no blur, quick motion) for this visit. */
+function lightMode(): void {
+  document.documentElement.dataset['perf'] = 'low';
+}
+
+/** Whether this browser can draw on a canvas from a worker. */
+function canUseWorker(canvas: HTMLCanvasElement): boolean {
+  return (
+    typeof Worker !== 'undefined' &&
+    typeof OffscreenCanvas !== 'undefined' &&
+    typeof canvas.transferControlToOffscreen === 'function'
+  );
 }
 
 /**
@@ -95,226 +77,47 @@ function ease(t: number): number {
  * @param mode The show: the introduction, the sign-in or the celebration.
  */
 export function startFx(canvas: HTMLCanvasElement, mode: FxMode): Fx {
-  const context = canvas.getContext('2d');
-  // Sharper than 1.5 pixels per pixel is not seen in glowing dots, and it costs the square of it to fill.
-  const ratio = Math.min(
-    window.devicePixelRatio || 1,
-    document.documentElement.dataset['perf'] === 'low' ? 1 : 1.5,
-  );
-  const width = canvas.clientWidth || window.innerWidth;
-  const height = canvas.clientHeight || window.innerHeight;
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  const centreX = width / 2;
-  const centreY = height / 2 - (mode === 'intro' ? 50 : 20);
-  const ringR = mode === 'intro' ? 96 : 62;
-  const sparks: Spark[] = [];
-  let frame = 0;
-  let last = performance.now();
-  let stopped = false;
-  /** A weak device (see main.ts) gets a lighter show from the start. */
   const weak = document.documentElement.dataset['perf'] === 'low';
-  let slowFrames = 0;
-  let sparkLimit = Infinity;
-
-  /** A spark that flies in from far away and takes its place in the ring. */
-  function gatherer(index: number, total: number): Spark {
-    const angle = (index / total) * Math.PI * 2 + Math.random() * 0.4;
-    return {
-      x: 0,
-      y: 0,
-      vx: 0,
-      vy: 0,
-      age: 0,
-      life: (mode === 'intro' ? 1500 : 700) + Math.random() * 300,
-      size: 1 + Math.random() * 2.2,
-      hue: HUES[index % 4]!,
-      gravity: 0,
-      gathering: true,
-      fromR: Math.max(width, height) * (0.55 + Math.random() * 0.4),
-      toR: ringR + (Math.random() - 0.5) * 16,
-      angle,
-      spin: (Math.random() < 0.5 ? -1 : 1) * (1.6 + Math.random() * 1.4),
-      delay: Math.random() * (mode === 'intro' ? 500 : 200),
-    };
-  }
-
-  /** Sparks that fly free from a point. */
-  function scatter(x: number, y: number, count: number, gravity: number, hues: number[]): void {
-    for (let i = 0; i < count; i++) {
-      const direction = Math.random() * Math.PI * 2;
-      const speed = 1.2 + Math.random() * (gravity ? 6.5 : 4.5);
-      sparks.push({
-        x,
-        y,
-        vx: Math.cos(direction) * speed,
-        vy: Math.sin(direction) * speed - (gravity ? 1.5 : 0),
-        age: 0,
-        life: 900 + Math.random() * 900,
-        size: 1.2 + Math.random() * 2.4,
-        hue: hues[i % hues.length]!,
-        gravity,
-        gathering: false,
-        fromR: 0,
-        toR: 0,
-        angle: 0,
-        spin: 0,
-        delay: 0,
-      });
+  const config: ShowConfig = {
+    mode,
+    // Sharper than 1.5 pixels per pixel is not seen in glowing dots, and it costs the square of it to fill.
+    ratio: Math.min(window.devicePixelRatio || 1, weak ? 1 : 1.5),
+    width: canvas.clientWidth || window.innerWidth,
+    height: canvas.clientHeight || window.innerHeight,
+    weak,
+    palette: readPalette(canvas),
+  };
+  if (canUseWorker(canvas)) {
+    try {
+      return startInWorker(canvas, config);
+    } catch {
+      /* the worker could not be made: the show runs on the page (the canvas is still free only if it was not handed over) */
     }
   }
+  return startShow(canvas, config, { tooSlow: lightMode, makeCanvas: pageCanvas });
+}
 
-  if (mode !== 'register') {
-    const total = (mode === 'intro' ? 150 : 80) * (weak ? 0.35 : 1);
-    for (let i = 0; i < total; i++) {
-      sparks.push(gatherer(i, total));
+/** Runs the show in a worker that draws on the canvas of the page. */
+function startInWorker(canvas: HTMLCanvasElement, config: ShowConfig): Fx {
+  const worker = new Worker(new URL('./arrival-fx.worker', import.meta.url), { type: 'module' });
+  const offscreen = canvas.transferControlToOffscreen();
+  worker.onmessage = function onMessage(event: MessageEvent<{ type: string }>): void {
+    if (event.data.type === 'slow') {
+      lightMode();
     }
-  }
-
-  /** Slow dust that floats upward all through the show and twinkles: it fills the background with life. */
-  const motes = Array.from(
-    { length: (mode === 'register' ? 40 : 90) * (weak ? 0.25 : 1) },
-    function mote(_, i) {
-      return {
-        x: Math.random() * width,
-        y: Math.random() * height,
-        rise: 0.01 + Math.random() * 0.035,
-        sway: Math.random() * Math.PI * 2,
-        size: 0.6 + Math.random() * 1.6,
-        hue: HUES[i % HUES.length]!,
-      };
-    },
-  );
-
-  /** One glowing dot of each color, drawn once: drawing a picture is much cheaper than making a gradient per spark per frame. */
-  const palette = readPalette(canvas);
-  const sprites = new Map<number, HTMLCanvasElement>();
-  for (const hue of HUES) {
-    const sprite = document.createElement('canvas');
-    sprite.width = sprite.height = 64;
-    const paint = sprite.getContext('2d');
-    if (paint) {
-      const [red, green, blue] = palette[hue]!;
-      const centre = lighten([red, green, blue], 0.55);
-      const glow = paint.createRadialGradient(32, 32, 0, 32, 32, 32);
-      glow.addColorStop(0, 'rgba(' + centre.join(',') + ',1)');
-      glow.addColorStop(0.3, 'rgba(' + red + ',' + green + ',' + blue + ',0.5)');
-      glow.addColorStop(1, 'rgba(' + red + ',' + green + ',' + blue + ',0)');
-      paint.fillStyle = glow;
-      paint.fillRect(0, 0, 64, 64);
-    }
-    sprites.set(hue, sprite);
-  }
-
-  /** Draws one spark as a small glowing dot. */
-  function draw(spark: Spark, alpha: number): void {
-    const sprite = sprites.get(spark.hue);
-    if (!context || !sprite) {
-      return;
-    }
-    const size = spark.size * 6.4;
-    context.globalAlpha = alpha;
-    context.drawImage(sprite, spark.x - size / 2, spark.y - size / 2, size, size);
-  }
-
-  /** One frame: moves every spark and draws them all. */
-  function step(now: number): void {
-    if (stopped || !context) {
-      return;
-    }
-    const dt = Math.min(now - last, 40);
-    // A device that cannot keep up (frames longer than 30 ms, many times) gets fewer lights from then on.
-    if (now - last > 30) {
-      slowFrames++;
-      if (slowFrames === 12) {
-        motes.length = Math.floor(motes.length / 3);
-        sparkLimit = 60;
-      } else if (slowFrames === 40) {
-        // Still slow after all that: the whole page switches to the light mode (no blur, quick motion) for this visit.
-        document.documentElement.dataset['perf'] = 'low';
-      }
-    }
-    last = now;
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
-    context.globalCompositeOperation = 'lighter';
-    for (const mote of motes) {
-      mote.y -= mote.rise * dt;
-      mote.x += Math.sin(now / 1400 + mote.sway) * 0.12;
-      if (mote.y < -10) {
-        mote.y = height + 10;
-        mote.x = Math.random() * width;
-      }
-      const sprite = sprites.get(mote.hue);
-      if (sprite) {
-        // ! Near the top and bottom edges the dust fades out, so it never pops in or out when it wraps around.
-        const edge = Math.min(1, Math.max(0, Math.min(mote.y, height - mote.y) / 70));
-        context.globalAlpha =
-          edge * (0.18 + 0.32 * (0.5 + 0.5 * Math.sin(now / 700 + mote.sway * 3)));
-        context.drawImage(
-          sprite,
-          mote.x - mote.size * 3,
-          mote.y - mote.size * 3,
-          mote.size * 6,
-          mote.size * 6,
-        );
-      }
-    }
-    for (let i = sparks.length - 1; i >= 0; i--) {
-      const spark = sparks[i]!;
-      if (spark.delay > 0) {
-        spark.delay -= dt;
-        continue;
-      }
-      spark.age += dt;
-      if (spark.gathering) {
-        const t = Math.min(spark.age / spark.life, 1);
-        const radius = spark.fromR + (spark.toR - spark.fromR) * ease(t);
-        const angle = spark.angle + spark.spin * (1 - ease(t)) + spark.age * 0.0004;
-        spark.x = centreX + Math.cos(angle) * radius;
-        spark.y = centreY + Math.sin(angle) * radius * 0.92;
-        draw(spark, (0.25 + 0.75 * ease(t)) * Math.min(1, spark.age / 350));
-        continue;
-      }
-      spark.vy += spark.gravity * (dt / 16);
-      spark.vx *= 0.992;
-      spark.x += spark.vx * (dt / 16);
-      spark.y += spark.vy * (dt / 16);
-      const left = 1 - spark.age / spark.life;
-      if (left <= 0) {
-        sparks.splice(i, 1);
-        continue;
-      }
-      draw(spark, left * Math.min(1, spark.age / 120));
-    }
-    context.globalAlpha = 1;
-    context.globalCompositeOperation = 'source-over';
-    frame = requestAnimationFrame(step);
-  }
-  frame = requestAnimationFrame(step);
-
+  };
+  worker.postMessage({ type: 'start', canvas: offscreen, config }, [offscreen]);
   return {
     explode(): void {
-      for (const spark of sparks) {
-        if (spark.gathering) {
-          const out = spark.angle + spark.spin * 0 + spark.age * 0.0004;
-          const speed = 2.5 + Math.random() * 5;
-          spark.gathering = false;
-          spark.delay = 0;
-          spark.age = 120;
-          spark.life = 820 + Math.random() * 700;
-          spark.vx = Math.cos(out) * speed;
-          spark.vy = Math.sin(out) * speed;
-        }
-      }
+      worker.postMessage({ type: 'explode' });
     },
     burst(x: number, y: number, count: number, gravity = 0): void {
-      scatter(x * width, y * height, Math.min(count * (weak ? 0.4 : 1), sparkLimit), gravity, HUES);
+      worker.postMessage({ type: 'burst', x, y, count, gravity });
     },
     stop(): void {
-      stopped = true;
-      cancelAnimationFrame(frame);
-      context?.clearRect(0, 0, width, height);
+      worker.postMessage({ type: 'stop' });
+      // a moment later, so the worker has cleared the canvas before it goes
+      setTimeout(worker.terminate.bind(worker), 80);
     },
   };
 }

@@ -39,6 +39,8 @@ interface Part {
   id: string;
   name: string;
   tiles: Tile[];
+  /** How many sounds it has (also when it is folded and none is drawn). */
+  count: number;
 }
 
 /** Tiles drawn when a tab opens (five rows of three, enough to fill the panel). */
@@ -180,20 +182,32 @@ const CATEGORY_NAME_MAX = 20;
       <div #scroller class="min-h-0 flex-1 overflow-y-auto p-3" (scroll)="drawMore(scroller)">
         @for (tab of [current()]; track tab) {
           <div class="anim-fade-in">
-            @for (part of visibleParts(); track part.id; let first = $first) {
+            <button
+              type="button"
+              class="btn btn-sm mb-1 w-full justify-center gap-1.5"
+              (click)="upload()"
+            >
+              <app-icon name="plus" [size]="14" /> {{ 'Add a sound' | t }}
+            </button>
+            @for (part of visibleParts(); track part.id) {
               @if (part.name) {
-                <div class="label mb-2 mt-3 px-1">{{ part.name }}</div>
+                <button
+                  type="button"
+                  class="sb-section"
+                  [attr.aria-expanded]="!isClosed(part.id)"
+                  (click)="toggleSection(part.id)"
+                >
+                  <app-icon
+                    name="chevron-down"
+                    [size]="14"
+                    class="transition-transform duration-200"
+                    [class.-rotate-90]="isClosed(part.id)"
+                  />
+                  <span class="flex-1 truncate text-left">{{ part.name | t }}</span>
+                  <span class="count-pill">{{ part.count }}</span>
+                </button>
               }
-              <div class="sb-grid grid grid-cols-3 gap-2.5" [class.min-h-0]="!first">
-                @if (first) {
-                  <button type="button" class="sb-tile sb-add" (click)="upload()">
-                    <app-icon name="plus" [size]="22" class="text-muted" />
-                    <span class="text-[0.6875rem]">{{ 'Add a sound' | t }}</span>
-                    <span class="text-[0.625rem] text-dim">{{
-                      'Cut it, name it, add an emoji' | t
-                    }}</span>
-                  </button>
-                }
+              <div class="sb-grid grid grid-cols-3 gap-2.5">
                 @for (tile of part.tiles; track tileKey(tile)) {
                   @if (tile.kind === 'effect') {
                     <button
@@ -324,7 +338,10 @@ export class SoundboardDockComponent {
     );
   }
 
-  /** The sounds of the open tab: in "All" the effects and the sounds without category, then each category with its title. */
+  /**
+   * The sounds of the open tab. In "All": the ones that come with the app ("Default"), the person's own without category
+   * ("Custom") and each category, every one a part that can be folded. In a category: just its sounds.
+   */
   private buildParts(): Part[] {
     const clips = this.store.clips();
     const categories = this.settings.soundCategories();
@@ -333,32 +350,32 @@ export class SoundboardDockComponent {
     };
     const open = this.current();
     if (open !== 'all') {
-      return [
-        {
-          id: open,
-          name: '',
-          tiles: clips
-            .filter(function inCategory(clip) {
-              return clip.category === open;
-            })
-            .map(own),
-        },
-      ];
+      const tiles = clips
+        .filter(function inCategory(clip) {
+          return clip.category === open;
+        })
+        .map(own);
+      return [{ id: open, name: '', tiles, count: tiles.length }];
     }
     const known = new Set(
       categories.map(function id(category) {
         return category.id;
       }),
     );
-    const main: Tile[] = SOUNDBOARD.map(function effect(entry): Tile {
+    const defaults: Tile[] = SOUNDBOARD.map(function effect(entry): Tile {
       return { kind: 'effect', id: entry.id, icon: entry.icon, label: entry.label };
     });
-    for (const clip of clips) {
-      if (!clip.category || !known.has(clip.category)) {
-        main.push(own(clip));
-      }
+    const custom = clips
+      .filter(function loose(clip) {
+        return !clip.category || !known.has(clip.category);
+      })
+      .map(own);
+    const parts: Part[] = [
+      { id: 'default', name: 'Default sounds', tiles: defaults, count: defaults.length },
+    ];
+    if (custom.length) {
+      parts.push({ id: 'custom', name: 'Custom sounds', tiles: custom, count: custom.length });
     }
-    const parts: Part[] = [{ id: 'main', name: '', tiles: main }];
     for (const category of categories) {
       const tiles = clips
         .filter(function inCategory(clip) {
@@ -366,24 +383,45 @@ export class SoundboardDockComponent {
         })
         .map(own);
       if (tiles.length) {
-        parts.push({ id: category.id, name: category.name, tiles });
+        parts.push({ id: category.id, name: category.name, tiles, count: tiles.length });
       }
     }
     return parts;
   }
 
-  /** The parts with only the first tiles (the first part always keeps its place for the button that adds a sound). */
+  /** The parts with only the first tiles; a folded part has none (its header still tells how many it has). */
   private cutParts(): Part[] {
     let left = this.drawn();
+    const closed = this.closed();
     const out: Part[] = [];
     for (const part of this.parts()) {
-      if (left <= 0 && out.length) {
-        break;
+      if (part.name && closed.includes(part.id)) {
+        out.push({ ...part, tiles: [] });
+        continue;
       }
       out.push({ ...part, tiles: part.tiles.slice(0, Math.max(0, left)) });
       left -= part.tiles.length;
     }
     return out;
+  }
+
+  /** The parts that are folded (by id). */
+  private readonly closed = signal<string[]>([]);
+
+  /** Whether a part is folded. */
+  protected isClosed(id: string): boolean {
+    return this.closed().includes(id);
+  }
+
+  /** Folds or opens a part. */
+  protected toggleSection(id: string): void {
+    this.closed.update(function flip(list) {
+      return list.includes(id)
+        ? list.filter(function other(entry) {
+            return entry !== id;
+          })
+        : [...list, id];
+    });
   }
 
   /** A key that tells a tile from the others while the list is redrawn. */

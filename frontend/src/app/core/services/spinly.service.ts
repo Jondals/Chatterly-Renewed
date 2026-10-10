@@ -81,6 +81,7 @@ export class SpinlyService {
   constructor() {
     window.addEventListener('message', this.onMessage.bind(this));
     this.call.onSpinlyShared = this.onShared.bind(this);
+    this.call.flushSpinly();
     this.call.spinlySnapshot = this.snapshot.bind(this);
     this.call.onSpinlyReset = this.resetCall.bind(this);
   }

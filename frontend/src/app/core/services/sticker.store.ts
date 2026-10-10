@@ -127,13 +127,28 @@ function hasPicture(canvas: HTMLCanvasElement): boolean {
   return readCanvas(canvas) === 'picture';
 }
 
-/** An emoji as a vector picture: it does not go through a canvas, so it works where the canvas is protected. */
-function emojiSvg(emoji: string): Blob {
+/** The movements of an animated sticker (the keyframes go inside the picture, so it moves wherever it is shown). */
+const MOVES: string[] = [
+  '0%,100%{transform:translateY(0)}50%{transform:translateY(-22px)}',
+  '0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}',
+  '0%,100%{transform:scale(1)}50%{transform:scale(1.14)}',
+  '0%,100%{transform:translateX(-10px)}50%{transform:translateX(10px)}',
+  '0%,40%,100%{transform:rotate(0)}10%{transform:rotate(-14deg)}20%{transform:rotate(12deg)}30%{transform:rotate(-8deg)}',
+  '0%,100%{transform:scale(1,1)}25%{transform:scale(1.1,0.9)}50%{transform:scale(0.92,1.1)}75%{transform:scale(1.05,0.96)}',
+];
+
+/**
+ * An emoji as an ANIMATED vector picture (it moves in its own way, forever): it does not go through a canvas, so it works
+ * where the canvas is protected, and it stays light (about 1 KB).
+ */
+function emojiSvg(emoji: string, move = 0): Blob {
   const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><text x="128" y="132" font-size="200" text-anchor="middle" ' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><style>@keyframes m{' +
+    MOVES[move % MOVES.length] +
+    '}</style><g style="transform-origin:128px 150px;animation:m 1.8s ease-in-out infinite"><text x="128" y="132" font-size="190" text-anchor="middle" ' +
     'dominant-baseline="central" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, sans-serif">' +
     emoji +
-    '</text></svg>';
+    '</text></g></svg>';
   return new Blob([svg], { type: 'image/svg+xml' });
 }
 
@@ -383,25 +398,11 @@ export class StickerStore {
     return false;
   }
 
-  /** Draws 24 emoji as stickers, so the tab is useful from the first click. Returns how many were made. */
+  /** Makes 24 animated emoji as stickers, so the tab is useful from the first click. Returns how many were made. */
   async addStarterPack(): Promise<number> {
-    const blobs: Blob[] = [];
-    for (const emoji of STARTER) {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 256;
-      // ? Nothing real drawn (no emoji font, a protected canvas): the emoji becomes a vector picture instead of a blank or flat square.
-      if (!(await this.drawEmoji(canvas, emoji))) {
-        blobs.push(emojiSvg(emoji));
-        continue;
-      }
-      const blob = await canvasToBlob(canvas, 0.92);
-      if (blob) {
-        blobs.push(blob);
-      }
-    }
-    if (blobs.length === 0) {
-      return 0;
-    }
+    const blobs = STARTER.map(function animated(emoji, index): Blob {
+      return emojiSvg(emoji, index);
+    });
     return this.addImages(blobs, { name: 'Emoji starter' });
   }
 

@@ -17,7 +17,7 @@
  *
  * Only when it fails does it save screenshots in the temporary folder of the system and print their path.
  */
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -367,20 +367,31 @@ async function main() {
   const A = { user: 'alice_' + suffix, pw: 'correct-horse-battery-1' };
   const B = { user: 'bob_' + suffix, pw: 'another-strong-pass-2' };
 
-  browser = await chromium.launch({
-    args: [
-      '--use-fake-ui-for-media-stream',
-      '--use-fake-device-for-media-stream',
-      '--autoplay-policy=no-user-gesture-required',
-    ],
-  });
+  // CHATTERLY_BROWSER=firefox runs the same test in Firefox (the browser many people use); by default it is Chromium.
+  const inFirefox = process.env.CHATTERLY_BROWSER === 'firefox';
+  browser = inFirefox
+    ? await firefox.launch({
+        firefoxUserPrefs: {
+          'media.navigator.streams.fake': true,
+          'media.navigator.permission.disabled': true,
+          'media.autoplay.default': 0,
+          'media.autoplay.blocking_policy': 0,
+        },
+      })
+    : await chromium.launch({
+        args: [
+          '--use-fake-ui-for-media-stream',
+          '--use-fake-device-for-media-stream',
+          '--autoplay-policy=no-user-gesture-required',
+        ],
+      });
 
   /** Opens a browser window with a new person. */
   async function newUser(name, viewport = { width: 1440, height: 900 }) {
     const ctx = await browser.newContext({
       locale: 'en-US',
       viewport,
-      permissions: ['microphone', 'camera'],
+      permissions: inFirefox ? [] : ['microphone', 'camera'],
     });
     await ctx.addInitScript(function (api) {
       window.CHATTERLY_API = api;
@@ -453,7 +464,13 @@ async function main() {
   // Opening the root without a session must lead to the login (it used to leave an empty box)
   await a.goto(WEB + '/');
   await a.waitForSelector('input[name=username]', { timeout: 10000 });
-  check(new URL(a.url()).pathname === '/login', 'the root without a session leads to the login');
+  await a.waitForURL('**/login', { timeout: 5000 }).catch(function () {
+    return undefined;
+  });
+  check(
+    new URL(a.url()).pathname === '/login',
+    'the root without a session leads to the login (' + a.url() + ')',
+  );
   await a.waitForTimeout(1500);
   await shot(a, '00-login');
 
@@ -562,7 +579,6 @@ async function main() {
   await b.fill('textarea[aria-label=Message]', 'second');
   await b.locator('textarea[aria-label=Message]').selectText();
   await b.click('button:has-text("Gradient")');
-  await b.click('button:has-text("More options")');
   await b.click('app-gradient-controls button[aria-label="Color"]');
   const popover = b.locator('input[aria-label="Hex color"]');
   await popover.waitFor();
@@ -1413,6 +1429,8 @@ async function main() {
   await saveAdjusted(a);
   await a.click('button[aria-expanded]:has-text("Name font")');
   await a.click('button.choice-card:has-text("Serif")');
+  // the banner color is offered when the banner is not a picture
+  await a.click('button:has-text("Remove banner")');
   await a.click('button[aria-label="Banner color"]');
   await shot(a, '04-color-picker');
   const swatch = a.locator('button[aria-label="Banner color"]').first();

@@ -20,6 +20,7 @@ import { AboutSectionComponent } from './about-section.component';
 import { AppearanceSectionComponent } from './appearance-section.component';
 import { AudioSectionComponent } from './audio-section.component';
 import { GeneralSectionComponent } from './general-section.component';
+import { SyncSectionComponent } from './sync-section.component';
 import { IntegrationsSectionComponent } from './integrations-section.component';
 import { ProfileSectionComponent } from './profile-section.component';
 import { SecuritySectionComponent } from './security-section.component';
@@ -48,6 +49,7 @@ const GROUPS: SectionEntry[][] = [
     { id: 'audio', label: 'Voice & video', icon: 'mic', tone: 'bg-coral/15 text-coral' },
     { id: 'stickers', label: 'Stickers', icon: 'sticker', tone: 'bg-sky/15 text-sky' },
     { id: 'language', label: 'Language', icon: 'globe', tone: 'bg-emerald/15 text-emerald' },
+    { id: 'sync', label: 'Sync', icon: 'refresh', tone: 'bg-sky/15 text-sky' },
   ],
   [
     { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard', tone: 'bg-violet/15 text-violet' },
@@ -77,6 +79,7 @@ const GROUPS: SectionEntry[][] = [
     ShortcutsSectionComponent,
     SecuritySectionComponent,
     IntegrationsSectionComponent,
+    SyncSectionComponent,
     AboutSectionComponent,
   ],
   template: `
@@ -188,6 +191,9 @@ const GROUPS: SectionEntry[][] = [
               }
               @case ('security') {
                 <app-security-section class="anim-fade-up block" />
+              }
+              @case ('sync') {
+                <app-sync-section class="anim-fade-up block" />
               }
               @case ('integrations') {
                 <app-integrations-section class="anim-fade-up block" />

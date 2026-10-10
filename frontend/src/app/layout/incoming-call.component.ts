@@ -11,11 +11,19 @@ import { AvatarComponent } from '../shared/components/avatar.component';
 import { IconComponent } from '../shared/components/icon.component';
 import { NameColorDirective } from '../shared/util/name-color.directive';
 import { UserFontDirective } from '../shared/util/user-font.directive';
+import { NameFxDirective } from '../shared/util/name-fx.directive';
 
 @Component({
   selector: 'app-incoming-call',
   standalone: true,
-  imports: [AvatarComponent, IconComponent, NameColorDirective, TranslatePipe, UserFontDirective],
+  imports: [
+    AvatarComponent,
+    IconComponent,
+    NameColorDirective,
+    NameFxDirective,
+    TranslatePipe,
+    UserFontDirective,
+  ],
   template: `
     @if (call.incoming(); as inc) {
       <div class="anim-pop fixed left-1/2 top-5 z-[90] -translate-x-1/2">
@@ -37,6 +45,7 @@ import { UserFontDirective } from '../shared/util/user-font.directive';
               class="text-base font-bold"
               [appNameColor]="caller()?.profileColor"
               [appUserFont]="caller()?.nameFont"
+              [nameFx]="caller()?.nameFx"
             >
               {{ caller()?.displayName ?? '…' }}
             </div>

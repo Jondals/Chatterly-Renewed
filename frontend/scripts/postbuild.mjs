@@ -196,6 +196,21 @@ function addSessionScript(html) {
   return withPolicy.replace('<style>', '<script>' + SESSION_SCRIPT + '</script><style>');
 }
 
+/**
+ * Allows the structured data (`<script type="application/ld+json">`) in the policy by its hash. A data block is never run, but
+ * Firefox still reports it as a script that the policy blocks (a warning in the console on every load).
+ */
+function allowDataScripts(html) {
+  const hashes = Array.from(
+    html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g),
+  ).map(function hashOf(m) {
+    return "'sha256-" + createHash('sha256').update(m[1]).digest('base64') + "'";
+  });
+  return hashes.length
+    ? html.replace("script-src 'self'", "script-src 'self' " + hashes.join(' '))
+    : html;
+}
+
 /** Asks for the main font (Inter) right away: the text of the first paint is drawn with it and does not change afterwards. */
 function preloadFont(html) {
   const media = path.join(DIST, 'media');
@@ -292,6 +307,7 @@ async function main() {
     '<app-root$1 data-snapshot>' + SPLASH.markup + snapshots.replace(/\$/g, '$$$$') + '</app-root>',
   );
   html = html.split('__SITE_URL__').join(SITE_URL);
+  html = allowDataScripts(html);
   fs.writeFileSync(indexPath, html);
   writeSearchFiles();
   console.log('Sign-in snapshot and inline stylesheet added to ' + indexPath);

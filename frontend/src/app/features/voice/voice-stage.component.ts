@@ -2,7 +2,7 @@
  * src/app/features/voice/voice-stage.component.ts
  * Call screen: participant tiles, controls, shared music and statistics.
  */
-import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   DestroyRef,
@@ -18,6 +18,8 @@ import {
 import { Router } from '@angular/router';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { embedUrl } from '../../shared/util/music-link';
+import { FrameAllowDirective } from '../../shared/util/iframe-allow';
+import { VOICE_MODES } from '../../core/audio-chain';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { SpinlyService } from '../../core/services/spinly.service';
 import { SpinlyCallPanelComponent } from '../spinly/spinly-call-panel.component';
@@ -64,6 +66,7 @@ interface Tile {
 
 import { DockableDirective, type DockPlace } from '../../shared/util/dockable.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { fontClassOf } from '../../shared/util/user-font.directive';
 import { decibels } from '../../shared/util/audio-level';
 /** Where the music card goes in each place of the stage (the bottom ones are lifted by a style when somebody is pinned). */
@@ -84,6 +87,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
     DeviceMenuComponent,
     DockableDirective,
     UserFontDirective,
+    NameFxDirective,
     NameColorDirective,
     AvatarComponent,
     IconComponent,
@@ -93,8 +97,8 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
     SpinlyCallPanelComponent,
     SpinlyLogoComponent,
     ToggleComponent,
+    FrameAllowDirective,
     SegmentedComponent,
-    DecimalPipe,
     NgTemplateOutlet,
     TranslatePipe,
   ],
@@ -126,6 +130,15 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
             >{{ call.stats().rttMs ?? '—' }} ms · {{ call.stats().outKbps }}↑
             {{ call.stats().inKbps }}↓ kbps</span
           >
+          <button
+            class="btn btn-icon btn-ghost tip"
+            data-tip-pos="bottom"
+            [attr.data-tip]="'Minimize the call' | t"
+            type="button"
+            (click)="minimizeCall()"
+          >
+            <app-icon name="chevron-down" />
+          </button>
           <button
             class="btn btn-icon btn-ghost tip"
             data-tip-pos="bottom"
@@ -171,7 +184,8 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     appDockable
                     [dockArea]="stageHostEl()"
                     [allowed]="places"
-                    class="music-card absolute z-30 w-[23rem] max-w-[calc(100%-1.5rem)] select-none rounded-ui-lg border border-white/10 bg-ink-900/95 p-3.5 shadow-xl backdrop-blur"
+                    [class.!w-auto]="settings.musicMini()"
+                    class="music-card absolute z-30 w-[23rem] max-w-[calc(100%-1.5rem)] transition-[width] duration-300 select-none rounded-ui-lg border border-white/10 bg-ink-900/95 p-3.5 shadow-xl backdrop-blur"
                     [class]="musicClass()"
                     [style.bottom.px]="musicBottom()"
                     (docked)="settings.musicPlace.set($event)"
@@ -194,8 +208,8 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                       <iframe
                         class="music-frame"
                         [class.is-spotify]="m.link.kind === 'spotify'"
+                        [frameAllow]="allowAudio"
                         [src]="src"
-                        allow="autoplay; encrypted-media"
                         referrerpolicy="strict-origin-when-cross-origin"
                         sandbox="allow-scripts allow-same-origin allow-presentation"
                         [title]="'Music' | t"
@@ -341,7 +355,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                         <span class="timeline mt-2 flex min-w-0 items-center gap-2">
                           <span
                             class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
-                            >{{ clock(elapsed()) }}</span
+                            >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
                           >
                           <input
                             type="range"
@@ -354,7 +368,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             (pointerdown)="scrubbing.set(true)"
                             (pointerup)="endScrub()"
                             (pointercancel)="endScrub()"
-                            (input)="elapsed.set(+$any($event.target).value)"
+                            (input)="scrubTime.set(+$any($event.target).value)"
                             (change)="seekTo(+$any($event.target).value)"
                           />
                           <span
@@ -491,6 +505,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                       type="button"
                       (mousedown)="$event.stopPropagation()"
                       (click)="screenClick()"
+                      (contextmenu)="shareOptions($event)"
                     >
                       <app-icon name="monitor" [size]="20" />
                     </button>
@@ -817,33 +832,13 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             [label]="'Auto gain' | t"
                           />
                         </div>
-                        <div class="drawer-row">
-                          <span>{{ 'Clearer voice' | t }}</span>
-                          <app-toggle
-                            [checked]="settings.voiceClarity()"
-                            (checkedChange)="
-                              settings.voiceClarity.set($event); call.changeInputDevice()
-                            "
-                            [label]="'Clearer voice' | t"
-                          />
-                        </div>
                         <div class="drawer-block">
-                          <span>{{ 'Extra noise removal' | t }}</span>
+                          <span>{{ 'Voice mode' | t }}</span>
                           <app-segmented
-                            [options]="cleanupOptions"
-                            [value]="settings.voiceCleanup()"
+                            [options]="voiceModeOptions"
+                            [value]="settings.voiceMode()"
                             (valueChange)="
-                              settings.voiceCleanup.set($any($event)); call.changeInputDevice()
-                            "
-                          />
-                        </div>
-                        <div class="drawer-block">
-                          <span>{{ 'Voice leveler' | t }}</span>
-                          <app-segmented
-                            [options]="levelerOptions"
-                            [value]="settings.voiceLeveler()"
-                            (valueChange)="
-                              settings.voiceLeveler.set($any($event)); call.changeInputDevice()
+                              settings.voiceMode.set($any($event)); call.changeInputDevice()
                             "
                           />
                         </div>
@@ -1150,8 +1145,8 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 @if (musicSrc(); as src) {
                   <iframe
                     class="player-frame pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-0"
+                    [frameAllow]="allowMedia"
                     [src]="src"
-                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                     allowfullscreen
                     referrerpolicy="strict-origin-when-cross-origin"
                     sandbox="allow-scripts allow-same-origin allow-presentation"
@@ -1159,14 +1154,22 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     #reproductor
                     (load)="notifyPlayer(reproductor)"
                   ></iframe>
-                  <!-- the picture is only a picture: a press on it plays or pauses for everybody, nothing of YouTube answers -->
+                  <!-- the picture is only a picture: a press on it plays or pauses for everybody, nothing of YouTube answers. While it is paused YouTube draws its own title, "more videos" and logo: a thick blur covers them (and our own mark shows). -->
                   <div
-                    class="absolute inset-0 cursor-pointer"
+                    class="absolute inset-0 flex cursor-pointer items-center justify-center transition-[backdrop-filter,background-color] duration-300"
+                    [class.paused-cover]="paused() || unstarted()"
                     role="button"
                     tabindex="-1"
                     [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
                     (click)="togglePause()"
-                  ></div>
+                  >
+                    @if (paused() || unstarted()) {
+                      <span
+                        class="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20"
+                        ><app-icon name="play" [size]="28"
+                      /></span>
+                    }
+                  </div>
                 } @else {
                   <div
                     class="absolute inset-0 flex items-center justify-center p-3 text-center text-xs text-muted"
@@ -1191,7 +1194,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   </button>
                   <span
                     class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
-                    >{{ clock(elapsed()) }}</span
+                    >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
                   >
                   <input
                     type="range"
@@ -1205,7 +1208,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     (pointerdown)="scrubbing.set(true)"
                     (pointerup)="endScrub()"
                     (pointercancel)="endScrub()"
-                    (input)="elapsed.set(+$any($event.target).value)"
+                    (input)="scrubTime.set(+$any($event.target).value)"
                     (change)="seekTo(+$any($event.target).value)"
                   />
                   <span class="min-w-[2.7rem] font-mono text-[0.625rem] tabular-nums text-muted">{{
@@ -1242,7 +1245,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
             class="absolute inset-0 h-full w-full rounded-[inherit] bg-black"
             [class.object-cover]="t.kind === 'camera' && !focus"
             [class.object-contain]="t.kind === 'screen' || focus"
-            [class.-scale-x-100]="t.local && t.kind === 'camera' && settings.cameraMirror()"
+            [style.transform]="
+              t.local && t.kind === 'camera' && settings.cameraMirror() ? 'scaleX(-1)' : null
+            "
             [appMediaStream]="t.stream"
             autoplay
             playsinline
@@ -1316,6 +1321,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 [class.text-sm]="small"
                 [appNameColor]="t.user?.profileColor"
                 [appUserFont]="t.user?.nameFont"
+                [nameFx]="t.user?.nameFx"
               >
                 {{ t.user?.displayName }}
               </div>
@@ -1364,6 +1370,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   class="truncate font-semibold"
                   [appNameColor]="p.user?.profileColor"
                   [appUserFont]="p.user?.nameFont"
+                  [nameFx]="p.user?.nameFx"
                 >
                   {{ p.user?.displayName }}
                 </div>
@@ -1619,10 +1626,20 @@ export class VoiceStageComponent {
     { id: 'max', label: '1080p · 60', hint: 'Smooth' },
   ];
 
-  /** The button of the screen: stops sharing, or opens the menu to start. */
+  /** The button of the screen: stops sharing, or starts it at once (the browser asks once what to show; the options are on the right click). */
   protected screenClick(): void {
     if (this.call.screenOn()) {
       void this.call.toggleScreen();
+      return;
+    }
+    this.shareOpen.set(false);
+    void this.call.toggleScreen();
+  }
+
+  /** The right click on the button of the screen opens its options (quality, sound, what to offer). */
+  protected shareOptions(event: Event): void {
+    event.preventDefault();
+    if (this.call.screenOn()) {
       return;
     }
     const open = !this.shareOpen();
@@ -1911,7 +1928,19 @@ export class VoiceStageComponent {
   /** The second shown on the timeline of the music bar. */
   protected readonly elapsed = signal(0);
   /** True while the person drags the timeline of the music bar. */
+  /** The permissions of the frames of the players, only the ones this browser knows (see iframeAllow). */
+  protected readonly allowAudio = ['autoplay', 'encrypted-media'];
+  protected readonly allowMedia = [
+    'autoplay',
+    'encrypted-media',
+    'picture-in-picture',
+    'fullscreen',
+  ];
   protected readonly scrubbing = signal(false);
+  /** True while the player has not started (the browser asked for a press first). */
+  protected readonly unstarted = signal(false);
+  /** Where the thumb of the timeline is while it is dragged (the bar itself is not rewritten during the drag: a browser that is given a new value while the thumb is held stops the drag). */
+  protected readonly scrubTime = signal(0);
   /** The last time the player reported, to notice a jump made inside the video itself. */
   private lastSample: { time: number; at: number } | null = null;
   /** The position of the playlist the player is at. */
@@ -1962,6 +1991,12 @@ export class VoiceStageComponent {
 
   /** The pause button of the music bar. */
   protected togglePause(): void {
+    if (this.unstarted()) {
+      this.unstarted.set(false);
+      this.paused.set(false);
+      this.commandPlayer('playVideo', []);
+      return;
+    }
     const next = !this.paused();
     this.paused.set(next);
     this.commandPlayer(next ? 'pauseVideo' : 'playVideo', []);
@@ -1989,10 +2024,14 @@ export class VoiceStageComponent {
 
   /** Sends a command to the YouTube player (it must have been started with enablejsapi). */
   private commandPlayer(func: string, args: unknown[]): void {
-    this.musicFrame?.contentWindow?.postMessage(
-      JSON.stringify({ event: 'command', func, args, id: 1, channel: 'widget' }),
-      'https://www.youtube-nocookie.com',
-    );
+    try {
+      this.musicFrame?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func, args, id: 1, channel: 'widget' }),
+        'https://www.youtube-nocookie.com',
+      );
+    } catch {
+      /* the frame is changing page: the command is lost, as it would be on a page that is loading */
+    }
   }
 
   /** Somebody else paused or resumed: the player does the same, from the second they were at. */
@@ -2101,6 +2140,11 @@ export class VoiceStageComponent {
       state = info.playerState;
       this.noteTime(info);
     }
+    // ? A browser that does not let the video start by itself (Firefox with sound) leaves it "unstarted" or "cued": the picture
+    // asks for a press (the press is a gesture of the person, so the player may start).
+    if (state !== undefined) {
+      this.unstarted.set(state === -1 || state === 5);
+    }
     if (state === 0 && this.call.music()) {
       this.call.musicEnded();
       return;
@@ -2129,6 +2173,11 @@ export class VoiceStageComponent {
    * Spotify does not offer this, so its volume is controlled in its own player.
    */
   protected notifyPlayer(marco: HTMLIFrameElement): void {
+    // ? Firefox fires "load" for the empty page the frame has before the player: nothing can be said to it yet (its origin is
+    // this page's, and a message to the player's origin fails). The real load comes next.
+    if (this.isBlank(marco)) {
+      return;
+    }
     this.musicFrame = marco;
     this.paused.set(false);
     this.duration.set(0);
@@ -2144,12 +2193,25 @@ export class VoiceStageComponent {
     this.applyMusicVolume();
   }
 
+  /** Whether the frame still shows its empty first page (the player has not loaded). */
+  private isBlank(marco: HTMLIFrameElement): boolean {
+    try {
+      return marco.contentWindow?.location.href === 'about:blank';
+    } catch {
+      return false; // another origin: the player is there
+    }
+  }
+
   /** Asks the player to start reporting its state. */
   private listen(marco: HTMLIFrameElement): void {
-    marco.contentWindow?.postMessage(
-      JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }),
-      'https://www.youtube-nocookie.com',
-    );
+    try {
+      marco.contentWindow?.postMessage(
+        JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }),
+        'https://www.youtube-nocookie.com',
+      );
+    } catch {
+      /* the frame is changing page: the next ask (they are repeated) arrives */
+    }
   }
 
   /** Asks again while the length of the video is still unknown and this is still the frame that plays. */
@@ -2564,6 +2626,11 @@ export class VoiceStageComponent {
       return this.i18n.t('{n} in the call', { n });
     }.bind(this),
   );
+  /** Leaves the page of the call without leaving the call: it goes on in the floating panel. */
+  protected minimizeCall(): void {
+    void this.router.navigateByUrl(this.ui.lastPage());
+  }
+
   /** What the chip of the encryption says when the pointer is over it. */
   protected encryptionTitle(): string {
     const state = this.call.mediaEncryption();
@@ -2680,16 +2747,9 @@ export class VoiceStageComponent {
   );
 
   /** The choices of the drawer of data (the same ones as in the settings of voice and video). */
-  protected readonly cleanupOptions = [
-    { id: 'off', label: 'Off' },
-    { id: 'light', label: 'Light' },
-    { id: 'strong', label: 'Strong' },
-  ];
-  protected readonly levelerOptions = [
-    { id: 'off', label: 'Off' },
-    { id: 'gentle', label: 'Gentle' },
-    { id: 'strong', label: 'Strong' },
-  ];
+  protected readonly voiceModeOptions = VOICE_MODES.map(function option(mode) {
+    return { id: mode.id, label: mode.label };
+  });
   protected readonly qualityOptions = [
     { id: '480', label: '480p' },
     { id: '720', label: '720p' },

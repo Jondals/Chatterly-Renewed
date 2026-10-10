@@ -320,12 +320,11 @@ export class SettingsService {
   readonly inputGate = persisted('pref.inputGate', 8);
   /** Volume of the microphone before it is sent, in percent (0 to 200). */
   readonly inputVolume = persisted('pref.inputVolume', 100);
-  /** Extra removal of rumble, hiss and the noise around the voice, after the browser's own suppression. */
-  readonly voiceCleanup = persisted<'off' | 'light' | 'strong'>('pref.voiceCleanup', 'light');
-  /** Brings the loud and the quiet words of the voice closer. */
-  readonly voiceLeveler = persisted<'off' | 'gentle' | 'strong'>('pref.voiceLeveler', 'off');
-  /** A little more presence in the voice. */
-  readonly voiceClarity = persisted('pref.voiceClarity', false);
+  /** What is done to the voice after the browser's own processing (see audio-chain.ts). */
+  readonly voiceMode = persisted<'off' | 'natural' | 'noisy' | 'studio'>(
+    'pref.voiceMode',
+    'natural',
+  );
   /** The quality of the camera in calls (the height of the picture in pixels). */
   readonly cameraQuality = persisted<'480' | '720' | '1080'>('pref.cameraQuality', '720');
   /** Pictures per second of the camera. */

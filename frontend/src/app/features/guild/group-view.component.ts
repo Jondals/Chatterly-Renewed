@@ -19,6 +19,7 @@ import { UiService } from '../../core/services/ui.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { ToggleComponent } from '../../shared/components/controls.component';
@@ -53,6 +54,7 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
     ColorPickerComponent,
     NameColorDirective,
     UserFontDirective,
+    NameFxDirective,
     ChannelLabelPipe,
     AvatarComponent,
     IconComponent,
@@ -200,6 +202,7 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
                             [class]="nameClass(m.user)"
                             [appNameColor]="m.user.profileColor"
                             [appUserFont]="m.user.nameFont"
+                            [nameFx]="m.user.nameFx"
                             >{{ m.user.displayName }}
                             @if (m.role === 'owner') {
                               <app-icon name="crown" [size]="12" class="text-amber" />

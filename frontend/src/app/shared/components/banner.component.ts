@@ -38,7 +38,7 @@ export class BannerComponent {
   readonly color = input('');
   protected readonly layer = computed(
     function (this: BannerComponent) {
-      return bannerLayer(this.color());
+      return this.image() ? null : bannerLayer(this.color());
     }.bind(this),
   );
 }

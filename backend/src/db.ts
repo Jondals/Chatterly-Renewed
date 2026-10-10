@@ -175,6 +175,14 @@ CREATE TABLE IF NOT EXISTS image_keys (
   PRIMARY KEY (image_id, viewer_id)
 );
 
+-- The settings of a person, sealed in their browser (the server cannot read them): see routes/settings-sync.ts.
+CREATE TABLE IF NOT EXISTS settings_blobs (
+  user_id     TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  iv          TEXT NOT NULL,
+  ciphertext  TEXT NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS files (
   id           TEXT PRIMARY KEY,
   channel_id   TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -192,6 +200,8 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['users', 'banner_color', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'profile_color', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'name_font', "TEXT NOT NULL DEFAULT 'default'"],
+  // The animation of the name (see NAME_FX in routes/auth.ts).
+  ['users', 'name_fx', "TEXT NOT NULL DEFAULT 'none'"],
   ['users', 'aura_color', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'deleted_at', 'INTEGER'],
   ['guild_keys', 'wrapper_pub', 'TEXT'],

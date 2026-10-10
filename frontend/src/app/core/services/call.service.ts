@@ -461,6 +461,17 @@ export class CallService {
   }
 
   /** Called with what somebody else shared about Spinly (set by SpinlyService; the data is checked there). */
+  /** What was shared about the wheel or tournament before anybody was listening (it is handed over by `flushSpinly`). */
+  private readonly pendingSpinly: { from: string; share: { state?: unknown; fresh?: boolean } }[] =
+    [];
+
+  /** Hands over what arrived about the wheel or tournament while nobody was listening. */
+  flushSpinly(): void {
+    for (const item of this.pendingSpinly.splice(0)) {
+      this.onSpinlyShared?.(item.from, item.share);
+    }
+  }
+
   onSpinlyShared: ((from: string, share: { state?: unknown; fresh?: boolean }) => void) | null =
     null;
   /** Gives the wheel or tournament the call has right now, to tell whoever just joined (set by SpinlyService). */
@@ -1229,9 +1240,7 @@ export class CallService {
     // mic → voice chain (volume, rumble filter, clarity, leveler) → analyser (level meter) and → gate → outgoing track
     const chain = buildVoiceChain(ctx, {
       inputVolume: this.settings.inputVolume(),
-      cleanup: this.settings.voiceCleanup(),
-      leveler: this.settings.voiceLeveler(),
-      clarity: this.settings.voiceClarity(),
+      mode: this.settings.voiceMode(),
     });
     this.micSource.connect(chain.input);
     chain.output.connect(this.localAnalyser!);
@@ -1253,8 +1262,8 @@ export class CallService {
     const ownLevel = this.muted() ? 0 : this.rms(this.localAnalyser);
     levels[me] = ownLevel;
     let gateThreshold = (this.settings.inputGate() / 100) * 0.12;
-    // The strong cleanup learns how loud the room is when nobody speaks and keeps the gate above it.
-    if (this.settings.voiceCleanup() === 'strong') {
+    // The noisy-room mode learns how loud the room is when nobody speaks and keeps the gate above it.
+    if (this.settings.voiceMode() === 'noisy') {
       this.noiseFloor +=
         (Math.min(ownLevel, 0.2) - this.noiseFloor) * (ownLevel < this.noiseFloor ? 0.3 : 0.01);
       gateThreshold = Math.max(gateThreshold, this.noiseFloor * 2.2);
@@ -1714,7 +1723,11 @@ export class CallService {
     if (typeof body.sfx === 'string' && body.sfx.length <= 16 && !this.deafened()) {
       this.sound.sfx(body.sfx as SfxId);
     }
-    if (body.spinly) this.onSpinlyShared?.(link.userId, body.spinly);
+    if (body.spinly) {
+      // ? The part that listens (SpinlyService) is made when a screen asks for it: what arrives before is kept for it.
+      if (this.onSpinlyShared) this.onSpinlyShared(link.userId, body.spinly);
+      else this.pendingSpinly.push({ from: link.userId, share: body.spinly });
+    }
     // The key agreement must finish before any media (or answer) leaves this device.
     if (body.eph && !link.remoteEph) await this.agreeMediaKeys(link, body.eph);
     try {

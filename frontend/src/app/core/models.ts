@@ -28,7 +28,9 @@ export type AuraId =
   | 'glow'
   | 'ticks'
   | 'glitch'
-  | 'rainbow';
+  | 'rainbow'
+  | 'comet'
+  | 'nebula';
 
 export interface User {
   id: string;
@@ -48,6 +50,8 @@ export interface User {
   bannerColor: string;
   profileColor: string;
   nameFont: NameFont;
+  /** The animation of the name (see NAME_FX). */
+  nameFx?: string;
   avatarColor: string;
   publicKeys: PublicKeys;
   createdAt: number;

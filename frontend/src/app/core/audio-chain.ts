@@ -1,24 +1,25 @@
 /**
  * src/app/core/audio-chain.ts
- * The processing of the voice between the microphone and what is sent to the call (or to the test of the microphone):
- * volume of the input, a filter for low rumble, a clearer voice, and a leveler that evens out loud and quiet words.
- * The browser already offers noise suppression, echo cancellation and automatic gain (see the audio settings); this is
- * what comes after them, built with Web Audio nodes that run inside the audio thread (no cost for the page).
+ * The processing of the voice between the microphone and what is sent to the call (or to the test of the microphone).
+ * The browser already offers noise suppression, echo cancellation and automatic gain (see the audio settings); this is what
+ * comes after them, made with Web Audio nodes that run in the audio thread (no cost for the page).
+ *
+ * * The person chooses ONE mode, and each mode is a clear change that can be heard:
+ *   - off: the voice goes as it comes out of the microphone.
+ *   - natural: only the low rumble is cut (desks, fans, handling noise).
+ *   - noisy: for a room with noise (fan, keyboard, street): the rumble and the hiss are cut, the voice is narrower and the
+ *     microphone opens only for the voice (the call service learns how loud the room is and keeps the gate above it).
+ *   - studio: a voice like a podcast: less boominess, more presence and brightness, and loud and quiet words brought closer.
  */
 
-/** How strongly the unwanted sound around the voice is removed. */
-export type VoiceCleanup = 'off' | 'light' | 'strong';
-/** How much the loud and quiet parts of the voice are brought closer. */
-export type VoiceLeveler = 'off' | 'gentle' | 'strong';
+/** What is done to the voice. */
+export type VoiceMode = 'off' | 'natural' | 'noisy' | 'studio';
 
 /** What the person chose for the voice. */
 export interface VoiceOptions {
   /** Volume of the microphone in percent (100 is as it comes). */
   inputVolume: number;
-  cleanup: VoiceCleanup;
-  leveler: VoiceLeveler;
-  /** A little more presence in the voice and less boominess. */
-  clarity: boolean;
+  mode: VoiceMode;
 }
 
 /** The connected nodes: audio enters `input` and leaves through `output`. */
@@ -27,17 +28,61 @@ export interface VoiceChain {
   output: AudioNode;
 }
 
-/** Cut-off of the filter for low rumble (hum, desks, wind) for each level of cleanup. */
-const RUMBLE_CUTOFF: Record<VoiceCleanup, number> = { off: 0, light: 90, strong: 140 };
+/** The modes of the choice, with what each one does (the settings show these words). */
+export const VOICE_MODES: { id: VoiceMode; label: string; hint: string }[] = [
+  { id: 'off', label: 'Off', hint: 'Your voice goes as it comes out of the microphone.' },
+  {
+    id: 'natural',
+    label: 'Natural',
+    hint: 'Only cuts the low rumble of desks and fans. Your voice does not change.',
+  },
+  {
+    id: 'noisy',
+    label: 'Noisy room',
+    hint: 'For fans, keyboard or street: cuts rumble and hiss and opens the microphone only for your voice. It sounds a bit narrower.',
+  },
+  {
+    id: 'studio',
+    label: 'Studio',
+    hint: 'A podcast voice: less boominess, more presence and brightness, and loud and quiet words are brought closer.',
+  },
+];
 
-/** Compressor settings for each level of the leveler: threshold in dB, ratio and the speed of attack and release. */
-const LEVELER: Record<Exclude<VoiceLeveler, 'off'>, [number, number, number, number]> = {
-  gentle: [-26, 2.5, 0.01, 0.25],
-  strong: [-34, 5, 0.005, 0.2],
-};
+/** Adds a filter to the chain. */
+function filter(
+  context: BaseAudioContext,
+  type: BiquadFilterType,
+  frequency: number,
+  gain = 0,
+  q = 0.7,
+): BiquadFilterNode {
+  const node = context.createBiquadFilter();
+  node.type = type;
+  node.frequency.value = frequency;
+  node.gain.value = gain;
+  node.Q.value = q;
+  return node;
+}
+
+/** A compressor with the threshold (dB), the ratio, the attack and the release (seconds) given. */
+function compressor(
+  context: BaseAudioContext,
+  threshold: number,
+  ratio: number,
+  attack: number,
+  release: number,
+): DynamicsCompressorNode {
+  const node = context.createDynamicsCompressor();
+  node.threshold.value = threshold;
+  node.knee.value = 10;
+  node.ratio.value = ratio;
+  node.attack.value = attack;
+  node.release.value = release;
+  return node;
+}
 
 /**
- * Builds the chain of the voice. Nodes that are switched off are not created, so a plain setup is just a wire.
+ * Builds the chain of the voice. Nothing is created for what the mode does not use, so "off" is a plain wire.
  * @param context The audio context where it runs.
  * @param options What the person chose.
  */
@@ -49,47 +94,24 @@ export function buildVoiceChain(context: BaseAudioContext, options: VoiceOptions
     tail.connect(node);
     tail = node;
   };
-  const cutoff = RUMBLE_CUTOFF[options.cleanup];
-  if (cutoff > 0) {
-    const highpass = context.createBiquadFilter();
-    highpass.type = 'highpass';
-    highpass.frequency.value = cutoff;
-    highpass.Q.value = 0.7;
-    append(highpass);
-  }
-  if (options.cleanup === 'strong') {
-    // Hiss lives above the voice: a gentle fall from 9 kHz takes it away without making the voice dull.
-    const lowpass = context.createBiquadFilter();
-    lowpass.type = 'lowpass';
-    lowpass.frequency.value = 9000;
-    lowpass.Q.value = 0.5;
-    append(lowpass);
-  }
-  if (options.clarity) {
-    const body = context.createBiquadFilter();
-    body.type = 'lowshelf';
-    body.frequency.value = 220;
-    body.gain.value = -2.5;
-    append(body);
-    const presence = context.createBiquadFilter();
-    presence.type = 'peaking';
-    presence.frequency.value = 3200;
-    presence.Q.value = 0.9;
-    presence.gain.value = 3;
-    append(presence);
-  }
-  if (options.leveler !== 'off') {
-    const [threshold, ratio, attack, release] = LEVELER[options.leveler];
-    const compressor = context.createDynamicsCompressor();
-    compressor.threshold.value = threshold;
-    compressor.knee.value = 12;
-    compressor.ratio.value = ratio;
-    compressor.attack.value = attack;
-    compressor.release.value = release;
-    append(compressor);
-    // The compressor lowers the loud parts: this brings the whole voice back up to where it was.
+  if (options.mode === 'natural') {
+    append(filter(context, 'highpass', 110));
+  } else if (options.mode === 'noisy') {
+    append(filter(context, 'highpass', 240, 0, 0.9));
+    append(filter(context, 'lowpass', 5200, 0, 0.7));
+    append(filter(context, 'peaking', 1800, 3, 0.8));
+    append(compressor(context, -32, 3, 0.005, 0.2));
     const makeup = context.createGain();
-    makeup.gain.value = options.leveler === 'strong' ? 1.8 : 1.35;
+    makeup.gain.value = 1.5;
+    append(makeup);
+  } else if (options.mode === 'studio') {
+    append(filter(context, 'highpass', 90));
+    append(filter(context, 'lowshelf', 200, -4));
+    append(filter(context, 'peaking', 3200, 5, 0.9));
+    append(filter(context, 'highshelf', 7500, 3));
+    append(compressor(context, -34, 4.5, 0.004, 0.22));
+    const makeup = context.createGain();
+    makeup.gain.value = 2;
     append(makeup);
   }
   return { input: volume, output: tail };

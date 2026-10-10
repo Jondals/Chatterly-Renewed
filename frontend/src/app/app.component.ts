@@ -8,7 +8,7 @@ import { RouterOutlet } from '@angular/router';
 import { I18nService } from './core/i18n/i18n.service';
 import { ArrivalService } from './core/services/arrival.service';
 import { SettingsService } from './core/services/settings.service';
-import { SpinlyService } from './core/services/spinly.service';
+import { SettingsSyncService } from './core/services/settings-sync.service';
 import { SoundService } from './core/services/sound.service';
 import { ArrivalComponent } from './shared/components/arrival.component';
 import { MeshBackgroundComponent } from './shared/components/mesh-background.component';
@@ -79,9 +79,8 @@ export class AppComponent {
   protected readonly arrival = inject(ArrivalService);
   private readonly settings = inject(SettingsService);
   private readonly sound = inject(SoundService);
-  // ! Made at the start on purpose: it is the one that listens to the wheel or tournament of the call. Made only when a screen
-  // asked for it, a call joined from any other page lost what a friend had already started (the message arrived to nobody).
-  private readonly spinly = inject(SpinlyService);
+  // Made at the start: it brings the settings of the account when the person signs in, and keeps them.
+  private readonly settingsSync = inject(SettingsSyncService);
   private readonly i18n = inject(I18nService);
   private readonly injector = inject(Injector);
   private readonly wheelHandler = this.onWheel.bind(this);
@@ -130,6 +129,18 @@ export class AppComponent {
     this.injector.get(fonts.FontService);
     // From here on the real frames are measured: a device that stutters gets the light mode by itself.
     this.injector.get(NgZone).runOutsideAngular(watchFramePerformance);
+  }
+
+  /**
+   * ! A file dropped on any part of the page that does not take files would be OPENED by the browser (the page would be
+   * replaced by the file, and a console error appears: "cannot load or link to file:///"). Only the chat takes files.
+   */
+  @HostListener('document:dragover', ['$event'])
+  @HostListener('document:drop', ['$event'])
+  keepFilesOut(event: DragEvent): void {
+    if (event.dataTransfer?.types.includes('Files')) {
+      event.preventDefault();
+    }
   }
 
   /** The browser's own context menu is blocked everywhere (the app has its own menus). */

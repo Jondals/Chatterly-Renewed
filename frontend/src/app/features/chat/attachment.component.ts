@@ -20,6 +20,9 @@ import { formatBytes, formatDuration } from '../../shared/pipes/timestamp.pipe';
 import { IconComponent } from '../../shared/components/icon.component';
 import { MessageStore, type ViewAttachment } from '../../store/message.store';
 
+/** The speeds of a voice note or an audio. */
+const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
+
 /**
  * Renders one encrypted attachment. Bytes are fetched as ciphertext, decrypted in the browser and
  * checked against the SHA-256 that travelled inside the E2EE message before anything is shown.
@@ -125,11 +128,23 @@ import { MessageStore, type ViewAttachment } from '../../store/message.store';
                 ></span>
               }
             </div>
-            <div class="mt-0.5 flex justify-between font-mono text-[0.625rem] text-muted">
+            <div
+              class="mt-0.5 flex items-center justify-between font-mono text-[0.625rem] text-muted"
+            >
               <span>{{ elapsed() }}</span
               ><span>{{ total() }}</span>
             </div>
           </div>
+          <button
+            type="button"
+            class="btn btn-sm !h-7 min-w-[2.75rem] !px-2 font-mono text-[0.6875rem]"
+            [class.btn-active]="rate() !== 1"
+            [attr.title]="'Playback speed' | t"
+            [attr.aria-label]="'Playback speed' | t"
+            (click)="cycleRate()"
+          >
+            {{ rate() }}x
+          </button>
           @if (att().kind === 'audio' || att().kind === 'video') {
             <button
               class="btn btn-icon btn-sm"
@@ -220,6 +235,8 @@ export class AttachmentComponent implements OnDestroy {
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly adding = signal(false);
+  /** How fast the audio plays (the person chooses it with the button of the speed). */
+  protected readonly rate = signal(1);
   protected readonly lightbox = signal(false);
   protected readonly playing = signal(false);
   protected readonly progress = signal(0);
@@ -283,11 +300,22 @@ export class AttachmentComponent implements OnDestroy {
     const el = this.audioEl()?.nativeElement;
     if (!el) return;
     if (el.paused) {
+      el.playbackRate = this.rate();
       void el.play();
       this.playing.set(true);
     } else {
       el.pause();
       this.playing.set(false);
+    }
+  }
+
+  /** The next speed: 1, 1.25, 1.5, 2, 3, 5 and back to 1. */
+  protected cycleRate(): void {
+    const next = SPEEDS[(SPEEDS.indexOf(this.rate()) + 1) % SPEEDS.length]!;
+    this.rate.set(next);
+    const el = this.audioEl()?.nativeElement;
+    if (el) {
+      el.playbackRate = next;
     }
   }
 

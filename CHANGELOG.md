@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.22.0
+
+- **Your settings live on your account.** Sign in on the phone and everything is as on the computer. They are sealed in the browser with a key that comes from your identity before they leave it: the server keeps something it cannot read. The microphone, speakers, camera and the files you uploaded stay on each device. New section "Sync": keep several sets of settings (computer, phone...) and choose which one each device follows, or keep a device on its own.
+- **Name animations** (ten) in My profile: they play when the pointer is over the name or when you are in the chat, and are seen in the friends panel, direct messages and chats. Two new profile effects (comet and nebula).
+- **Watching videos together:** the YouTube player is fully hidden (no title, logo or more videos); the bar of the call seeks, and a cover shows play when paused. The permissions of the frame no longer print warnings.
+- **Your voice** is reworked: modes that are easy to hear and explained (microphone and camera folds in the call menu). The "hear yourself" option is gone: you hear yourself while you test the microphone.
+- **Mirror camera** follows the switch in real time; mouse options are hidden on mobile; sharing the screen starts directly with a press (right click for options).
+- **Audio speeds** 1.25, 1.5, 2, 3 and 5. Short messages no longer leave a wide bubble. A lone emoji is animated by mood (kiss, heart...). Stickers of the starter pack are animated.
+- **Soundboard:** same-size tiles, built-in and your own categories that fold like the emojis, and what is hidden is not drawn.
+- **Mobile:** the chat fills the screen, the helper text under the input is gone and the gradient menu is one line. The call has a minimized window that can be resized and shows who speaks; the music-together panel and the call can be minimized.
+- **About me:** the gradient menu is compact. Faster intro animation (a worker draws it off the main thread).
+- Fix: the server did not allow PUT from the browser (CORS), and "nothing saved yet" is an empty answer instead of a 404 so the console stays clean.
+- Tests: Firefox switch, real YouTube seek, camera stress, settings sync, name animations.
+
 ## 2.21.1
 
 - **The camera works when it is turned on while the other person has theirs on, and when it is turned off and on again.** The test of the app now reproduces what happened (a camera that was turned on while the other one was already on never reached the other person) and passes with the fix of 2.21.0: a camera or a screen goes through a new transceiver each time. The test turns the camera off and on four times at different speeds, then both cameras on at once, and turns both off and on together three times, and checks that each person sees the other one move every time.

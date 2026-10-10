@@ -21,6 +21,7 @@ import { registerSocialRoutes } from './routes/social';
 import { registerGuildRoutes } from './routes/guilds';
 import { registerMessageRoutes } from './routes/messages';
 import { registerImageRoutes } from './routes/images';
+import { registerSettingsSyncRoutes } from './routes/settings-sync';
 import { registerGifRoutes } from './routes/gifs';
 import { registerPreviewRoutes } from './routes/preview';
 import { registerSocket } from './ws/socket';
@@ -110,7 +111,7 @@ export async function buildApp(overrides: Partial<AppConfig> = {}) {
   });
   await app.register(cors, {
     origin: config.corsOrigins,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     maxAge: 600,
   });
@@ -193,6 +194,7 @@ export async function buildApp(overrides: Partial<AppConfig> = {}) {
   registerGuildRoutes(app, ctx);
   registerMessageRoutes(app, ctx);
   registerImageRoutes(app, ctx);
+  registerSettingsSyncRoutes(app, ctx);
   registerGifRoutes(app, ctx);
   registerPreviewRoutes(app, ctx);
   registerSocket(app, ctx);

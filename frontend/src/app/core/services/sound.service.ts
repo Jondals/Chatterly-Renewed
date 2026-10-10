@@ -140,7 +140,7 @@ export class SoundService {
 
   /** Starts loading the sounds of the interface when the browser is idle (no press of the person is needed for it). */
   preload(): void {
-    if (!this.audible) {
+    if (!this.supported) {
       return;
     }
     if (this.settings.sounds()) {
@@ -189,10 +189,20 @@ export class SoundService {
     return this.master!;
   }
 
-  /** True when the browser can make sounds with the page (a browser without Web Audio simply stays silent). */
-  private get audible(): boolean {
+  /** True when the browser has Web Audio at all (decoding the files needs no press of the person). */
+  private get supported(): boolean {
     return (
       typeof window !== 'undefined' && ('AudioContext' in window || 'webkitAudioContext' in window)
+    );
+  }
+
+  /**
+   * True when a sound can be played now: the browser has Web Audio and the person has already pressed something on the page
+   * (before that, an audio context may not start and the browser writes a warning for each try).
+   */
+  private get audible(): boolean {
+    return (
+      this.supported && (!!this.audioContext || (navigator.userActivation?.hasBeenActive ?? true))
     );
   }
 
@@ -254,7 +264,7 @@ export class SoundService {
 
   /** Decodes a clip of the soundboard in advance, so that its first press already sounds. */
   async warmClip(key: string, blob: Blob): Promise<void> {
-    if (!this.audible || this.clips.has(key)) {
+    if (!this.supported || this.clips.has(key)) {
       return;
     }
     try {

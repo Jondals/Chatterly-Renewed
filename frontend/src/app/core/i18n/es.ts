@@ -1421,4 +1421,63 @@ export const ES: Record<string, string> = {
   'Share as a pack': 'Compartir como pack',
   'Open a chat to send it there.': 'Abre un chat para enviarlo ahí.',
   'Sent to the chat': 'Enviado al chat',
+  'Playback speed': 'Velocidad de reproducción',
+  'Your voice goes as it comes out of the microphone.': 'Tu voz sale tal como sale del micrófono.',
+  'Natural': 'Natural',
+  'Only cuts the low rumble of desks and fans. Your voice does not change.':
+    'Solo corta el retumbar grave de mesas y ventiladores. Tu voz no cambia.',
+  'Noisy room': 'Habitación con ruido',
+  'For fans, keyboard or street: cuts rumble and hiss and opens the microphone only for your voice. It sounds a bit narrower.':
+    'Para ventiladores, teclado o calle: corta el retumbar y el siseo y abre el micrófono solo con tu voz. Suena algo más estrecha.',
+  'Studio': 'Estudio',
+  'A podcast voice: less boominess, more presence and brightness, and loud and quiet words are brought closer.':
+    'Voz de pódcast: menos graves, más presencia y brillo, y las palabras fuertes y flojas se acercan.',
+  'Voice mode': 'Modo de voz',
+  'Press "Test microphone" and you hear yourself with the mode on: change it and listen to the difference.':
+    'Pulsa «Probar micrófono» y te oyes con el modo puesto: cámbialo y escucha la diferencia.',
+  'Default sounds': 'Por defecto',
+  'Custom sounds': 'Personalizados',
+  'Name animation': 'Animación del nombre',
+  'It plays when the pointer is over your name, and all the time in the chat.':
+    'Se activa al pasar el ratón por tu nombre, y siempre en el chat.',
+  'Float': 'Flotar',
+  'Bounce': 'Rebotar',
+  'Shake': 'Temblar',
+  'Swing': 'Balancearse',
+  'Flip': 'Voltear',
+  'The name stays still.': 'El nombre se queda quieto.',
+  'It floats up and down, softly.': 'Flota arriba y abajo, suavemente.',
+  'It hops.': 'Da saltitos.',
+  'It grows and shrinks like a heartbeat.': 'Crece y se encoge como un latido.',
+  'It trembles.': 'Tiembla.',
+  'It swings like a sign.': 'Se balancea como un cartel.',
+  'A light that breathes around it.': 'Una luz que respira a su alrededor.',
+  'A neon sign that flickers.': 'Un letrero de neón que parpadea.',
+  'It breaks in colored copies.': 'Se parte en copias de colores.',
+  'It turns over now and then.': 'Se da la vuelta de vez en cuando.',
+  'A star twinkles next to it.': 'Una estrella centellea a su lado.',
+  'Minimize the call': 'Minimizar la llamada',
+  'Back to the call': 'Volver a la llamada',
+  'Sync': 'Sincronización',
+  'Your settings are encrypted before they leave this device.':
+    'Tus ajustes se cifran antes de salir de este dispositivo.',
+  'They are sealed with a key that comes from your identity: the server only keeps something it cannot read. The microphone, the speakers, the camera and the files you uploaded (fonts, cursors) stay on each device.':
+    'Se sellan con una clave que sale de tu identidad: el servidor solo guarda algo que no puede leer. El micrófono, los altavoces, la cámara y los archivos que subiste (fuentes, cursores) se quedan en cada dispositivo.',
+  'This device': 'Este dispositivo',
+  'Saved in your account.': 'Guardado en tu cuenta.',
+  'Could not reach your account. The settings stay on this device and are tried again.':
+    'No se pudo llegar a tu cuenta. Los ajustes se quedan en este dispositivo y se vuelve a intentar.',
+  'Your sets of settings': 'Tus juegos de ajustes',
+  'Keep different settings (one for the computer, one for the phone...) and choose the one each device follows.':
+    'Ten ajustes distintos (uno para el ordenador, otro para el móvil...) y elige cuál sigue cada dispositivo.',
+  'New set from these settings': 'Nuevo juego con estos ajustes',
+  'New set of settings': 'Nuevo juego de ajustes',
+  'It starts with the settings this device has now, and this device follows it.':
+    'Empieza con los ajustes que tiene ahora este dispositivo, y este dispositivo lo sigue.',
+  'The name of this set of settings.': 'El nombre de este juego de ajustes.',
+  'Settings of this device': 'Ajustes de este dispositivo',
+  'Follow your account, and everything you change here is saved there; or keep this device on its own.':
+    'Sigue tu cuenta, y todo lo que cambies aquí se guarda allí; o deja este dispositivo por su cuenta.',
+  'My account': 'Mi cuenta',
+  'Only this device': 'Solo este dispositivo',
 };

@@ -1,0 +1,324 @@
+/**
+ * src/app/core/services/settings-sync.service.ts
+ * The settings of the person on their account: sign in on a phone and everything is as on the computer. The person can also
+ * keep several sets of settings ("profiles": for example one for the computer and one for the phone) and choose, on each
+ * device, which one that device follows, or not follow any (settings that stay on that device only).
+ *
+ * * The server only gets a sealed blob (see backend routes/settings-sync.ts): the settings are encrypted here with a key that
+ * comes from the identity of the person, so the server cannot read them. What belongs to one device (the chosen microphone,
+ * the cursor files, the fonts that were uploaded) is never sent.
+ * ? The settings are compared a few seconds apart and saved when something changed (there are dozens of signals; looking at
+ * them all together is simpler and cheaper than watching each one).
+ */
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { toB64 } from '../crypto/bytes';
+import { derivePairKey, openBytes, sealBytes } from '../crypto/pairwise';
+import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
+import { applyPersisted, persisted, snapshotPersisted } from './persisted';
+
+/** Settings that belong to one device (never copied to the account). */
+const DEVICE_ONLY = new Set([
+  'pref.inputDevice',
+  'pref.outputDevice',
+  'pref.cameraDevice',
+  'pref.customCursors',
+  'pref.customFontName',
+  'pref.customNameFontName',
+  'pref.ringtoneName',
+  'pref.clickName',
+]);
+
+/** The most a single setting may weigh when it is JSON (a big one is a file and stays where it is). */
+const MAX_SETTING_CHARS = 20_000;
+/** How often the settings are compared. */
+const CHECK_EVERY_MS = 4000;
+/** A little name for the first set of settings. */
+const FIRST_PROFILE = 'main';
+
+/** One set of settings. */
+interface Profile {
+  name: string;
+  prefs: Record<string, unknown>;
+}
+
+/** What is sealed and stored. */
+interface SettingsBlob {
+  v: 1;
+  profiles: Record<string, Profile>;
+}
+
+/** Whether the settings of this device follow the account. */
+export type SyncMode = 'account' | 'device';
+
+/** Keeps the settings of the person on their account. */
+@Injectable({ providedIn: 'root' })
+export class SettingsSyncService {
+  private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+
+  /** Whether this device follows the account or keeps its own settings. */
+  readonly mode = persisted<SyncMode>('sync.mode', 'account');
+  /** The set of settings this device follows. */
+  readonly active = persisted<string>('sync.profile', FIRST_PROFILE);
+  /** The sets of settings of the account (id and name). */
+  readonly profiles = signal<{ id: string; name: string }[]>([]);
+  /** What is happening: nothing, saving, saved, or a problem. */
+  readonly status = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  private blob: SettingsBlob = { v: 1, profiles: {} };
+  /** The version of the account that this device has seen (0: none yet). */
+  private base = 0;
+  private lastSent = '';
+  private timer: ReturnType<typeof setInterval> | undefined;
+  private ready = false;
+  private working = false;
+
+  constructor() {
+    effect(this.follow.bind(this));
+  }
+
+  /** Starts when a person is signed in and stops when not. */
+  private follow(): void {
+    if (this.auth.isAuthenticated()) {
+      untracked(this.start.bind(this));
+    } else {
+      untracked(this.stop.bind(this));
+    }
+  }
+
+  /** The settings that go to the account: the persisted ones, except the ones of this device and the big ones. */
+  private snapshot(): Record<string, unknown> {
+    const values = snapshotPersisted(function wanted(key) {
+      return !key.startsWith('sync.') && !DEVICE_ONLY.has(key);
+    });
+    for (const [key, value] of Object.entries(values)) {
+      if (JSON.stringify(value).length > MAX_SETTING_CHARS) {
+        delete values[key];
+      }
+    }
+    return values;
+  }
+
+  /** The key that seals the settings: it comes from the identity of the person (the pair key of the person with themselves). */
+  private async key(): Promise<CryptoKey> {
+    const identity = this.auth.identity;
+    return derivePairKey(
+      identity.ecdhPrivate,
+      identity.publicKeys.ecdh,
+      identity.publicKeys.ecdh,
+      'settings',
+    );
+  }
+
+  /** Reads the sealed settings of the account (null when there are none). */
+  private async download(): Promise<{ blob: SettingsBlob; version: number } | null> {
+    const answer = await this.api.get<{
+      empty?: boolean;
+      iv: string;
+      ciphertext: string;
+      updatedAt: number;
+    }>('/api/me/settings');
+    if (answer.empty) {
+      return null;
+    }
+    const plain = await openBytes(
+      await this.key(),
+      { iv: answer.iv, ciphertext: answer.ciphertext },
+      'settings',
+    );
+    const parsed = JSON.parse(new TextDecoder().decode(plain)) as SettingsBlob;
+    if (parsed?.v !== 1 || typeof parsed.profiles !== 'object') {
+      throw new Error('unknown settings');
+    }
+    return { blob: parsed, version: answer.updatedAt };
+  }
+
+  /** Seals the settings and saves them. Returns the new version, or null when another device saved first. */
+  private async upload(blob: SettingsBlob): Promise<number | null> {
+    const plain = new TextEncoder().encode(JSON.stringify(blob));
+    const sealed = await sealBytes(await this.key(), plain, 'settings');
+    try {
+      const answer = await this.api.put<{ updatedAt: number }>('/api/me/settings', {
+        iv: sealed.iv,
+        ciphertext: sealed.ciphertext,
+        base: this.base,
+      });
+      return answer.updatedAt;
+    } catch (error) {
+      if ((error as { status?: number }).status === 409) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /** Loads the settings of the account when the person signs in, and starts to keep them. */
+  private async start(): Promise<void> {
+    if (this.ready || this.working) {
+      return;
+    }
+    this.working = true;
+    try {
+      const found = await this.download();
+      if (found) {
+        this.blob = found.blob;
+        this.base = found.version;
+      }
+      this.listProfiles();
+      if (this.mode() === 'account') {
+        const mine = this.blob.profiles[this.active()];
+        if (mine) {
+          this.applyProfile(mine);
+        } else {
+          await this.save();
+        }
+      }
+      this.lastSent = JSON.stringify(this.snapshot());
+      this.ready = true;
+      clearInterval(this.timer);
+      this.timer = setInterval(this.check.bind(this), CHECK_EVERY_MS);
+    } catch {
+      // No connection or a copy that cannot be read: the device keeps working with its own settings, and it tries at the next sign in.
+      this.status.set('error');
+    } finally {
+      this.working = false;
+    }
+  }
+
+  /** Stops (the person signed out). */
+  private stop(): void {
+    clearInterval(this.timer);
+    this.ready = false;
+    this.base = 0;
+    this.blob = { v: 1, profiles: {} };
+    this.profiles.set([]);
+    this.status.set('idle');
+  }
+
+  /** Makes the list of the sets of settings of the account. */
+  private listProfiles(): void {
+    this.profiles.set(
+      Object.entries(this.blob.profiles).map(function entry([id, profile]) {
+        return { id, name: profile.name };
+      }),
+    );
+  }
+
+  /** Puts the settings of a set on this device. */
+  private applyProfile(profile: Profile): void {
+    applyPersisted(profile.prefs);
+    this.lastSent = JSON.stringify(this.snapshot());
+  }
+
+  /** Saves when something changed since the last time. */
+  private async check(): Promise<void> {
+    if (!this.ready || this.working || this.mode() !== 'account') {
+      return;
+    }
+    const now = JSON.stringify(this.snapshot());
+    if (now !== this.lastSent) {
+      await this.save();
+    }
+  }
+
+  /** Saves the settings of this device in the set it follows (loading the account again first if another device saved). */
+  async save(): Promise<void> {
+    if (this.mode() !== 'account') {
+      return;
+    }
+    this.working = true;
+    this.status.set('saving');
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const name = this.blob.profiles[this.active()]?.name ?? this.nameFor(this.active());
+        this.blob.profiles[this.active()] = { name, prefs: this.snapshot() };
+        const version = await this.upload(this.blob);
+        if (version !== null) {
+          this.base = version;
+          this.lastSent = JSON.stringify(this.snapshot());
+          this.listProfiles();
+          this.status.set('saved');
+          return;
+        }
+        // Another device saved first: its sets are taken, and this device's own set goes on top.
+        const found = await this.download();
+        if (found) {
+          const mine = this.blob.profiles[this.active()];
+          this.blob = found.blob;
+          this.base = found.version;
+          if (mine) {
+            this.blob.profiles[this.active()] = mine;
+          }
+        }
+      }
+      this.status.set('error');
+    } catch {
+      this.status.set('error');
+    } finally {
+      this.working = false;
+    }
+  }
+
+  /** A name for a set that has none yet. */
+  private nameFor(id: string): string {
+    return id === FIRST_PROFILE ? 'Main' : id.slice(0, 20);
+  }
+
+  /** The device follows the account (and saves to it now) or keeps its own settings. */
+  async setMode(mode: SyncMode): Promise<void> {
+    this.mode.set(mode);
+    if (mode === 'account' && this.ready) {
+      const mine = this.blob.profiles[this.active()];
+      if (mine) {
+        this.applyProfile(mine);
+      } else {
+        await this.save();
+      }
+    }
+  }
+
+  /** The device follows another set of settings: its settings become that set's. */
+  async switchTo(id: string): Promise<void> {
+    const profile = this.blob.profiles[id];
+    if (!profile) {
+      return;
+    }
+    // what was changed on this device and not saved yet goes to the set it was following
+    await this.save();
+    this.active.set(id);
+    this.applyProfile(profile);
+  }
+
+  /** Makes a new set with the settings this device has now, and follows it. */
+  async create(name: string): Promise<void> {
+    const clean = name.trim().slice(0, 20);
+    if (!clean || Object.keys(this.blob.profiles).length >= 8) {
+      return;
+    }
+    await this.save();
+    const id = toB64(crypto.getRandomValues(new Uint8Array(6))).replace(/[^A-Za-z0-9]/g, 'x');
+    this.blob.profiles[id] = { name: clean, prefs: this.snapshot() };
+    this.active.set(id);
+    await this.save();
+  }
+
+  /** Changes the name of a set. */
+  async rename(id: string, name: string): Promise<void> {
+    const profile = this.blob.profiles[id];
+    const clean = name.trim().slice(0, 20);
+    if (profile && clean) {
+      profile.name = clean;
+      await this.save();
+    }
+  }
+
+  /** Deletes a set (the one this device follows cannot be deleted, and there is always one). */
+  async remove(id: string): Promise<void> {
+    if (id === this.active() || !this.blob.profiles[id]) {
+      return;
+    }
+    delete this.blob.profiles[id];
+    await this.save();
+  }
+}

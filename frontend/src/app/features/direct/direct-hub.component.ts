@@ -16,6 +16,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { PageHeaderComponent } from '../../shared/components/page-header.component';
@@ -37,6 +38,7 @@ type Tab = 'online' | 'all' | 'pending';
   imports: [
     NameColorDirective,
     UserFontDirective,
+    NameFxDirective,
     AvatarComponent,
     IconComponent,
     ModalComponent,
@@ -168,6 +170,7 @@ type Tab = 'online' | 'all' | 'pending';
                             class="truncate text-[0.9375rem] font-semibold"
                             [appNameColor]="u.profileColor"
                             [appUserFont]="u.nameFont"
+                            [nameFx]="u.nameFx"
                           >
                             {{ u.displayName }}
                           </div>
@@ -220,6 +223,7 @@ type Tab = 'online' | 'all' | 'pending';
                             class="truncate text-[0.9375rem] font-semibold"
                             [appNameColor]="u.profileColor"
                             [appUserFont]="u.nameFont"
+                            [nameFx]="u.nameFx"
                           >
                             {{ u.displayName }}
                           </div>
@@ -282,6 +286,7 @@ type Tab = 'online' | 'all' | 'pending';
                           [class]="nameClass(u)"
                           [appNameColor]="u.profileColor"
                           [appUserFont]="u.nameFont"
+                          [nameFx]="u.nameFx"
                         >
                           {{ u.displayName }}
                         </div>
@@ -421,6 +426,7 @@ type Tab = 'online' | 'all' | 'pending';
                 class="min-w-0 flex-1 truncate"
                 [appNameColor]="u.profileColor"
                 [appUserFont]="u.nameFont"
+                [nameFx]="u.nameFx"
                 >{{ u.displayName }}
                 <span class="text-xs text-muted">&#64;{{ u.username }}</span></span
               >

@@ -48,7 +48,7 @@ import { SoundboardDockComponent } from './soundboard-dock.component';
   ],
   template: `
     <div
-      class="flex h-dvh gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] max-sm:p-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))] max-sm:pl-[max(0.25rem,env(safe-area-inset-left))] max-sm:pr-[max(0.25rem,env(safe-area-inset-right))] max-sm:pt-[max(0.25rem,env(safe-area-inset-top))]"
+      class="flex h-dvh gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] max-sm:p-1 max-sm:pb-[max(0.125rem,calc(env(safe-area-inset-bottom)*0.45))] max-sm:pl-[max(0.25rem,env(safe-area-inset-left))] max-sm:pr-[max(0.25rem,env(safe-area-inset-right))] max-sm:pt-[max(0.25rem,env(safe-area-inset-top))]"
     >
       <!-- On narrow screens the navigation becomes a slide-in drawer -->
       @if (ui.sidebarOpen()) {

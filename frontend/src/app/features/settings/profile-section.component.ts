@@ -71,9 +71,12 @@ const AURAS: { id: AuraId; label: string; colors: boolean }[] = [
   { id: 'ticks', label: 'Ticks', colors: true },
   { id: 'glitch', label: 'Glitch', colors: true },
   { id: 'rainbow', label: 'Rainbow', colors: false },
+  { id: 'comet', label: 'Comet', colors: true },
+  { id: 'nebula', label: 'Nebula', colors: true },
 ];
 
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
 @Component({
   selector: 'app-profile-section',
   standalone: true,
@@ -81,6 +84,7 @@ import { UserFontDirective } from '../../shared/util/user-font.directive';
   imports: [
     GradientControlsComponent,
     UserFontDirective,
+    NameFxDirective,
     AvatarComponent,
     BannerComponent,
     NameColorDirective,
@@ -143,45 +147,47 @@ import { UserFontDirective } from '../../shared/util/user-font.directive';
             </div>
           </div>
 
-          <div class="mt-3 rounded-ui-lg border border-white/8 bg-black/10 p-3">
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="text-xs font-semibold text-muted">{{ 'Banner color' | t }}</span>
-              @if (!bannerState()?.gradient) {
-                <app-color-picker
-                  [value]="bannerState()?.from ?? ''"
-                  [size]="26"
-                  label="Banner color"
-                  (valueChange)="setBanner({ from: $event })"
-                />
-              }
-              <label class="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
-                <input
-                  type="checkbox"
-                  class="accent-[var(--accent)]"
-                  [checked]="!!bannerState()?.gradient"
-                  (change)="toggleGradient($any($event.target).checked)"
-                />
-                {{ 'Gradient' | t }}
-              </label>
-              <span class="flex-1"></span>
-              @if (draft().bannerColor) {
-                <button
-                  type="button"
-                  class="text-xs text-muted underline hover:text-fg"
-                  (click)="patch({ bannerColor: '' })"
-                >
-                  {{ 'Reset' | t }}
-                </button>
+          @if (!me()?.bannerImage) {
+            <div class="mt-3 rounded-ui-lg border border-white/8 bg-black/10 p-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-xs font-semibold text-muted">{{ 'Banner color' | t }}</span>
+                @if (!bannerState()?.gradient) {
+                  <app-color-picker
+                    [value]="bannerState()?.from ?? ''"
+                    [size]="26"
+                    label="Banner color"
+                    (valueChange)="setBanner({ from: $event })"
+                  />
+                }
+                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    class="accent-[var(--accent)]"
+                    [checked]="!!bannerState()?.gradient"
+                    (change)="toggleGradient($any($event.target).checked)"
+                  />
+                  {{ 'Gradient' | t }}
+                </label>
+                <span class="flex-1"></span>
+                @if (draft().bannerColor) {
+                  <button
+                    type="button"
+                    class="text-xs text-muted underline hover:text-fg"
+                    (click)="patch({ bannerColor: '' })"
+                  >
+                    {{ 'Reset' | t }}
+                  </button>
+                }
+              </div>
+              @if (bannerState(); as b) {
+                @if (b.gradient) {
+                  <div class="mt-3">
+                    <app-gradient-controls [parts]="b" (changed)="setBanner($event)" />
+                  </div>
+                }
               }
             </div>
-            @if (bannerState(); as b) {
-              @if (b.gradient) {
-                <div class="mt-3">
-                  <app-gradient-controls [parts]="b" (changed)="setBanner($event)" />
-                </div>
-              }
-            }
-          </div>
+          }
         </section>
 
         <!-- Style -->
@@ -199,6 +205,8 @@ import { UserFontDirective } from '../../shared/util/user-font.directive';
                 [class]="draft().nameFont === 'default' ? '' : 'font-name-' + draft().nameFont"
                 [appNameColor]="draft().profileColor"
                 [appUserFont]="draft().nameFont"
+                [nameFx]="draft().nameFx"
+                [fxLive]="true"
                 fallback="var(--fg)"
                 >{{ draft().displayName || 'Name' }}</span
               >
@@ -327,6 +335,39 @@ import { UserFontDirective } from '../../shared/util/user-font.directive';
                   </div>
                 }
               }
+              <div>
+                <app-collapse title="Name animation" [summary]="currentNameFx()">
+                  <p class="mb-3 text-xs text-muted">
+                    {{
+                      'It plays when the pointer is over your name, and all the time in the chat.'
+                        | t
+                    }}
+                  </p>
+                  <div class="grid grid-cols-3 gap-2.5">
+                    @for (fx of nameEffects; track fx.id) {
+                      <button
+                        type="button"
+                        class="choice-card !items-center !gap-2 !px-1.5 !py-4 text-center"
+                        [class.is-on]="draft().nameFx === fx.id"
+                        [attr.title]="fx.hint | t"
+                        (click)="patch({ nameFx: fx.id })"
+                      >
+                        <span
+                          class="max-w-full truncate text-base font-semibold"
+                          [class]="
+                            draft().nameFont === 'default' ? '' : 'font-name-' + draft().nameFont
+                          "
+                          [appNameColor]="draft().profileColor"
+                          [nameFx]="fx.id"
+                          [fxLive]="true"
+                          >{{ draft().displayName || 'Name' }}</span
+                        >
+                        <span class="text-[0.6875rem] text-muted">{{ fx.label | t }}</span>
+                      </button>
+                    }
+                  </div>
+                </app-collapse>
+              </div>
               <div>
                 <app-collapse title="Profile effect" [summary]="currentAura()">
                   <span preview
@@ -549,45 +590,40 @@ import { UserFontDirective } from '../../shared/util/user-font.directive';
                   </div>
                 }
                 @if (bioPanel() === 'gradient') {
-                  <div class="anim-fade-up m-2 rounded-ui border border-white/10 bg-ink-900/60 p-3">
-                    <div class="label mb-2">{{ 'Pick a gradient for the selected text' | t }}</div>
-                    <div class="grid grid-cols-4 gap-2">
-                      @for (g of quickGradients; track g.name) {
-                        <button
-                          class="h-7 rounded-full ring-1 ring-white/20 transition-transform hover:scale-105"
-                          [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
-                          type="button"
-                          (mousedown)="$event.preventDefault()"
-                          (click)="
-                            wrapBio('[g=' + g.colors.join(',') + ']', '[/g]'); bioPanel.set(null)
-                          "
-                          [attr.title]="g.name | t"
-                          [attr.aria-label]="g.name | t"
-                        ></button>
-                      }
-                    </div>
-                    <div
-                      class="mt-3 flex items-center gap-2 border-t border-white/8 pt-3 text-xs text-muted"
-                    >
-                      <div class="min-w-0 flex-1">
-                        <app-gradient-controls
-                          [parts]="bioGradient()"
-                          [showAngle]="false"
-                          [showPosition]="false"
-                          (changed)="setBioGradient($event)"
-                        />
-                      </div>
-                    </div>
-                    <div class="mt-3 flex justify-end">
+                  <div
+                    class="anim-fade-up m-2 flex flex-wrap items-center gap-2 rounded-ui border border-white/10 bg-ink-900/60 px-2.5 py-2"
+                  >
+                    @for (g of quickGradients; track g.name) {
                       <button
+                        class="h-5 w-8 rounded-full ring-1 ring-white/20 transition-transform hover:scale-110"
+                        [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
                         type="button"
-                        class="btn btn-sm btn-primary"
                         (mousedown)="$event.preventDefault()"
-                        (click)="applyBioGradient()"
-                      >
-                        {{ 'Apply' | t }}
-                      </button>
+                        (click)="
+                          wrapBio('[g=' + g.colors.join(',') + ']', '[/g]'); bioPanel.set(null)
+                        "
+                        [attr.title]="g.name | t"
+                        [attr.aria-label]="g.name | t"
+                      ></button>
+                    }
+                    <span class="mx-0.5 h-5 w-px bg-white/10"></span>
+                    <div class="min-w-[11rem] flex-1">
+                      <app-gradient-controls
+                        [compact]="true"
+                        [parts]="bioGradient()"
+                        [showAngle]="false"
+                        [showPosition]="false"
+                        (changed)="setBioGradient($event)"
+                      />
                     </div>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-primary"
+                      (mousedown)="$event.preventDefault()"
+                      (click)="applyBioGradient()"
+                    >
+                      {{ 'Apply' | t }}
+                    </button>
                   </div>
                 }
 
@@ -660,6 +696,9 @@ export class ProfileSectionComponent {
   private readonly kept = inject(ProfileDraftStore);
 
   protected readonly fonts = FONTS;
+  protected readonly nameEffects = NAME_FX;
+  /** The label of the animation of the name that is chosen. */
+  protected readonly currentNameFx = computed(this.findNameFx.bind(this));
   protected readonly auras = AURAS;
   protected readonly me = this.auth.user;
   protected readonly draft = signal<Draft>(this.fromUser(this.auth.user()));
@@ -776,11 +815,22 @@ export class ProfileSectionComponent {
       statusText: user?.statusText ?? '',
       bio: user?.bio ?? '',
       nameFont: user?.nameFont ?? 'default',
+      nameFx: user?.nameFx ?? 'none',
       profileColor: user?.profileColor ?? '',
       bannerColor: user?.bannerColor ?? '',
       aura: user?.aura ?? 'prism',
       auraColor: user?.auraColor ?? '',
     };
+  }
+
+  /** Label of the chosen animation of the name. */
+  private findNameFx(): string {
+    const id = this.draft().nameFx;
+    return (
+      NAME_FX.find(function same(fx) {
+        return fx.id === id;
+      })?.label ?? 'None'
+    );
   }
 
   /** Label of the chosen name font. */

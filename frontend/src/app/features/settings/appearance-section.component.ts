@@ -683,232 +683,240 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
       </div>
     </section>
 
-    <section class="settings-card">
-      <h2 class="settings-card-title">{{ 'Cursor' | t }}</h2>
-      <app-collapse title="Mouse cursor" [summary]="currentCursor()">
-        <span preview class="flex gap-1">
-          <span
-            class="h-7 w-7"
-            [style.background-image]="previewUrl('default', s.cursor())"
-            style="background-size: contain; background-repeat: no-repeat; background-position: center"
-          ></span>
-          <span
-            class="h-7 w-7"
-            [style.background-image]="previewUrl('pointer', s.cursor())"
-            style="background-size: contain; background-repeat: no-repeat; background-position: center"
-          ></span>
-        </span>
-        <h4 class="label mb-2.5">{{ 'Shape' | t }}</h4>
-        <div class="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          @for (c of cursors; track c.id) {
-            <button
-              type="button"
-              class="flex flex-col items-center gap-1.5 rounded-ui border px-2 py-3 text-xs hover:bg-white/5"
-              [class.border-accent]="s.cursor() === c.id"
-              [class.bg-accent/10]="s.cursor() === c.id"
-              [class.border-white/10]="s.cursor() !== c.id"
-              (click)="s.cursor.set(c.id)"
-            >
-              @if (c.id === 'system') {
-                <app-icon name="cursor" [size]="26" class="text-muted" />
-              } @else {
-                <span class="flex gap-1.5">
-                  <span
-                    class="h-8 w-8"
-                    [style.background-image]="previewUrl('default', c.id)"
-                    style="background-size: contain; background-repeat: no-repeat; background-position: center"
-                  ></span>
-                  <span
-                    class="h-8 w-8"
-                    [style.background-image]="previewUrl('pointer', c.id)"
-                    style="background-size: contain; background-repeat: no-repeat; background-position: center"
-                  ></span>
-                </span>
-              }
-              {{ c.label | t }}
-            </button>
-          }
-        </div>
+    <!-- a phone has no mouse: nothing to choose about the cursor -->
+    @if (hasMouse) {
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'Cursor' | t }}</h2>
+        <app-collapse title="Mouse cursor" [summary]="currentCursor()">
+          <span preview class="flex gap-1">
+            <span
+              class="h-7 w-7"
+              [style.background-image]="previewUrl('default', s.cursor())"
+              style="background-size: contain; background-repeat: no-repeat; background-position: center"
+            ></span>
+            <span
+              class="h-7 w-7"
+              [style.background-image]="previewUrl('pointer', s.cursor())"
+              style="background-size: contain; background-repeat: no-repeat; background-position: center"
+            ></span>
+          </span>
+          <h4 class="label mb-2.5">{{ 'Shape' | t }}</h4>
+          <div class="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            @for (c of cursors; track c.id) {
+              <button
+                type="button"
+                class="flex flex-col items-center gap-1.5 rounded-ui border px-2 py-3 text-xs hover:bg-white/5"
+                [class.border-accent]="s.cursor() === c.id"
+                [class.bg-accent/10]="s.cursor() === c.id"
+                [class.border-white/10]="s.cursor() !== c.id"
+                (click)="s.cursor.set(c.id)"
+              >
+                @if (c.id === 'system') {
+                  <app-icon name="cursor" [size]="26" class="text-muted" />
+                } @else {
+                  <span class="flex gap-1.5">
+                    <span
+                      class="h-8 w-8"
+                      [style.background-image]="previewUrl('default', c.id)"
+                      style="background-size: contain; background-repeat: no-repeat; background-position: center"
+                    ></span>
+                    <span
+                      class="h-8 w-8"
+                      [style.background-image]="previewUrl('pointer', c.id)"
+                      style="background-size: contain; background-repeat: no-repeat; background-position: center"
+                    ></span>
+                  </span>
+                }
+                {{ c.label | t }}
+              </button>
+            }
+          </div>
 
-        <h4 class="label mb-2.5">{{ 'Behavior' | t }}</h4>
-        <div
-          class="mb-7 divide-y divide-white/6 overflow-hidden rounded-ui-lg border border-white/8 bg-black/15"
-        >
-          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-            <div>
-              <div class="text-sm font-medium">{{ 'Animation' | t }}</div>
-              <div class="text-xs text-muted">
-                {{ 'The cursor pulses with an outline around its shape.' | t }}
+          <h4 class="label mb-2.5">{{ 'Behavior' | t }}</h4>
+          <div
+            class="mb-7 divide-y divide-white/6 overflow-hidden rounded-ui-lg border border-white/8 bg-black/15"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+              <div>
+                <div class="text-sm font-medium">{{ 'Animation' | t }}</div>
+                <div class="text-xs text-muted">
+                  {{ 'The cursor pulses with an outline around its shape.' | t }}
+                </div>
               </div>
+              <app-segmented
+                [options]="animations"
+                [value]="s.cursorAnimated() ? 'on' : 'off'"
+                (valueChange)="s.cursorAnimated.set($event === 'on')"
+              />
             </div>
-            <app-segmented
-              [options]="animations"
-              [value]="s.cursorAnimated() ? 'on' : 'off'"
-              (valueChange)="s.cursorAnimated.set($event === 'on')"
-            />
-          </div>
-          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-            <div>
-              <div class="text-sm font-medium">{{ 'Trail' | t }}</div>
-              <div class="text-xs text-muted">{{ trailHint() | t }}</div>
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+              <div>
+                <div class="text-sm font-medium">{{ 'Trail' | t }}</div>
+                <div class="text-xs text-muted">{{ trailHint() | t }}</div>
+              </div>
+              <app-select
+                class="w-44"
+                label="Trail"
+                [options]="trailOptions()"
+                [value]="s.cursorTrail()"
+                (valueChange)="s.cursorTrail.set($any($event))"
+              />
             </div>
-            <app-select
-              class="w-44"
-              label="Trail"
-              [options]="trailOptions()"
-              [value]="s.cursorTrail()"
-              (valueChange)="s.cursorTrail.set($any($event))"
-            />
-          </div>
-          @if (s.cursorTrail() !== 'off') {
+            @if (s.cursorTrail() !== 'off') {
+              <label class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+                <span
+                  ><span class="block text-sm font-medium">{{ 'Trail thickness' | t }}</span
+                  ><span class="block text-xs text-muted">{{
+                    'How wide the trail is' | t
+                  }}</span></span
+                >
+                <span class="flex items-center gap-3"
+                  ><input
+                    type="range"
+                    min="0.4"
+                    max="2.5"
+                    step="0.1"
+                    class="w-44 accent-[var(--accent)]"
+                    [value]="s.cursorTrailSize()"
+                    (input)="s.cursorTrailSize.set(+$any($event.target).value)"
+                  /><b
+                    class="w-14 rounded-ui bg-white/[.06] px-2 py-0.5 text-center font-mono text-xs"
+                    >{{ s.cursorTrailSize().toFixed(1) }}x</b
+                  ></span
+                >
+              </label>
+              <label class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+                <span
+                  ><span class="block text-sm font-medium">{{ 'Trail length' | t }}</span
+                  ><span class="block text-xs text-muted">{{
+                    'How long it takes to fade' | t
+                  }}</span></span
+                >
+                <span class="flex items-center gap-3"
+                  ><input
+                    type="range"
+                    min="0.3"
+                    max="1.5"
+                    step="0.1"
+                    class="w-44 accent-[var(--accent)]"
+                    [value]="s.cursorTrailLength()"
+                    (input)="s.cursorTrailLength.set(+$any($event.target).value)"
+                  /><b
+                    class="w-14 rounded-ui bg-white/[.06] px-2 py-0.5 text-center font-mono text-xs"
+                    >{{ s.cursorTrailLength().toFixed(1) }}x</b
+                  ></span
+                >
+              </label>
+            }
             <label class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
               <span
-                ><span class="block text-sm font-medium">{{ 'Trail thickness' | t }}</span
-                ><span class="block text-xs text-muted">{{
-                  'How wide the trail is' | t
-                }}</span></span
+                ><span class="block text-sm font-medium">{{ 'Cursor size' | t }}</span
+                ><span class="block text-xs text-muted">{{ 'From small to large' | t }}</span></span
               >
               <span class="flex items-center gap-3"
                 ><input
                   type="range"
-                  min="0.4"
-                  max="2.5"
-                  step="0.1"
+                  min="16"
+                  max="56"
+                  step="2"
                   class="w-44 accent-[var(--accent)]"
-                  [value]="s.cursorTrailSize()"
-                  (input)="s.cursorTrailSize.set(+$any($event.target).value)"
+                  [value]="s.cursorSize()"
+                  (input)="s.cursorSize.set(+$any($event.target).value)"
                 /><b
                   class="w-14 rounded-ui bg-white/[.06] px-2 py-0.5 text-center font-mono text-xs"
-                  >{{ s.cursorTrailSize().toFixed(1) }}x</b
+                  >{{ s.cursorSize() }}px</b
                 ></span
               >
             </label>
-            <label class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
               <span
-                ><span class="block text-sm font-medium">{{ 'Trail length' | t }}</span
+                ><span class="block text-sm font-medium">{{ 'Cursor color' | t }}</span
                 ><span class="block text-xs text-muted">{{
-                  'How long it takes to fade' | t
+                  'Also colors the trail. Empty follows the theme.' | t
                 }}</span></span
               >
-              <span class="flex items-center gap-3"
-                ><input
-                  type="range"
-                  min="0.3"
-                  max="1.5"
-                  step="0.1"
-                  class="w-44 accent-[var(--accent)]"
-                  [value]="s.cursorTrailLength()"
-                  (input)="s.cursorTrailLength.set(+$any($event.target).value)"
-                /><b
-                  class="w-14 rounded-ui bg-white/[.06] px-2 py-0.5 text-center font-mono text-xs"
-                  >{{ s.cursorTrailLength().toFixed(1) }}x</b
-                ></span
-              >
-            </label>
-          }
-          <label class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-            <span
-              ><span class="block text-sm font-medium">{{ 'Cursor size' | t }}</span
-              ><span class="block text-xs text-muted">{{ 'From small to large' | t }}</span></span
-            >
-            <span class="flex items-center gap-3"
-              ><input
-                type="range"
-                min="16"
-                max="56"
-                step="2"
-                class="w-44 accent-[var(--accent)]"
-                [value]="s.cursorSize()"
-                (input)="s.cursorSize.set(+$any($event.target).value)"
-              /><b class="w-14 rounded-ui bg-white/[.06] px-2 py-0.5 text-center font-mono text-xs"
-                >{{ s.cursorSize() }}px</b
-              ></span
-            >
-          </label>
-          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-            <span
-              ><span class="block text-sm font-medium">{{ 'Cursor color' | t }}</span
-              ><span class="block text-xs text-muted">{{
-                'Also colors the trail. Empty follows the theme.' | t
-              }}</span></span
-            >
-            <span class="flex items-center gap-2">
-              @if (s.cursorColor()) {
-                <button type="button" class="btn btn-sm btn-ghost" (click)="s.cursorColor.set('')">
-                  {{ 'Use theme color' | t }}
-                </button>
-              }
-              <app-color-picker
-                [value]="s.cursorColor() || accentHex()"
-                [size]="32"
-                shape="round"
-                label="Cursor color"
-                (valueChange)="s.cursorColor.set($event)"
-              />
-            </span>
-          </div>
-        </div>
-        <h4 class="label mb-2.5">{{ 'Your cursors' | t }}</h4>
-        <div class="space-y-2">
-          @for (c of s.customCursors(); track c.id) {
-            <div
-              class="flex flex-wrap items-center gap-3 rounded-ui border p-2"
-              [class.border-accent]="s.cursor() === 'custom:' + c.id"
-              [class.border-white/10]="s.cursor() !== 'custom:' + c.id"
-            >
-              <button
-                type="button"
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-ui bg-black/30 hover:bg-white/10"
-                (click)="s.cursor.set('custom:' + c.id)"
-                [attr.aria-label]="'Use this cursor' | t"
-              >
-                <img [src]="c.data" alt="" class="max-h-8 max-w-8 object-contain" />
-              </button>
-              <input
-                class="input selectable !h-9 min-w-0 flex-1"
-                maxlength="24"
-                [value]="c.name"
-                (change)="renameCursor(c.id, $any($event.target).value)"
-                [attr.aria-label]="'Cursor name' | t"
-              />
-              @if (c.kind !== 'cur' && !c.hot) {
-                <app-select
-                  class="w-48"
-                  label="Click point"
-                  [options]="clickPointOptions()"
-                  [value]="c.point"
-                  (valueChange)="setClickPoint(c.id, $event)"
+              <span class="flex items-center gap-2">
+                @if (s.cursorColor()) {
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-ghost"
+                    (click)="s.cursorColor.set('')"
+                  >
+                    {{ 'Use theme color' | t }}
+                  </button>
+                }
+                <app-color-picker
+                  [value]="s.cursorColor() || accentHex()"
+                  [size]="32"
+                  shape="round"
+                  label="Cursor color"
+                  (valueChange)="s.cursorColor.set($event)"
                 />
-              }
-              @if (c.kind === 'animated') {
-                <span class="chip chip-accent">{{ 'Animated' | t }}</span>
-              }
-              <button
-                type="button"
-                class="btn btn-icon btn-sm btn-soft-danger"
-                (click)="removeCursor(c.id)"
-                [attr.aria-label]="'Delete' | t"
-              >
-                <app-icon name="trash" [size]="14" />
-              </button>
+              </span>
             </div>
-          } @empty {
-            <p class="text-xs text-muted">
-              {{ 'Upload a cursor file and it appears here, ready to name and use.' | t }}
-            </p>
-          }
-        </div>
-        <div class="mt-3 flex flex-wrap items-center gap-3">
-          <button class="btn btn-sm btn-primary" type="button" (click)="uploadCursor()">
-            <app-icon name="upload" [size]="14" /> {{ 'Upload your cursor' | t }}
-          </button>
-          <span class="text-xs text-muted">{{
-            'Works with .cur, .ani (animated), PNG, GIF and WebP, up to 1 MB. Stored only on this device.'
-              | t
-          }}</span>
-        </div>
-      </app-collapse>
-    </section>
+          </div>
+          <h4 class="label mb-2.5">{{ 'Your cursors' | t }}</h4>
+          <div class="space-y-2">
+            @for (c of s.customCursors(); track c.id) {
+              <div
+                class="flex flex-wrap items-center gap-3 rounded-ui border p-2"
+                [class.border-accent]="s.cursor() === 'custom:' + c.id"
+                [class.border-white/10]="s.cursor() !== 'custom:' + c.id"
+              >
+                <button
+                  type="button"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-ui bg-black/30 hover:bg-white/10"
+                  (click)="s.cursor.set('custom:' + c.id)"
+                  [attr.aria-label]="'Use this cursor' | t"
+                >
+                  <img [src]="c.data" alt="" class="max-h-8 max-w-8 object-contain" />
+                </button>
+                <input
+                  class="input selectable !h-9 min-w-0 flex-1"
+                  maxlength="24"
+                  [value]="c.name"
+                  (change)="renameCursor(c.id, $any($event.target).value)"
+                  [attr.aria-label]="'Cursor name' | t"
+                />
+                @if (c.kind !== 'cur' && !c.hot) {
+                  <app-select
+                    class="w-48"
+                    label="Click point"
+                    [options]="clickPointOptions()"
+                    [value]="c.point"
+                    (valueChange)="setClickPoint(c.id, $event)"
+                  />
+                }
+                @if (c.kind === 'animated') {
+                  <span class="chip chip-accent">{{ 'Animated' | t }}</span>
+                }
+                <button
+                  type="button"
+                  class="btn btn-icon btn-sm btn-soft-danger"
+                  (click)="removeCursor(c.id)"
+                  [attr.aria-label]="'Delete' | t"
+                >
+                  <app-icon name="trash" [size]="14" />
+                </button>
+              </div>
+            } @empty {
+              <p class="text-xs text-muted">
+                {{ 'Upload a cursor file and it appears here, ready to name and use.' | t }}
+              </p>
+            }
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-3">
+            <button class="btn btn-sm btn-primary" type="button" (click)="uploadCursor()">
+              <app-icon name="upload" [size]="14" /> {{ 'Upload your cursor' | t }}
+            </button>
+            <span class="text-xs text-muted">{{
+              'Works with .cur, .ani (animated), PNG, GIF and WebP, up to 1 MB. Stored only on this device.'
+                | t
+            }}</span>
+          </div>
+        </app-collapse>
+      </section>
+    }
   `,
 })
 export class AppearanceSectionComponent {
@@ -937,6 +945,8 @@ export class AppearanceSectionComponent {
     { id: 'block', label: 'Block' },
     { id: 'dashed', label: 'Dashed' },
   ];
+  /** False on a phone or a tablet (no mouse): the options of the cursor are not shown. */
+  protected readonly hasMouse = matchMedia('(hover: hover) and (pointer: fine)').matches;
   protected readonly corners = CORNER_STEPS;
   /** The names of the three classic corner styles, under the slider at their steps. */
   protected readonly cornerLabels: StepLabel[] = [

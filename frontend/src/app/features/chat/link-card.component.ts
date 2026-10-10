@@ -7,6 +7,7 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import { FrameAllowDirective } from '../../shared/util/iframe-allow';
 import {
   isSafeLink,
   videoEmbed,
@@ -21,7 +22,7 @@ import {
 @Component({
   selector: 'app-link-card',
   standalone: true,
-  imports: [IconComponent, TranslatePipe],
+  imports: [FrameAllowDirective, IconComponent, TranslatePipe],
   template: `
     @if (safe()) {
       <div
@@ -41,12 +42,12 @@ import {
               } @else {
                 <iframe
                   class="absolute inset-0 h-full w-full border-0"
+                  [frameAllow]="allowMedia"
                   [src]="frameSrc()!"
                   [title]="embed.provider"
                   loading="lazy"
                   referrerpolicy="strict-origin-when-cross-origin"
                   sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
-                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                   allowfullscreen
                 ></iframe>
               }
@@ -116,6 +117,12 @@ import {
   `,
 })
 export class LinkCardComponent {
+  protected readonly allowMedia = [
+    'autoplay',
+    'encrypted-media',
+    'picture-in-picture',
+    'fullscreen',
+  ];
   /** The preview that travelled inside the message. */
   readonly preview = input.required<LinkPreview>();
 

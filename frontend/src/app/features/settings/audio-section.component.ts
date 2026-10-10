@@ -14,7 +14,7 @@ import {
   SettingRowComponent,
   ToggleComponent,
 } from '../../shared/components/controls.component';
-import { buildVoiceChain } from '../../core/audio-chain';
+import { VOICE_MODES, buildVoiceChain } from '../../core/audio-chain';
 import { decibels } from '../../shared/util/audio-level';
 
 /** Devices, microphone processing and call privacy. */
@@ -154,46 +154,28 @@ import { decibels } from '../../shared/util/audio-level';
           /><span class="w-10 text-right font-mono text-xs text-muted">{{ s.inputVolume() }}%</span>
         </div>
       </app-setting-row>
-      <app-setting-row
-        title="Extra noise removal"
-        hint="After the browser suppression: Light cuts the low rumble of desks and fans; Strong also cuts hiss and learns how loud your room is, so the microphone opens only for your voice."
-      >
-        <app-segmented
-          [options]="cleanupOptions"
-          [value]="s.voiceCleanup()"
-          (valueChange)="s.voiceCleanup.set($any($event)); apply()"
-        />
-      </app-setting-row>
-      <app-setting-row
-        title="Voice leveler"
-        hint="Brings your loud and quiet words closer, so nobody has to change the volume when you laugh or whisper."
-      >
-        <app-segmented
-          [options]="levelerOptions"
-          [value]="s.voiceLeveler()"
-          (valueChange)="s.voiceLeveler.set($any($event)); apply()"
-        />
-      </app-setting-row>
-      <app-setting-row
-        title="Clearer voice"
-        hint="A little less boominess and more presence, like a podcast."
-      >
-        <app-toggle
-          [checked]="s.voiceClarity()"
-          (checkedChange)="s.voiceClarity.set($event); apply()"
-          [label]="'Clearer voice' | t"
-        />
-      </app-setting-row>
-      <app-setting-row
-        title="Hear yourself"
-        hint="Plays your voice back while you test the microphone. Use headphones, or it will echo."
-      >
-        <app-toggle
-          [checked]="monitoring()"
-          (checkedChange)="setMonitoring($event)"
-          [label]="'Hear yourself' | t"
-        />
-      </app-setting-row>
+      <div class="py-3">
+        <div class="text-sm font-semibold">{{ 'Voice mode' | t }}</div>
+        <p class="mt-0.5 text-xs text-muted">
+          {{
+            'Press "Test microphone" and you hear yourself with the mode on: change it and listen to the difference.'
+              | t
+          }}
+        </p>
+        <div class="mt-3 grid grid-cols-2 gap-2.5">
+          @for (m of voiceModes; track m.id) {
+            <button
+              type="button"
+              class="choice-card"
+              [class.is-on]="s.voiceMode() === m.id"
+              (click)="s.voiceMode.set(m.id); apply()"
+            >
+              <span class="text-sm font-semibold">{{ m.label | t }}</span>
+              <span class="text-[0.6875rem] leading-snug text-muted">{{ m.hint | t }}</span>
+            </button>
+          }
+        </div>
+      </div>
     </section>
 
     <section class="settings-card">
@@ -237,16 +219,7 @@ export class AudioSectionComponent implements OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
 
-  protected readonly cleanupOptions = [
-    { id: 'off', label: 'Off' },
-    { id: 'light', label: 'Light' },
-    { id: 'strong', label: 'Strong' },
-  ];
-  protected readonly levelerOptions = [
-    { id: 'off', label: 'Off' },
-    { id: 'gentle', label: 'Gentle' },
-    { id: 'strong', label: 'Strong' },
-  ];
+  protected readonly voiceModes = VOICE_MODES;
   protected readonly qualityOptions = [
     { id: '480', label: '480p' },
     { id: '720', label: '720p' },
@@ -257,8 +230,6 @@ export class AudioSectionComponent implements OnDestroy {
     { id: '30', label: '30' },
     { id: '60', label: '60' },
   ];
-  /** Whether the test of the microphone plays the voice back. */
-  protected readonly monitoring = signal(false);
   protected readonly Math = Math;
   protected readonly bars = Array.from({ length: 30 }, function (_, i) {
     return Math.abs(Math.sin(i * 0.9)) * 0.5 + 0.25;
@@ -375,12 +346,6 @@ export class AudioSectionComponent implements OnDestroy {
     this.apply();
   }
 
-  /** Turns the playback of your own voice on or off (the test starts or restarts so that it applies). */
-  protected setMonitoring(on: boolean): void {
-    this.monitoring.set(on);
-    void this.start();
-  }
-
   /** Starts or stops the test of the microphone. */
   protected toggleTest(): void {
     if (this.testing()) this.stop();
@@ -405,15 +370,12 @@ export class AudioSectionComponent implements OnDestroy {
       analyser.fftSize = 512;
       const chain = buildVoiceChain(this.ctx, {
         inputVolume: this.s.inputVolume(),
-        cleanup: this.s.voiceCleanup(),
-        leveler: this.s.voiceLeveler(),
-        clarity: this.s.voiceClarity(),
+        mode: this.s.voiceMode(),
       });
       this.ctx.createMediaStreamSource(this.stream).connect(chain.input);
       chain.output.connect(analyser);
-      if (this.monitoring()) {
-        chain.output.connect(this.ctx.destination);
-      }
+      // You hear yourself while the microphone is tested (with the mode of the voice on, to compare).
+      chain.output.connect(this.ctx.destination);
       const data = new Uint8Array(analyser.fftSize);
       this.timer = setInterval(
         function (this: AudioSectionComponent) {

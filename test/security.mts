@@ -1079,6 +1079,15 @@ async function checkImages(): Promise<void> {
     (await call(app, alice, 'PATCH', '/api/me', { avatarImage: avatarId })).statusCode === 200,
     'the owner can use their picture',
   );
+  check(
+    (await call(app, alice, 'PATCH', '/api/me', { nameFx: '<script>' })).statusCode === 400,
+    'an animation of the name that is not in the list is refused',
+  );
+  const animated = await call(app, alice, 'PATCH', '/api/me', { nameFx: 'glow' });
+  check(
+    animated.statusCode === 200 && animated.json().user.nameFx === 'glow',
+    'the animation of the name is saved and comes back with the profile',
+  );
   app.ctx.db
     .prepare(
       "INSERT INTO images (id, owner_id, kind, mime, size, created_at, encrypted) VALUES ('old-plain', ?, 'avatar', 'image/png', 3, ?, 0)",
@@ -1114,6 +1123,55 @@ async function checkImages(): Promise<void> {
     'an upload is not refused because the same address made 30 other requests in the minute',
   );
   await limited.close();
+
+  step('settings of the account: sealed, versioned, private');
+  const sealedSettings = {
+    iv: 'AAAAAAAAAAAAAAAA',
+    ciphertext: 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=',
+  };
+  check(
+    (await call(app, null, 'PUT', '/api/me/settings', { ...sealedSettings, base: 0 }))
+      .statusCode === 401,
+    'saving settings needs a session',
+  );
+  check(
+    (await call(app, alice, 'GET', '/api/me/settings')).json().empty === true,
+    'a person with none saved gets an empty answer',
+  );
+  const first = await call(app, alice, 'PUT', '/api/me/settings', { ...sealedSettings, base: 0 });
+  check(first.statusCode === 200 && first.json().updatedAt > 0, 'the first save works');
+  check(
+    (await call(app, alice, 'GET', '/api/me/settings')).json().ciphertext ===
+      sealedSettings.ciphertext,
+    'and comes back as it was sealed (the server keeps no plain text)',
+  );
+  check(
+    (await call(app, alice, 'PUT', '/api/me/settings', { ...sealedSettings, base: 0 }))
+      .statusCode === 409,
+    'a save made on an old version is refused (409), so nothing is lost silently',
+  );
+  const second = await call(app, alice, 'PUT', '/api/me/settings', {
+    ...sealedSettings,
+    base: first.json().updatedAt,
+  });
+  check(
+    second.statusCode === 200 && second.json().updatedAt > first.json().updatedAt,
+    'a save made on the last version works',
+  );
+  check(
+    (
+      await call(app, alice, 'PUT', '/api/me/settings', {
+        iv: '<b>',
+        ciphertext: 'x',
+        base: second.json().updatedAt,
+      })
+    ).statusCode === 400,
+    'something that is not sealed base64 is refused',
+  );
+  check(
+    (await call(app, bob, 'GET', '/api/me/settings')).json().empty === true,
+    'nobody sees the settings of another person',
+  );
 
   step('maintenance: abandoned uploads and dead sessions');
   const addPicture = function (age: number): string {

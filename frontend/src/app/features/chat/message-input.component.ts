@@ -3,7 +3,6 @@
  * Composer: formatted and colored text, emoji, GIFs, stickers, attachments, voice notes and the Spinly menu.
  */
 import { SpinlyService } from '../../core/services/spinly.service';
-import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { GradientControlsComponent } from '../../shared/components/gradient-controls.component';
 import { sortedStops, type GradientParts } from '../../shared/util/gradient';
 import {
@@ -32,6 +31,7 @@ import { SpinlyLogoComponent } from '../../shared/components/spinly-logo.compone
 import { IconComponent } from '../../shared/components/icon.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { RichTextComponent } from '../../shared/components/rich-text.component';
 import { formatBytes, formatDuration } from '../../shared/pipes/timestamp.pipe';
 import { describeError } from '../../shared/util/errors';
@@ -61,9 +61,9 @@ const GRADIENTS = [
   imports: [
     NameColorDirective,
     UserFontDirective,
+    NameFxDirective,
     SpinlyLogoComponent,
     IconComponent,
-    ColorPickerComponent,
     GradientControlsComponent,
     ExpressionPickerComponent,
     RichTextComponent,
@@ -81,6 +81,7 @@ const GRADIENTS = [
           <b
             [appNameColor]="directory.users().get(r.senderId)?.profileColor"
             [appUserFont]="directory.users().get(r.senderId)?.nameFont"
+            [nameFx]="directory.users().get(r.senderId)?.nameFx"
             >{{ directory.users().get(r.senderId)?.displayName }}</b
           >
           <span class="flex-1 truncate text-muted">{{
@@ -341,38 +342,38 @@ const GRADIENTS = [
           </button>
         </div>
         @if (gradientOpen()) {
-          <div class="anim-fade-up mb-1.5 rounded-ui border border-white/10 bg-ink-800 p-3">
-            <div class="grid grid-cols-4 gap-2">
-              @for (g of gradients; track g.name) {
-                <button
-                  class="h-6 rounded-full ring-1 ring-white/20 transition-transform hover:scale-105"
-                  [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
-                  type="button"
-                  (mousedown)="$event.preventDefault()"
-                  (click)="gradient(g.colors); gradientOpen.set(false)"
-                  [attr.title]="g.name | t"
-                  [attr.aria-label]="g.name | t"
-                ></button>
-              }
-            </div>
-            <div class="mt-3 border-t border-white/8 pt-3">
+          <div
+            class="anim-fade-up mb-1.5 flex flex-wrap items-center gap-2 rounded-ui border border-white/10 bg-ink-800 px-2.5 py-2"
+          >
+            @for (g of gradients; track g.name) {
+              <button
+                class="h-5 w-8 rounded-full ring-1 ring-white/20 transition-transform hover:scale-110"
+                [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
+                type="button"
+                (mousedown)="$event.preventDefault()"
+                (click)="gradient(g.colors); gradientOpen.set(false)"
+                [attr.title]="g.name | t"
+                [attr.aria-label]="g.name | t"
+              ></button>
+            }
+            <span class="mx-0.5 h-5 w-px bg-white/10"></span>
+            <div class="min-w-[11rem] flex-1">
               <app-gradient-controls
+                [compact]="true"
                 [parts]="gradientParts()"
                 [showAngle]="false"
                 [showPosition]="false"
                 (changed)="gradientParts.set({ ...gradientParts(), ...$event })"
               />
             </div>
-            <div class="mt-3 flex justify-end">
-              <button
-                type="button"
-                class="btn btn-sm btn-primary"
-                (mousedown)="$event.preventDefault()"
-                (click)="applyGradient()"
-              >
-                {{ 'Apply' | t }}
-              </button>
-            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              (mousedown)="$event.preventDefault()"
+              (click)="applyGradient()"
+            >
+              {{ 'Apply' | t }}
+            </button>
           </div>
         }
       }
@@ -546,7 +547,9 @@ const GRADIENTS = [
           }
         </div>
       }
-      <div class="mt-1 flex items-center justify-between px-1 text-[0.625rem] text-dim">
+      <div
+        class="mt-1 flex items-center justify-between px-1 text-[0.625rem] text-dim max-sm:hidden"
+      >
         <span>{{ 'Enter to send · Shift+Enter for a new line' | t }}</span>
       </div>
     </div>

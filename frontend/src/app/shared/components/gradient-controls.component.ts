@@ -16,19 +16,19 @@ import { IconComponent } from './icon.component';
   standalone: true,
   imports: [ColorPickerComponent, IconComponent, TranslatePipe],
   template: `
-    <div class="space-y-3">
-      <div class="flex items-center gap-3">
+    <div [class]="compact() ? 'flex items-center gap-2' : 'space-y-3'">
+      <div [class]="compact() ? 'contents' : 'flex items-center gap-3'">
         <!-- The only bar: it shows the gradient, and with more options open its markers can be moved -->
         <div
           #bar
           class="gbar min-w-0 flex-1"
-          [class.is-editing]="open()"
+          [class.is-editing]="open() || compact()"
           [style.background]="css()"
           (pointermove)="drag($event, bar)"
           (pointerup)="drop($event)"
           (pointercancel)="drop($event)"
         >
-          @if (open()) {
+          @if (open() || compact()) {
             @for (stop of parts().stops; track $index) {
               <button
                 type="button"
@@ -42,17 +42,50 @@ import { IconComponent } from './icon.component';
             }
           }
         </div>
-        <button
-          type="button"
-          class="btn btn-sm shrink-0"
-          [attr.aria-expanded]="open()"
-          (click)="open.set(!open())"
-        >
-          <app-icon name="settings" [size]="13" />
-          {{ (open() ? 'Fewer options' : 'More options') | t }}
-        </button>
+        @if (!compact()) {
+          <button
+            type="button"
+            class="btn btn-sm shrink-0"
+            [attr.aria-expanded]="open()"
+            (click)="open.set(!open())"
+          >
+            <app-icon name="settings" [size]="13" />
+            {{ (open() ? 'Fewer options' : 'More options') | t }}
+          </button>
+        }
       </div>
-      @if (open()) {
+      @if (compact()) {
+        <app-color-picker
+          [value]="current().color"
+          [size]="24"
+          shape="round"
+          label="Color"
+          (valueChange)="setColor($event)"
+        />
+        @if (parts().stops.length < 5) {
+          <button
+            type="button"
+            class="btn btn-icon btn-sm"
+            [attr.aria-label]="'Add a color' | t"
+            [attr.title]="'Add a color' | t"
+            (click)="add()"
+          >
+            <app-icon name="plus" [size]="13" />
+          </button>
+        }
+        @if (parts().stops.length > 2) {
+          <button
+            type="button"
+            class="btn btn-icon btn-sm btn-soft-danger"
+            [attr.aria-label]="'Remove this color' | t"
+            [attr.title]="'Remove this color' | t"
+            (click)="remove()"
+          >
+            <app-icon name="trash" [size]="13" />
+          </button>
+        }
+      }
+      @if (open() && !compact()) {
         <div class="gpanel anim-fade-up">
           <div class="flex items-center gap-2.5">
             <app-color-picker
@@ -160,6 +193,8 @@ export class GradientControlsComponent {
   readonly showAngle = input(true);
   /** Show the place of the chosen color (where colors have no place of their own, only their order counts). */
   readonly showPosition = input(true);
+  /** One single row: the bar with its markers, the color of the marker, and the buttons to add or remove one. */
+  readonly compact = input(false);
   readonly changed = output<Partial<GradientParts>>();
   protected readonly open = signal(false);
   protected readonly selected = signal(0);

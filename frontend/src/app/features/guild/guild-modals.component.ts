@@ -20,6 +20,7 @@ import { UiService } from '../../core/services/ui.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { describeError } from '../../shared/util/errors';
@@ -34,6 +35,7 @@ import { SocialStore } from '../../store/social.store';
   imports: [
     NameColorDirective,
     UserFontDirective,
+    NameFxDirective,
     ModalComponent,
     IconComponent,
     AvatarComponent,
@@ -114,6 +116,7 @@ import { SocialStore } from '../../store/social.store';
                   class="block truncate font-semibold text-fg"
                   [appNameColor]="u.profileColor"
                   [appUserFont]="u.nameFont"
+                  [nameFx]="u.nameFx"
                   >{{ u.displayName }}</span
                 ><span class="text-xs">&#64;{{ u.username }}</span></span
               >
