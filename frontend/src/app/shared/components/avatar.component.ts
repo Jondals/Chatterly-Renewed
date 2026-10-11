@@ -5,6 +5,7 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { PresenceStatus, User } from '../../core/models';
 import { ImageService } from '../../core/services/image.service';
+import { ViewerService } from '../../core/services/viewer.service';
 
 const STATUS_COLORS: Record<PresenceStatus, string> = {
   online: '#2ef2b0',
@@ -68,6 +69,8 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
     class: 'inline-block shrink-0 align-middle',
     '(mouseenter)': 'hover.set(true)',
     '(mouseleave)': 'hover.set(false)',
+    '(click)': 'zoom($event)',
+    '[class.cursor-zoom-in]': 'zoomable() && !!src()',
   },
 })
 export class AvatarComponent {
@@ -83,8 +86,11 @@ export class AvatarComponent {
   /** How thick the ring of the effect is, as a part of the size of the picture (a big picture in a call wants a thinner one). */
   readonly ringRatio = input(0.14);
   readonly speaking = input(false);
+  /** True where pressing the picture opens it big. */
+  readonly zoomable = input(false);
 
   private readonly images = inject(ImageService);
+  private readonly viewer = inject(ViewerService);
   private readonly resolvedImage = computed(
     function (this: AvatarComponent) {
       return this.imageId() ?? this.user()?.avatarImage ?? null;
@@ -161,6 +167,15 @@ export class AvatarComponent {
       return STATUS_COLORS[this.status() ?? 'offline'];
     }.bind(this),
   );
+
+  /** Opens the picture big (when it is asked and there is a picture). */
+  protected zoom(event: Event): void {
+    const url = this.src();
+    if (this.zoomable() && url) {
+      event.stopPropagation();
+      this.viewer.show(url, this.user()?.displayName ?? this.name() ?? '');
+    }
+  }
 
   constructor() {
     effect(

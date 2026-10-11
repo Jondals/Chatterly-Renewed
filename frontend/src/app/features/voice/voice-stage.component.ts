@@ -302,6 +302,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           <button
                             type="button"
                             class="btn btn-sm shrink-0 gap-1"
+                            data-queue-toggle
                             [class.btn-active]="queueOpen()"
                             [attr.title]="'Queue' | t"
                             [attr.aria-label]="'Queue' | t"
@@ -935,7 +936,11 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
 
     <!-- The queue of the music and the videos, with the playlist that is playing on top. -->
     <ng-template #queuePanel>
-      <div class="panel anim-pop !bg-ink-850 p-3 shadow-2xl" (mousedown)="$event.stopPropagation()">
+      <div
+        data-queue
+        class="panel anim-pop !bg-ink-850 p-3 shadow-2xl"
+        (mousedown)="$event.stopPropagation()"
+      >
         @if (call.playlist().ids.length > 0) {
           <div class="mb-1.5 flex items-center justify-between">
             <b class="text-sm">{{ 'Playlist' | t }}</b>
@@ -1117,6 +1122,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 <button
                   type="button"
                   class="btn btn-sm btn-ghost gap-1"
+                  data-queue-toggle
                   [class.btn-active]="queueOpen()"
                   [attr.title]="'Queue' | t"
                   [attr.aria-label]="'Queue' | t"
@@ -1560,6 +1566,20 @@ export class VoiceStageComponent {
     effect(this.watchCall.bind(this));
     effect(this.watchConnections.bind(this));
     this.startStage();
+    // In the capture phase, so that a press which something else stops on its way (a floating tile) still closes the queue.
+    const close = this.closeQueueOutside.bind(this);
+    document.addEventListener('pointerdown', close, true);
+    this.destroyRef.onDestroy(
+      document.removeEventListener.bind(document, 'pointerdown', close, true),
+    );
+  }
+
+  /** A press outside of the queue (and of the button that opens it) closes it. */
+  private closeQueueOutside(event: Event): void {
+    const target = event.target as Element | null;
+    if (this.queueOpen() && !target?.closest('[data-queue], [data-queue-toggle]')) {
+      this.queueOpen.set(false);
+    }
   }
 
   /** Tells the person once per call when the media of somebody could not connect (the networks may need a TURN relay). */

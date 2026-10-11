@@ -79,11 +79,13 @@ const AURAS: { id: AuraId; label: string; colors: boolean }[] = [
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
 import { PresetsComponent } from './presets.component';
+import { TopLayerDirective } from '../../shared/util/top-layer.directive';
 @Component({
   selector: 'app-profile-section',
   standalone: true,
   host: { class: 'block' },
   imports: [
+    TopLayerDirective,
     PresetsComponent,
     ServerTagPickerComponent,
     GradientControlsComponent,
@@ -450,6 +452,7 @@ import { PresetsComponent } from './presets.component';
                   (input)="patch({ statusText: $any($event.target).value })"
                 />
                 <button
+                  #emojiButton
                   type="button"
                   class="btn btn-icon tip"
                   [class.btn-active]="statusEmojiOpen()"
@@ -461,7 +464,7 @@ import { PresetsComponent } from './presets.component';
                   <app-icon name="smile" [size]="18" />
                 </button>
                 @if (statusEmojiOpen()) {
-                  <div class="absolute right-0 top-full z-30 mt-2">
+                  <div [appTopLayer]="emojiButton">
                     <app-expression-picker
                       [tabs]="['emoji']"
                       (emoji)="insertStatusEmoji($event)"

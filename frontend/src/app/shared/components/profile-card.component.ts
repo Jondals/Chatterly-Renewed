@@ -37,7 +37,12 @@ import { ServerTagComponent } from './server-tag.component';
         <div class="px-4 pb-4">
           <div class="-mt-8 flex items-end justify-between">
             <span class="rounded-full ring-4 ring-ink-850"
-              ><app-avatar [user]="u" [size]="56" [status]="status()" [aura]="true"
+              ><app-avatar
+                [user]="u"
+                [size]="56"
+                [status]="status()"
+                [aura]="true"
+                [zoomable]="true"
             /></span>
             <ng-content select="[actions]" />
           </div>

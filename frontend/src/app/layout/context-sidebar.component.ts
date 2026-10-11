@@ -424,11 +424,13 @@ import { fontClassOf } from '../shared/util/user-font.directive';
           class="flex w-full min-w-0 items-center gap-3 rounded-ui px-2 py-1.5 text-left hover:bg-white/8"
           (mousedown)="$event.stopPropagation()"
           (click)="statusMenu.set(!statusMenu())"
+          (contextmenu)="openOwnProfile($event)"
         >
           <app-avatar
             [user]="auth.user()"
             [size]="40"
             [aura]="true"
+            [zoomable]="true"
             [status]="social.statusOf(auth.user()?.id ?? '')"
           />
           <span class="min-w-0 leading-snug">
@@ -587,6 +589,15 @@ export class ContextSidebarComponent {
       return this.social.incoming().length + this.unreadChats();
     }.bind(this),
   );
+  /** A right click on the own panel opens the profile of the person, big. */
+  protected openOwnProfile(event: Event): void {
+    event.preventDefault();
+    const id = this.auth.user()?.id;
+    if (id) {
+      this.ui.profileUserId.set(id);
+    }
+  }
+
   protected readonly nameClass = computed(
     function (this: ContextSidebarComponent) {
       const f = this.auth.user()?.nameFont;

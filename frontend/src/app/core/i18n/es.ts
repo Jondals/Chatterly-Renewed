@@ -1344,11 +1344,7 @@ export const ES: Record<string, string> = {
     'Cada duelo es un giro de una rueda con los dos: el ganador sigue.',
   'Presets': 'Preajustes',
   'Bounce': 'Rebote',
-  'The letters crouch, spring up and land squashed.':
-    'Las letras se agachan, saltan y aterrizan aplastadas.',
   'Jump': 'Salto',
-  'Big leaps, one letter after another, with a twist.':
-    'Grandes saltos, una letra tras otra, con un giro.',
   'Jelly': 'Gelatina',
   'The letters wobble like jelly.': 'Las letras tiemblan como gelatina.',
   'The letters pop up, one by one, with a rebound.': 'Las letras saltan una a una, con rebote.',
@@ -1356,8 +1352,6 @@ export const ES: Record<string, string> = {
   'The letters hang and swing like a mobile.': 'Las letras cuelgan y se balancean como un móvil.',
   'Flip': 'Giro',
   'The letters turn like coins.': 'Las letras giran como monedas.',
-  'A soft light breathes behind the name.': 'Una luz suave respira detrás del nombre.',
-  'A neon sign that hums and flickers.': 'Un neón que zumba y parpadea.',
   'Glacier': 'Glaciar',
   'Share a preset': 'Compartir un preajuste',
   'Your profile or the look of the app, to import with one button':
@@ -1385,15 +1379,23 @@ export const ES: Record<string, string> = {
   'The name of this configuration.': 'El nombre de esta configuración.',
   'In use on this device': 'En uso en este dispositivo',
   'Drift': 'Deriva',
-  'The letters float like leaves on the water.': 'Las letras flotan como hojas sobre el agua.',
   'Twinkle': 'Destello suave',
   'A light runs over the letters and makes them twinkle.':
     'Una luz recorre las letras y las hace titilar.',
-  'The letters sway from side to side like a ribbon.':
-    'Las letras se mecen de lado a lado como una cinta.',
   'Try': 'Probar',
   'You are trying': 'Estás probando',
   'Go back': 'Volver',
   'Keep it': 'Quedármelo',
   'It plays when the pointer is over your name.': 'Se activa al pasar el ratón por tu nombre.',
+  'Press anywhere to close': 'Pulsa en cualquier sitio para cerrar',
+  'Quick low bounces, like rubber balls.': 'Rebotes rápidos y bajos, como pelotas de goma.',
+  'Somersaults: the letters leap and turn over in the air.':
+    'Volteretas: las letras saltan y dan una vuelta en el aire.',
+  'A smooth wave runs along the letters.': 'Una ola suave recorre las letras.',
+  'A wide soft light breathes behind the name.':
+    'Una luz amplia y suave respira detrás del nombre.',
+  'White-hot tubes with a tight halo that flicker one by one.':
+    'Tubos al rojo blanco con un halo ceñido que parpadean uno a uno.',
+  'The letters rise like bubbles, fading in and out.':
+    'Las letras suben como burbujas, apareciendo y desapareciendo.',
 };

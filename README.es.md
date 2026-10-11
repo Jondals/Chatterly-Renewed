@@ -8,7 +8,7 @@
 
 [English](README.md) · **Español**
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-2.23.0-2ef2b0?style=flat-square)
+![versión](https://img.shields.io/badge/versi%C3%B3n-2.23.1-2ef2b0?style=flat-square)
 ![cifrado](https://img.shields.io/badge/E2EE-AES--256--GCM%20%C2%B7%20ECDH%20P--256%20%C2%B7%20ECDSA-8b5cf6?style=flat-square)
 ![llamadas](https://img.shields.io/badge/llamadas-WebRTC%20malla%20%C2%B7%20DTLS--SRTP-38e8ff?style=flat-square)
 

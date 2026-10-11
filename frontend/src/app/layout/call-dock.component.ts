@@ -11,6 +11,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { TranslatePipe } from '../core/i18n/i18n.service';
+import { AuthService } from '../core/services/auth.service';
 import { CallService } from '../core/services/call.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { SettingsService } from '../core/services/settings.service';
@@ -101,7 +102,7 @@ interface Featured {
               }
             </span>
           </span>
-          <a routerLink="/voice" class="min-w-0 leading-tight">
+          <a routerLink="/voice" class="min-w-0 max-w-[13rem] leading-tight">
             <span class="block text-sm font-semibold hover:text-accent">{{
               'Call in progress' | t
             }}</span>
@@ -195,6 +196,7 @@ interface Featured {
 export class CallDockComponent {
   protected readonly call = inject(CallService);
   protected readonly settings = inject(SettingsService);
+  private readonly auth = inject(AuthService);
   protected readonly directory = inject(DirectoryService);
   private readonly router = inject(Router);
   private readonly ui = inject(UiService);
@@ -248,15 +250,23 @@ export class CallDockComponent {
     return PLACE_CLASSES[this.settings.dockPlace()];
   }
 
-  /** A shared screen first; then the camera of whoever talks; then any camera; then the person who talks (with no picture). */
+  /**
+   * What the small window shows, in this order: a screen that somebody shares (also the person's own), then the camera of
+   * whoever talks, then any camera (also the person's own), then the person who talks (with no picture). A camera or a screen
+   * that is on is always shown, not only while its owner talks.
+   */
   private pickFeatured(): Featured | null {
     const peers = Object.values(this.call.peers());
     const speaking = this.call.speaking();
+    const me = this.auth.userId;
     const screen = peers.find(function sharing(peer) {
       return !!peer.screen;
     });
     if (screen) {
       return { userId: screen.userId, stream: screen.screen };
+    }
+    if (this.call.localScreen()) {
+      return { userId: me, stream: this.call.localScreen() };
     }
     const talker = peers.find(function talks(peer) {
       return speaking.has(peer.userId) && !!peer.camera;
@@ -268,6 +278,9 @@ export class CallDockComponent {
       });
     if (withCamera) {
       return { userId: withCamera.userId, stream: withCamera.camera };
+    }
+    if (this.call.localCamera()) {
+      return { userId: me, stream: this.call.localCamera() };
     }
     const voice = peers.find(function talksOnly(peer) {
       return speaking.has(peer.userId);

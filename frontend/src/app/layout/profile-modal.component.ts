@@ -4,6 +4,7 @@
  */
 import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../core/services/auth.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { UiService } from '../core/services/ui.service';
 import { ModalComponent } from '../shared/components/modal.component';
@@ -32,6 +33,7 @@ export class ProfileModalComponent {
   protected readonly ui = inject(UiService);
   protected readonly social = inject(SocialStore);
   private readonly directory = inject(DirectoryService);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   protected readonly usuario = computed(this.findUser.bind(this));
 
@@ -43,6 +45,7 @@ export class ProfileModalComponent {
   /** The user whose profile is open. */
   private findUser(): ReturnType<DirectoryService['get']> {
     const id = this.ui.profileUserId();
-    return id ? this.directory.users().get(id) : undefined;
+    const own = this.auth.user();
+    return id ? (this.directory.users().get(id) ?? (own?.id === id ? own : undefined)) : undefined;
   }
 }

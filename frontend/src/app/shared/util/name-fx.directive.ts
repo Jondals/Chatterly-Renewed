@@ -23,16 +23,16 @@ import {
 /** The animations of a name, with what each one looks like (the profile shows these words). */
 export const NAME_FX: { id: string; label: string; hint: string }[] = [
   { id: 'none', label: 'None', hint: 'The name stays still.' },
-  { id: 'bounce', label: 'Bounce', hint: 'The letters crouch, spring up and land squashed.' },
-  { id: 'jump', label: 'Jump', hint: 'Big leaps, one letter after another, with a twist.' },
-  { id: 'wave', label: 'Wave', hint: 'The letters sway from side to side like a ribbon.' },
+  { id: 'bounce', label: 'Bounce', hint: 'Quick low bounces, like rubber balls.' },
+  { id: 'jump', label: 'Jump', hint: 'Somersaults: the letters leap and turn over in the air.' },
+  { id: 'wave', label: 'Wave', hint: 'A smooth wave runs along the letters.' },
   { id: 'jelly', label: 'Jelly', hint: 'The letters wobble like jelly.' },
   { id: 'pop', label: 'Pop', hint: 'The letters pop up, one by one, with a rebound.' },
   { id: 'swing', label: 'Swing', hint: 'The letters hang and swing like a mobile.' },
   { id: 'flip', label: 'Flip', hint: 'The letters turn like coins.' },
-  { id: 'glow', label: 'Glow', hint: 'A soft light breathes behind the name.' },
-  { id: 'neon', label: 'Neon', hint: 'A neon sign that hums and flickers.' },
-  { id: 'drift', label: 'Drift', hint: 'The letters float like leaves on the water.' },
+  { id: 'glow', label: 'Glow', hint: 'A wide soft light breathes behind the name.' },
+  { id: 'neon', label: 'Neon', hint: 'White-hot tubes with a tight halo that flicker one by one.' },
+  { id: 'drift', label: 'Drift', hint: 'The letters rise like bubbles, fading in and out.' },
   {
     id: 'twinkle',
     label: 'Twinkle',

@@ -493,6 +493,12 @@ async function main() {
   check(true, 'request sent and accepted');
 
   step('mute without a call, right click and overflow');
+  // a right click on the own panel opens the profile, big
+  await a.locator('button:has(app-avatar):has-text("alice")').last().click({ button: 'right' });
+  await a.waitForSelector('app-profile-card');
+  await a.keyboard.press('Escape');
+  await a.waitForSelector('app-profile-card', { state: 'detached' });
+  check(true, 'a right click on the own panel opens the own profile');
   await a.click('[data-tip="Mute"]');
   await a.waitForSelector('[data-tip="Unmute"]');
   await a.click('[data-tip="Deafen"]');
@@ -1117,6 +1123,10 @@ async function main() {
     timeout: 15000,
   });
   check(true, 'a song queued by Alice shows up in the queue of Bob');
+  // a press anywhere else closes the queue
+  await a.mouse.click(5, 5);
+  await a.waitForTimeout(500);
+  check((await a.locator('[data-queue]').count()) === 0, 'a press anywhere else closes the queue');
   await a.click('.music-card button[aria-label="Vote to skip"]');
   await b.click('.music-card button[aria-label="Vote to skip"]');
   await b.waitForSelector('.music-card button[aria-label="Queue"]:has-text("0")', {
@@ -1535,6 +1545,19 @@ async function main() {
       );
     }),
     'a name animation moves the letters of the name',
+  );
+  check(
+    await a.evaluate(function () {
+      const names = [...document.querySelectorAll('button.choice-card .nfx-l:first-child')]
+        .map(function (e) {
+          return getComputedStyle(e).animationName;
+        })
+        .filter(function (n) {
+          return n !== 'none';
+        });
+      return names.length >= 8 && new Set(names).size === names.length;
+    }),
+    'every name animation has a movement of its own',
   );
   // the banner color is offered when the banner is not a picture
   await a.click('button:has-text("Remove banner")');

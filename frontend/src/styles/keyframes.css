@@ -631,66 +631,79 @@
   }
 }
 
-/* Bounce: a soft ball that never stops (small, round, gravity in each half) */
+/* Bounce: a rubber ball, quick and low, that squashes on the floor and rests a moment */
 @keyframes nfx-bounce {
   0%,
   100% {
-    transform: translateY(0) scale(1.05, 0.93);
-    animation-timing-function: cubic-bezier(0.22, 0.8, 0.36, 1);
+    transform: translateY(0) scale(1.1, 0.86);
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.35, 1);
   }
-  50% {
-    transform: translateY(-0.24em) scale(0.97, 1.04);
-    animation-timing-function: cubic-bezier(0.64, 0, 0.78, 0.2);
-  }
-}
-/* Jump: it waits, crouches, leaps high with a twist, falls and settles (the ease of each stretch follows gravity) */
-@keyframes nfx-jump {
-  0%,
-  36%,
-  100% {
-    transform: translateY(0) rotate(0) scale(1, 1);
-  }
-  36% {
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
-  }
-  48% {
-    transform: translateY(0.04em) rotate(0) scale(1.1, 0.88);
-    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  34% {
+    transform: translateY(-0.34em) scale(0.94, 1.1);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.25);
   }
   66% {
-    transform: translateY(-0.7em) rotate(-9deg) scale(0.93, 1.1);
-    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.4);
+    transform: translateY(0) scale(1.1, 0.86);
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.35, 1);
   }
-  86% {
-    transform: translateY(0) rotate(0) scale(1.1, 0.88);
-    animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
+  78% {
+    transform: translateY(-0.07em) scale(0.98, 1.03);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.25);
   }
-  94% {
-    transform: translateY(-0.04em) rotate(0) scale(0.99, 1.02);
+  90% {
+    transform: translateY(0) scale(1.03, 0.97);
   }
 }
+/* Jump: a somersault. It waits, crouches, leaps high turning over in the air and lands */
+@keyframes nfx-jump {
+  0%,
+  40% {
+    transform: translateY(0) rotate(0) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  50% {
+    transform: translateY(0.05em) rotate(0) scale(1.12, 0.84);
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+  72% {
+    transform: translateY(-0.95em) rotate(-200deg) scale(0.92, 1.12);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5);
+  }
+  88% {
+    transform: translateY(0) rotate(-360deg) scale(1.12, 0.84);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
+  }
+  100% {
+    transform: translateY(0) rotate(-360deg) scale(1, 1);
+  }
+}
+/* Wave: a smooth sine that runs along the name; it goes above and below the line and never rests */
 @keyframes nfx-wave {
   0%,
   100% {
-    transform: translateX(0) rotate(0) skewX(0);
+    transform: translateY(0);
   }
   25% {
-    transform: translateX(-0.05em) rotate(-6deg) skewX(-6deg);
+    transform: translateY(-0.2em);
   }
   75% {
-    transform: translateX(0.05em) rotate(6deg) skewX(6deg);
+    transform: translateY(0.2em);
   }
 }
+/* Drift: letters rise like bubbles, fading in from below and out above */
 @keyframes nfx-drift {
-  0%,
+  0% {
+    opacity: 0;
+    transform: translateY(0.45em) scale(0.8);
+  }
+  30%,
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
   100% {
-    transform: translate(0, 0.04em) rotate(-2.5deg);
-  }
-  33% {
-    transform: translate(0.02em, -0.1em) rotate(2deg);
-  }
-  66% {
-    transform: translate(-0.02em, -0.02em) rotate(-1deg);
+    opacity: 0;
+    transform: translateY(-0.45em) scale(0.8);
   }
 }
 @keyframes nfx-twinkle {
@@ -737,21 +750,26 @@
 }
 @keyframes nfx-pop {
   0%,
-  60%,
+  54%,
   100% {
-    transform: scale(1) rotate(0);
+    opacity: 1;
+    transform: scale(1);
   }
-  66% {
-    transform: scale(0.78) rotate(0);
+  62% {
+    opacity: 0;
+    transform: scale(0.2);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.2);
   }
-  78% {
-    transform: scale(1.4) rotate(-6deg);
+  64% {
+    opacity: 0;
+    transform: scale(0.2);
   }
-  88% {
-    transform: scale(0.94) rotate(3deg);
+  82% {
+    opacity: 1;
+    transform: scale(1.35);
   }
-  95% {
-    transform: scale(1.04) rotate(0);
+  92% {
+    transform: scale(0.94);
   }
 }
 @keyframes nfx-swing {
@@ -796,6 +814,25 @@
   }
   50% {
     opacity: 0.85;
+  }
+}
+@keyframes nfx-neonlit {
+  0%,
+  62%,
+  100% {
+    opacity: 1;
+  }
+  66% {
+    opacity: 0.25;
+  }
+  69% {
+    opacity: 1;
+  }
+  73% {
+    opacity: 0.5;
+  }
+  75% {
+    opacity: 1;
   }
 }
 @keyframes nfx-flicker {

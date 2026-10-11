@@ -95,6 +95,11 @@ button:disabled,
 }
 
 /* Emoji grid: light on purpose (a cell is one color glyph; hundreds are drawn at once). */
+.emoji-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.6rem;
+}
+
 .emoji-cell .emoji-glyph {
   display: block;
   font-size: 1.7rem;
@@ -575,24 +580,25 @@ button:disabled,
   background-clip: text;
 }
 .nfx-bounce .nfx-l {
-  --nfx-time: 1.4s;
-  --nfx-step: 90ms;
+  --nfx-time: 1.3s;
+  --nfx-step: 55ms;
   animation-name: nfx-bounce;
 }
 .nfx-jump .nfx-l {
-  --nfx-time: 3.2s;
-  --nfx-step: 70ms;
+  --nfx-time: 3.4s;
+  --nfx-step: 110ms;
   animation-name: nfx-jump;
 }
 .nfx-wave .nfx-l {
-  --nfx-time: 2.4s;
-  --nfx-step: 110ms;
-  transform-origin: 50% 80%;
+  --nfx-time: 1.8s;
+  --nfx-step: 140ms;
+  transform-origin: 50% 50%;
   animation-name: nfx-wave;
 }
 .nfx-drift .nfx-l {
-  --nfx-time: 4.2s;
-  --nfx-step: 160ms;
+  --nfx-time: 3.8s;
+  --nfx-step: 170ms;
+  animation-timing-function: ease-in-out;
   transform-origin: 50% 50%;
   animation-name: nfx-drift;
 }
@@ -608,8 +614,8 @@ button:disabled,
   animation-name: nfx-jelly;
 }
 .nfx-pop .nfx-l {
-  --nfx-time: 2.2s;
-  --nfx-step: 80ms;
+  --nfx-time: 2.6s;
+  --nfx-step: 110ms;
   transform-origin: 50% 60%;
   animation-name: nfx-pop;
 }
@@ -631,19 +637,36 @@ button:disabled,
   left: 0;
   top: 0;
   color: var(--fx-color, currentColor);
-  filter: blur(0.32em);
   opacity: 0;
-  animation: nfx-breath 2.8s ease-in-out infinite;
+  animation-iteration-count: infinite;
   animation-play-state: paused;
 }
-.nfx-neon .nfx-halo {
-  filter: blur(0.2em) brightness(1.4);
-  animation: nfx-flicker 4.4s linear infinite;
+/* Glow: a wide soft light of its own color that breathes slowly; the letters do not change */
+.nfx-glow .nfx-halo {
+  filter: blur(0.55em) saturate(1.3);
+  animation: nfx-breath 3.4s ease-in-out infinite;
   animation-play-state: paused;
 }
-.nfx-glow .nfx-l,
-.nfx-neon .nfx-l {
+.nfx-glow .nfx-l {
   animation: none;
+}
+/* Neon: the letters are lit white-hot from inside, a tight bright halo hugs them, and the tubes flicker one by one */
+.nfx-neon .nfx-halo {
+  filter: blur(0.14em) brightness(1.5) saturate(1.5);
+  animation: nfx-flicker 4.6s linear infinite;
+  animation-play-state: paused;
+}
+.nfx-neon .nfx-l {
+  --nfx-time: 4.6s;
+  --nfx-step: 173ms;
+  animation-name: nfx-neonlit;
+  animation-timing-function: linear;
+}
+.nfx-neon .nfx-overlay:not(.nfx-gradient) .nfx-l {
+  color: color-mix(in oklab, var(--name-color, currentColor) 45%, #fff);
+}
+.nfx-neon .nfx-gradient .nfx-l {
+  filter: brightness(1.35);
 }
 .nfx-on .nfx-l,
 .nfx-on .nfx-halo {

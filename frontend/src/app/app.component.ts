@@ -16,6 +16,8 @@ import { ToastHostComponent } from './shared/components/toast-host.component';
 import { watchFramePerformance } from './shared/util/perf-monitor';
 import { PresetService } from './core/services/preset.service';
 import { PresetTryComponent } from './shared/components/preset-try.component';
+import { ViewerService } from './core/services/viewer.service';
+import { ImageViewerComponent } from './shared/components/image-viewer.component';
 
 /** Things that make a press feel like a press: tiny sounds under controls. */
 const PRESSABLE =
@@ -64,6 +66,7 @@ function weightOf(target: HTMLElement): PressWeight {
   selector: 'app-root',
   standalone: true,
   imports: [
+    ImageViewerComponent,
     RouterOutlet,
     ArrivalComponent,
     MeshBackgroundComponent,
@@ -76,6 +79,11 @@ function weightOf(target: HTMLElement): PressWeight {
     }
     <router-outlet />
     <app-toast-host />
+    @if (viewer.open()) {
+      @defer (on immediate) {
+        <app-image-viewer />
+      }
+    }
     @if (presets.trying() || presets.previewing()) {
       @defer (on immediate) {
         <app-preset-try />
@@ -91,6 +99,7 @@ function weightOf(target: HTMLElement): PressWeight {
 export class AppComponent {
   protected readonly arrival = inject(ArrivalService);
   protected readonly presets = inject(PresetService);
+  protected readonly viewer = inject(ViewerService);
   private readonly settings = inject(SettingsService);
   private readonly sound = inject(SoundService);
   // Made at the start: it brings the settings of the account when the person signs in, and keeps them.
