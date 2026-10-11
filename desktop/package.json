@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-desktop",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "productName": "Chatterly",
   "description": "Chatterly-Renewed desktop shell (Electron): the same end-to-end encrypted web app in a hardened window.",
   "main": "src/main.cjs",

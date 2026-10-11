@@ -282,13 +282,13 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                 (mousedown)="$event.stopPropagation()"
               >
                 <div class="label px-2 py-1.5">{{ 'Notifications' | t }}</div>
-                @if (desktopUpdate.pending()) {
-                  <div class="rounded-ui p-2 hover:bg-white/5">
+                @if (desktopUpdate.bellCard()) {
+                  <div class="mb-1 rounded-ui border border-white/8 bg-white/4 p-3">
                     <div class="flex items-center gap-3">
                       <span
-                        class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-white/8 text-accent"
+                        class="grid h-9 w-9 shrink-0 place-items-center rounded-ui bg-accent/15 text-accent"
                       >
-                        <app-icon name="download" [size]="17" />
+                        <app-icon name="download" [size]="18" />
                       </span>
                       <div class="min-w-0 flex-1">
                         <div class="truncate text-sm font-semibold">
@@ -296,22 +296,34 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                         </div>
                         <div class="text-xs text-muted">
                           {{ 'Chatterly {v}' | t: { v: desktopUpdate.state().version } }}
+                          @if (desktopUpdate.state().total > 0) {
+                            · {{ desktopUpdate.megabytes(desktopUpdate.state().total) }}
+                          }
                         </div>
                       </div>
                     </div>
                     @switch (desktopUpdate.state().status) {
                       @case ('available') {
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-primary mt-2 w-full"
-                          (click)="desktopUpdate.download()"
-                        >
-                          <app-icon name="download" [size]="15" /> {{ 'Download' | t }}
-                        </button>
+                        <div class="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-primary flex-1"
+                            (click)="desktopUpdate.download()"
+                          >
+                            <app-icon name="download" [size]="15" /> {{ 'Download' | t }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-ghost"
+                            (click)="desktopUpdate.later()"
+                          >
+                            {{ 'Later' | t }}
+                          </button>
+                        </div>
                       }
                       @case ('downloading') {
                         <div
-                          class="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
+                          class="mt-3 h-2 overflow-hidden rounded-full bg-white/10"
                           role="progressbar"
                           [attr.aria-valuenow]="desktopUpdate.state().percent"
                           aria-valuemin="0"
@@ -322,26 +334,41 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                             [style.width.%]="desktopUpdate.state().percent"
                           ></div>
                         </div>
-                        <div class="mt-1 text-xs text-muted">
-                          {{ 'Downloading… {n}%' | t: { n: desktopUpdate.state().percent } }}
+                        <div class="mt-1.5 flex justify-between text-xs text-muted">
+                          <span>{{
+                            'Downloading… {n}%' | t: { n: desktopUpdate.state().percent }
+                          }}</span>
+                          @if (desktopUpdate.state().total > 0) {
+                            <span
+                              >{{ desktopUpdate.megabytes(desktopUpdate.state().transferred) }} /
+                              {{ desktopUpdate.megabytes(desktopUpdate.state().total) }}</span
+                            >
+                          }
                         </div>
                       }
                       @case ('ready') {
                         <button
                           type="button"
-                          class="btn btn-sm btn-primary mt-2 w-full"
+                          class="btn btn-sm btn-primary mt-3 w-full"
                           (click)="desktopUpdate.install()"
                         >
                           <app-icon name="spin" [size]="15" /> {{ 'Restart and update' | t }}
                         </button>
-                        <div class="mt-1 text-xs text-muted">
+                        <div class="mt-1.5 text-xs text-muted">
                           {{ 'Chatterly will close and open again with the new version.' | t }}
                         </div>
                       }
                     }
+                    <button
+                      type="button"
+                      class="mt-2 text-xs text-accent hover:underline"
+                      (click)="openUpdateSettings()"
+                    >
+                      {{ 'Update settings' | t }}
+                    </button>
                   </div>
-                } @else if (desktopUpdate.state().status === 'error') {
-                  <div class="rounded-ui p-2 text-sm">
+                } @else if (desktopUpdate.bellError()) {
+                  <div class="mb-1 rounded-ui border border-white/8 bg-white/4 p-3 text-sm">
                     <div class="font-semibold">{{ 'The update could not be downloaded' | t }}</div>
                     <button
                       type="button"
@@ -659,10 +686,18 @@ export class ContextSidebarComponent {
   protected readonly notificationCount = computed(
     function (this: ContextSidebarComponent) {
       return (
-        this.social.incoming().length + this.unreadChats() + (this.desktopUpdate.pending() ? 1 : 0)
+        this.social.incoming().length +
+        this.unreadChats() +
+        (this.desktopUpdate.bellCard() || this.desktopUpdate.bellError() ? 1 : 0)
       );
     }.bind(this),
   );
+  /** Opens Settings > Updates from the card of the bell. */
+  protected openUpdateSettings(): void {
+    this.bell.set(false);
+    this.ui.openSettings('updates');
+  }
+
   /** A right click on the own panel opens the profile of the person, big. */
   protected openOwnProfile(event: Event): void {
     event.preventDefault();

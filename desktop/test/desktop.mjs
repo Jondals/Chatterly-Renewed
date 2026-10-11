@@ -148,6 +148,10 @@ function auditSource() {
     'every update command checks who is asking',
   );
   check(
+    updaterSource.includes('sanitizeSettings(patch, state.settings)'),
+    'the settings sent by the page are checked against a fixed list of values',
+  );
+  check(
     !/new Tray|Tray,/.test(text['main.cjs']),
     'there is no tray: closing the window closes the app',
   );
@@ -165,6 +169,7 @@ function auditSource() {
     'updates:check',
     'updates:download',
     'updates:install',
+    'updates:settings',
     'updates:state',
   ]);
   const usedChannels = [...preload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(function name(m) {
@@ -203,7 +208,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'picker:cancel,picker:choose,updates:check,updates:download,updates:get,updates:install',
+      'picker:cancel,picker:choose,updates:check,updates:download,updates:get,updates:install,updates:settings',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -735,14 +740,18 @@ async function updatingApp() {
   });
 
   /** Starts the app against the feed and returns what is needed to drive its update commands from the page. */
-  async function open(label, version, hash) {
+  async function open(label, version, hash, files = {}) {
     writeFeed(version, hash);
+    const profile = path.join(TMP, 'profile-update-' + label.replace(/-again$/, ''));
+    fs.mkdirSync(profile, { recursive: true });
+    for (const [name, content] of Object.entries(files))
+      fs.writeFileSync(path.join(profile, name), content);
     const env = appEnv('http://127.0.0.1:' + stub.port);
     delete env.CHATTERLY_NO_UPDATE;
     env.CHATTERLY_UPDATE_URL = 'http://127.0.0.1:' + feed.port;
     const app = await electron.launch({
       executablePath: ELECTRON_EXE,
-      args: [DESKTOP, '--user-data-dir=' + path.join(TMP, 'profile-update-' + label)],
+      args: [DESKTOP, '--user-data-dir=' + profile],
       cwd: DESKTOP,
       env,
       timeout: 30000,
@@ -796,7 +805,12 @@ async function updatingApp() {
         })
       ).join(' | ');
     }
-    return { app, page, state, until, call, seen, log };
+    async function setSettings(patch) {
+      return page.evaluate(function (value) {
+        return window.chatterlyDesktop.updates.setSettings(value);
+      }, patch);
+    }
+    return { app, page, state, until, call, seen, log, setSettings, profile };
   }
 
   // 1. A newer version: the app only tells.
@@ -869,7 +883,82 @@ async function updatingApp() {
   await same.call('check');
   await same.until('none');
   check(true, 'a manual check says it is up to date');
+  check((await same.state()).lastCheck > 0, 'the time of the last check is reported to the page');
   await same.app.close();
+
+  // 7. The choices of the person: defaults, valid changes, refused values, kept after restarting.
+  step('Updates: how often to look and whether to tell');
+  const prefs = await open('prefs', '2.99.0', sha512);
+  await prefs.until('available');
+  const defaults = (await prefs.state()).settings;
+  check(
+    defaults.interval === '6h' && defaults.notify === true,
+    'by default it looks every 6 hours and tells the person',
+  );
+  const changed = await prefs.setSettings({ interval: '1h', notify: false });
+  check(
+    changed.settings.interval === '1h' && changed.settings.notify === false,
+    'valid choices are accepted',
+  );
+  const saved = JSON.parse(
+    fs.readFileSync(path.join(prefs.profile, 'update-settings.json'), 'utf8'),
+  );
+  check(
+    saved.interval === '1h' && saved.notify === false,
+    'the choices are saved in the profile folder',
+  );
+  const refused = [
+    { interval: 'banana' },
+    { interval: 5 },
+    { interval: '1h', evil: true },
+    { notify: 'yes' },
+    { toString: 'x' },
+    [],
+    null,
+    'interval',
+    { interval: '__proto__' },
+    { interval: 'constructor' },
+  ];
+  for (const bad of refused) {
+    const after = await prefs.setSettings(bad);
+    check(
+      after.settings.interval === '1h' && after.settings.notify === false,
+      'a value that is not on the list is refused: ' + JSON.stringify(bad),
+    );
+  }
+  await prefs.app.close();
+  const again = await open('prefs-again', '2.99.0', sha512);
+  await again.until('available');
+  const kept = (await again.state()).settings;
+  check(kept.interval === '1h' && kept.notify === false, 'the choices are kept after restarting');
+  await again.app.close();
+
+  // "Only when I ask": the app does not look by itself, not even at start.
+  const manual = await open('manual', '2.99.0', sha512, {
+    'update-settings.json': JSON.stringify({ interval: 'never', notify: true }),
+  });
+  await sleep(3000);
+  check(
+    (await manual.state()).status === 'idle',
+    'with "only when I ask" it does not check at start',
+  );
+  check(!(await manual.log()).includes('available'), '... and it found nothing by itself');
+  await manual.call('check');
+  await manual.until('available');
+  check(true, '... but a manual check finds the new version');
+  await manual.app.close();
+
+  // A damaged file does not stop the app: the defaults are used.
+  const damaged = await open('damaged', '2.99.0', sha512, {
+    'update-settings.json': '{ this is not json',
+  });
+  await damaged.until('available');
+  const fallback = (await damaged.state()).settings;
+  check(
+    fallback.interval === '6h' && fallback.notify === true,
+    'a damaged settings file falls back to the defaults',
+  );
+  await damaged.app.close();
 }
 
 /** The packaged exe (pnpm --dir desktop dist): fuses are really set, and it starts and shows the offline page. */

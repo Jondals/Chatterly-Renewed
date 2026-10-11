@@ -65,13 +65,14 @@ El servidor debe aceptar el origen `app://chatterly` (mira [Lado del servidor](#
 
 ### Variables de entorno
 
-| Variable                | Qué hace                                                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CHATTERLY_URL`         | El servidor (API). Por defecto, el sitio público. Una app instalada solo acepta `https`; `http` solo para `localhost` mientras desarrollas |
-| `CHATTERLY_MODE=remote` | Solo desarrollo: carga el propio servidor en vez de la web empaquetada                                                                     |
-| `CHATTERLY_WEB_DIR`     | Solo desarrollo: usa esta web compilada en vez de `desktop/web`                                                                            |
-| `CHATTERLY_NO_UPDATE=1` | Apaga la actualización automática                                                                                                          |
-| `CHATTERLY_UPDATE_URL`  | Solo desarrollo: una carpeta con `latest.yml` de la que comprobar y descargar (nunca instala). La usan las pruebas                         |
+| Variable                    | Qué hace                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CHATTERLY_URL`             | El servidor (API). Por defecto, el sitio público. Una app instalada solo acepta `https`; `http` solo para `localhost` mientras desarrollas              |
+| `CHATTERLY_MODE=remote`     | Solo desarrollo: carga el propio servidor en vez de la web empaquetada                                                                                  |
+| `CHATTERLY_WEB_DIR`         | Solo desarrollo: usa esta web compilada en vez de `desktop/web`                                                                                         |
+| `CHATTERLY_NO_UPDATE=1`     | Apaga la actualización automática                                                                                                                       |
+| `CHATTERLY_TRACE=<archivo>` | Escribe los tiempos de arranque (milisegundos desde que empezó el proceso) en ese archivo, una línea por paso. Para medir, mira [Velocidad](#velocidad) |
+| `CHATTERLY_UPDATE_URL`      | Solo desarrollo: una carpeta con `latest.yml` de la que comprobar y descargar (nunca instala). La usan las pruebas                                      |
 
 Una app instalada ignora `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` y `CHATTERLY_UPDATE_URL`, así que una variable de entorno no puede cambiar el código que guarda las claves.
 
@@ -109,17 +110,23 @@ Tus datos (las claves de tu cuenta y los ajustes) viven en `%APPDATA%\Chatterly`
 
 ## Actualizaciones
 
-La app instalada busca una versión nueva **al arrancar y cada 6 horas**, y solo **te avisa**. Nada se descarga, se instala ni se reinicia a tus espaldas:
+La app instalada busca una versión nueva **unos segundos después de arrancar y luego con la frecuencia que elijas**, y solo **te avisa**. Nada se descarga, se instala ni se reinicia a tus espaldas:
 
 1. Aparece el aviso "Hay una versión nueva" y las **notificaciones de la campana** (Inicio) muestran una tarjeta con la versión nueva.
 2. Pulsas **Descargar**. Una barra de progreso te dice cómo va.
 3. Cuando está lista pulsas **Reiniciar y actualizar**. Chatterly se cierra, instala en silencio y se abre otra vez.
 
-_Ajustes > Acerca de_ tiene un botón **Buscar actualizaciones** para comprobarlo a mano. Si no pulsas nada, la app se queda como está.
+**Ajustes > Actualizaciones** (solo en la app de escritorio) tiene lo necesario para controlarlo:
+
+- El estado, la versión, cuándo miró por última vez y los botones **Buscar actualizaciones**, **Descargar** y **Reiniciar y actualizar**.
+- **Buscar actualizaciones automáticamente**: cada hora, cada 6 horas (por defecto), cada 12 horas, cada día, solo al arrancar o solo cuando tú lo pidas.
+- **Avisarme de las versiones nuevas**: activado muestra el aviso y la tarjeta en la campana; desactivado no muestra nada en la campana (la versión nueva sigue en Ajustes > Actualizaciones).
+
+En la campana, la tarjeta tiene además **Más tarde** (la oculta para esa versión) y un enlace a estos ajustes. Las elecciones se guardan en `update-settings.json` en la carpeta del perfil (`%APPDATA%\Chatterly`). Si no pulsas nada, la app se queda como está.
 
 Lee las **Releases de GitHub** del repositorio y comprueba el sha512 de la descarga contra `latest.yml`; un archivo cuyo hash no coincide se rechaza y la tarjeta lo dice. Mientras el instalador no esté firmado no hay comprobación del editor encima de eso, que es el motivo para firmarlo o usar la Store. La versión de la Microsoft Store la actualiza la Store y no muestra tarjeta.
 
-La página habla con la app mediante cuatro comandos fijos (`getState`, `check`, `download`, `install`) y un evento, todo en `src/preload.cjs`. Solo la página principal de la app puede usarlos, nunca un marco incrustado.
+La página habla con la app mediante comandos fijos (`getState`, `check`, `download`, `install`, `setSettings`) y un evento, todo en `src/preload.cjs`. Solo la página principal de la app puede usarlos, nunca un marco incrustado, y `setSettings` solo acepta las dos claves de arriba con valores de una lista fija.
 
 ### Publicar una versión (para que las apps instaladas la vean)
 
@@ -139,6 +146,28 @@ $env:GH_TOKEN = "<token>"
 pnpm build
 pnpm --dir desktop release
 ```
+
+## Velocidad
+
+Lo que hace la app para arrancar y funcionar rápido:
+
+- La web se lee del instalador, no se descarga, y sus scripts se **compilan una vez y se guardan** (caché de código de V8 para `app://chatterly`), así que el segundo arranque se salta casi todo ese trabajo.
+- La página que lo arranca todo se lee y se prepara una vez, no en cada ruta.
+- El código de actualizaciones se carga **5 segundos después de abrirse la ventana**, para que no compita con el arranque.
+- La detección de ventanas tapadas de Windows está desactivada, así que una llamada en una ventana que está detrás de otra no se ralentiza.
+- La ventana se abre en cuanto su primer fotograma está listo, con el fondo oscuro ya puesto.
+
+No mueve el trabajo de la propia página: las animaciones y efectos de la web son los mismos que en un navegador (y su modo de bajo consumo, `data-perf="low"`, se activa solo en equipos flojos).
+
+Para medir en tu equipo:
+
+```
+$env:CHATTERLY_TRACE = "$env:TEMP\chatterly-trace.txt"
+& "$env:LOCALAPPDATA\Programs\Chatterly\Chatterly.exe"
+Get-Content $env:CHATTERLY_TRACE
+```
+
+Imprime líneas como `273 ready-to-show`: los milisegundos desde que empezó el proceso. En la máquina de desarrollo la ventana está lista en unos 0,27 s y el primer pintado en unos 0,35 s, sin tareas largas y con una tasa de fotogramas estable. Si la tuya es mucho más lenta, envía ese archivo.
 
 ## Lado del servidor
 
@@ -207,6 +236,7 @@ desktop/
   src/bundle.cjs         sirve la web empaquetada como app://chatterly
   src/updater.cjs        la actualización automática
   src/server-url.cjs     qué servidor, y la regla de https
+  src/trace.cjs          tiempos de arranque opcionales (CHATTERLY_TRACE)
   src/picker.html        la ventana de "compartir pantalla" (+ picker-preload.cjs)
   src/offline.html       la página cuando no se llega al servidor
   scripts/start.mjs      la arranca para desarrollar

@@ -26,6 +26,8 @@ import { ProfileSectionComponent } from './profile-section.component';
 import { SecuritySectionComponent } from './security-section.component';
 import { ShortcutsSectionComponent } from './shortcuts-section.component';
 import { StickersSectionComponent } from './stickers-section.component';
+import { UpdatesSectionComponent } from './updates-section.component';
+import { DesktopUpdateService } from '../../core/services/desktop-update.service';
 
 /** One entry of the section list: its icon, and the color classes of the small tile behind the icon. */
 interface SectionEntry {
@@ -64,6 +66,14 @@ const GROUPS: SectionEntry[][] = [
   [{ id: 'about', label: 'About', icon: 'info', tone: 'bg-white/10 text-muted' }],
 ];
 
+/** Only the desktop app can update itself, so only it has this section (it sits just before About). */
+const UPDATES_ENTRY: SectionEntry = {
+  id: 'updates',
+  label: 'Updates',
+  icon: 'download',
+  tone: 'bg-emerald/15 text-emerald',
+};
+
 /** Full-screen settings with a section list on the left. Closes with Esc or the ✕ button. */
 @Component({
   selector: 'app-settings',
@@ -81,6 +91,7 @@ const GROUPS: SectionEntry[][] = [
     IntegrationsSectionComponent,
     SyncSectionComponent,
     AboutSectionComponent,
+    UpdatesSectionComponent,
   ],
   template: `
     <div
@@ -198,6 +209,9 @@ const GROUPS: SectionEntry[][] = [
               @case ('integrations') {
                 <app-integrations-section class="anim-fade-up block" />
               }
+              @case ('updates') {
+                <app-updates-section class="anim-fade-up block" />
+              }
               @case ('about') {
                 <app-about-section class="block" />
               }
@@ -225,7 +239,10 @@ export class SettingsComponent {
   protected readonly listView = signal(
     this.ui.settingsList && window.matchMedia('(max-width: 767px)').matches,
   );
-  protected readonly groups = GROUPS;
+  private readonly desktopUpdate = inject(DesktopUpdateService);
+  protected readonly groups: SectionEntry[][] = this.desktopUpdate.supported
+    ? [...GROUPS.slice(0, -1), [UPDATES_ENTRY, ...GROUPS[GROUPS.length - 1]]]
+    : GROUPS;
   protected readonly section = toSignal(
     this.route.paramMap.pipe(
       map(function (p) {
@@ -237,7 +254,7 @@ export class SettingsComponent {
   protected readonly title = computed(this.findTitle.bind(this));
   /** The label of the open section (the window title). */
   private findTitle(): string {
-    for (const group of GROUPS) {
+    for (const group of this.groups) {
       for (const entry of group) {
         if (entry.id === this.section()) {
           return entry.label;

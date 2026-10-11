@@ -2,6 +2,14 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.26.0
+
+- **Settings > Updates (desktop app only).** The state of the update with its buttons (check, download, restart and update), when it last looked, **how often it looks** (every hour, 6 hours, 12 hours, every day, only when the app starts, or only when you ask) and **whether it tells you** about new versions. With notices off the bell shows nothing about the update, and you can still update from Settings. The choices are kept in the profile folder, and the app only accepts the fixed list of values (anything else sent by the page is refused). Nothing is ever downloaded or installed without you pressing a button.
+- **A better update card in the bell:** the size of the download, the amount downloaded next to the progress bar, **Later** (hides it for that version) and a link to the update settings.
+- **The desktop app starts lighter.** The scripts of the app are compiled once and cached (V8 code cache for `app://chatterly`), the first page is prepared once, the update code loads 5 seconds after the window opens instead of competing with it, and Windows' window-occlusion detection is off so a call in a window behind another one is not slowed down. `CHATTERLY_TRACE=<file>` writes the start-up timings to measure it (see `desktop/README.md`). The start was already fast on the development machine (window ready in about 0.27 s, first paint in about 0.35 s, no long tasks, 180 frames per second); if it still stutters on yours, send that file.
+- **The desktop build on GitHub works again:** the workflow installs the browser that the web build uses to draw the sign-in screen (it failed in version 2.25.0 with "Executable doesn't exist").
+- Tests: the desktop test (about 260 checks) covers the choices (defaults, valid values, refused values, kept after restarting, "only when I ask" not checking at start, a damaged file), and `pnpm test` drives the real Settings > Updates, the notices on and off, "Later" and a second start.
+
 ## 2.25.0
 
 - **The desktop app updates from inside the app, and only when you say so.** It looks for a new version at start and every 6 hours and only tells you: a notice "A new version is available" and a card in the notifications of the Home bell. You press **Download** (a progress bar shows it), and when it is ready **Restart and update**; Chatterly closes, installs silently and opens again. Nothing is downloaded, installed or restarted behind your back, and nothing is installed just because the app closes. _Settings > About_ has a **Check for updates** button. A download whose hash does not match is refused and the card says so. The page talks to the app through four fixed commands and one event (`desktop/src/preload.cjs`), usable only by the main page of the app and never by an embedded frame. The Microsoft Store version is updated by the Store and shows no card.

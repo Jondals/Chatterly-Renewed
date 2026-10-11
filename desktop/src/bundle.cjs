@@ -52,7 +52,14 @@ function registerScheme() {
   protocol.registerSchemesAsPrivileged([
     {
       scheme: SCHEME,
-      privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+      // codeCache: V8 keeps the compiled code of the scripts between starts, so the second start does not compile them again.
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        stream: true,
+        codeCache: true,
+      },
     },
   ]);
 }
@@ -82,6 +89,7 @@ function isInside(root, file) {
 function makeHandler(webDir, apiOrigin) {
   const root = path.resolve(webDir);
   const indexPath = path.join(root, 'index.html');
+  let indexBody = null;
 
   async function handler(request) {
     const url = new URL(request.url);

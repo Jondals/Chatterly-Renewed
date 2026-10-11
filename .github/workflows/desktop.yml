@@ -60,6 +60,10 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --dir frontend install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
+      # The web build draws a copy of the sign-in screen with a real browser (frontend/scripts/postbuild.mjs).
+      - name: Install the browser the web build needs
+        if: steps.version.outputs.released == 'false'
+        run: pnpm exec playwright install chromium
       - name: Build the web app
         if: steps.version.outputs.released == 'false'
         run: pnpm --dir frontend build
@@ -88,6 +92,8 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --dir frontend install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
+      - name: Install the browser the web build needs
+        run: pnpm exec playwright install chromium
       - name: Build the web app
         run: pnpm --dir frontend build
       - name: Build the Microsoft Store package

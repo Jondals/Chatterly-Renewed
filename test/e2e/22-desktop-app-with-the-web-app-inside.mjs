@@ -13,6 +13,11 @@ import { BACKEND, ROOT, TMP, children, step, check, run, freePort, waitFor } fro
 
 const DESKTOP = path.join(ROOT, 'desktop');
 
+/** The open panel of the bell. ! The pop-up notice has the same title as the card, so look only inside the panel. */
+function bellPanel(page) {
+  return page.locator('.panel', { hasText: 'Notifications' });
+}
+
 /** Desktop app (Electron) with the web app inside it: the real build and the real backend, sign-up included. */
 export async function step22(world) {
   step('desktop app (Electron) with the web app inside it');
@@ -89,19 +94,23 @@ export async function step22(world) {
   delete env.CHATTERLY_NO_UPDATE;
   // ! Some editors set this, and Electron would then run as plain Node.
   delete env.ELECTRON_RUN_AS_NODE;
-  const app = await electron.launch({
-    executablePath: electronExe,
-    args: [
-      DESKTOP,
-      '--user-data-dir=' + path.join(TMP, 'profile-desktop'),
-      '--use-fake-device-for-media-stream',
-      // ? The app follows the language of the system (here maybe Spanish); the checks below read English.
-      '--lang=en-US',
-    ],
-    cwd: DESKTOP,
-    env,
-    timeout: 30000,
-  });
+  /** Opens the desktop app (the same profile each time, so the second start finds the first one's sign-in). */
+  async function launchApp() {
+    return electron.launch({
+      executablePath: electronExe,
+      args: [
+        DESKTOP,
+        '--user-data-dir=' + path.join(TMP, 'profile-desktop'),
+        '--use-fake-device-for-media-stream',
+        // ? The app follows the language of the system (here maybe Spanish); the checks below read English.
+        '--lang=en-US',
+      ],
+      cwd: DESKTOP,
+      env,
+      timeout: 30000,
+    });
+  }
+  let app = await launchApp();
   const problems = [];
   const sockets = [];
   try {
@@ -171,25 +180,105 @@ export async function step22(world) {
       'no console errors or CSP violations in the desktop app: ' + problems.join(' | '),
     );
 
-    // The update: a notice in the bell, then download with a progress bar, then restart. Nothing happens by itself.
+    // The update: a notice in the bell, preferences in Settings, then download with a progress bar and restart.
+    async function waitForState(test) {
+      let last = null;
+      for (let i = 0; i < 60; i++) {
+        last = await page.evaluate(function () {
+          return window.chatterlyDesktop.updates.getState();
+        });
+        if (test(last)) return last;
+        await page.waitForTimeout(250);
+      }
+      throw new Error(
+        'FAILED: the update state never changed as expected: ' + JSON.stringify(last),
+      );
+    }
+    async function updaterLog() {
+      return app.evaluate(function () {
+        return (globalThis.__updaterLog || []).join(' | ');
+      });
+    }
+    async function updaterState() {
+      return page.evaluate(function () {
+        return window.chatterlyDesktop.updates.getState();
+      });
+    }
     const bell = page.locator('button.tip:has(app-icon[name=bell])').first();
     await bell.click();
     await page.getByText('A new version is available').first().waitFor({ timeout: 30000 });
     check(true, 'a newer version shows up in the notifications of the bell');
-    const earlyLog = await app.evaluate(function () {
-      return (globalThis.__updaterLog || []).join(' | ');
+    check(
+      !(await updaterLog()).includes('downloaded'),
+      'it was not downloaded without the person asking',
+    );
+
+    // Settings > Updates, from the card of the bell.
+    await page.getByRole('button', { name: 'Update settings' }).click();
+    await page.getByText('Chatterly 2.99.0 is available').first().waitFor({ timeout: 15000 });
+    check(true, 'Settings > Updates opens and says a new version is available');
+    check(
+      (await updaterState()).settings.interval === '6h',
+      'it looks every 6 hours until the person chooses otherwise',
+    );
+    await page.getByRole('radio', { name: 'Every hour' }).click();
+    await waitForState(function hourly(state) {
+      return state.settings.interval === '1h';
     });
-    check(!earlyLog.includes('downloaded'), 'it was not downloaded without the person asking');
+    check(true, 'choosing "Every hour" reaches the app');
+    await page.getByRole('radio', { name: 'Only when I ask' }).click();
+    await waitForState(function manual(state) {
+      return state.settings.interval === 'never';
+    });
+    check(true, 'choosing "Only when I ask" reaches the app');
+    await page.getByRole('radio', { name: 'Every day' }).click();
+    await waitForState(function daily(state) {
+      return state.settings.interval === '24h';
+    });
+    const notifySwitch = page.getByRole('switch', { name: 'Tell me about new versions' });
+    check(
+      (await notifySwitch.getAttribute('aria-checked')) === 'true',
+      'notices are on by default',
+    );
+    await notifySwitch.click();
+    await waitForState(function quiet(state) {
+      return state.settings.notify === false;
+    });
+    check(true, 'turning notices off reaches the app');
+
+    // With notices off the bell shows nothing about the update (Settings still does).
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+    await bell.click();
+    await page.waitForTimeout(500);
+    check(
+      (await bellPanel(page).getByText('A new version is available').count()) === 0,
+      'with notices off, the bell has no card for the update',
+    );
+    await bell.click();
+    await page.goto('app://chatterly/direct(settings:settings/updates)');
+    await page.getByText('Chatterly 2.99.0 is available').first().waitFor({ timeout: 15000 });
+    check(true, 'with notices off, Settings > Updates still shows the new version');
+    await page.getByRole('switch', { name: 'Tell me about new versions' }).click();
+    await waitForState(function loud(state) {
+      return state.settings.notify === true;
+    });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+
+    // Back with notices on: the card of the bell downloads and restarts.
+    await bell.click();
+    await bellPanel(page)
+      .getByText('A new version is available')
+      .first()
+      .waitFor({ timeout: 15000 });
     await page.getByRole('button', { name: 'Download' }).click();
     await page.getByRole('button', { name: 'Restart and update' }).waitFor({ timeout: 30000 });
     check(true, 'after downloading, the button to restart and update appears');
     await page.getByRole('button', { name: 'Restart and update' }).click();
     await page.waitForTimeout(800);
-    const lateLog = await app.evaluate(function () {
-      return (globalThis.__updaterLog || []).join(' | ');
-    });
     check(
-      lateLog.includes('would restart to install'),
+      (await updaterLog()).includes('would restart to install'),
       'pressing it asks the app to restart and install',
     );
 
@@ -199,6 +288,40 @@ export async function step22(world) {
     check(
       prefs.sandbox === true && prefs.contextIsolation === true,
       'the window stays sandboxed with context isolation',
+    );
+
+    // A second start: the choices were kept, and "Later" hides the card of the bell for that version.
+    await app.close();
+    app = await launchApp();
+    const again = await app.firstWindow();
+    await again.waitForURL('app://chatterly/**', { timeout: 30000 });
+    await again.waitForFunction(
+      function () {
+        return window.chatterlyDesktop.updates.getState().then(function (state) {
+          return Boolean(state) && state.status === 'available';
+        });
+      },
+      null,
+      { timeout: 30000 },
+    );
+    const kept = await again.evaluate(function () {
+      return window.chatterlyDesktop.updates.getState();
+    });
+    check(
+      kept.settings.interval === '24h' && kept.settings.notify === true,
+      'the chosen interval and notices were kept after restarting',
+    );
+    const bell2 = again.locator('button.tip:has(app-icon[name=bell])').first();
+    await bell2.click();
+    await bellPanel(again)
+      .getByText('A new version is available')
+      .first()
+      .waitFor({ timeout: 15000 });
+    await again.getByRole('button', { name: 'Later' }).click();
+    await again.waitForTimeout(500);
+    check(
+      (await bellPanel(again).getByText('A new version is available').count()) === 0,
+      '"Later" hides the card of the bell for that version',
     );
   } finally {
     await app.close();

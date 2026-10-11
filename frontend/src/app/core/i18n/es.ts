@@ -1416,4 +1416,25 @@ export const ES: Record<string, string> = {
     'La versión {v} está disponible (mira las notificaciones)',
   'Ready to restart': 'Lista para reiniciar',
   'The check failed': 'No se pudo comprobar',
+  'Later': 'Más tarde',
+  'Update settings': 'Ajustes de actualización',
+  'Preferences': 'Preferencias',
+  'Every hour': 'Cada hora',
+  'Every 6 hours': 'Cada 6 horas',
+  'Every 12 hours': 'Cada 12 horas',
+  'Every day': 'Cada día',
+  'Only when it starts': 'Solo al arrancar',
+  'Only when I ask': 'Solo cuando yo lo pida',
+  'Look for updates': 'Buscar actualizaciones automáticamente',
+  'How often Chatterly checks if there is a new version. It only looks: it never downloads or installs anything by itself.':
+    'Cada cuánto comprueba Chatterly si hay una versión nueva. Solo mira: nunca descarga ni instala nada por su cuenta.',
+  'Tell me about new versions': 'Avisarme de las versiones nuevas',
+  'Shows a notice and a card in the notifications of the bell. If you turn it off, you can still update from here.':
+    'Muestra un aviso y una tarjeta en las notificaciones de la campana. Si lo desactivas, aun así puedes actualizar desde aquí.',
+  'Chatterly {v} is available': 'Chatterly {v} está disponible',
+  'Chatterly {v} is ready to install': 'Chatterly {v} está lista para instalar',
+  'Last checked {time}': 'Última comprobación: {time}',
+  'Not checked yet': 'Aún sin comprobar',
+  'Updates come from the releases of the project and are checked before they are used.':
+    'Las actualizaciones vienen de las publicaciones del proyecto y se comprueban antes de usarlas.',
 };

@@ -2,16 +2,20 @@
  * desktop/src/updater.cjs
  * Updates of the installed app, driven by the person from inside the app.
  *
- * * The app looks for a new version at start and every few hours, and only TELLS: the web app shows it in the
- *   notifications of the Home bell. The person downloads it (a progress bar), then restarts to apply it. Nothing is
- *   downloaded, installed or restarted behind their back, and nothing is installed when the app merely closes.
+ * * The app looks for a new version when it starts and then as often as the person chose (Settings > Updates), and only
+ *   TELLS: the web app shows it in the notifications of the Home bell (if the person wants notices) and in Settings.
+ *   The person downloads it (a progress bar), then restarts to apply it. Nothing is downloaded, installed or
+ *   restarted behind their back, and nothing is installed when the app merely closes.
+ * * The choices (how often, notices on or off) are kept in update-settings.json in the profile folder.
  * * Updates come from the GitHub Releases of the repository (one release per version of the whole project, the same
  *   number as the web app). The Microsoft Store version is updated by the Store and never by this file.
  *   CHATTERLY_NO_UPDATE=1 turns it off.
  * ! An update is trusted because of the https connection to GitHub and the sha512 in latest.yml. Until the installer is
  *   signed there is no publisher check on top of that: sign it (or ship through the Store) to get one.
- * ! Only the main page of the app may use the four commands (see isTrustedSender); an embedded frame cannot.
+ * ! Only the main page of the app may use the commands (see isTrustedSender); an embedded frame cannot, and the
+ *   settings it sends are checked against a fixed list of values.
  * * Nothing is sent but the usual request for the release files: no account, no identifier.
+ * ? The updater code is loaded a few seconds after the window, so it does not compete with the start of the app.
  * ? Development only: CHATTERLY_UPDATE_URL=<folder with latest.yml> checks and downloads from there and never installs
  *   (a packaged app ignores it). desktop/test/desktop.mjs uses it.
  */
@@ -21,14 +25,36 @@ const { app, ipcMain } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+/** How often to look: the milliseconds between checks; 0 = only when the app starts, -1 = never by itself. */
+const INTERVALS = {
+  '1h': HOUR,
+  '6h': 6 * HOUR,
+  '12h': 12 * HOUR,
+  '24h': 24 * HOUR,
+  start: 0,
+  never: -1,
+};
+const DEFAULT_SETTINGS = { interval: '6h', notify: true };
+/** Wait this long after the window opens before the first check. */
+const START_DELAY_MS = 5000;
 const STATE_CHANNEL = 'updates:state';
 
 /**
  * What the web app sees. status: 'unavailable' (this build does not update itself), 'idle', 'checking', 'none'
- * (already the latest), 'available', 'downloading', 'ready', 'error'.
+ * (already the latest), 'available', 'downloading', 'ready', 'error'. lastCheck: when the last check ended (ms), or 0.
  */
-let state = { status: 'unavailable', version: '', percent: 0, error: '' };
+let state = {
+  status: 'unavailable',
+  version: '',
+  percent: 0,
+  transferred: 0,
+  total: 0,
+  bytesPerSecond: 0,
+  error: '',
+  lastCheck: 0,
+  settings: { ...DEFAULT_SETTINGS },
+};
 let autoUpdater = null;
 let mainWindow = null;
 let isAppAddress = null;
@@ -63,15 +89,62 @@ function describe(error) {
   return error && error.message ? String(error.message).slice(0, 300) : 'Unknown error';
 }
 
-function onError(error) {
-  log('error: ' + describe(error));
-  // A failed check is shown as an error only if the person had asked for something (download/restart).
-  if (state.status === 'downloading' || state.status === 'checking') {
-    setState({ status: 'error', error: describe(error) });
+// ── The choices of the person ────────────────────────────────────────────────────────────────────────
+
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'update-settings.json');
+}
+
+/**
+ * Turns what came in into valid settings, on top of `base`, or returns null if anything is wrong. ! The page is not
+ * trusted: only these two keys, only these values.
+ */
+function sanitizeSettings(raw, base) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const merged = { ...base };
+  for (const key of Object.keys(raw)) {
+    if (key === 'interval') {
+      if (typeof raw.interval !== 'string' || !Object.hasOwn(INTERVALS, raw.interval)) return null;
+      merged.interval = raw.interval;
+    } else if (key === 'notify') {
+      if (typeof raw.notify !== 'boolean') return null;
+      merged.notify = raw.notify;
+    } else {
+      return null;
+    }
+  }
+  return merged;
+}
+
+function loadSettings() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
+    return sanitizeSettings(raw, DEFAULT_SETTINGS) || { ...DEFAULT_SETTINGS };
+  } catch (error) {
+    return { ...DEFAULT_SETTINGS };
   }
 }
 
-// ── The four commands the page may use ───────────────────────────────────────────────────────────────
+function saveSettings(settings) {
+  try {
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings));
+  } catch (error) {
+    log('could not save the settings: ' + describe(error));
+  }
+}
+
+/** (Re)starts the timer for the chosen interval. */
+function schedule() {
+  clearInterval(checkTimer);
+  checkTimer = null;
+  const every = INTERVALS[state.settings.interval];
+  if (every > 0 && autoUpdater) {
+    checkTimer = setInterval(check, every);
+    checkTimer.unref();
+  }
+}
+
+// ── The commands the page may use ────────────────────────────────────────────────────────────────────
 
 /** ! Only the main page of the app, at the app's own address, may talk to the updater. */
 function isTrustedSender(event) {
@@ -87,7 +160,7 @@ function handleGet(event) {
 }
 
 function handleCheck(event) {
-  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (!isTrustedSender(event) || !ensureUpdater()) return state;
   if (state.status === 'downloading' || state.status === 'ready') return state;
   setState({ status: 'checking', error: '' });
   autoUpdater.checkForUpdates().catch(onError);
@@ -95,9 +168,9 @@ function handleCheck(event) {
 }
 
 function handleDownload(event) {
-  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (!isTrustedSender(event) || !ensureUpdater()) return state;
   if (state.status !== 'available' && state.status !== 'error') return state;
-  setState({ status: 'downloading', percent: 0, error: '' });
+  setState({ status: 'downloading', percent: 0, transferred: 0, bytesPerSecond: 0, error: '' });
   autoUpdater.downloadUpdate().catch(onError);
   return state;
 }
@@ -115,21 +188,61 @@ function handleInstall(event) {
   return state;
 }
 
+function handleSettings(event, patch) {
+  if (!isTrustedSender(event)) return state;
+  const next = sanitizeSettings(patch, state.settings);
+  if (!next) {
+    log('refused settings from the page');
+    return state;
+  }
+  saveSettings(next);
+  setState({ settings: next });
+  schedule();
+  return state;
+}
+
 // ── Events of electron-updater ───────────────────────────────────────────────────────────────────────
+
+function onError(error) {
+  log('error: ' + describe(error));
+  // A failed silent check shows nothing; a failed download or manual check says so.
+  if (state.status === 'downloading' || state.status === 'checking') {
+    setState({ status: 'error', error: describe(error), lastCheck: Date.now() });
+  }
+}
 
 function onAvailable(info) {
   log('available ' + info.version);
-  setState({ status: 'available', version: info.version, percent: 0, error: '' });
+  const file = info.files && info.files[0];
+  setState({
+    status: 'available',
+    version: info.version,
+    percent: 0,
+    transferred: 0,
+    total: file && file.size ? file.size : 0,
+    error: '',
+    lastCheck: Date.now(),
+  });
 }
 
 function onNone() {
   log('up to date');
   // Only a manual check shows "up to date"; the silent ones go back to idle.
-  setState({ status: state.status === 'checking' ? 'none' : 'idle', error: '' });
+  setState({
+    status: state.status === 'checking' ? 'none' : 'idle',
+    error: '',
+    lastCheck: Date.now(),
+  });
 }
 
 function onProgress(progress) {
-  setState({ status: 'downloading', percent: Math.round(progress.percent || 0) });
+  setState({
+    status: 'downloading',
+    percent: Math.round(progress.percent || 0),
+    transferred: progress.transferred || 0,
+    total: progress.total || state.total,
+    bytesPerSecond: progress.bytesPerSecond || 0,
+  });
 }
 
 function onDownloaded(info) {
@@ -139,24 +252,19 @@ function onDownloaded(info) {
 
 function check() {
   // A background check does not change what the page shows unless it finds something.
-  if (state.status === 'downloading' || state.status === 'ready') return;
+  if (!autoUpdater || state.status === 'downloading' || state.status === 'ready') return;
   autoUpdater.checkForUpdates().catch(onError);
 }
 
-/** Starts looking for updates and opens the four commands. Safe to call when updates are off. */
-function start(window, isAppAddressFn) {
-  mainWindow = window;
-  isAppAddress = isAppAddressFn;
-  ipcMain.handle('updates:get', handleGet);
-  ipcMain.handle('updates:check', handleCheck);
-  ipcMain.handle('updates:download', handleDownload);
-  ipcMain.handle('updates:install', handleInstall);
-  if (!enabled()) return;
+/** Loads electron-updater the first time it is needed. Returns false if it cannot be used. */
+function ensureUpdater() {
+  if (autoUpdater) return true;
+  if (!enabled()) return false;
   try {
     autoUpdater = require('electron-updater').autoUpdater;
   } catch (error) {
     onError(error);
-    return;
+    return false;
   }
   const feed = devFeed();
   if (feed) {
@@ -178,10 +286,33 @@ function start(window, isAppAddressFn) {
   autoUpdater.on('update-not-available', onNone);
   autoUpdater.on('download-progress', onProgress);
   autoUpdater.on('update-downloaded', onDownloaded);
-  setState({ status: 'idle' });
-  check();
-  checkTimer = setInterval(check, CHECK_EVERY_MS);
-  checkTimer.unref();
+  return true;
 }
 
-module.exports = { start, enabled };
+/** The first look for updates, a few seconds after the window opened. */
+function begin() {
+  if (!ensureUpdater()) return;
+  setState({ status: 'idle' });
+  if (state.settings.interval !== 'never') check();
+  schedule();
+}
+
+/** Opens the commands and starts looking for updates. Safe to call when updates are off. */
+function start(window, isAppAddressFn) {
+  mainWindow = window;
+  isAppAddress = isAppAddressFn;
+  state = { ...state, settings: loadSettings() };
+  ipcMain.handle('updates:get', handleGet);
+  ipcMain.handle('updates:check', handleCheck);
+  ipcMain.handle('updates:download', handleDownload);
+  ipcMain.handle('updates:install', handleInstall);
+  ipcMain.handle('updates:settings', handleSettings);
+  if (!enabled()) return;
+  // The page can already ask for the state: until the first check it is "idle".
+  setState({ status: 'idle' });
+  const wait = devFeed() ? 0 : START_DELAY_MS;
+  const timer = setTimeout(begin, wait);
+  timer.unref();
+}
+
+module.exports = { start, enabled, sanitizeSettings, INTERVALS, DEFAULT_SETTINGS };

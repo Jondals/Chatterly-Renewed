@@ -65,13 +65,14 @@ The server must accept the origin `app://chatterly` (see [Server side](#server-s
 
 ### Environment variables
 
-| Variable                | What it does                                                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `CHATTERLY_URL`         | The server (API). Default: the public site. An installed app only accepts `https`; `http` only for `localhost` while developing |
-| `CHATTERLY_MODE=remote` | Development only: load the server itself instead of the packed web app                                                          |
-| `CHATTERLY_WEB_DIR`     | Development only: use this web build instead of `desktop/web`                                                                   |
-| `CHATTERLY_NO_UPDATE=1` | Turns the self-update off                                                                                                       |
-| `CHATTERLY_UPDATE_URL`  | Development only: a folder with `latest.yml` to check and download from (it never installs). Used by the tests                  |
+| Variable                 | What it does                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `CHATTERLY_URL`          | The server (API). Default: the public site. An installed app only accepts `https`; `http` only for `localhost` while developing          |
+| `CHATTERLY_MODE=remote`  | Development only: load the server itself instead of the packed web app                                                                   |
+| `CHATTERLY_WEB_DIR`      | Development only: use this web build instead of `desktop/web`                                                                            |
+| `CHATTERLY_NO_UPDATE=1`  | Turns the self-update off                                                                                                                |
+| `CHATTERLY_TRACE=<file>` | Writes the start-up timings (milliseconds since the process started) to that file, one line per step. For measuring, see [Speed](#speed) |
+| `CHATTERLY_UPDATE_URL`   | Development only: a folder with `latest.yml` to check and download from (it never installs). Used by the tests                           |
 
 An installed app ignores `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` and `CHATTERLY_UPDATE_URL`, so an environment variable cannot swap the code that holds the keys.
 
@@ -109,17 +110,23 @@ Your data (the keys of your account, settings) lives in `%APPDATA%\Chatterly`. U
 
 ## Updates
 
-The installed app looks for a new version **at start and every 6 hours**, and only **tells you**. Nothing is downloaded, installed or restarted behind your back:
+The installed app looks for a new version **a few seconds after it starts and then as often as you choose**, and only **tells you**. Nothing is downloaded, installed or restarted behind your back:
 
 1. A notice "A new version is available" appears, and the **notifications of the bell** (Home) show a card with the new version.
 2. You press **Download**. A progress bar shows how it goes.
 3. When it is ready you press **Restart and update**. Chatterly closes, installs silently and opens again.
 
-_Settings > About_ has a **Check for updates** button for a manual check. If you never press anything, the app stays as it is.
+**Settings > Updates** (only in the desktop app) has what you need to control it:
+
+- The state, the version, when it last looked, and the buttons **Check for updates**, **Download** and **Restart and update**.
+- **Look for updates**: every hour, every 6 hours (the default), every 12 hours, every day, only when the app starts, or only when you ask.
+- **Tell me about new versions**: on shows the notice and the card in the bell; off shows nothing in the bell (the new version is still in Settings > Updates).
+
+In the bell, the card also has **Later** (hides it for that version) and a link to these settings. The choices are saved in `update-settings.json` in the profile folder (`%APPDATA%\Chatterly`). If you never press anything, the app stays as it is.
 
 It reads the **GitHub Releases** of the repository and checks the sha512 of the download against `latest.yml`; a file whose hash does not match is refused and the card says so. Until the installer is signed there is no publisher check on top of that, which is the reason to sign it or use the Store. The Microsoft Store version is updated by the Store and shows no card.
 
-The page talks to the app through four fixed commands (`getState`, `check`, `download`, `install`) and one event, all in `src/preload.cjs`. Only the main page of the app can use them, never an embedded frame.
+The page talks to the app through fixed commands (`getState`, `check`, `download`, `install`, `setSettings`) and one event, all in `src/preload.cjs`. Only the main page of the app can use them, never an embedded frame, and `setSettings` accepts only the two keys above with values from a fixed list.
 
 ### Publish a version (so installed apps see it)
 
@@ -139,6 +146,28 @@ $env:GH_TOKEN = "<token>"
 pnpm build
 pnpm --dir desktop release
 ```
+
+## Speed
+
+What the app does so it starts and runs fast:
+
+- The web app is read from the installer, not downloaded, and its scripts are **compiled once and cached** (V8 code cache for `app://chatterly`), so the second start skips most of that work.
+- The page that starts everything is read and prepared once, not on every route.
+- The update code is loaded **5 seconds after the window opens**, so it does not compete with the start of the app.
+- Windows' window-occlusion detection is turned off, so a call in a window that is behind another one is not slowed down.
+- The window opens as soon as its first frame is ready, with the dark background already in place.
+
+It does not move the work of the page itself: the animations and effects of the web app are the same as in a browser (and its low-power mode, `data-perf="low"`, switches on by itself on weak machines).
+
+To measure on your machine:
+
+```
+$env:CHATTERLY_TRACE = "$env:TEMP\chatterly-trace.txt"
+& "$env:LOCALAPPDATA\Programs\Chatterly\Chatterly.exe"
+Get-Content $env:CHATTERLY_TRACE
+```
+
+It prints lines like `273 ready-to-show`: the milliseconds since the process started. On the development machine the window is ready at about 0.27 s and the first paint at about 0.35 s, with no long tasks and a steady frame rate. If yours is much slower, send that file.
 
 ## Server side
 
@@ -207,6 +236,7 @@ desktop/
   src/bundle.cjs         serves the packed web app as app://chatterly
   src/updater.cjs        the self-update
   src/server-url.cjs     which server, and the https rule
+  src/trace.cjs          optional start-up timings (CHATTERLY_TRACE)
   src/picker.html        the "share your screen" window (+ picker-preload.cjs)
   src/offline.html       the page shown when the server cannot be reached
   scripts/start.mjs      starts it for development

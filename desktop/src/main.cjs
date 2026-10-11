@@ -27,6 +27,7 @@ const path = require('node:path');
 const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
 const updater = require('./updater.cjs');
+const { trace } = require('./trace.cjs');
 
 const RETRY_MS = 5000;
 /** Permissions the app itself may use. Anything else (geolocation, midi, usb, ...) is refused. */
@@ -59,6 +60,9 @@ if (!app.commandLine.hasSwitch('user-data-dir')) {
 app.enableSandbox();
 // ! Must happen before the app is ready.
 bundle.registerScheme();
+// * Windows works out which windows are covered by others and slows those down; a call in a window that is behind
+//   another one must not be slowed down (the same switch VS Code uses).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 // ? The default user agent says "Electron" and the package name; the web app does not need either.
 app.userAgentFallback = app.userAgentFallback
   .replace(/\sElectron\/\S+/, '')
@@ -261,6 +265,19 @@ function onFailLoad(event, errorCode, errorDescription, validatedUrl, isMainFram
   retryTimer = setTimeout(loadApp, RETRY_MS);
 }
 
+function onReadyToShow() {
+  trace('ready-to-show');
+  showMainWindow();
+}
+
+function onDomReady() {
+  trace('dom-ready');
+}
+
+function onFinishLoad() {
+  trace('did-finish-load');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -281,13 +298,18 @@ function createWindow() {
       allowRunningInsecureContent: false,
       devTools: !app.isPackaged,
       spellcheck: false,
+      // * Compile and cache the scripts of the app from the first start, not after they prove to be used often.
+      v8CacheOptions: 'bypassHeatCheck',
       // * Bundled: the page learns the API address from the preload (window.CHATTERLY_API), nothing else.
       additionalArguments: webDir ? ['--chatterly-api=' + serverUrl.origin] : [],
       // * A call must keep its timers and its key rotation while the window is behind other windows or minimized.
       backgroundThrottling: false,
     },
   });
-  mainWindow.once('ready-to-show', showMainWindow);
+  mainWindow.once('ready-to-show', onReadyToShow);
+  mainWindow.webContents.once('dom-ready', onDomReady);
+  mainWindow.webContents.once('did-finish-load', onFinishLoad);
+  trace('window-created');
   mainWindow.webContents.on('did-fail-load', onFailLoad);
   loadApp();
 }
@@ -339,7 +361,9 @@ function onWindowAllClosed() {
 }
 
 async function start() {
+  trace('main-loaded');
   await app.whenReady();
+  trace('app-ready');
   try {
     serverUrl = parseServerUrl(process.env.CHATTERLY_URL, app.isPackaged);
   } catch (error) {

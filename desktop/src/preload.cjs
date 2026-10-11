@@ -4,7 +4,8 @@
  * to update the app and, when the web app is bundled, the address of the API.
  *
  * ! This file is the whole attack surface between the page and the main process. The page gets NO generic IPC: only
- *   the four fixed update commands (no arguments) and one fixed channel to hear the state of the update. Do not add
+ *   the fixed update commands (only `setSettings` takes an argument, which the main process validates against a fixed
+ *   list of values) and one fixed channel to hear the state of the update. Do not add
  *   channels or Node modules here without a security review. (desktop/test/desktop.mjs checks the list.)
  */
 'use strict';
@@ -38,6 +39,10 @@ function download() {
 function install() {
   return ipcRenderer.invoke('updates:install');
 }
+/** Changes how often it looks and whether it tells you. The main process accepts only its fixed list of values. */
+function setSettings(settings) {
+  return ipcRenderer.invoke('updates:settings', settings);
+}
 
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
 function onState(callback) {
@@ -60,6 +65,6 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     isDesktop: true,
     platform: process.platform,
-    updates: Object.freeze({ getState, check, download, install, onState }),
+    updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
   }),
 );
