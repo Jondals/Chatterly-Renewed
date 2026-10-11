@@ -26,7 +26,6 @@ import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { DirectoryService } from './directory.service';
 import { FontService } from './font.service';
-import { ImageService } from './image.service';
 import { WallpaperStore } from './wallpaper.store';
 import { MessageStore, type ViewAttachment } from '../../store/message.store';
 
@@ -47,7 +46,6 @@ export class PresetService {
   private readonly api = inject(ApiService);
   private readonly directory = inject(DirectoryService);
   private readonly fonts = inject(FontService);
-  private readonly images = inject(ImageService);
   private readonly wallpaper = inject(WallpaperStore);
   private readonly messages = inject(MessageStore);
 
@@ -208,19 +206,8 @@ export class PresetService {
   /** The custom pieces of the profile now (the pictures are opened to be kept: they are the person's own). */
   private async profileAssets(): Promise<Preset['assets']> {
     const assets: Preset['assets'] = {};
-    const user = this.auth.user();
-    for (const [name, id] of [
-      ['avatar', user?.avatarImage],
-      ['banner', user?.bannerImage],
-    ] as const) {
-      if (id) {
-        try {
-          assets[name] = await this.images.openPicture(id);
-        } catch {
-          /* a picture that cannot be opened is left out */
-        }
-      }
-    }
+    // (the pictures of the profile, the photo and the banner image, are the person's own: a preset never takes them or changes
+    // them; the banner color or gradient is a field and goes with it)
     const font = await this.fonts.read('name');
     if (font) {
       assets.fontName = new Blob([font], { type: 'font/ttf' });
@@ -245,25 +232,12 @@ export class PresetService {
 
   /**
    * What a profile preset changes: the fields go back to the caller (they are put in the draft, and the person saves them);
-   * the pictures and the font of the name are applied at once.
+   * the font of the name is applied at once.
    */
   async applyProfile(preset: Preset): Promise<Record<string, unknown>> {
     const font = preset.assets.fontName;
     if (font) {
       await this.fonts.set('name', await font.arrayBuffer(), preset.name);
-    }
-    for (const [name, field] of [
-      ['avatar', 'avatarImage'],
-      ['banner', 'bannerImage'],
-    ] as const) {
-      const blob = preset.assets[name as AssetName];
-      if (blob && /^image\/(png|jpeg|webp|gif)$/.test(blob.type)) {
-        const id = await this.images.upload(name === 'avatar' ? 'avatar' : 'banner', blob);
-        const res = await this.api.patch<{ user: User }>('/api/me', { [field]: id });
-        this.auth.setUser(res.user);
-        this.directory.merge([res.user]);
-        this.images.ensure(id);
-      }
     }
     return cleanProfileData(preset.data);
   }

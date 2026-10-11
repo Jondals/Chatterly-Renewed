@@ -1,0 +1,76 @@
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# .github/workflows/desktop.yml
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# * Builds the Windows app (desktop/) and attaches it to the GitHub Release of the tag, which is also where the installed
+#   apps look for updates. Start it by pushing a tag with the same number as the version: v2.24.0.
+#   Nothing here touches the server (deploy.yml is the one that does, and it ignores desktop/).
+# * By hand (Actions tab > Run workflow) it builds the Microsoft Store package instead and keeps it as a download.
+#   Secrets for the Store (Settings > Secrets and variables > Actions): STORE_IDENTITY_NAME, STORE_PUBLISHER and
+#   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
+# ! The installer is NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
+name: Build the desktop app
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    permissions:
+      contents: write # to attach the installer to the release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir desktop install --frozen-lockfile
+      - name: Build the web app
+        run: pnpm --dir frontend build
+      - name: Check the desktop shell
+        run: pnpm --dir desktop test
+      - name: Build and publish the installer
+        run: pnpm --dir desktop release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  store:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir desktop install --frozen-lockfile
+      - name: Build the web app
+        run: pnpm --dir frontend build
+      - name: Build the Microsoft Store package
+        run: pnpm --dir desktop dist:store
+        env:
+          STORE_IDENTITY_NAME: ${{ secrets.STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatterly-store-package
+          path: desktop/dist/*.appx

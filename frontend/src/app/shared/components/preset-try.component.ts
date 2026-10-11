@@ -16,7 +16,6 @@ import { UserFontDirective } from '../util/user-font.directive';
 import { describeError } from '../util/errors';
 import { parseRichText } from '../util/rich-text';
 import { RichTextComponent } from './rich-text.component';
-import { IconComponent } from './icon.component';
 
 /** The bar of a theme that is being tried, and the window of a profile that is being looked at. */
 @Component({
@@ -24,7 +23,6 @@ import { IconComponent } from './icon.component';
   standalone: true,
   imports: [
     BannerComponent,
-    IconComponent,
     ModalComponent,
     NameColorDirective,
     NameFxDirective,
@@ -66,15 +64,12 @@ import { IconComponent } from './icon.component';
         (closed)="presets.previewing.set(null)"
       >
         <div class="overflow-hidden rounded-ui-lg border border-white/10 bg-ink-900">
-          <app-banner class="h-28" [image]="bannerImage()" [color]="text('bannerColor')" />
+          <app-banner class="h-28" [color]="text('bannerColor')" />
           <div class="relative px-4 pb-4">
             <span
-              class="-mt-9 flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border-4 border-ink-900 bg-ink-700 bg-cover bg-center text-xl font-bold"
-              [style.background-image]="avatarImage()"
+              class="-mt-9 flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full border-4 border-ink-900 bg-ink-700 text-xl font-bold"
             >
-              @if (!avatarImage()) {
-                {{ preset.name.charAt(0).toUpperCase() }}
-              }
+              {{ preset.name.charAt(0).toUpperCase() }}
             </span>
             <h3
               class="mt-2 text-lg font-bold leading-tight"
@@ -124,34 +119,11 @@ export class PresetTryComponent {
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
   protected readonly busy = signal(false);
-  /** The addresses made for the pictures of the profile that is looked at. */
-  private readonly urls = computed(this.makeUrls.bind(this));
-  protected readonly avatarImage = computed(
-    function (this: PresetTryComponent) {
-      const url = this.urls().avatar;
-      return url ? 'url(' + url + ')' : null;
-    }.bind(this),
-  );
-  protected readonly bannerImage = computed(
-    function (this: PresetTryComponent) {
-      const url = this.urls().banner;
-      return url ? 'url(' + url + ')' : null;
-    }.bind(this),
-  );
   protected readonly bio = computed(
     function (this: PresetTryComponent) {
       return parseRichText(this.text('bio'));
     }.bind(this),
   );
-
-  /** An address for each picture of the preset (they stay until the page closes: a profile is small). */
-  private makeUrls(): { avatar: string; banner: string } {
-    const assets = this.presets.previewing()?.assets;
-    return {
-      avatar: assets?.avatar ? URL.createObjectURL(assets.avatar) : '',
-      banner: assets?.banner ? URL.createObjectURL(assets.banner) : '',
-    };
-  }
 
   /** A text field of the profile that is looked at. */
   protected text(field: string): string {

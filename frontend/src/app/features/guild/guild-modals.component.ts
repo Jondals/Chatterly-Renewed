@@ -519,7 +519,7 @@ export class GuildModalsComponent {
     event.preventDefault();
     this.busy.set(true);
     try {
-      const guild = await this.guilds.create(this.name().trim(), '');
+      const guild = await this.guilds.create(this.name().trim());
       const blob = this.createBlob();
       if (blob) {
         await this.guilds.setIcon(guild.id, blob);

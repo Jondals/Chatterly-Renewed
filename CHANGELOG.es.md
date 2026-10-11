@@ -1,0 +1,749 @@
+# Registro de cambios
+
+Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
+
+## 2.24.0
+
+- **Aplicación de escritorio para Windows (nueva, `desktop/`).** La misma aplicación web cifrada dentro de una ventana de Electron que lleva la compilación web dentro (servida como `app://chatterly`), de modo que el código que maneja tus claves es el del instalador y no el que un servidor mande en cada arranque. La cámara, el micrófono, las notificaciones y la captura de pantalla van a la propia aplicación y nunca a un marco incrustado; los enlaces se abren en tu navegador; la página no puede alcanzar Node (sandbox, aislamiento de contexto, fuses, integridad de asar); compartir pantalla tiene su propio selector (sin el audio del sistema, que haría eco en la llamada); cerrar la ventana mantiene viva una llamada en la bandeja; sin servidor muestra una página sin conexión y reintenta. El instalador se actualiza solo desde las Releases de GitHub (`desktop.yml` lo construye cuando se sube una etiqueta `v*`), el paquete de Microsoft Store sale de `pnpm --dir desktop dist:store`, y el instalador todavía no está firmado (Windows muestra su aviso de SmartScreen; la vía de la Store lo firma). `docker-compose.yml` ahora deja pasar el origen `app://chatterly` (CORS y WebSocket); `deploy.yml` ignora `desktop/` y `mobile/`.
+- Tests (escritorio): `pnpm --dir desktop test` (unas 200 comprobaciones de la carcasa, del servidor `app://` y de la compilación empaquetada) también corre dentro de `pnpm test`, y hay un paso nuevo en el que la aplicación de escritorio se registra contra el backend real desde `app://chatterly`.
+
+- **Lo que se llama un grupo va sellado ahora.** El nombre del grupo, el de cada canal y cada etiqueta (con su color) se guardaban en claro en el servidor; ahora los sella el navegador del dueño con la clave del grupo (`g1.<versión de la clave>.<iv>.<datos>`), atados al grupo, a lo que el texto nombra y a la versión de la clave, de modo que el servidor no puede leerlos ni darle el nombre de un canal a otro. El servidor rechaza un nombre en claro y un nombre sellado con una versión de clave que el grupo no tiene. Una clave nueva (alguien se fue) vuelve a sellar todos los nombres, así que quien llegue después puede leerlos. Los nombres de un grupo hecho antes los sella su dueño la próxima vez que abre la aplicación (hasta entonces se ven como estaban). La etiqueta del grupo que la gente elige mostrar en su perfil sigue siendo pública, porque se enseña a gente de fuera del grupo. El emoji de un grupo (que nunca se mostraba y estaba en claro) se quita de la base de datos.
+- **La llamada flotante tiene la cámara a todo el ancho:** la cámara o la pantalla de la otra persona llena el panel (sin barras negras, cubre su ventana), y el bloque entero se redimensiona desde la esquina lejana al borde en el que descansa.
+- **El retraso de la llamada es una señal pequeña** (barras y los milisegundos, verde si es bueno, ámbar si se retrasa, rojo si es malo) en lugar de texto gris plano.
+- **El botón de enviar es solo para móviles:** en un ordenador envía Enter.
+- **La animación de un nombre ya no se queda pillada:** cuando el puntero se iba, el nombre se paraba cuando la última letra terminaba su vuelta, pero las demás estaban a mitad de la suya y se quedaban congeladas en el aire. Ahora cada letra espera el final de su propia vuelta y descansa ahí.
+- **Un preajuste de perfil ya no se lleva la imagen del banner:** con un preajuste de perfil solo va un color o degradado de banner (como antes, al aplicar uno no se toca ni la foto de perfil ni la imagen del banner).
+- **Pasar de un grupo a otro ya no da tirones.** `groups`, `groups/:grupo` y `groups/:grupo/:canal` eran tres rutas, así que añadir el canal a la dirección (que la pantalla hace sola) destruía la pantalla y la construía otra vez. Ahora es una sola ruta (y `direct` también).
+- **Los móviles arrancan en modo ligero** (sin desenfoque tras los paneles, una llegada más tranquila: el círculo que se abre es un fundido, la aurora se queda quieta y la capa oscura del HTML no se balancea), así que los primeros segundos en un móvil no se entrecortan.
+- **El tablero de sonidos, rehecho:** una cabecera con una marca, las categorías como píldoras, un deslizador de volumen fino que combina con la aplicación (también lo usan la música y la línea de tiempo), una celda discontinua de «añadir un sonido» y más espacio alrededor de los sonidos.
+- **La tarjeta de escuchar juntos:** más ancha, con una luz suave del acento, y una línea de tiempo y un deslizador de volumen que combinan con la aplicación.
+- **El menú de Actividades tiene más espacio** (más ancho, más relleno, más separación entre las tarjetas; son las mismas tarjetas del menú «+» del chat).
+- **Spinly arranca con valores:** una ruleta o un torneo nuevos tienen tres opciones ya escritas («Opción 1», «Opción 2», «Opción 3»), así que se pueden enviar tal cual.
+- **El torneo, con un aspecto nuevo:** un marcador con líneas finas y esquinas pequeñas (sin píldoras ni mucha redondez), una franja de color para cada lado, marcadores en rombo y un cuadro más plano.
+- **Documentación:** [ARCHITECTURE.es.md](ARCHITECTURE.es.md) explica cómo está montado el proyecto y por qué; versiones en español de la arquitectura, la política de seguridad, la guía de contribución y el código de conducta.
+- **El test está dividido por temas** (sigue siendo un solo comando, `pnpm test`): `test/run.mjs` lanza `test/e2e/` (un archivo por paso del test del navegador) y `test/security.mts` lanza `test/security/` (un archivo por tema), en lugar de dos archivos de 2.000 y 2.700 líneas.
+- **SEO: la página que pruebas es una página indexable.** `robots.txt` bloqueaba `/direct`, `/groups` y `/voice` (así que Lighthouse, pasado sobre una página con la sesión iniciada, decía «Page is blocked from indexing» y daba 61) y el enlace canónico apuntaba siempre a la página de inicio. Ahora un rastreador puede abrir esas páginas (solo ve la pantalla de entrada: todo lo privado está tras un inicio de sesión; la API, el socket y los sonidos siguen cerrados) y el enlace canónico sigue a la página que está abierta.
+- **Los sonidos de la interfaz se cargan algo más tarde** (1,5 s tras mostrar la página, 5 s en un móvil, o en la primera pulsación), para que cincuenta archivos pequeños no compitan con el primer pintado en una conexión lenta.
+- **Seguridad:** una cuenta que escribe demasiado en una hora (mensajes del tamaño máximo, uno tras otro) se frena, para que una sola cuenta no pueda llenar el disco; el color del cursor solo se usa si es un color hexadecimal (entra en el dibujo del cursor).
+
+## 2.23.1
+
+- **La tarjeta de escuchar juntos, rehecha:** una insignia con las barras que bailan, el título, la línea de tiempo debajo, y una fila con la cola a la izquierda, un play redondo grande y el salto en el medio y el volumen a la derecha (chips redondeados, no botones cuadrados).
+- **La línea de tiempo de escuchar y ver juntos avanza con el reloj** entre dos informes del reproductor (informaba un par de veces por segundo y parecía ir tarde), y el botón de pausa de la barra flotante de la llamada cambia al instante. La barra flotante ya no muestra el título de lo que suena (la alargaba).
+- **Un nombre con una fuente de letra cursiva se cortaba** con su propia caja (el rabo de una letra se sale de ella): el nombre animado tiene ahora espacio arriba, abajo y a los lados.
+- **El torneo en el chat** usa los colores de la aplicación: una tarjeta con borde y luz del acento, una cabecera con el acento, lados neutros con el acento de quien va ganando.
+- **Un preajuste de perfil no toca la foto de perfil:** ni la guarda ni la cambia (el banner y el resto del perfil siguen yendo con él).
+- **Escribir ya no mueve el cuadro de mensaje:** el botón de enviar mantiene su sitio (aparece con un fundido) en vez de aparecer y empujar a los demás botones, y la ventana de emojis se queda donde está.
+- **La ventana de emojis es más ligera:** sus celdas no tienen transición, y nada reacciona al puntero mientras la lista se desplaza (el desplazamiento rápido iba con tirones porque cientos de celdas cambiaban de estado bajo el puntero). Los emojis que el navegador no sabe dibujar (una versión de Emoji que no conoce, como en Opera GX) se dejan fuera de la lista en vez de mostrar cajas vacías (dibuja un emoji de cada versión para saberlo, con la misma fuente de emojis que usa la página; un lienzo protegido que no se puede leer deja la lista entera).
+- **Varios emojis en un mensaje no salen diminutos:** hasta diez emojis se dibujan grandes (cuantos menos, más grandes), no solo hasta tres.
+- **La barra flotante de la llamada** muestra solo la pantalla que alguien comparte o la cámara de otra persona, de forma estable (no cambia a quien habla); sin ninguna de las dos no muestra ventana.
+- **Las pegatinas ya no hacen que la página vaya con tirones.** Las pegatinas animadas del paquete inicial se movían _dentro_ de su imagen, que el navegador vuelve a dibujar en cada fotograma (cincuenta en el selector y todas las del chat). Ahora la imagen está quieta y la página la mueve con una transformación, que el chip gráfico hace por sí solo: en los selectores una pegatina se mueve solo bajo el puntero, y en un mensaje se mueve todo el rato (cómo se mueve viaja con la pegatina). Las pegatinas que ya tenías se dejan quietas al leerlas y conservan su movimiento.
+- **Los bucles de un emoji solo iban demasiado rápido con las animaciones «Rápidas»:** ese ajuste recortaba la duración de todas las animaciones de la burbuja (también su bucle infinito) a una fracción de segundo. Los emojis y las pegatinas del chat quedan fuera de eso.
+- **Animaciones de nombre, rehechas:** ahora se mueven las LETRAS, una tras otra, con los principios de la animación (anticipación, estirar y aplastar, rebote, continuación): Rebote, Salto, Ola, Gelatina, Pop, Columpio, Giro, y dos luces, Resplandor y Neón (una copia desenfocada del nombre detrás, de la que solo se mueve la opacidad). Los nombres con degradado lo conservan, pintado letra a letra. Solo cambian transform y opacity, un nombre que está fuera de la pantalla no se mueve, y cuando el puntero se va las letras terminan el movimiento en que están. (La primera versión animaba filtros de todos los nombres del chat, que es caro.)
+- **Preajustes:** cada uno tiene una imagen pequeña (un chat diminuto con sus colores, burbujas, esquinas y fondo; una tarjeta de perfil diminuta con su banner, foto y nombre), y están al final de su sección (bajo Sobre mí; bajo el cursor).
+- **Escuchar juntos:** la tarjeta tiene un cuerpo que se pliega y vuelve con el mismo movimiento suave (antes solo se plegaba suavemente), la línea de tiempo tiene espacio, los botones van en una fila propia bajo ella con un botón de play redondo, y el volumen es un pequeño popover redondo con un deslizador corto.
+- **La llamada minimizada** (la barra flotante) ya no es tan larga como el título del vídeo: el título se corta y la barra tiene un ancho máximo.
+- **Ver juntos:** las bandas negras y el círculo que cubrían las marcas propias de YouTube durante tres segundos ya no están; esos momentos (recién empezado, movido, en pausa) se cubren con un desenfoque, sin formas.
+- **La tarjeta de audio y notas de voz** vuelve a la disposición tranquila de una fila (play, onda con los tiempos debajo y dos botones pequeños y discretos para la velocidad y el tablero de sonidos).
+- **Rebote y Salto son distintos y más suaves:** Rebote es una pelota pequeña y blanda que nunca para; Salto espera, se agacha, salta alto con una voltereta y se asienta, con la suavidad de cada tramo siguiendo la gravedad. La animación del nombre ya no se muestra en los mensajes del chat. La tarjeta de audio tiene botones cuadrados con esquinas redondeadas para la velocidad y el tablero de sonidos, y el selector de color del texto del chat es un anillo de arcoíris (cualquier color).
+- **Las animaciones de nombre que se parecían ahora son de verdad distintas:** Rebote es una pelota de goma rápida y baja; Salto es una voltereta (un salto alto que da la vuelta en el aire); Ola es una sinusoide suave por encima y por debajo de la línea; Deriva hace subir las letras como burbujas, apareciendo y desapareciendo; Resplandor es una luz ancha y suave que respira mientras las letras se quedan como están; Neón enciende las letras al rojo blanco con un halo ceñido, y los tubos parpadean uno a uno. Un test comprueba que cada animación tiene un movimiento propio.
+- **Un preajuste de tema conserva todo el aspecto:** también el tamaño del texto, el nivel de animaciones, el desenfoque del fondo y los minutos de la mezcla (la tipografía y el movimiento del fondo ya estaban).
+- **Las animaciones de nombre que se parecían son distintas:** Ola inclina las letras como una ola inclinada; Deriva las mueve en pequeños círculos; Pop hace que cada letra se encoja y vuelva a saltar con un rebote.
+- **La cola de los vídeos se cierra con una pulsación en cualquier otro sitio** (una pulsación que una ventana flotante paraba por el camino no llegaba hasta ella).
+- **El selector de emojis del estado del perfil** se dibuja en la capa superior del navegador, junto a su botón: ninguna sección queda por encima y ninguna tarjeta lo corta. Las celdas del selector de emojis que están fuera de la pantalla no se dibujan, lo que aligera cambiar el tono de piel y la categoría.
+- **La barra flotante de la llamada** muestra la cámara o la pantalla de cualquiera (también la tuya) siempre que esté encendida, no solo mientras su dueño habla; el título del vídeo o del audio se corta a un ancho.
+- **Un clic derecho en tu propio panel abre tu perfil, en grande**, y una pulsación en la foto de un perfil (la tarjeta de perfil, tu propio panel) abre la foto en grande (una pulsación en cualquier sitio o Esc la cierra).
+- **Volver atrás tras probar o aplicar un tema con fondo de pantalla fallaba** («la operación falló por motivos ajenos al estado de la base de datos»): el archivo que IndexedDB daba para el fondo antiguo deja de ser válido cuando se reemplaza su registro, así que no se podía volver a poner. El fondo se copia a memoria antes de reemplazarlo. La tarjeta de un preajuste en el chat es más baja: la imagen y el nombre arriba, los tres botones en una fila debajo.
+- **Los preajustes en el chat** tienen tres botones: Probar, Importar e Importar y usar, para temas y para perfiles. Probar un tema lo pone en la aplicación con una barra para conservarlo o volver al tuyo; probar un perfil lo abre en una ventana. «Importar y usar» un perfil lo guarda en tu perfil al instante.
+- **Nombres:** dos animaciones nuevas (Deriva, Destello); ahora solo Rebote y Salto son saltos (Ola se mece de lado a lado); todas se suavizan más; y las letras tienen espacio arriba y abajo en las listas que cortan nombres (se recortaban). Una animación que se paraba mientras el puntero seguía sobre el nombre ahora continúa.
+- **Ajustes > Sincronización** habla de _configuraciones_ (no de «juegos de ajustes»), con más espacio sobre el botón para hacer una nueva.
+- **Una imagen que se mueve** (un GIF como icono de un servidor o foto de perfil) se mueve solo bajo el puntero; el resto del tiempo muestra su primer fotograma.
+- **El candado de la llamada** es más grande. Glaciar va antes que el Pop de Mandarina. La tarjeta de escuchar juntos y la barra flotante de la llamada vuelven a ser como antes.
+- **El desenfoque del fondo llega como máximo a 100** (llegaba a 120); un valor mayor guardado de antes se lee como 100.
+- **Las animaciones de nombre en una sección plegada** no mostraban nada (un nombre pintado con degradado se medía mientras la sección estaba cerrada y no tenía ancho): las letras se miden otra vez cuando reciben un tamaño.
+- **Preajustes:** cada uno puede tener una imagen que sube la persona (o volver a la predeterminada: un chat diminuto o una tarjeta de perfil diminuta dibujados, nunca el fondo de pantalla: puede ser una animación pesada). La imagen viaja con el preajuste y se muestra en el mensaje que lo ofrece. Compartir pasó al menú «+» del chat («Compartir un preajuste»: elige perfil o tema de la aplicación, luego el preajuste).
+- **Un tema nuevo, Glaciar**, después del Pop de Mandarina (que ahora es el penúltimo).
+- **Pasar el puntero por cualquier cosa pulsable es más suave** (el color, el borde y la sombra entran y salen con suavidad, en todo botón, enlace, fila de menú y tarjeta).
+- **Los degradados pueden girar el tono** de todos los colores a la vez o solo del elegido.
+- **Ver juntos:** la barra tiene un botón de play redondo con espacio alrededor, subtítulos activados y desactivados (desactivados por defecto, sea lo que sea que se eligió en YouTube) y el volumen (un pequeño popover redondo).
+- Las tipografías empiezan a descargarse cuando se abren los ajustes de Apariencia, así que sus vistas previas están listas cuando se despliega el pliegue. El color personalizado del texto del chat está alineado con las demás muestras.
+
+## 2.23.0
+
+- **Preajustes del tema y del perfil.** Un pliegue nuevo (Apariencia > «Preajustes de tema», Mi perfil > «Preajustes de perfil») guarda con un nombre lo que tienes ahora: colores, fuentes, fondo, cursor y burbujas para el tema; colores, efecto, animación del nombre, Sobre mí, banner y foto para el perfil. Cada preajuste se puede aplicar con una pulsación, actualizar con lo que tienes ahora, renombrar, borrar y **compartir en el chat que está abierto**: un amigo recibe una tarjeta con «Importar» (y «Importar y usar» para un tema). Las piezas personalizadas (fondo, fuentes subidas, imágenes) viajan dentro del archivo, como bytes (sin base64), hasta 11 MB. Lo que viene de otra persona se comprueba pieza a pieza: solo se leen los ajustes que pertenecen a un preajuste, cada valor debe ser corto y sin marcado ni estilos, las imágenes deben ser imágenes y cada pieza tiene un límite de tamaño.
+- **Etiquetas de servidor.** El dueño de un grupo crea una etiqueta en sus ajustes (hasta cuatro letras o números, un color y un icono) y cada miembro elige en Mi perfil si la muestra junto a su nombre (mensajes, lista de miembros, tarjeta de perfil). Desaparece cuando la persona se va del grupo, la echan o se borra el grupo, y la acompaña cuando el dueño la cambia. El servidor solo acepta un icono de una lista fija.
+- **Quitar a un amigo borra lo que los dos tenían.** El chat directo se borra con sus mensajes, archivos y reacciones; la persona sale de los grupos de los que eres dueño (sus mensajes y archivos allí se borran y la clave del grupo se marca para renovarse) y se descartan las claves de las imágenes que compartisteis. Rechazar o cancelar una solicitud solo borra la solicitud.
+- **Ver vídeos juntos:** la línea de tiempo no se podía arrastrar (un manejador de la ventana de la llamada que devolvía `false` hacía que Angular cancelara la pulsación sobre la barra, así que el control nunca se movía); está arreglado y el test ahora arrastra el control con el ratón. YouTube dibuja su título, botones y logotipo un momento cuando un vídeo empieza o salta: un desenfoque cubre la imagen durante tres segundos después, como ya hacía mientras estaba en pausa.
+- **La tarjeta de la música** se minimiza a una barra estrecha (mantenía el ancho de la tarjeta completa), y un test pulsa el botón.
+- **Menú de la llamada:** las opciones del micrófono y de la cámara se abren y se cierran con suavidad, y los modos de voz se parten en líneas en lugar de salirse de la pantalla. El «Más opciones» de un degradado también se pliega con suavidad.
+- **Chat:** se puede volver a elegir cualquier color para un texto (un selector junto a las muestras). La tarjeta de audio y notas de voz tiene los botones en una fila propia (la onda estaba apretada). Ajustes: la línea que se duplicaba bajo «Acciones sobre un mensaje» ya no está.
+- **Spinly:** la cuadrícula del fondo ya no se desplaza.
+- **Sincronización** dice lo que hace: una cabecera con su estado, dos tarjetas para lo que hace este dispositivo, y juegos de ajustes explicados con un ejemplo.
+- **Animación de introducción:** más ligera en un móvil: los anillos ya no escalan nueve veces una sombra desenfocada (un brillo horneado, dibujado una vez y escalado por el compositor) y, en un móvil o un dispositivo lento, se quitan el suelo 3D, los anillos extra y la luz que barre cada letra.
+- **Los iconos de grupo van cifrados de extremo a extremo.** El navegador del dueño cifra el icono con una clave aleatoria, el servidor guarda solo texto cifrado y lo da únicamente a los miembros del grupo, y la clave del icono viaja con el grupo, sellada con la clave del grupo (la vuelve a sellar el dueño cada vez que se renueva la clave del grupo, así que un miembro que entre después puede abrirla). Un icono antiguo que no estaba cifrado lo cifra el navegador de su dueño la próxima vez que se abre la aplicación; uno que nadie cifra se borra a los 30 días. El servidor ya no tiene ningún código que lea o reconstruya una imagen (el comprobador de imágenes ya no está: solo servía para los iconos), y el test comprueba que ninguna imagen del disco es una imagen.
+- **Un tono de llamada secreto:** una llamada de cada diez mil suena con un tono de broma (`ringtones/secret.ogg`, OGG Vorbis) que no se puede elegir en ningún sitio.
+- **La huella de identidad es una sola línea** (las letras se encogen con la caja; en una pantalla estrecha se parte en dos líneas equilibradas).
+- **Tests en Firefox:** todo el test también corre en Firefox (`CHATTERLY_BROWSER=firefox`) y pasa; la comprobación de silenciar y ensordecer estaba mal (dejar de ensordecer también quita el silencio) y solo pasaba en Chromium por suerte. `CHATTERLY_STOP_BEFORE=<texto>` detiene el test en un paso, para trabajar en una parte.
+- **Código residual eliminado:** funciones, variables y estilos sin uso (`sha256Hex`, la antigua constante del KDF, el dibujo de emojis de la tienda de pegatinas, ayudantes del perfil y de Spinly, tres clases de cursor, la cuadrícula que se desplazaba), 178 traducciones de textos que ya no existen, y la dependencia `autoprefixer` (Tailwind 4 lo hace).
+- **Seguridad:** un icono de grupo ahora se da solo a los miembros de su grupo (se daba a cualquier persona con sesión iniciada que conociera su id), y una comprobación de seguridad lo cubre. Llevar un sonido o un paquete del chat al tablero de sonidos fallaba en un navegador que sigue la política de la página (leía el archivo mediante una dirección `blob:`, que la política no permite); el archivo ahora se entrega directamente.
+- **Privacidad:** el título de un enlace de YouTube o Spotify compartido en una llamada se le pedía a YouTube o a Spotify desde el navegador de todos los que lo veían (les decía su dirección y lo que miraban); ahora se le pide a nuestro propio servidor, y esas dos direcciones han salido del `connect-src` de la política de la página.
+- El paquete inicial de pegatinas tiene 50 (tenía 24).
+- **Relay (TURN):** `TURN_TTL_SEC` (de 300 s a 7 días, por defecto una hora; con 86400 una llamada nunca tiene que renovar sus credenciales); `deploy/turn-setup.sh --tls` (relay solo por `turns:`, TCP 5349, con el certificado de Caddy; `deploy/turn-cert-sync.sh` lo copia) y `--no-logs`; documentado en DEPLOY.md.
+- Tests: un arrastre real de la línea de tiempo, la minimización de la tarjeta de música, preajustes compartidos entre dos navegadores, quitar a un amigo y etiquetas de servidor en las comprobaciones de seguridad.
+
+## 2.22.0
+
+- **Tus ajustes viven en tu cuenta.** Inicia sesión en el móvil y todo está como en el ordenador. Se sellan en el navegador con una clave que sale de tu identidad antes de salir de él: el servidor guarda algo que no puede leer. El micrófono, los altavoces, la cámara y los archivos que subiste se quedan en cada dispositivo. Sección nueva «Sincronización»: guarda varios juegos de ajustes (ordenador, móvil...) y elige cuál sigue cada dispositivo, o deja un dispositivo por su cuenta.
+- **Animaciones de nombre** (diez) en Mi perfil: se reproducen cuando el puntero está sobre el nombre o cuando estás en el chat, y se ven en el panel de amigos, los mensajes directos y los chats. Dos efectos de perfil nuevos (cometa y nebulosa).
+- **Ver vídeos juntos:** el reproductor de YouTube queda totalmente oculto (sin título, logotipo ni más vídeos); la barra de la llamada salta en el tiempo, y una cubierta muestra el play cuando está en pausa. Los permisos del marco ya no imprimen avisos.
+- **Tu voz** se ha rehecho: modos fáciles de oír y explicados (pliegues de micrófono y cámara en el menú de la llamada). La opción «oírte a ti mismo» ya no está: te oyes mientras pruebas el micrófono.
+- **La cámara en espejo** sigue el interruptor en tiempo real; las opciones del ratón se ocultan en el móvil; compartir pantalla empieza directamente con una pulsación (clic derecho para opciones).
+- **Velocidades de audio** 1,25, 1,5, 2, 3 y 5. Los mensajes cortos ya no dejan una burbuja ancha. Un emoji solo se anima según el ánimo (beso, corazón...). Las pegatinas del paquete inicial están animadas.
+- **Tablero de sonidos:** celdas del mismo tamaño, categorías integradas y propias que se pliegan como los emojis, y lo que está oculto no se dibuja.
+- **Móvil:** el chat llena la pantalla, el texto de ayuda bajo la entrada ya no está y el menú de degradado es una línea. La llamada tiene una ventana minimizada que se puede redimensionar y muestra quién habla; el panel de música juntos y la llamada se pueden minimizar.
+- **Sobre mí:** el menú de degradado es compacto. Animación de introducción más rápida (un worker la dibuja fuera del hilo principal).
+- Arreglo: el servidor no permitía PUT desde el navegador (CORS), y «todavía no hay nada guardado» es una respuesta vacía en lugar de un 404 para que la consola quede limpia.
+- Tests: interruptor de Firefox, salto real en YouTube, prueba de esfuerzo de la cámara, sincronización de ajustes, animaciones de nombre.
+
+## 2.21.1
+
+- **La cámara funciona cuando se enciende mientras la otra persona tiene la suya encendida, y cuando se apaga y se vuelve a encender.** El test de la aplicación ahora reproduce lo que pasaba (una cámara que se encendía mientras la otra ya estaba encendida nunca llegaba a la otra persona) y pasa con el arreglo de la 2.21.0: una cámara o una pantalla pasa por un transceptor nuevo cada vez. El test apaga y enciende la cámara cuatro veces a distintas velocidades, luego las dos cámaras a la vez, y apaga y enciende ambas juntas tres veces, y comprueba que cada persona ve moverse a la otra cada vez.
+
+## 2.21.0
+
+- **Una cadena larga sin espacios ya no se sale de su burbuja** (`aaaa…`): la burbuja la parte en cualquier punto.
+- **Mi perfil conserva lo que escribes.** El nombre, el estado, los pronombres, los colores, el banner, el efecto y Sobre mí se conservan al cerrar los ajustes (o ir a otra sección) y solo se aplican cuando pulsas Guardar; «Restablecer» los descarta. Se guardan solo en memoria (nunca se escriben en el disco del navegador) y pertenecen a la persona que los escribió.
+- **Sonidos del chat al tablero de sonidos.** Cada nota de voz, audio y vídeo de un chat tiene el botón «Añadir a mi tablero de sonidos» (antes, solo los marcados por quien los enviaba), y abre el editor para cortarlo, ponerle nombre y darle un emoji.
+- **Comparte tus sonidos.** Cada sonido tuyo tiene un botón para enviarlo al chat que está abierto (quien lo recibe puede añadirlo con un botón), y una categoría tiene «Compartir como paquete»: envía todos sus sonidos en un solo mensaje y quien lo recibe tiene «Añadir el paquete a mi tablero de sonidos», que crea una categoría con el nombre del paquete y los añade todos a la vez. Lo que viene con un sonido (nombre del paquete, emoji) se recorta a 20 y 8 caracteres al recibirlo.
+- **Cámara:** apagar y volver a encender la cámara (o la pantalla) a veces dejaba a los demás con una imagen congelada o ausente hasta que se alternaba dos veces. Ahora una cámara o una pantalla pasa por un transceptor nuevo cada vez y, cuando se detiene, el otro lado se entera de que la pista terminó y retira la imagen.
+- **Spinly en una llamada:** una ruleta o un torneo que empezó un amigo se perdía si entrabas en la llamada desde otra página, porque la parte que lo escucha solo se creaba cuando una pantalla la pedía. Ahora se crea cuando arranca la aplicación.
+- Llamada: el chip del cifrado es un candado (un escudo mientras se prepara) y lo dice con el puntero; el cifrado se muestra corto («AES-128-GCM», se salía de su caja); los contadores del cifrado dicen «Enviado, cifrado» y «Recibido, descifrado» (cada uno es su propia dirección, así que no son iguales); el anillo del efecto de perfil en la foto grande de una llamada tiene la mitad de grosor.
+- Mensajes directos: nombres más grandes, estado («En una llamada») y títulos.
+- Tests: un estado sin guardar sobrevive al cerrar los ajustes.
+
+## 2.20.4
+
+- **Ver vídeos juntos es totalmente propio.** Al reproductor de YouTube ya no se le puede tocar nada (no se muestra nada suyo ni responde a una pulsación): la imagen es solo una imagen, una pulsación sobre ella reproduce o pausa para todos, y la barra de la llamada tiene play y pausa, el tiempo y la línea de tiempo. Se quitaron los botones +10 y −10.
+- **La línea de tiempo mueve el vídeo y todos lo siguen.** Los mensajes al reproductor llevan el canal que YouTube espera y la petición de que informe de su tiempo se repite durante diez segundos hasta que responde. Pulsar la barra y soltar sin moverla la dejaba congelada (no volvía a seguir al reproductor); ahora sí. El test de la aplicación reproduce un vídeo real, salta al segundo 120 en una ventana y comprueba que el reproductor saltó y que la otra ventana es llevada al mismo segundo.
+
+## 2.20.3
+
+- **Ver vídeos juntos tiene un solo juego de controles: el de la llamada.** El reproductor de YouTube conservaba su propia barra (en un Short se ocultaba sola en algunos navegadores, y lo que hacía no se compartía con los demás), así que había dos juegos de botones. Los controles de YouTube, el teclado y el botón de pantalla completa están desactivados; la barra de la llamada tiene play y pausa, −10 y +10 segundos, el tiempo y la línea de tiempo.
+- La línea de tiempo no movía el vídeo cuando el reproductor todavía no había dicho su duración (se quedaba desactivada): la aplicación vuelve a preguntar al reproductor, hasta tres veces, hasta que responde.
+
+## 2.20.2
+
+- **El tablero de sonidos suena a la primera pulsación.** Los seis efectos se cargaban solo cuando se pulsaba uno (esa pulsación quedaba muda, y las siguientes también hasta que llegaba el archivo), y tus propios sonidos también se decodificaban en la primera pulsación. Ahora los efectos se cargan al arrancar la página, tus sonidos se decodifican en cuanto el tablero los tiene, y una pulsación sobre un efecto que todavía se está cargando lo reproduce en cuanto llega en lugar de perderse.
+
+## 2.20.1
+
+- **Mi perfil ya no se estrecha mientras se desplaza la página o se abre un pliegue.** La causa era el botón de cierre de los ajustes: era un flotante pegajoso, y una cuadrícula junto a un flotante se estrecha por él, así que cuando el flotante seguía el desplazamiento sobre la página las columnas se encogían. Ahora el botón vive en una caja sin altura, así que nada cede ante él.
+- Estilo de esquinas: el deslizador ha vuelto, bajo las siete opciones y con el mismo diseño que los demás deslizadores (los nombres Afilado, Suave y Redondo bajo sus pasos).
+
+## 2.20.0
+
+- **Seguridad: límites de peticiones.** El contador del límite se guardaba por dirección y lo compartían todas las rutas, así que una ruta con un límite propio (20 subidas o previsualizaciones de enlace por minuto) se rechazaba en cuanto la misma dirección había hecho 20 peticiones de cualquier tipo. Ahora cada ruta con límite propio tiene su propio contador (lo cubre un test).
+- **Seguridad: fotos de perfil.** Una persona que ya no es amiga, no comparte un servidor y no tiene conversación con el dueño pierde la foto al instante, aunque la clave sellada para ella siga guardada (antes bastaba con la clave). Se quitó el endpoint de la clave sola (la imagen y su clave vienen en una sola respuesta). Las dependencias no tienen vulnerabilidades conocidas (`pnpm audit`).
+- **Sonidos en OGG.** Todo sonido es ahora un archivo OGG Vorbis (513 KB pasaron a 299 KB): los sonidos de la interfaz pesan unos 4 a 6 KB cada uno, los tonos de llamada 33 a 80 KB. El README de la carpeta explica cómo reemplazar uno. No hay imágenes del sitio que ganen con WebP: los iconos deben ser PNG (el móvil y el manifiesto lo piden), la imagen para compartir JPG (no todas las redes que la leen entienden WebP) y el logotipo es un SVG de 481 bytes.
+- **La primera pulsación suena.** Los sonidos se descargan y se decodifican mientras arranca la página (un contexto de audio que solo decodifica no necesita pulsación), así que el primer clic tiene su sonido. Antes empezaban a cargarse con esa primera pulsación y quedaba muda.
+- Ajustes de voz y vídeo: el deslizador duplicado «Efectos de sonido de la llamada» ya no está (el volumen del tablero de sonidos está en Sonidos y notificaciones y en el propio tablero).
+- Cámara: con «Reflejar mi cámara» activado, las esquinas de la ventana siguen redondeadas.
+- Ajustes: más espacio bajo los títulos de las tarjetas y bajo la última fila.
+- Llamada, cajón de datos: muestra tres cifras pequeñas (pérdida, jitter, cifrado), un pequeño gráfico de la latencia, y el micrófono y la cámara como pliegues cerrados con un resumen (el nivel; la calidad y los fotogramas por segundo), en lugar de todas las opciones a la vez.
+- Chat: el degradado de la barra de formato es ahora el mismo editor que Sobre mí (degradados rápidos, hasta cinco colores, marcadores para arrastrar) en un panel bajo la barra, con Aplicar.
+- Código: funciones sin uso eliminadas (`allMatches`, `sanitizeSpin`, `colorTag`, `gradientTag`, `CURSOR_NAMES`, `initialRingtone` y algunas variables).
+
+## 2.19.1
+
+- Tablero de sonidos: el volumen va de 0 a 100 %.
+- Chats: abrir otra conversación la muestra al final al instante (se deslizaba de arriba abajo, porque sus mensajes llegaban antes de que se ocultara la lista).
+- Los pliegues dentro de una tarjeta (Cursor, Tema, Fondo, Fuente del nombre, Efecto del perfil) son ahora filas de la tarjeta. Seguían siendo cajas, porque las clases de utilidad del pliegue ganaban a la regla de la tarjeta; ahora la regla es importante.
+- Fuentes del nombre: pulsar una ya no convierte todas en esa fuente (a todas las vistas previas se les daba la fuente elegida); cada una muestra la suya.
+- Degradados: los ángulos rápidos ya no están, la barra es fina, sus marcadores se quedan dentro de la caja, y cuando el degradado del nombre o del banner está activado, el cuadrado de color único desaparece (el degradado es el color). En Sobre mí los paneles de color y de degradado se abren en el flujo bajo la barra de herramientas, así que no se salen de la página y el texto que se escribe se mantiene a la vista.
+- Mi perfil: la página conserva el espacio de la barra de desplazamiento (se encogía cuando un pliegue alargaba la página y aparecía la barra).
+- Llamada, cajón de datos: se llama «Datos de la llamada»; la posición espacial ya no está; el micrófono tiene los interruptores del navegador, las opciones de voz (voz clara, eliminación extra de ruido, nivelador), el nivel, el volumen del micrófono y la puerta; la cámara tiene calidad, fotogramas por segundo y el espejo.
+- Llamada: mientras se prepara el cifrado el chip muestra un escudo (decía «Asegurando…»).
+- Introducción: se reproduce una vez cada vez que se abre el navegador (la primera visita y una ventana nueva), no cuando se recarga la página. Ajustes > Apariencia > Movimiento tiene «Verla otra vez».
+- Grupos: los nombres de las etiquetas en la lista de miembros se muestran como se escribieron (se forzaban a mayúsculas).
+
+## 2.19.0
+
+- **Tablero de sonidos con tus propias categorías.** La pestaña «Por defecto» ya no está y la aplicación trae solo **seis** efectos (bocina, boing, trombón triste, ¡tachán!, ba-dum-tss, aplausos). Puedes crear categorías (el «+» junto a «Todos»), renombrarlas o borrarlas, y mover un sonido a una desde su celda. «Todos» muestra los seis, tus sonidos sin categoría y luego cada categoría con su título. Nada se dibuja de golpe: una pantalla de celdas primero y más mientras te desplazas.
+- **Selector de emojis:** cada lista dibuja una pantalla y solo más cuando se acerca el final (antes, una categoría se llenaba poco a poco en segundo plano y un cambio de pestaña iba con tirones). La pestaña «Todos» tiene «Usados con frecuencia» arriba.
+- **Sonidos y notificaciones:** el orden de los volúmenes es ahora sonidos de la interfaz, música, efectos y tablero de sonidos.
+- **Deslizadores con palabras:** un componente (`step-slider`) pone cada palabra exactamente bajo el lugar donde el control se detiene; la primera y la última se alinean con los extremos y nada sobresale de la caja. El desenfoque y el tamaño del texto muestran solo los extremos y el valor. **El tamaño del texto** cambia la página cuando se suelta el deslizador (antes todo, el deslizador incluido, crecía y encogía bajo el control mientras se arrastraba).
+- **Estilo de esquinas:** una vista previa y siete opciones (el deslizador las repetía). Un pliegue dentro de una tarjeta es ahora una fila de la tarjeta (una línea encima) en lugar de una segunda caja dentro de la caja (Cursor, Fuente del nombre, Efecto del perfil, Tema...). Las tarjetas de tema ya no amontonan su texto cuando se elige una (el nombre tiene su propia línea y la marca de verificación no ocupa su sitio).
+- **Mi perfil:** los efectos del perfil y las fuentes del nombre muestran **tres por fila**, «Borrar la cuenta» está bajo la vista previa, y los pliegues ya no estrechan la página al abrirse.
+- **Chat:** las burbujas tienen más espacio abajo. La opción «Estilo de mensaje» (burbujas o plano) se quitó: siempre son burbujas. El botón «Último» se desliza hacia abajo en un tiempo fijo (arranque lento, mitad rápida, aterrizaje suave) y se desvanece y se hunde mientras lo hace.
+- **Cursor:** sobre los miembros de un grupo se mostraba el cursor del sistema (un `!cursor-pointer` de Tailwind era más fuerte que el cursor del tema); ahora se queda el del tema.
+- **Acerca de:** los enlaces a CHANGELOG y CONTRIBUTING apuntaban a una rama que no existe (`main`; el repositorio usa `master`): ahora van a `HEAD`.
+- **Spinly (Integraciones):** solo se muestra el número de temas y preajustes importados, no cada uno. El título de un pliegue puede usar dos líneas («¿Cómo consigo mis pegatinas de WhatsApp?» perdía su signo de interrogación).
+- Las huellas del cifrado (número de seguridad, huellas en bruto y la de Privacidad y seguridad) vuelven a ir en negrita.
+- Animaciones: la cuadrícula iluminada del fondo (dos capas de una máscara que se animaba y pintaba toda la pantalla en cada fotograma) es ahora una máscara quieta con una banda de luz que se desliza (una transformación).
+- Móvil: el tablero de sonidos, los deslizadores y la página de perfil caben en 390 px.
+- Comentarios: más etiquetas de Better Comments (`?` para las razones).
+
+## 2.18.0
+
+- **Las fotos de perfil y los banners ahora van de verdad cifrados de extremo a extremo.** Hasta ahora se guardaban en claro (el texto antiguo lo decía, pero era fácil pensar lo contrario). Ahora el navegador cifra cada imagen con su propia clave aleatoria AES-256-GCM antes de subirla; el servidor guarda solo texto cifrado y se niega a entregarlo a quien no tenga una clave. La clave se sella, en el navegador del dueño, para cada persona que puede ver la imagen (amigos, gente que comparte un servidor, conversaciones directas) con la misma clave de pareja que usan los mensajes directos, y el navegador de quien mira la abre y descifra la imagen. Un contacto nuevo recibe la clave la próxima vez que el dueño está en línea (el navegador la ofrece cada pocos minutos mientras la página está abierta). Las fotos y banners subidos antes de esta versión fueron borrados por el servidor al arrancar (nada puede cifrarlos sin su dueño): vuelve a subirlos. Los iconos de grupo siguen siendo legibles para los miembros (documentado en el README y en SECURITY).
+- **Los sonidos son archivos ahora.** Cada sonido de la aplicación (clics, mensajes, llamadas, tonos, las animaciones de entrar y salir, los efectos del tablero de sonidos) es un archivo de audio en `frontend/public/sounds/` en carpetas por uso (`ui`, `call`, `auth`, `ringtones`, `soundboard`) con nombres que dicen qué es cada uno, comprimidos (MP3 para los largos, OGG y WAV para los muy cortos) y un README que explica cómo reemplazar cualquiera. La lista de archivos está en un solo sitio (`core/sound-library.ts`). Los tonos de llamada por defecto también son archivos.
+- Sonidos, más suaves: el clic «Pop» ya no está (el predeterminado es «Suave»); silenciar y dejar de silenciar, ensordecer y dejar de ensordecer, entrar y salir de una llamada, y las animaciones de entrar (un candado que se abre) y salir (un candado que se cierra) se rehicieron, cada una con un fondo tranquilo. El sonido de un deslizador sigue el estilo de clic elegido.
+- **Tablero de sonidos:** las pestañas son ahora **Todos**, **Por defecto** y **Tuyos**, y cambiar entre ellas desvanece la cuadrícula en lugar de cortarla. Tiene un **deslizador de volumen** dentro, y el mismo deslizador está en Ajustes > Sonidos y notificaciones. Cualquier **audio o vídeo** que adjuntes en un chat se puede marcar «Para el tablero de sonidos»: quienes lo reciben tienen un botón para añadirlo a su propio tablero (un sonido corto se añade al instante, uno más largo abre el editor para cortarlo) y pueden editarlo después.
+- **Tono de llamada:** cuando se elige «El tuyo», aparece el botón de subida. El archivo puede ser tan largo como quieras (hasta 25 MB): se abre el editor para elegir la parte (hasta 30 segundos), ponerle nombre y escucharla, como en el tablero de sonidos.
+- **Ajustes de voz y vídeo:** volumen del micrófono (0 a 200 %), eliminación extra de ruido (apagada, ligera, fuerte: un filtro para retumbos y siseos y, en la fuerte, una puerta que aprende lo ruidosa que es tu habitación), un nivelador de voz (suave, fuerte), una opción de voz más clara, oírte mientras pruebas el micrófono, calidad de la cámara (480p, 720p, 1080p), fotogramas por segundo (15, 30, 60) y una opción de espejo para tu propia cámara.
+- **Ver un vídeo juntos:** el vídeo del escenario tiene su propia barra (play y pausa, tiempo y una línea de tiempo que mueve el vídeo de todos), porque en algunos navegadores un Short de YouTube oculta los controles de YouTube y no se podía adelantar.
+- Ajustes: cada bloque es una tarjeta con su título, como «Visibilidad» (un único estilo `settings-card`). La página de perfil es más ancha (usaba una columna estrecha), su vista previa es más pequeña y el efecto del avatar es más grueso y con más brillo, para que se vea fácil. El editor de degradado tiene una barra más alta, marcadores más grandes, un panel más ligero y botones para los ángulos habituales.
+- Emojis: el selector se abre en **Todos**, con «Usados con frecuencia» como primera parte. Las tarjetas de idioma están más ordenadas.
+- `CONTRIBUTING.md` y `CODE_OF_CONDUCT.md` pasaron a `.github/` (la raíz conserva lo que necesita un despliegue: `Dockerfile` y `docker-compose.yml`).
+- **Estilos en archivos por tema.** Las 3.700 líneas de `styles.css` son ahora `src/styles/` (tokens, cursores, componentes, avatares, chat, social, ajustes, selectores, tablero de sonidos, llamada, spinly, escenas y fotogramas clave) importadas por `styles.css`. Se conservó el orden de las reglas que tocan el mismo elemento (comprobado con un script), y el CSS compilado tiene exactamente las mismas reglas que antes, menos las que nada usaba (la tarjeta de idioma, el cursor de ocupado y un fotograma clave sin uso).
+- Animaciones: la cuadrícula en movimiento de las tarjetas de Spinly desliza una capa (la mueve el navegador) en lugar de dibujar otra vez el fondo en cada fotograma; el cristal desenfocado tras los paneles grandes es una pasada más ligero (sin filtro de saturación, desenfoque de 10 px); cinco `transition-all` pasaron a ser transiciones de las propiedades que de verdad cambian.
+- Móvil: en una conversación la foto de quien envía se hace pequeña junto al nombre, así que la columna de espacio vacío a la izquierda de cada mensaje ya no está y los mensajes usan todo el ancho.
+- Los comentarios usan las etiquetas de Better Comments (`!`, `*`, `?`, `TODO`) más ampliamente en el código.
+- Tests: un amigo debe ver la foto de perfil cifrada de otra persona; las comprobaciones del servidor cubren claves, audiencia, desconocidos y el borrado de las fotos antiguas.
+
+## 2.17.1
+
+- Llamadas: los botones del micrófono y de la cámara tienen una flecha (como Discord) que abre la lista de dispositivos: micrófono y altavoces en uno, cámaras en el otro. Elegir uno cambia al instante, también en medio de una llamada (la cámara se reinicia con la nueva; una cámara que ya no está vuelve a la predeterminada).
+- Clic derecho sobre una persona en una llamada: un **deslizador de volumen de 0 a 200 %** para esa persona (doble clic lo restablece; se guarda para las próximas llamadas con ella), el menú se abre junto al cursor en la capa superior del navegador (estaba lejos porque un contenedor lo movía), se puede **arrastrar** por su título y se cierra con una pulsación en cualquier otro sitio, con Escape o con la cruz.
+- Grupos: la tarjeta de perfil de un miembro ya no muestra «@usuario».
+- Los torneos de Spinly se ven mejor en el chat y en la llamada: la ronda como un chip, tarjetas de lado con un borde de color, un marcador de cristal, y un cuadro con líneas de conexión, marcas de verificación en los ganadores y perdedores atenuados.
+- Sonidos, más suaves: los sonidos de entrar y salir de una llamada eran demasiado agudos (medido: su brillo estaba hacia los 12.000 a 14.000 Hz, un silbido). Se midió cada sonido grabado (volumen y brillo) y solo se conservaron los suaves; cada uno tiene una ganancia que lo lleva al mismo volumen, y todos pasan por un filtro paso bajo. Entrar en una llamada y salir tú tienen sus propios sonidos más graves; ensordecer y dejar de ensordecer son dos caídas suaves hacia abajo o hacia arriba; silenciar y dejar de silenciar son cortos y bajos.
+- Entrar y salir: ahora es un candado que se abre (entrar) o se cierra (salir), hecho de clics suaves y un golpe sordo, con un fondo de un soplo de aire y un pad lento de notas graves que suben o bajan, y un pequeño destello de cristal. El estruendo fuerte y los barridos agudos ya no están y toda la animación es mucho más tranquila.
+- Llamadas: el botón de los auriculares tiene su propia flecha con los altavoces; la flecha del micrófono ahora solo lista micrófonos.
+
+## 2.17.0
+
+- Selector de emojis: cambiar de categoría ya no congela la página. Una categoría dibuja su primera pantalla de golpe y el resto sigue en pasos pequeños mientras el navegador está libre (antes se creaban de 100 a 390 emojis de una vez). Hay una pestaña nueva, «Todos los emojis» (🌐), que los muestra todos (unos 1900), también dibujados poco a poco para que nunca perjudique al rendimiento, y se detiene cuando el selector se cierra.
+- Animaciones: un monitor vigila ahora los fotogramas reales de la página durante el primer minuto y, si el dispositivo va con tirones (más de un tercio de los fotogramas por debajo de 30 por segundo en dos ventanas de 3 segundos seguidas), pasa solo al modo ligero: sin desenfoque, animaciones decorativas de los anillos del avatar y de las escenas en pausa. Cambiar de pestaña nunca cuenta como retraso. El anillo de arcoíris ya no anima un filtro de color (se repintaba en cada fotograma; los colores ya cubren toda la rueda), y los anillos se mantienen en su propia capa.
+- Entrar y registrarse: el botón de la contraseña usa un ojo cuando la contraseña es visible y un ojo tachado cuando está oculta (antes, un candado). El formulario de registro tiene el botón en los dos campos de contraseña.
+- Privacidad, en el orden en que se muestra (Ajustes > Privacidad y seguridad): **Visibilidad** (quién puede verte en línea: todos, solo amigos o nadie; si apareces en las búsquedas), **Contacto** (quién puede enviarte solicitudes de amistad) y **Conversaciones** (confirmaciones de lectura, indicador de escritura, marcas de mensaje). El servidor hace cumplir las tres primeras: alguien a quien no se le permite te ve desconectado, sea cual sea tu estado real, y una solicitud cerrada se rechaza con un error. «Borrar la cuenta» pasó a Ajustes > Mi perfil; su texto ahora dice que un grupo del que eres dueño pasa a su miembro más antiguo.
+- Sobre mí: el panel de degradado usa el mismo editor que el banner y el nombre (hasta cinco colores, añadirlos y quitarlos, arrastrar los marcadores). El editor de degradado tiene **una** barra: muestra el degradado y, con «Más opciones», la misma barra recibe sus marcadores; el color, el lugar y los botones están más ordenados. El selector de color personalizado se abre junto a su botón (debajo si cabe, encima si no), no arriba de la página.
+- Sonidos: los sonidos de la interfaz usan ahora pequeños sonidos grabados (Kenney «Interface Sounds», CC0, de 5 a 18 KB cada uno, unos 250 KB en total, cargados una vez tras la primera interacción) con los sintetizados como alternativa; cinco estilos de clic nuevos (Pop, que es el nuevo predeterminado, Toque, Interruptor, Pellizco y Burbuja). El sonido de un deslizador sigue el estilo de clic elegido (el clic grabado sube de tono a medida que sube el deslizador; los otros estilos hacen tic a su manera). Las animaciones de llegada (candado, campanillas, fuegos artificiales) tienen capas grabadas.
+- Chats: abrir otra conversación ya no empieza arriba y cae al final: se muestra ya en su final y aparece con un fundido.
+- Tamaño del texto: toda la interfaz lo sigue (antes solo el texto que heredaba de la página; todo lo medido en rem o en píxeles se quedaba). Los tamaños de texto escritos en píxeles se convirtieron a rem.
+- Idiomas: la tarjeta de un idioma muestra su propio nombre y, debajo, su nombre en el idioma de la interfaz (y nada cuando los dos serían iguales, así que no más «Español / Spanish»).
+- Emojis: «Todos los emojis» no se rellena solo: dibuja las primeras filas y más a medida que te desplazas.
+- Buscadores y redes sociales: dirección canónica, tarjetas de Open Graph y de Twitter con una imagen para compartir, datos estructurados (WebApplication), manifiesto web e iconos PNG, `sitemap.xml` y un `robots.txt` que deja a los rastreadores ver las páginas de entrar y registrarse y nada privado. La dirección pública viene de `SITE_URL` al compilar (por defecto: el sitio público).
+- README en español (`README.es.md`).
+- Los comentarios del código auditado usan las etiquetas de la extensión Better Comments (`!` rojo para lo que nunca debe relajarse, `*` verde, `?` azul); la extensión está recomendada en `.vscode/extensions.json`.
+
+## 2.16.0
+
+Versión de auditoría de seguridad. Nada cambia en cómo se usa la aplicación, salvo que el interruptor «Ocultar mi dirección IP» ya no está: si las llamadas deben usar el relay lo decide ahora solo el servidor (`RELAY_ONLY=1`).
+
+- **Las llamadas fallan cerradas.** `RELAY_ONLY=1` solía desactivarse en silencio cuando el relay (TURN) no estaba configurado, y el navegador recurría a STUN de Google o a una conexión directa cuando `/api/rtc/config` fallaba: la llamada funcionaba y las direcciones se filtraban. Ahora el servidor responde 503 y el navegador se niega a iniciar la llamada con un mensaje claro; la política del relay vive en la configuración de cada conexión y se mantiene en las reconexiones; las credenciales del relay se renuevan antes de caducar (una llamada de más de una hora solía perder su relay); una conexión que se descubre que usa un camino directo en una llamada privada se cierra; un candidato que no es del relay nunca se envía. En modo solo relay no se lista ningún servidor STUN público.
+- **Llamadas y un servidor en el que no se puede confiar.** Ya no se llama a un contacto cuya clave de identidad cambió con la clave nueva hasta que la persona la revisa (antes solo se mostraba un aviso); la primera señal de una sesión debe ser reciente, de modo que la grabación de una antigua no pueda derribar una llamada viva; la etiqueta «Cifrado de extremo a extremo» ahora necesita un fotograma que se haya autenticado de verdad, no solo las claves.
+- **Sesiones.** Los tokens de acceso nombran su sesión: cerrar sesión, cambiar la contraseña, borrar la cuenta o reutilizar un token de renovación detiene el token al instante (antes funcionaba hasta 15 minutos) y cierra los sockets abiertos de esa sesión. Los sockets también comprueban su sesión cada 30 segundos.
+- **Previsualización de enlaces (SSRF).** Un enlace a una dirección IPv6 (`https://[::1]/`, `https://[::ffff:127.0.0.1]/`) se saltaba la comprobación y el servidor se conectaba a su propia red. Arreglado con una lista completa de rangos, solo el puerto 443 y una comprobación en cada redirección. La lectura de la página también podía hacer que todo el servidor se colgara con una página de etiquetas `<meta` sin cerrar; ahora es lineal.
+- **Las imágenes subidas** se validan y se reconstruyen sin metadatos (EXIF/GPS, bloques de texto, comentarios) en el servidor, con límites de tamaño en píxeles; las subidas abandonadas se limpian. Las fotos de perfil siguen siendo legibles para todo usuario con sesión iniciada y NO van cifradas de extremo a extremo (como antes): envía las fotos privadas como adjuntos del chat, que se cifran en el navegador.
+- **Borrar una cuenta** ya no destruye los grupos de los que era dueña cuando hay otras personas en ellos: el grupo pasa a su miembro más antiguo, su clave se marca para renovarse, su icono se queda. Un grupo sin nadie más se borra. Todo el borrado es una sola transacción.
+- **Base de datos:** el contenido borrado se sobrescribe (`secure_delete`), se anota la versión del esquema y se rechaza una base de datos de una versión más nueva, las sesiones caducadas y los tokens de renovación usados se limpian cada hora. `scripts/backup.mjs` hace copias coherentes, opcionalmente cifradas.
+- **Servidor web:** una dirección malformada (`/%E0%A4%A`) tumbaba todo el proceso; arreglado, y solo se sirven GET/HEAD. La CSP ya no permite conexiones a cualquier host (un despliegue con la API en otro origen debe añadirlo a `connect-src` en `index.html`). Los secretos de menos de 32 caracteres (o idénticos) se rechazan al arrancar. `TRUST_PROXY=1` ahora confía exactamente en un proxy.
+- **Despliegue:** el relay TURN lee su configuración (y su secreto) de un archivo generado en lugar de la línea de comandos, sin direcciones incorporadas, con límites por credencial, sin retransmisión TCP y más rangos denegados (metadatos de la nube, enlace local, NAT de operador); las imágenes están fijadas (`coturn 4.18.0`, `caddy 2.11.7`, `node 22.22`); los registros de Docker rotan; la unidad de systemd está aislada; `.gitignore` cubre datos, claves y archivos generados. `bash deploy/turn-setup.sh --rotate-secret` crea un secreto de relay nuevo.
+- **Dependencias:** Angular 21.2.25 (varios avisos de XSS y de denegación de servicio), se quitó el `@angular-devkit/build-angular` sin uso (87 avisos, todos de compilación, bajando a 3 en una dependencia de compilación de Autoprefixer).
+- Un error de consola previo tras borrar una cuenta (la barra lateral leía el usuario después de cerrar sesión) está arreglado.
+- Tests: `test/security.mts` corre dentro de `pnpm test` (sin navegador).
+
+## 2.15.1
+
+- Borrar la cuenta ahora borra también la fila de la persona: nada de ella queda en la base de datos (antes se quedaba un resto sin nombre, contraseña ni claves). Para que eso sea posible, los sobres de clave que una persona envolvió para otras ya no dependen de la fila de esa persona: la clave pública de quien envolvió (dato público) se escribe en el sobre cuando se borra la cuenta, y la aplicación la usa. Las bases de datos antiguas se actualizan solas cuando arranca el servidor. Los grupos donde la persona era miembro se marcan para que su dueño renueve la clave del grupo.
+
+## 2.15.0
+
+- Borrar la cuenta (Ajustes > Privacidad y seguridad): vuelve a pedir el nombre de usuario y la contraseña (el servidor comprueba la prueba de la contraseña; una sesión robada no basta, y una contraseña errónea no cierra la sesión de nadie). Borra del servidor y del disco los mensajes, reacciones, archivos e imágenes de la persona, sus amistades, sus chats directos y los grupos de los que es dueña (en los demás simplemente se va), cierra todas las sesiones y conexiones, y luego borra todo lo guardado en el dispositivo (claves, preferencias, pegatinas, sonidos, fuentes). Lo que queda es una fila resto sin nombre, sin contraseña y sin claves privadas: las personas de los grupos en los que estuvo guardan claves envueltas por ella, y sin esa fila no podrían leer sus propios grupos. Los tokens antiguos dejan de funcionar al instante.
+- Llamadas, más privadas: los efectos del tablero de sonidos viajan sellados dentro de las señales cifradas (antes el servidor veía qué efecto se reproducía); cuando el servidor tiene su propio relay, ya no se le pide STUN a Google (se enteraría de la dirección de cada llamante) y responde el propio relay; `bash deploy/turn-setup.sh --private` hace que toda llamada pase por el relay, así que nadie conoce la dirección de otra persona y ningún tercero ve ninguna. El medio ya iba cifrado de extremo a extremo (el relay solo ve fotogramas cifrados) y las señales selladas y firmadas entre las dos personas.
+- Registro del servidor: no guarda la dirección de nadie ni la consulta de la dirección (podría llevar un nombre), solo el método, la ruta y el estado. Caddy envía HSTS y las demás cabeceras defensivas.
+- Cursor «suave»: la mano se dibuja con un contorno más fino para que los dedos no se fundan en una sola mancha.
+- Animaciones: las letras del título no se desenfocan mientras suben, y el lienzo de luces se dibuja como mucho a 1,5 píxeles por píxel (1 en dispositivos flojos).
+
+## 2.14.0
+
+- Sonidos en las animaciones: la introducción tiene un barrido ascendente mientras las luces se juntan, el clic del candado al cerrarse, un estruendo grave con el destello y un brillo de notas; entrar reproduce el clic y el resorte del candado al abrirse y el brillo; salir, el candado cerrándose; crear una cuenta, una fanfarria y los estallidos de los fuegos artificiales. Se hacen con Web Audio (sin archivos), siguen los sonidos de la interfaz de los ajustes y el volumen, y esperan a la primera pulsación de la persona (antes de ella el navegador no permite ningún sonido, así que la introducción de una recarga es silenciosa).
+- Pegatinas que salían de un color plano (Opera y otros navegadores que protegen contra la huella digital devuelven un único color en lugar de lo que se dibujó en un lienzo): una pegatina que pasa por el lienzo se comprueba, y si salió plana se conserva la imagen elegida tal cual; los emojis del paquete inicial que no se pueden dibujar pasan a ser imágenes vectoriales (las dibuja la fuente de quien las ve). Las imágenes vectoriales (SVG) se muestran como imágenes en el chat.
+- Selector de emojis: las categorías funcionan ahora. Solo se dibuja la categoría que está abierta (100 a 390 emojis) en lugar de todos (unos 1900), así que pulsar una pestaña es instantáneo y el selector es ligero en ordenadores flojos.
+- El texto se puede marcar con el ratón solo donde se escribe algo (cajas y el cuadro de mensaje); los mensajes se copian con su menú.
+
+## 2.13.0
+
+- Despliegue: la actualización automática fallaba al final con `KeyError: 'ContainerConfig'` porque recreaba el relay TURN con docker-compose 1.x. Ahora el relay solo se arranca cuando no está en marcha (`--no-recreate`), y `deploy/turn-setup.sh` lo reemplaza quitándolo primero. La aplicación ya se reemplazaba así. La actualización también corre de una en una y con los permisos mínimos de GitHub (`contents: read`). Los cuatro secretos de GitHub (`SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_PORT`) son los correctos y los únicos.
+- Seguridad del contenedor: la aplicación corre con un sistema de archivos de solo lectura (escribe solo en su volumen de datos y en memoria), sin ninguna capacidad de Linux, sin derecho a ganar privilegios, con un proceso init y un límite de procesos. En el servidor se actualiza `@fastify/jwt` y se fuerza `fast-jwt` a 6.3.4 (un aviso sobre tokens caducados en la caché del verificador); `pnpm audit --prod` del backend no encuentra nada. El cifrado (extremo a extremo, claves derivadas en el navegador, hash con una pimienta del servidor, sesión sellada) no se ha tocado y los tests que lo comprueban pasan.
+- Paquete inicial de emojis, en todos los navegadores: en Chrome y Edge la fuente web de los emojis no dibuja nada en un lienzo, así que el paquete salía en blanco o con cuadrados equivocados. Cada emoji se dibuja primero con la fuente de emojis del sistema y con la fuente web solo si esa no da nada; un cuadrado en blanco nunca se guarda, y cuando no se puede dibujar nada un aviso lo dice. Probado en Chromium, Firefox y WebKit (24 pegatinas cada uno).
+- Texto grande: el botón del paquete de emojis, la cabecera de cada paquete y sus botones se parten en líneas en lugar de salirse de su caja; los iconos del menú de ajustes ya no giran cuando el puntero está sobre ellos.
+- Dispositivos flojos (4 núcleos o menos, 4 GB o menos, o «ahorro de datos»; también cualquier dispositivo que no pueda seguir el ritmo mientras suena la introducción): el desenfoque tras los paneles se desactiva, el movimiento es «rápido» por defecto, las partículas del fondo corren a 30 fotogramas por segundo, no se descargan las fuentes web de emojis y nombres, y las luces de las animaciones son menos. Con el procesador ralentizado 6 veces, la introducción pasa de 39,5 ms por fotograma a 19 ms en el modo ligero.
+- Animaciones: las líneas del suelo de la introducción se deslizan como una sola capa (sin repintar en cada fotograma) y la salida no usa un filtro de desenfoque a pantalla completa. Las imágenes de GIF y pegatinas se decodifican fuera del hilo principal.
+
+## 2.12.0
+
+- Amigos: pulsar un amigo abre el chat al instante (los botones de la derecha siguen haciendo lo suyo).
+- Las animaciones (introducción, entrar, crear una cuenta, salir) usan los colores del tema que eligió la persona: la aurora, el logotipo, los anillos, las ondas de choque, las luces y la primera capa oscura toman el color de acento, el segundo color y la mezcla de ambos. El acento elegido se aplica desde el primer pintado, así que la primera capa ya lo tiene.
+- Las banderas de las tarjetas de idioma son imágenes ahora (se ven igual en cualquier navegador y sistema, Opera incluido, sin depender de una fuente).
+- Selector de emojis, mucho más ligero: un solo oyente para toda la cuadrícula en lugar de uno por emoji (unos 2000 menos), sin crecimiento al pasar el puntero ni tamaño por container-query en cada glifo, y el desplazamiento se sigue como mucho una vez por fotograma.
+- Paquete inicial de emojis: ya no espera para siempre a la fuente de emojis en los navegadores donde esa fuente nunca responde (espera 1,5 segundos por emoji como máximo y luego dibuja con la fuente del sistema).
+
+## 2.11.0
+
+- Llamadas en el servidor: la señalización (mensajes, timbre, los sonidos del tablero de sonidos) pasaba pero el medio (audio, cámara, pantalla) no se conectaba cuando las dos personas no podían alcanzarse directamente (dos personas tras el mismo router, datos móviles, cortafuegos; ningún ajuste de los navegadores lo arregla). La instalación con Docker incluye ahora un relay TURN (coturn) que se configura con un comando, `bash deploy/turn-setup.sh`: escribe las variables TURN de `.env` (secreto, IP pública y privada, direcciones), abre los puertos de la máquina y arranca el relay y la aplicación. Las tres reglas de la red de Oracle Cloud (UDP 3478, TCP 3478, UDP 49152-49252) todavía hay que añadirlas en la consola de Oracle; `deploy/DEPLOY.md` dice dónde. El medio sigue cifrado de extremo a extremo: el relay solo ve fotogramas cifrados. La actualización automática también mantiene el relay en marcha.
+- Imágenes: los navegadores que protegen contra la huella digital (Firefox con esa opción, Brave) devuelven un lienzo en blanco, lo que hacía que un banner o una foto se subiera como una imagen vacía; ahora, cuando el resultado está en blanco, se sube la imagen elegida tal cual (hasta 8 MB).
+
+## 2.10.0
+
+- Imágenes: la foto de perfil, el banner y el icono de grupo pueden pesar hasta 8 MB (las que se mueven, GIF o WebP animado, se conservan tal cual hasta ese tamaño; antes eran 2 MB).
+- Paquete inicial de emojis: algunos emojis salían en blanco y otros dibujados con otro estilo, porque la fuente de emojis llega por trozos y el paquete se dibujaba antes de que cargara el trozo de cada emoji. Ahora cada emoji espera primero su trozo, y la taza de café tiene el símbolo que dice a los navegadores que la dibujen como imagen. Si tu paquete tiene cuadrados vacíos, bórralo y vuelve a añadirlo.
+- Navegadores: las pegatinas, los sonidos y los tonos guardados en el dispositivo se guardan como bytes en lugar de como archivos, porque algunos navegadores (Safari, ventanas privadas) fallan con «Error preparing Blob/File data to be stored in object store» cuando se mete un archivo en IndexedDB; lo guardado antes sigue abriéndose.
+- Banderas: en Windows siempre se usa la fuente de banderas, sea cual sea el navegador (Brave, Opera y otros revuelven lo que devuelve un lienzo, lo que engañaba a la prueba que lo decide, así que las banderas se veían como letras: GB, ES).
+- La ayuda de la pestaña de pegatinas parte las rutas largas de archivos, así que el texto ya no se sale de su caja en los navegadores que no parten tras una barra.
+- Probado en Chromium, Firefox y WebKit (el motor de Safari). Los emojis no se ven igual en todos los navegadores porque cada uno los dibuja con su propia fuente cuando no admite la nuestra; lo mismo pasa con el estilo de las banderas en los sistemas que tienen el suyo.
+
+## 2.9.0
+
+- Tablero de sonidos, tus sonidos: ya no hay límite de 8 segundos. Elige cualquier archivo de audio (hasta 25 MB) y se abre una ventana para prepararlo: ver su onda, cortar la parte que quieras (arrastra sobre la onda o usa los deslizadores de Inicio y Fin; se conservan hasta 30 segundos), escucharlo, ponerle nombre y un emoji, y guardar. Cada sonido tiene un lápiz para editarlo otra vez más tarde (se conserva el archivo entero, así que el corte se puede cambiar), y la celda muestra su emoji. Un sonido editado recibe una nueva identidad, así que las personas de una llamada reciben la versión nueva.
+- Llamadas: los sonidos del tablero de sonidos viajan en hasta 100 trozos (30 segundos), y el servidor permite más fotogramas por cada 10 segundos para que un sonido largo enviado a varias personas no se tome por abuso.
+- Llamadas en un servidor tras un proxy: el WebSocket (por donde viajan las llamadas, los mensajes y la presencia) ahora también acepta la página servida desde la misma dirección que el socket, así que ya no depende de que `CORS_ORIGINS` esté escrito para el dominio real (un `DOMAIN` olvidado en `.env` dejaba el socket cerrado con «origin not allowed» y nada en tiempo real funcionaba). Cuando el medio de una llamada no puede conectar, un aviso dice que las dos redes pueden necesitar un servidor relay TURN (ver `deploy/DEPLOY.md`).
+
+## 2.8.0
+
+- Ajusta tus imágenes: tras elegir una foto de perfil, un banner o un icono de grupo, una ventana muestra exactamente lo que se conservará (un círculo para las fotos, un marco ancho para los banners). Arrastra la imagen para moverla, desplázate o usa el deslizador para ampliar, y guarda. Las imágenes que se mueven (GIF, WebP animado) se siguen conservando tal cual.
+- Arreglado: el perfil no se podía guardar («Algunos valores no son válidos») después de elegir la fuente que subiste para tu nombre, porque el servidor no aceptaba ese valor. Ahora sí.
+- El límite de aviso de la primera descarga es 520 kB (era 500 kB y las ventanas nuevas que se cargan solo cuando hacen falta añaden un poco al código compartido); la primera descarga es de 500,3 kB.
+
+## 2.7.0
+
+- Las fuentes que subes (para la interfaz y para tu nombre) pueden pesar hasta 5 MB, en lugar de 2 MB. Se quedan en tu dispositivo, así que el servidor no interviene.
+
+## 2.6.7
+
+- Despliegue: la actualización automática fallaba con `KeyError: 'ContainerConfig'`, un fallo de docker-compose 1.29 al recrear un contenedor hecho desde una imagen construida por un Docker más nuevo. El flujo de trabajo ahora construye la imagen, quita el contenedor viejo (el volumen de datos se queda) y arranca el nuevo, lo que funciona con docker-compose 1.x y con `docker compose`.
+- Sin más avisos en la compilación: la página del grupo ya no necesita el `?.` que Angular señalaba (el id del grupo se calcula en la clase), y el límite de aviso para el tamaño de los estilos de un componente es de 8 kB (el límite de error, 12 kB), porque las animaciones de llegada son grandes a propósito y solo se cargan cuando se reproducen.
+
+## 2.6.6
+
+- Despliegue: la actualización automática nunca corría porque el flujo de trabajo escuchaba la rama `main` y el repositorio usa `master`; ahora escucha las dos, se puede lanzar a mano y reemplaza el código del servidor con `git reset --hard` (un archivo editado a mano en el servidor, como el Dockerfile, hacía que `git pull` se detuviera).
+- Docker: la aplicación publica la API en 127.0.0.1:3000 y la aplicación web en 127.0.0.1:3001 para un Caddy que ya corre en la máquina (`deploy/Caddyfile.host`); el Caddy dentro de Docker ahora es opcional (`--profile caddy`). Enviar a Caddy solo el puerto web hacía que entrar fallara con «JSON.parse: unexpected character».
+
+## 2.6.5
+
+- El traspaso de la primera capa de la página a la introducción es exacto ahora. Medir la opacidad fotograma a fotograma mostró que la aurora de la animación empezaba a plena intensidad mientras la de la primera capa seguía al 2 %: un salto de casi negro a plena aurora unos milisegundos después de cargar. La animación ahora lee el punto en que están las animaciones de la primera capa y continúa desde ahí (aurora y brillo), así que las dos son la misma imagen y nada salta.
+
+## 2.6.4
+
+- Las palabras grandes de la página de entrada: más espacio entre las dos líneas (1,38 veces el tamaño) para que los bloques dibujados al seleccionarlas nunca se toquen, ni siquiera con Segoe UI u otras fuentes más altas que Inter (medido: con Segoe UI los bloques solían tocarse o solaparse).
+- La introducción ya no tiene «saltos»: las luces se desvanecen al nacer (y el anillo que estalla conserva su luz en lugar de reiniciarse), el polvo se desvanece cerca de los bordes superior e inferior donde da la vuelta, la capa de luces aparece con un fundido como un todo, y el destello y las ondas de choque empiezan desde nada y suben rápido en lugar de aparecer a plena fuerza.
+
+## 2.6.3
+
+- Animaciones, fondo: la aurora ya no gira (un cuadrado que gira mostraba su borde como un corte); se balancea suavemente y la capa es más grande que la pantalla, así que nunca se ve ningún borde. La primera capa de la página y la animación comparten el mismo balanceo, así que el traspaso no se ve.
+- Sin más «saltos»: el brillo del centro es el mismo círculo en la primera capa y en la animación (mismo tamaño, lugar y respiración), el logotipo está a la misma altura en todas las escenas, y la cuadrícula del suelo aparece con un fundido lento en lugar de aparecer de golpe.
+- Más vida: un polvo lento flota hacia arriba y titila durante todo el espectáculo (90 motas), y anillos suaves de color se extienden desde el logotipo una y otra vez.
+
+## 2.6.2
+
+- La introducción empieza en el primer fotograma, también cuando ejecutas la aplicación con `pnpm dev`: la capa oscura con la aurora y una luz que respira vive ahora en el `index.html` del código fuente (antes solo existía en la compilación de producción), es visible desde el primer pintado, y la animación continúa la misma aurora (mismo giro, sin fundido) en lugar de empezar de nuevo. Medido en una compilación de producción: la capa está encima desde los primeros 30 ms y la animación desde unos 90 ms en una carga en caliente, sin ningún fotograma de la página de entrada en medio.
+- El brillo detrás del logotipo es ahora su propio círculo, no parte del logotipo que gira, así que no se ve ningún rectángulo oscuro mientras el logotipo gira.
+
+## 2.6.1
+
+- Salir: el candado ahora se cierra de verdad (la animación acababa en la pose abierta por error).
+- La capa oscura que cubre la página hasta que empieza la introducción es ahora simplemente oscura, sin aurora ni brillo propios, así que no hay cambio de brillo cuando la animación toma el relevo; medido en una compilación de producción, la capa está encima desde los primeros 30 ms hasta que lo está la animación.
+- El subtítulo «Privado por diseño» ya no está en la introducción.
+- Docker: la compilación ahora instala Playwright y Chromium en la etapa de compilación (la compilación toma con ellos las imágenes de la página de entrada), y el paso posterior ya no se detiene cuando falta Playwright: se salta las imágenes y termina el resto.
+
+## 2.6.0
+
+- La introducción es ahora lo primero que aparece en pantalla cuando se carga la página: una capa oscura con una aurora suave viene dentro del propio HTML, así que la página de entrada (o la página vacía) nunca se ve antes. La animación toma el relevo de esa capa sin destello, y la capa no se dibuja en absoluto para quien reduce el movimiento.
+- Salir: el candado del logotipo ahora se cierra antes, mientras el iris todavía se abre, para que se vea el cierre.
+
+## 2.5.0
+
+- La introducción se reproduce cada vez que se carga la página (no solo la primera visita), empezando al instante; un clic la salta. Sigue respetando «reducir el movimiento».
+- Las palabras grandes de la página de entrada («Habla con libertad. Nadie escucha.») tienen más espacio entre líneas, así que seleccionarlas ya no dibuja bloques solapados, y el color de selección es un poco más fuerte.
+
+## 2.4.0
+
+- La página ya no está negra mientras arranca: quien ya tiene la sesión iniciada ve el logotipo de Chatterly-Renewed respirando (dibujado en el propio HTML, así que aparece al instante) hasta que aparece la aplicación, en cada recarga.
+- Las animaciones usan el logotipo real de Chatterly-Renewed (la burbuja con dos ojos) en lugar de uno inventado. Entra girando, su contorno se dibuja solo, se rellena con el degradado, parpadea, y lleva un candado que se cierra de golpe (introducción, salir) o se abre (entrar). La primera luz de la introducción aparece antes, así que no hay un momento negro vacío.
+- Rendimiento de las animaciones: las luces se dibujan a partir de una pequeña imagen por color en lugar de un degradado nuevo para cada luz en cada fotograma, y la aurora en movimiento ya no usa un filtro de desenfoque.
+
+## 2.3.0
+
+- La introducción se reproduce otra vez para todos: la marca que recuerda que se vio tiene un nombre nuevo, así que los dispositivos que vieron la antigua y débil ven la nueva una vez.
+- Salir tiene su propia animación: el iris se cierra sobre la aplicación, el cierre del logotipo se cierra de golpe, las luces se juntan y la pantalla dice «Hasta pronto, {nombre}» mientras la aplicación se limpia bajo la cubierta.
+- Las escenas de entrar y salir tienen un logotipo más grande con dos anillos de luz que giran en sentidos opuestos, un ojo de cerradura en el candado y un candado que se abre (o se cierra) con un resorte.
+- Docker: un `Dockerfile` (ARM y x86), un `docker-compose.yml` con Caddy para HTTPS y un servidor TURN opcional, y una sección de Docker en `deploy/DEPLOY.md`. Un comando (`docker compose up -d --build`) levanta el servidor.
+- Arreglada la compilación en Linux: cinco anotaciones de tipo se habían escrito con una ruta absoluta de Windows (`D:/dev/...`) por el editor; ahora son importaciones normales.
+
+## 2.2.0
+
+- Animaciones de llegada nuevas, mucho más grandes. La primera visita se abre con una aurora de luz en movimiento sobre un suelo brillante en perspectiva; ciento cincuenta puntos de luz entran en espiral desde los bordes de la pantalla y se juntan en un anillo alrededor del logotipo, que entra girando de lado mientras su contorno se dibuja en degradado; el candado se cierra de golpe, y el anillo explota en un destello, una onda de choque y una ráfaga de chispas; el nombre sube letra a letra con un brillo que lo barre, y toda la escena se va con un zoom. Entrar se abre como un iris desde el centro, el candado del logotipo se abre y las luces estallan mientras aparece la aplicación. Crear una cuenta termina con fuegos artificiales sobre la aurora, una marca de verificación con degradado y la bienvenida. Siguen siendo solo código (CSS, SVG y un pequeño lienzo), se cargan solo cuando se reproducen y se saltan para quien pidió no tener movimiento.
+- El límite de aviso para el tamaño de estilos de un componente subió de 4 kB a 6 kB por estas animaciones (el límite de error se queda en 8 kB).
+
+## 2.1.0
+
+- Llegar a la aplicación, con animación: la primerísima visita se abre con una introducción (una burbuja de chat con un candado que se dibuja solo, el nombre subiendo letra a letra, anillos de luz; un clic la salta); entrar abre la aplicación tras una cortina con un candado que se abre y una bienvenida por nombre; crear una cuenta termina en una celebración (una marca que se dibuja sola, una ráfaga de confeti y las palabras «tus claves se hicieron en este dispositivo y nunca salieron de él»). Están hechas solo de CSS y SVG, se cargan solo cuando se reproducen, no se muestran a quien pidió no tener movimiento, y la página de debajo cambia mientras las cubren.
+- Contraseñas: la prueba de la contraseña se mezcla ahora con un secreto del servidor (una «pimienta» que no está en la base de datos) antes del hash lento, así que una base de datos robada por sí sola ni siquiera se puede atacar adivinando contraseñas. Las cuentas hechas antes mejoran su hash la próxima vez que entran. (La contraseña en sí sigue sin salir del navegador: allí se estira 600.000 veces, y el servidor solo ve y guarda un hash de una prueba derivada de ella.)
+- Sesión: los tokens guardados en el dispositivo se cifran con una clave que no se puede sacar del navegador (guardada en IndexedDB como clave no extraíble), así que una copia de los archivos del navegador no muestra nada utilizable. La aplicación no pone ninguna cookie, así que no hay nada que robar ni falsificar desde otro sitio.
+- Velocidad de la primera visita: la fuente del primer pintado se pide al instante, la aplicación arranca justo después de pintar la página, y se quitaron estilos sin uso. Lighthouse de la página de entrada en una compilación de producción: Accesibilidad, Buenas prácticas y SEO 100; Rendimiento 100 en un arranque de servidor nuevo (94 a 95 en ejecuciones repetidas en la misma máquina, por cómo Lighthouse simula un móvil sobre localhost).
+
+## 2.0.1
+
+- Código: cada función de la aplicación, del servidor y del test dice ahora qué hace y por qué (faltaba en unas 340); los nombres que estaban en español están en inglés; las piezas que estaban escritas dos veces se unificaron (la clase de la fuente de un nombre, los decibelios de un nivel, la ventana del apodo, el id de quien llama y la limpieza de textos en el servidor).
+- Seguridad, una segunda pasada completa por el servidor y el navegador:
+  - un token de acceso de una cuenta que ya no existe deja de funcionar al instante, no a los 15 minutos;
+  - una persona conserva como mucho 20 sesiones abiertas (se cierran las más antiguas);
+  - adivinar la contraseña antigua mediante «cambiar contraseña» con una sesión robada se bloquea igual que entrar;
+  - en un chat directo que ya no es entre amigos nadie puede editar ni reaccionar;
+  - la imagen de un cursor animado subido se comprueba antes de escribirse en la página.
+- Comprobado en pantalla, en un ordenador y en un móvil (390 px), sin desplazamiento lateral: los amigos, el chat, el torneo de Spinly en el chat (la ruleta está desde el principio), la llamada, el tablero de sonidos, el panel de Spinly de la llamada (la tecla Espacio la gira) y los ajustes.
+
+## 2.0.0
+
+- **Chatterly 2.0.** El aspecto es el que elegiste; esta versión reúne y pule el trabajo de la línea 1.x.
+- Cursores: Sólido, Suave y Elegante tienen ahora siluetas propias (una esquina doblada, una gota y un anillo sobre un palo, junto a la flecha clásica, el dardo de neón, Halo y Píxel), y sobre algo que se puede pulsar toda familia muestra una mano en su propio estilo, dibujada en el mismo punto que la flecha para que el puntero nunca salte.
+- Tablero de sonidos: tres columnas, siempre filas completas (12 efectos y 6 sonidos ambientales; el sonido «Burbujas» ya no está).
+- Grupos: la sección Administrador está desde el momento en que se crea el grupo, no solo cuando existe una etiqueta. Pasar de un grupo a otro tiene una entrada suave.
+- Spinly: el torneo del chat muestra la ruleta desde el principio y la gira lo bastante despacio para seguirla; el cuadro de un torneo terminado se pliega y se despliega con suavidad; el fondo de sus ventanas es más oscuro y desenfocado.
+- Los títulos de los ajustes ya no aparecen en inglés como indicación cuando el idioma es español.
+- Lighthouse de la página de entrada en una compilación de producción: Accesibilidad 100, Buenas prácticas 100, SEO 100, Rendimiento 94 (el primer pintado tarda unos 2 s en el perfil de móvil limitado; el paquete inicial es de 500 kB, el que pone el límite).
+
+## 1.26.0
+
+- Cursores, rehechos: cada familia tiene una flecha propia (Clásico, un dardo de neón, uno en negrita, uno regordete, un contorno fino, más el punto de Halo y los píxeles). Sobre un enlace la flecha se ilumina en el mismo sitio, así que el puntero no parece saltar; las tarjetas de los ajustes los muestran.
+- Llamadas: la barra de la llamada y la tarjeta de música se mueven igual (siguen al puntero mientras arrastras, el sitio libre se ilumina y se deslizan hasta él al soltar; una animación de entrada retenía la barra de la llamada). La barra de la llamada no se puede seleccionar como texto. La tarjeta de música tiene más espacio para sus botones y un botón para plegarla a una línea.
+- La barra lateral se queda en el grupo cuando entras en uno de sus canales de voz (solía saltar a Inicio), y el grupo sigue marcado en la barra de la izquierda.
+- El tablero de sonidos y el menú de Actividades no pueden estar abiertos a la vez.
+- «Tus mensajes» en las burbujas del chat usa los controles de degradado del perfil (de dos a cinco colores en una barra fina, ángulo).
+- Spinly: el fondo de sus ventanas es una cuadrícula de líneas que se mueve sola; las tarjetas del chat y de la llamada tienen una franja de color en la cabecera.
+- Los canales de un grupo tienen filas y un efecto al pasar el puntero más tranquilos.
+- Despliegue: la guía explica cómo ejecutar tu propio STUN y TURN (coturn) en la misma máquina, cómo encajan la señalización y el cifrado, y una tabla de los fallos habituales (CORS, proxy, micrófono, llamadas).
+
+## 1.25.0
+
+- Spinly: la tecla Espacio vuelve a girar la ruleta y el torneo (el cursor dibujado por la página se contaba como una ventana abierta y bloqueaba la tecla); el fondo de las ventanas de Spinly se mueve solo (un brillo a la deriva y una cuadrícula que se ilumina en olas) y ya no sigue al puntero; el marcador tiene un tipo limpio y el botón dice simplemente «Girar»; la ruleta ocupa menos sitio y no necesita desplazamiento; las tarjetas del chat aparecen con una entrada suave.
+- Grupos: las etiquetas están en una lista que ordenas (arriba y abajo), y ese orden es el de las secciones; el administrador es siempre la primera sección. En la ventana de etiquetas, abierta desde el menú de un miembro, cada etiqueta es un interruptor para esa persona y una etiqueta que creas allí se le da al instante. Las etiquetas son más cuadradas y el selector de color se abre junto a su botón.
+- Música: la barra del reproductor compartido tiene una fila entera para la línea de tiempo; cualquier vídeo de una lista de reproducción se puede sacar (para todos). Las tarjetas de los menús de actividades son más compactas. El tablero de sonidos tiene dos categorías (Efectos y Ambiente) más las tuyas, y conserva su tamaño al cambiar de categoría.
+- El cursor vuelve al real en cuanto la ventana pierde el puntero o el foco (desaparecía cuando otra ventana estaba delante). La barra de la llamada y la tarjeta de música se deslizan hasta el sitio en que se sueltan.
+- Aspecto: los iconos del menú de ajustes giran y brillan otra vez al pasar el puntero; los enlaces a los documentos de los sistemas de cifrado también están en Acerca de; el anillo de efecto de los avatares crece con su tamaño, y el punto del estado se sitúa en el borde de la imagen; la tarjeta de pegatinas es más pequeña y no se estira; Ciruela y el Pop de Mandarina intercambiaron sitio.
+- Despliegue: `deploy/` tiene la guía para ejecutar la aplicación en un servidor gratuito de Oracle Cloud con HTTPS (Caddy), un servicio systemd y una GitHub Action que actualiza el servidor tras cada push a main.
+
+## 1.24.0
+
+- Efectos (el anillo del perfil): solo tu propio avatar (abajo a la izquierda) y las tarjetas de perfil los muestran; los amigos, la lista de chats y la lista de miembros no. El punto del estado queda fuera del anillo para que ya no se coma parte de él, y la tarjeta con tu nombre arriba del menú de estado ya no está (el nombre ya está debajo).
+- Grupos: clic derecho sobre un miembro y elige sus etiquetas directamente desde el menú (las que tiene muestran una marca); «Gestionar etiquetas» crea o borra etiquetas. La lista de miembros tiene más espacio entre personas y una sección para cada etiqueta.
+- Llamadas: entrar en un grupo mientras estás en una llamada cambia ahora la llamada al instante: la respuesta tardía del servidor a la llamada antigua ya no termina la nueva, y la página de la llamada ya no te manda a Inicio en mitad del cambio.
+- La tarjeta de música solo descansa en las esquinas superiores, el centro superior y, cuando el escenario es lo bastante ancho, a la izquierda o a la derecha de la barra de controles (si no, justo encima de ella, y encima de la tira de ventanas pequeñas cuando alguien está fijado). Soltarla elige el más cercano de esos sitios y se desliza hasta allí con suavidad.
+- Degradados (nombre y banner): de dos a cinco colores; cada color es un marcador en una barra fina que se puede elegir y arrastrar, con su propio color y el ángulo. Los controles están plegados hasta que pulsas Editar.
+- Sobre mí: Control+Z y Control+Y (o Control+Mayús+Z) deshacen y rehacen, también tras dar formato.
+- Cursores: cada familia tiene ahora todos los estados (texto, mano, agarrar, prohibido, espera, ayuda, zoom, mover, redimensionar, mira) dibujados en su propio estilo, y Sólido y Elegante ya no se parecen. El cursor predeterminado es el Clásico (el primero de la lista, llamado Predeterminado) y el antiguo «Temático» se llama Neón.
+
+## 1.23.0
+
+- Escuchar juntos: la tarjeta de música ya no se puede redimensionar; se suelta en las esquinas del escenario (y en el centro de arriba y de abajo) como la barra de la llamada, con destinos mientras arrastras, y se queda encima de la tira de ventanas pequeñas cuando alguien está fijado. Ya no se desliza bajo los bordes, y los tiempos con horas (2:34:02) están alineados. La ventana del enlace no tiene botón «Pegar». El menú de Actividades y el menú «+» del chat tienen tarjetas más ricas.
+- Tablero de sonidos: en una llamada se abre hacia arriba desde su botón, con suavidad, y las categorías se parten en líneas en lugar de cortarse.
+- En pantalla completa el clic derecho sobre una persona funciona (el menú vive dentro del escenario a pantalla completa) y solo las personas que muestran una cámara o una pantalla flotan sobre la ventana grande.
+- Mensajes: un mensaje borrado se desvanece y se pliega para todos en lugar de saltar fuera.
+- Spinly: la tecla Espacio gira la ruleta y el torneo de la llamada incluso cuando un botón tiene el foco; la ventana para crear una ruleta o un torneo y el panel de Spinly de la llamada tienen la cuadrícula brillante y que sigue al puntero del Spinly real; el torneo en el chat tiene un ancho fijo y legible en un ordenador y cabe en un móvil.
+- Nombres: el color, el degradado y la fuente de un nombre se ven en todos los sitios donde aparece (cabecera del chat, llamada, amigos, grupos, respuestas, llamadas entrantes). El avatar de la barra de abajo a la izquierda, los chats y los miembros muestra también el efecto del perfil.
+- Degradados (nombre y banner): el segundo color, un tercer color opcional en medio, el ángulo y dónde empieza y acaba el degradado (en lugar de la opacidad). El selector de color no tiene colores rápidos, ni punto de color, y las esquinas son más cuadradas.
+- Grupos: las etiquetas se muestran en la lista de miembros (una sección para cada etiqueta, como Discord) y en el perfil de un miembro; el dueño las crea con el selector de color.
+- Aspecto: la página de amigos tiene las pestañas en una barra oscura, un «Añadir amigo» más oscuro y una mejor búsqueda; la importación de pegatinas es una tarjeta grande para soltar; Ajustes > Privacidad y seguridad nombra los sistemas de cifrado como enlaces dentro de sus textos (la tarjeta «Cifrado usado» de Acerca de ya no está).
+- Cursores: el cursor temático es ahora el de neón; Cristal y Neón ya no están y Sólido (el antiguo temático) y Elegante son nuevos. Melodías nuevas con una línea de bajo para la llamada (Deck the Halls, Oda a la alegría, un vals tenebroso y un clásico saltarín).
+- El fondo de pantalla se dibuja como un elemento de imagen, así que un GIF sigue moviéndose.
+
+## 1.22.0
+
+- Escuchar juntos: la tarjeta de música se puede arrastrar a cualquier parte de la pantalla por su cabecera y hacerla más grande (nunca más pequeña) desde su esquina; el sitio donde está se recuerda. El botón de la cola cuenta todo lo que falta por venir (una lista de reproducción también se cuenta, antes mostraba 0). La ventana del enlace perdió el botón «Pegar» y se ve mejor.
+- Tablero de sonidos: las categorías son una fila de píldoras arriba y los sonidos de la elegida se abren debajo, como Discord.
+- Atajos: se puede usar cualquier tecla sola o cualquier combinación (un Espacio o Enter solos sobre un botón siguen pulsando el botón; dentro de un campo de texto una tecla simple no dispara nada).
+- Ajustes: los cuatro deslizadores de Movimiento tienen el mismo tamaño y van en el orden Visibilidad del fondo, Desenfoque del fondo, Movimiento del fondo, Animaciones; las secciones de Apariencia y de Sonidos están agrupadas bajo títulos (Interfaz: estilo de esquinas y tamaño del texto; Chat: estilo de mensaje, acciones sobre un mensaje y burbujas; Cursor; Volumen, Sonidos y Notificaciones), y una sección se abre con suavidad también la primera vez.
+- Los fondos Topografía (líneas de altura que respiran), Atardecer (un sol bajo, nubes y colinas) y Olas (con una cresta brillante) se redibujaron; los cursores Cristal, Neón y Clásico también.
+- Añadir amigo está al final de la fila de pestañas de la página de amigos. Un GIF o un WebP animado (hasta 2 MB) puede ser una foto de perfil, un banner o un icono de grupo y sigue moviéndose.
+- Grupos: solo el dueño crea etiquetas y se las da a los miembros (clic derecho sobre un miembro, Etiquetas); se muestran bajo el nombre en la lista de miembros. El servidor comprueba que es el dueño, los límites (12 etiquetas por grupo, 5 por miembro) y el color.
+- En un móvil un bloque de código ya no hace su mensaje más ancho que la pantalla. Melodías nuevas para la llamada (Noche de paz, Auld Lang Syne, un vals de caja de música y un clásico más ligero).
+- Seguridad: se amplió la comprobación de la dirección de la previsualización de enlaces, cada persona puede mantener como mucho ocho conexiones, y la subida de archivos tiene una cuota diaria (hecha en la 1.21.0).
+
+## 1.21.0
+
+- Chat: cuando llega algo nuevo (una pegatina, un GIF, una imagen, un bloque de código) la conversación se desliza sola hasta el final, con suavidad y sin tirones, si estabas al final, si lo enviaste tú o si estás escribiendo; si te desplazas hacia arriba te deja en paz. El torneo de Spinly en el chat se muestra con su campeón, el número de participantes y de duelos, y un botón para ver u ocultar el cuadro.
+- Emojis: un mensaje de solo emojis entra con una de seis animaciones (una distinta en cada mensaje) y no tiembla cuando lo señalas. El selector de emojis se abre al instante (la lista se descarga por adelantado cuando el navegador está libre y se dibuja sección a sección), y el tablero de sonidos usa los mismos emojis y el mismo aspecto que el chat.
+- Grupos: arrástralos en la barra de la izquierda del todo para ponerlos en el orden que te guste (se recuerda). Señalar un grupo, un miembro o cualquier cosa dentro de un botón muestra el cursor del tema, y el cursor del tema y el del sistema ya no se muestran juntos sobre una barra de desplazamiento.
+- Fondo de pantalla: se pueden usar GIF, WebP animados y vídeos cortos (MP4 o WebM, hasta 25 MB; imágenes hasta 12 MB) como fondo y se mueven. Se guardan solo en el dispositivo.
+- Previsualizaciones de enlaces que se reproducen en el chat sin iniciar sesión: Instagram, X (y sus espejos, Nitter entre ellos), TikTok, Bluesky, Reddit, Twitch, SoundCloud, Dailymotion y Streamable, además de YouTube, Vimeo y Spotify.
+- Aspecto: el botón «Añadir amigo» sigue el tema; los amigos de la lista descansan en un tono algo más oscuro; el efecto al pasar el puntero por servidores, grupos y canales es más tranquilo; el punto del estado en la vista previa del perfil se sitúa en el borde de la imagen; Atajos va antes que Integraciones en Ajustes; la nota musical es para Escuchar juntos y el tablero de sonidos tiene su propio icono. Todo sitio donde se puede subir un archivo dice ahora su límite de tamaño.
+- Seguridad: el servidor de previsualización de enlaces rechaza más direcciones reservadas (IPv4 dentro de IPv6 en hexadecimal, rangos de traducción y de documentación, multidifusión); cada persona puede mantener como mucho ocho conexiones abiertas; y la subida de archivos tiene una cuota diaria por persona (bytes y número de archivos).
+
+## 1.20.0
+
+- Ajustes: el movimiento del fondo ya no apaga las demás animaciones. «Movimiento del fondo» (Apagado, Lento, Normal, Rápido) solo mueve o congela el fondo, y las nuevas «Animaciones» (Apagadas, Rápidas, Completas) controlan las transiciones y el movimiento de la interfaz. Un deslizador nuevo, «Visibilidad del fondo» (de Sólido a Abierto), fija cuánto del fondo animado se ve a través de los bloques grandes de la interfaz; la lista de los ajustes vuelve a ser opaca. El tema es «Pop de Mandarina» y está en penúltimo lugar. La nueva sección Atajos te deja elegir las teclas para silenciar, ensordecer, encender o apagar la cámara, compartir pantalla, abrir el tablero de sonidos y colgar (funcionan mientras la pestaña está delante).
+- Los menús y ventanas se van con suavidad: la ventana de Spinly, el tablero de sonidos, los menús de la llamada, las listas y los selectores se desvanecen en lugar de desaparecer.
+- Llamadas: la barra flotante de la llamada (cuando estás en otra página) ya no se sitúa sobre la caja donde escribes: descansa arriba a la derecha y se puede arrastrar a seis sitios (las esquinas y el centro de arriba y de abajo), con destinos mostrados mientras arrastras; también muestra lo que suena, con un botón de pausa. Los nombres con color o degradado lo muestran también en la llamada, en las barras laterales, en los amigos y en los grupos.
+- Llamadas, Escuchar juntos y Ver juntos: saltar solo existe cuando hay algo a lo que saltar, y una canción o vídeo que termina sin nada en cola simplemente termina. También se pueden poner vídeos en cola, y una lista de reproducción de YouTube se muestra como una lista (con la que suena marcada, y se puede elegir cualquiera). El menú de actividades es opaco y más espacioso, con un botón «Pegar».
+- Compartir pantalla abre primero un menú de la página: qué compartir (una pantalla, una ventana o una pestaña), la calidad (720p, 1080p, 1080p a 60) y si compartir el sonido; el navegador entonces pide confirmar, ya acotado a eso. (El selector del propio navegador no se puede reemplazar.)
+- Spinly: su logotipo es un SVG dentro de la página (sin petición, así que nunca espera a cargar) y se usa en todas partes. El torneo en una llamada se rehizo como el Spinly real: ronda, progreso, una tarjeta para cada lado con su color y puntos, el cuadro con colores y marcadores, y una tarjeta de campeón con confeti y el podio.
+- El selector de color ya no se cierra solo cuando pulsas dentro de él en la ventana de Spinly.
+- Acerca de: una tarjeta lista todos los sistemas de cifrado que usa la aplicación con un enlace a su especificación.
+- También funciona en navegadores sin Web Audio: la aplicación se queda en silencio en lugar de detenerse (se comprobó en Firefox, WebKit y móviles).
+
+## 1.19.0
+
+- Llamadas: la llamada sigue en marcha cuando sales de su página (la música, el vídeo, Spinly y las pantallas compartidas continúan, y todo está ahí cuando vuelves): la llamada vive ahora en el diseño y su página solo la oculta. La barra de botones es silenciar y ensordecer | cámara y pantalla | actividades y tablero de sonidos | colgar (un botón rojo de teléfono, sin palabra, sin teléfono tachado), y sus botones se quedan quietos al pasar el puntero. Una ventana muestra un icono rojo para silenciado o ensordecido en lugar de la palabra «Silenciado», no dice «(tú)» y tiene su nombre más abajo y más lejos del borde; los botones sobre una ventana (fijar y pantalla completa) se iluminan suavemente en lugar de saltar.
+- Tarjeta de música: un botón de volumen con un deslizador que se pega a 0, 25, 50, 75 y 100 y se mueve libremente entre medias; la tarjeta solo se sitúa a la izquierda de los controles cuando hay sitio.
+- Tablero de sonidos: 19 efectos en categorías plegables (alertas, diversión, tambores y público, naturaleza, magia) y tus propios sonidos (cualquier archivo de audio, hasta 8 segundos). Todos en la llamada oyen tus sonidos: se envían una vez, cifrados, a cada persona y se guardan solo en su dispositivo mientras dura la llamada.
+- Selector de color: rehecho y suave al abrirse y cerrarse; sin flechas numéricas, un asa de tono redonda, una fila RGB de campos simples. Una pulsación fuera cierra solo el selector, y Escape también (el menú o la ventana de debajo se quedan); el clic que lo cierra no se pasa a lo que hay debajo. En la ventana de Spinly, pulsar una porción, la flecha o las luces abre este selector normal donde pulsaste.
+- Ajustes: el tema Arena ya no está; el nuevo Pop de Mandarina (naranja) está en su lugar. Los fondos son claramente visibles ahora (los bloques grandes de la interfaz son translúcidos sobre ellos, y las escenas son más brillantes); la cuadrícula es una cuadrícula iluminada cuyas líneas se encienden en olas; el movimiento del fondo es un deslizador (Apagado, Lento, Normal, Rápido).
+- Los botones y las tarjetas ya no se mueven al señalarlos (solo cambian de color o brillan): un efecto que levantaba el elemento hacía que parpadeara cuando el puntero estaba en su borde, y era el «baile» de algunos botones.
+- Otros: el canal de voz por defecto se llama «Voz»; el botón de videollamada ya no está en un chat (llama y enciende la cámara); «Borrar estilos» ya no está en Sobre mí; el logotipo de Spinly se pide pronto; los emojis de banderas se dibujan con una fuente de banderas en los sistemas que solo dibujan letras (Windows); los paquetes de pegatinas se pueden abrir en navegadores sin 'deflate-raw' en DecompressionStream (Safari antiguo) gracias a un decodificador propio.
+
+## 1.18.1
+
+- Todo lo hecho para abrir la aplicación desde otro ordenador (VPN, LAN) ya no está: la puerta https con su propio certificado, el proxy de `/api` y `/ws`, la puerta delante de `pnpm dev`, el origen extra permitido y el mensaje sobre http simple. `pnpm app` sirve la compilación en el puerto 4200 y `pnpm dev` funciona como antes.
+
+## 1.18.0
+
+- Spinly en una llamada: la ruleta (y la ruleta de duelo de un torneo) se encoge a la altura de su ventana, así que el botón que aparece tras un giro ya no hace que la ventana se desplace. La barra espaciadora gira la ruleta o el siguiente duelo (no mientras escribes, ni cuando hay una ventana o un menú abiertos).
+- Las listas desplegables (micrófono, altavoces, estela, punto de clic) las dibuja la página, no el navegador: conservan el cursor del tema, se ven como el resto de la interfaz y funcionan con el teclado. La lista de dispositivos se actualiza cuando se conecta o se quita uno, y pide el micrófono una vez (si el navegador todavía no ha dado los nombres) para que aparezcan todas las entradas y salidas.
+- El panel de diagnóstico de una llamada entra y sale deslizándose con suavidad en lugar de desaparecer de golpe.
+- Nuevo interruptor en Ajustes > Apariencia, «Acciones sobre un mensaje», para quitar la barra de reacciones y opciones que aparece cuando señalas un mensaje.
+- Los botones de la lista de amigos se redondean menos. El cursor del tema ahora se va con el ratón: cuando el puntero sale de la ventana se oculta al instante, y ningún fotograma que ya estuviera pendiente lo trae de vuelta.
+
+## 1.17.0
+
+- Llamadas, botones: el tablero de sonidos está con el micrófono y los auriculares a la izquierda, y Actividades con la cámara y la pantalla a la derecha.
+- Escuchar juntos tiene ahora una cola que todos comparten: cualquiera añade una canción o una lista de reproducción (desde el formulario de Actividades o desde la tarjeta), cualquiera saca una, y un voto de más de la mitad de la llamada salta la canción que suena; cuando una canción termina empieza la siguiente sola. Los títulos se muestran cuando YouTube o Spotify los dan. La tarjeta de música ya no es una barra en el centro: está abajo a la izquierda, junto a los controles (encima de ellos en una pantalla estrecha), con pausa, el voto para saltar, la cola y la línea de tiempo.
+- Un vídeo para ver juntos es tan grande como permite su imagen 16:9 (la ventana tiene la forma del vídeo en lugar de lados negros) y está en medio del escenario.
+- Llamadas: un clic derecho sobre una persona, una cámara o una pantalla compartida la oculta solo de tu pantalla; un botón «Mostrar ocultos» lo devuelve todo. La pantalla completa muestra a todos los que no son la ventana grande como una ventana pequeña, tengan o no la cámara encendida.
+- Cursor: el cursor del tema ya no se queda congelado cuando el puntero entra en un vídeo de YouTube (la página de otro sitio oculta adónde fue el puntero; el cursor ahora detecta el marco), y la ruleta, las ventanas flotantes y los demás sitios que pedían un cursor `pointer` o `grab` simple usan ahora los del tema, así que el cursor del sistema no aparece ahí.
+- Ajustes > Sonidos y notificaciones usa un altavoz en lugar de una campana. En un servidor, las personas de un canal de voz se listan bajo él con más espacio y una línea guía. En la lista de amigos los botones siempre son visibles y la fila se ilumina con el acento cuando la señalas, y se hunde al pulsar.
+- Spinly: «Escribe al menos dos» ya no está y la ruleta tiene un poco más de espacio encima.
+
+## 1.16.2
+
+- Spinly: un torneo que tiene campeón muestra solo al campeón (el cuadro y el resto desaparecen). Las filas de opciones y participantes ya no tienen un punto de color (el color se cambia pulsando la porción en la ruleta), el campo del título ya no está, y la ventana es solo tan alta como su contenido (se desplaza cuando hay mucho), así que se ve bien en cualquier tamaño de pantalla. En la ruleta simple el resultado y el botón tienen su propio espacio reservado, así que la ruleta ya no salta hacia arriba cuando aparecen.
+
+## 1.16.0
+
+- Ajustes > Sonidos: puedes subir tu propio sonido de clic (un archivo de audio corto de hasta 1 MB y 3 segundos; se guarda solo en este dispositivo), y el clic Mecánico ya no está.
+- Ajustes > Apariencia: dos cursores de ratón más, Neón (una flecha hueca brillante) y Píxel (una flecha retro de bloques).
+- Perfil: el botón «Subir foto» ya no está (pulsar la imagen ya la cambia). Los menús de Fuente del nombre y Efecto del perfil tienen más espacio: usan menos tarjetas, más anchas, según el espacio que de verdad tienen.
+- Ventana de Spinly: el botón «Añadir opción / Añadir participante» subió junto a Recolorear, así que ya no baja con cada fila nueva; la lista de filas se desplaza dentro de una altura fija. El texto de la ruleta es más grande, y también la vista previa de la ruleta.
+
+## 1.15.0
+
+- Escuchar juntos / Ver juntos: pausar, reanudar, saltar en la línea de tiempo y cambiar de canción en una lista de reproducción se comparten con todos, desde el mismo segundo; ensordecer solo silencia el sonido, así que el reproductor sigue y nunca se queda atrás. La barra de música tiene una línea de tiempo para avanzar o retroceder (en un móvil ocupa su propia fila). Las listas de reproducción funcionan: se aceptan enlaces largos de listas, y un vídeo que pertenece a una lista la reproduce. Un salto hecho en la línea de tiempo del reproductor de YouTube de un vídeo también se comparte.
+- Llamadas en pantalla completa: pulsar pantalla completa pone todo el escenario en la pantalla, con la pantalla o el vídeo compartidos grandes y todos los demás (cámaras, Spinly) como ventanas pequeñas arriba a la derecha. Se pueden arrastrar y redimensionar por cualquier esquina (también con un dedo), y se quedan donde las dejas. Spinly no se puede poner en pantalla completa (se fija grande solo al empezar, con los demás pequeños).
+- Ventana de Spinly: el color de una porción abre el selector de color real en su sitio (sin muestras de relleno); el puntero y las luces se colorean tocando la flecha o el borde de la ruleta (las filas para ellos ya no están); Recolorear mezcla de verdad los colores; Aspecto y Tus preajustes de Spinly son dos secciones que se abren y se cierran, una bajo la otra; un torneo ofrece solo sus tres modos (Rápido, Clásico, Épico).
+- Spinly en una llamada: «Jugarlos todos» ya no está; el campeón tiene una tarjeta como es debido; el contenido está centrado en su ventana en lugar de dejar el espacio negro vacío; cuando la ventana es ancha la ruleta y el cuadro se sitúan uno al lado del otro.
+
+## 1.14.1
+
+- Llamadas: el primer giro de un torneo en una llamada ahora gira (la ruleta se dibujaba ya en su posición final y se quedaba quieta). La ventana del torneo usa dos columnas cuando es ancha (la ruleta con sus botones, y el cuadro a su lado) en lugar de apretar el cuadro bajo la ruleta.
+- Escuchar juntos y Ver juntos: pausar o reanudar (desde la barra de música, o en el reproductor de YouTube del vídeo) lo pausa o reanuda para todos, desde el mismo segundo. Cerrarlo con la X ahora solo lo cierra para la persona que pulsó; «Parar» en el menú de Actividades sigue terminándolo para todos.
+- La barra de música es más delgada y ya no muestra la imagen de YouTube: solo el título, quién lo puso, un botón de play/pausa y el botón de cerrar. El reproductor es invisible, así que nunca atrapa el ratón.
+
+## 1.14.0
+
+- Llamadas: «Escuchar juntos» es ahora solo sonido. La música ya no ocupa una ventana del escenario: suena en un pequeño reproductor (con un ecualizador en movimiento y el botón de parar) sobre los controles, y las ventanas le hacen sitio con suavidad. Un vídeo para ver juntos conserva una imagen 16:9 verdadera dentro de su ventana, tan grande como permite la ventana y nunca recortada ni estirada, en la cuadrícula, ampliada, en pantalla completa y en un móvil.
+- Ventana de Spinly: cuando haces clic en una porción de la ruleta las demás se atenúan, así que está claro cuál estás editando; su color se edita justo debajo con una paleta más grande, el color en vivo y el nombre de la opción. «Pegar una lista» ya no está (estorbaba junto a las filas).
+- Ajustes > Integraciones: la tarjeta de Spinly sigue los colores de la aplicación (el tinte ámbar ya no está; usa el acento), muestra si la cuenta está vinculada, los temas y preajustes que llegaron como dos números grandes con una vista previa de cada uno, los botones para actualizar o desvincular, y qué hace Spinly en un chat y en una llamada. Antes de vincular es una sola frase y un botón. También cabe en un móvil.
+- El diccionario en español solo se descarga para quien usa español (la primera página ya no se ralentiza para todos los demás); el paquete inicial pasó de 515 kB a 466 kB.
+
+## 1.13.0
+
+- Llamadas: Escuchar juntos, Ver juntos y Spinly ahora empiezan desde un solo menú «Actividades» de la barra de la llamada. Cada actividad es una ventana del escenario, colocada y animada como las ventanas de cámara, así que nada se abre ya estirado: la ruleta, el vídeo y la música se adaptan al espacio que reciben, en la cuadrícula, en la tira de foco y en un móvil. Un vídeo o una ruleta toma el escenario solo al empezar, y la música se queda como una ventana pequeña.
+- Ver juntos: comparte un vídeo de YouTube y todos lo ven sincronizado (el reproductor de música tampoco se estira ya sobre la pantalla). Empezar un vídeo reemplaza la música, y al revés.
+- Ventana de Spinly: haz clic en una porción de la ruleta para elegirla y cambiar su color justo bajo la ruleta. El torneo se divide en dos pestañas, Participantes y Reglas, para que cada una quepa sin desplazarse.
+- Tonos de llamada: pulsar un tono y luego otro ya no reproduce los dos; las notas que ya estaban en cola se silencian al instante. Pulsar el que suena lo para. Las tarjetas muestran cuál suena (barras que bailan) y qué reproduce hoy Automático.
+- Ajustes > Audio: un deslizador para el volumen de los efectos de sonido de una llamada.
+- Móvil: el escenario de la llamada, el menú de Actividades y la ventana de Spinly se adaptan a las pantallas pequeñas.
+
+## 1.11.0
+
+- Llamadas: las ventanas se colocan como en Discord. Todos tienen una ventana del mismo tamaño, la mayor que quepa, en una cuadrícula simétrica (la última fila centrada). Haz clic en una ventana (o en su botón de fijar) para ampliarla: llena el escenario y todos los demás, cámaras incluidas, pasan a ser una tira pequeña debajo; haz clic otra vez para volver a la cuadrícula. Una pantalla compartida toma el escenario sola al empezar (y otra vez cada vez que alguien comparte una nueva), y puedes volver a la cuadrícula. Doble clic en una ventana, o usa su botón, para verla en pantalla completa. Cada ventana se mueve a su nuevo sitio con suavidad (cuando alguien entra o sale, cuando amplías una, cuando cambia la disposición), y sigue la ventana al instante mientras la redimensionas. Los botones de una ventana se muestran al pasar el puntero (siempre en una pantalla táctil).
+- Mensajes: la barra de acciones sobre un mensaje es como antes (radio menor, al lado del mensaje), conservando solo su corta entrada con resorte.
+- Barras laterales: más aire entre la entrada de Amigos, las listas y sus títulos, y entre los elementos de una lista.
+- «Miembros», «Grupos en común» y los demás títulos de lista usan una píldora con la cuenta en lugar de un guion.
+
+## 1.10.0
+
+- Acerca de: cada tarjeta lleva a algún sitio (Conocimiento cero abre Privacidad y seguridad, Código abierto y Sin rastreo abren el repositorio y sus notas de seguridad, cada tecnología abre su propio sitio); la página conserva su disposición apilada, algo más compacta para que, como Privacidad y seguridad, quepa en una pantalla 2K sin desplazarse.
+- Integraciones: más corto y ordenado (el logotipo real de Spinly, los temas y preajustes que llegaron como dos números, una línea sobre privacidad y dos tarjetas pequeñas para el chat y la llamada). El botón «Abrir Spinly» ya no está, ni «Abrir el Spinly completo» en la ventana que crea una ruleta: Spinly se usa desde Chatterly, y el panel con el Spinly real solo aparece para vincular la cuenta.
+- Ventana de Spinly: las reglas del torneo siguen las del propio Spinly (reglas hechas Rápido, Clásico y Épico, un selector para los duelos y otro para la final con los puntos necesarios, quién juega contra quién, igualdad de oportunidades, tercer puesto, giros rápidos y una línea de resumen); cada tema aparece una vez (estaban repetidos); la ventana es tan alta como permite la pantalla y el formulario se desplaza como una sola pieza (las reglas quedaban ocultas bajo un pequeño desplazamiento interior); las reglas hechas muestran su descripción completa; «Saltar al resultado» es un botón de verdad; los chips de preajuste muestran los colores de su tema; los temas, los preajustes y los números de Integraciones tienen un radio menor.
+- Sobre mí: la caja «Cómo se ve» ya no está (la tarjeta de perfil ya lo muestra).
+- Mensajes: la barra de acciones sobre un mensaje está anclada al borde derecho en cada mensaje, entra con resorte y sus reacciones rápidas crecen bajo el puntero; mientras escribes código solo se muestra una vista previa (el bloque de código); la vista previa del texto con formato ya no la repite.
+- Amigos: las pestañas y las píldoras con cuenta siguen el estilo de esquinas en lugar de ser totalmente redondas, la barra de búsqueda es plana (una línea en lugar de una caja redondeada), los títulos de lista muestran una píldora con la cuenta en lugar de un guion, y Pendientes son dos tarjetas (recibidas y enviadas) con sus propios iconos y estados vacíos amables.
+- Apariencia: el estilo de esquinas es una sección plegable como sus vecinas (con la forma de la esquina elegida como vista previa), las velocidades de movimiento son Rápida, Normal, Lenta y Apagada, los estilos de burbuja Píldora y Flotante pasaron a ser Brillo (una burbuja 3D brillante) y Bloque (un bloque de bordes duros con una sombra desplazada), y las vistas previas del cursor ya no parpadean al elegir una (están quietas y se dibujan una vez).
+- Sonidos: «Off» se traduce como «Desactivado».
+
+## 1.9.0
+
+- Móviles: la altura de la página sigue el área visible (solía ser más alta que la pantalla, así que la caja de mensaje, el botón de ajustes y el final de las páginas se escondían tras la barra del navegador); los ajustes se abren como una lista de secciones con un botón de volver (la tira que ocultaba la mayoría de las secciones ya no está); el selector de emojis es una hoja sobre la parte de abajo; una pulsación sobre un mensaje muestra sus acciones; una pulsación larga abre el mismo menú que un clic derecho (amigos, mensajes y demás); las filas de ajustes se parten en líneas en lugar de desbordarse; la ventana de Spinly pone el formulario primero con una ruleta pequeña.
+- Tonos de llamada: un nuevo tono «Automático» (el predeterminado) que sigue la estación: Halloween en octubre, Navidad en diciembre, Año Nuevo hasta el 6 de enero y el clásico el resto del año. Todas las melodías se reescribieron (una caja de música para el clásico, el Jingle Bells completo, una caja de música embrujada, las primeras líneas de Auld Lang Syne) y cada nota tiene ahora un eco, así que suenan como una sala y no como un pitido.
+- Sonidos de clic: elegir un estilo de clic reproducía el sonido dos veces; ahora una.
+- Efectos al pasar el puntero: los iconos ya no se inclinan. Las celdas del menú de ajustes se elevan, brillan con su propio color y una banda de luz las barre; las banderas se elevan con una sombra suave; el candado de Acerca de sube.
+- Estilo de esquinas (Apariencia): la vista previa está arriba, como una pequeña pieza de la aplicación (un mensaje, una respuesta, una entrada y un botón) que sigue al deslizador, con una celda para cada uno de los siete pasos, el nombre en letras grandes y el deslizador con sus guías.
+- Ventana de Spinly: conserva un solo tamaño al cambiar entre ruleta y torneo (el formulario se desplaza dentro), las pestañas tienen un control deslizante, la ruleta se asienta sobre un brillo de sus propios colores y los temas son tarjetas con sus nombres. Spinly tiene su propio icono de ruleta en todas partes (antes era una flecha de refrescar).
+- Mensajes: cuando lo que escribes parece código, una vista previa lo muestra con formato, «Se enviará como código» (con un botón para enviarlo como texto simple), y se envía como un bloque de código; se reconocen más tipos de código (JSON, comandos de shell, bloques de Python, prints).
+- Amigos: las pestañas son píldoras dentro de la página (antes se cortaban en el borde derecho), con un icono y una cuenta; Pendientes usa la misma lista que los amigos, con botones redondos de aceptar y rechazar.
+- Escuchar juntos: YouTube se negaba a reproducir («error de configuración 153») porque el reproductor se incrustaba sin decirle a YouTube quién lo muestra; ahora envía el referrer y el origen, y el reproductor tiene el tamaño mínimo que YouTube pide.
+- El botón de estilo de texto está ahora a la izquierda de la caja de mensaje (antes estaba dentro del menú «+»).
+
+## 1.8.0
+
+- Spinly es siempre el mismo Spinly (https://spinly-psi.vercel.app/): el ajuste de la dirección ya no está, ni «abrir en una ventana». Spinly se muestra dentro de Chatterly, en su propio panel; si no puede cargar, el panel ofrece volver a intentarlo.
+- Vincular la cuenta se hace dentro de ese panel: inicia sesión en Spinly allí si quieres tu cuenta y pulsa «Usar mis temas y preajustes»; solo pasan los nombres y colores de tus temas y preajustes.
+- La ventana que crea una ruleta o un torneo es nueva: la ruleta se dibuja en vivo mientras la construyes, cada opción y participante es una fila con su propio color (elige cualquier color), un nombre y un botón de quitar; puedes pegar una lista, recolorear todo desde un tema, cambiar los colores del puntero y las luces, elegir los temas de Spinly o los tuyos, cargar tus preajustes de Spinly (con sus colores), y las reglas del torneo son botones e interruptores simples.
+- La ruleta se parece ahora a la de Spinly: mismos colores, borde con su ola de luces, centro, puntero y los nombres a lo largo de cada sector.
+- Sobre mí (Ajustes, Perfil): una barra de herramientas más ordenada (negrita, cursiva, tachado, un panel de Color y uno de Degradado en lugar de una fila de puntos), una caja de texto que crece mientras escribes, un texto de ayuda amable, un contador que avisa cerca del límite, «Borrar estilos» y una vista previa «Cómo se ve» en vivo.
+- Spinly (la aplicación): responde a la petición de Chatterly de los temas y preajustes (solo desde la página que lo enmarcó); el modo de ventana «&link=1» ya no está.
+- Limpieza: más textos muertos fuera del diccionario en español.
+
+## 1.7.0
+
+- Spinly es ahora parte de Chatterly: las ruletas y los torneos son nativos, no necesitan la aplicación Spinly ni su dirección, y cualquiera puede usarlos.
+- En un chat, el menú «+» abre una ventana para crear una ruleta (opciones una por línea, un título, un tema) o un torneo (participantes, al mejor de N duelos, tercer puesto, probabilidades por cabeza de serie) y la envía como un mensaje, como una encuesta. Cualquiera de la conversación puede lanzarla, solo una vez: gira para todos al mismo tiempo, cae en el mismo resultado en todas partes y el resultado se queda en el mensaje. Un torneo se inicia una vez y se juega duelo a duelo para todos (o salta al resultado).
+- En una llamada, el botón de Spinly pone una ruleta o un torneo directamente en la pantalla de la llamada para todos. Allí todos pueden volver a girarla, editarla, jugar el torneo duelo a duelo o todo de golpe, empezarlo de nuevo, enviar el resultado al chat o cerrarlo. Quien entra tarde recibe el actual. Todo viaja dentro de la señalización cifrada de la llamada.
+- Vincula tu cuenta de Spinly en Ajustes, Integraciones: Spinly entrega solo los nombres y colores de tus temas y preajustes, que aparecen entonces en la ventana que crea una ruleta o un torneo (los preajustes rellenan las opciones, los temas colorean la ruleta). El inicio de sesión nunca sale de Spinly. Dos temas vienen incluidos para todos.
+- La aplicación Spinly completa sigue a un clic («Abrir el Spinly completo» en la ventana, o Integraciones) y sus resultados siguen yendo al chat. El antiguo reflejo en la llamada del Spinly enmarcado ya no está, reemplazado por la ruleta nativa.
+- Arreglado que el giro real lo decidiera quien pulsaba: el resultado sale de una semilla que nadie puede elegir de antemano (el id aleatorio que el servidor da a la ejecución).
+- Spinly (la aplicación): se puede abrir para vincular la cuenta (`&link=1`) y ya no lleva el código de reflejo de la llamada.
+- Limpieza: los textos muertos en español de funciones eliminadas ya no están en el diccionario, lo que también mantiene el paquete inicial por debajo de 500 kB.
+
+## 1.6.0
+
+- Spinly vive ahora dentro de Chatterly: el menú «+» de un chat y el botón de Spinly de una llamada lo abren en un panel grande sobre la conversación (aquí no se copia nada de Spinly, es la aplicación real enmarcada, con su propia cuenta y preajustes). «Enviar ... al chat» publica al ganador, y en una llamada «Mostrarlo a la llamada» lo comparte con todos. Si un Spinly no permite ser enmarcado, el panel ofrece abrirlo en su propia ventana. El propio Spinly acepta ahora ser enmarcado por Chatterly.
+- En una llamada, Spinly se comparte con todos sin compartir pantalla: cuando alguien lo abre el panel se abre también para los demás, y cada giro de la ruleta se reproduce en su lado con las mismas opciones, el mismo ángulo de caída y el mismo ganador (enviado cifrado y firmado como el resto de la señalización de la llamada). Los torneos no se reflejan en vivo: su campeón sigue yendo al chat. La llamada también abre el micrófono con más indulgencia (un dispositivo elegido que falta ya no acaba en «Constraints could not be satisfied»).
+- Menú de ajustes: nuevo orden (perfil, apariencia, sonidos y notificaciones, voz y vídeo, pegatinas, idioma, integraciones, privacidad y seguridad, acerca de), sin más títulos pequeños, una celda de color en cada entrada y líneas finas entre grupos.
+- Sonidos: cada control del menú de ajustes tiene su sonido; el sonido conserva el estilo elegido pero cambia de tono y nivel con la importancia del botón (las acciones principales más brillantes, las destructivas más graves, los botones de icono discretos más suaves); los deslizadores hacen tic mientras se mueven, subiendo de tono.
+- Mensajes: la marca de enviado, entregado y leído es un pequeño punto junto a la hora (señálalo para ver la palabra) en lugar de una leyenda; un mensaje de uno a tres emojis se dibuja grande, sin burbuja, con un salto elástico (como WhatsApp); el texto enviado se recorta para que una línea final nunca haga más alta una burbuja; los nombres ya no se subrayan ni brillan al pasar el puntero.
+- La etiqueta «Cifrado de extremo a extremo» pasó dentro del botón del escudo (su indicación lo dice y si el contacto está verificado); la cabecera del grupo usa el mismo escudo.
+- Página de amigos rehecha como una lista limpia: Todos es la primera pestaña, una caja de búsqueda, filas con acciones rápidas que aparecen al pasar el puntero, y pestañas y búsqueda menos redondeadas.
+- Miembros: el dueño siempre se queda el primero (nadie puede ponerse por encima) y la lista tiene más espacio bajo su título.
+- Grupos: más espacio sobre la barra de grupos; el menú del grupo tiene iconos de colores y descripciones; el menú de estado cabe dentro de la barra lateral, ya no lo corta el chat y se abre escalonado; el texto de la barra lateral ya no se puede seleccionar por accidente.
+- Cursor: el cursor del sistema ya no vuelve en el hueco entre dos elementos de una lista que se vuelve a dibujar; más controles muestran el puntero al pasar el ratón.
+- Apariencia: el menú de mezcla tiene espacio para respirar, el botón de color personalizado es una rueda multicolor, el deslizador de esquinas muestra el nombre y tamaño del paso elegido con marcas, los tres nombres antiguos como guía y una muestra en vivo.
+- Idioma: tarjetas con una bandera grande en una cuadrícula, y el formato de hora en su propia tarjeta. Las tarjetas de tonos de llamada usan iconos en lugar de emojis.
+- Acerca de: un logotipo animado nuevo (dibujado trazo a trazo, una estrella que gira, ondas, chispas que orbitan y un barrido de luz), un nombre más pequeño, más enlaces (código fuente, registro de cambios, contribuir) y la dirección real de GitHub.
+- Rendimiento: las fuentes de emojis, de letra cursiva y con serifa son una hoja de estilos aparte que se activa cuando hay tiempo libre, así que el paquete inicial vuelve a estar por debajo de 500 kB.
+- La salida del test está en inglés, y el registro de cambios empieza ahora en la primera subida.
+
+## 1.5.0
+
+- Chat: un mensaje que es solo un enlace ya no muestra el enlace dos veces (la tarjeta de vista previa lo reemplaza). Los mensajes que claramente son código se formatean como un bloque de código automáticamente. Los reproductores de YouTube funcionan ahora (se rechazaban por no llevar referrer). La opción «cargar vídeos automáticamente» ya no está: un vídeo se carga cuando pulsas play.
+- La etiqueta «Cifrado - clave vN» es ahora un botón de candado en la cabecera (la indicación dice qué es y abre Privacidad y seguridad). Los separadores de día («Hoy», «Ayer») y los textos de Acerca de siguen el idioma de la aplicación.
+- El estado de un mensaje es ahora una pequeña palabra bajo tus mensajes (Enviado, Entregado, Leído) que cambia de color mientras viaja, en lugar de los anillos enlazados.
+- Llamadas: el código de seguridad son ocho dígitos («1234 5678») en lugar de emojis, y solo aparece en la ventana «Verificar esta llamada», ya no en cada ventana.
+- Tonos de llamada: cuatro melodías para llamadas entrantes (Normal, Navidad, Halloween y Año Nuevo) y la opción de subir tu propio sonido (hasta 2 MB y 30 segundos, guardado en tu dispositivo).
+- Los sonidos son más fuertes (más margen y un limitador para que nunca distorsionen). Los sonidos de clic se quedan en Suave, Gota, Cristal, Mecánico, Máquina de escribir, Marimba y Kalimba (los dos últimos son nuevos, cálidos).
+- Apariencia: la lista de tipografías son nueve tarjetas (Sistema y las más usadas) con una última tarjeta para subir tu propia fuente, y las fuentes extra ya no se incluyen, así que la página carga menos. El estilo de esquinas es un deslizador de siete pasos con los nombres antiguos (Afilado, Suave, Redondo) como guías. Las burbujas de neón usan un solo color, y las vistas previas de los demás estilos de burbuja ya no cambian cuando eliges uno. Las formas de cursor Prisma y Baldosa ya no están (se parecían a las demás).
+- Fuente del nombre: cinco fuentes más una para subir (solo tú ves una fuente subida). Efectos del perfil: diez distintos (Giro, Pulso, Órbita, Discontinuo, Doble, Brillo, Marcas, Fallo, Arcoíris y Ninguno); todos menos Arcoíris toman dos colores a tu elección, guardados en tu perfil.
+- Perfil: la sección Sobre ti está rehecha con una tarjeta de estado y un editor con su barra de herramientas arriba.
+- Página de amigos rehecha: pestañas en píldora, una caja de búsqueda y tarjetas con el color de banner del amigo y acciones rápidas.
+- Ajustes: la lista de secciones está agrupada (Cuenta, Aplicación, Llamadas y privacidad, Chatterly); la línea de versión bajo ella ya no está. Acerca de tiene el logotipo de Jondals, tarjetas de principios y no tiene botón de copiar.
+- Ajustes del grupo: Guardar está junto al campo del nombre, la ventana de «crear canal» se abre encima de la ventana de ajustes, y el texto de ayuda es «Chat general».
+- Los tres botones bajo tu panel tienen un efecto suave al pasar el puntero; el menú de estado se abre con una animación y ya no empuja el panel hacia arriba.
+- Las secciones plegables se abren y se pliegan con suavidad y se cierran cuando pulsas fuera de ellas. Los emojis del selector son más grandes y solo el emoji crece al pasar el puntero.
+- Proyecto: se añadieron CONTRIBUTING, CODE_OF_CONDUCT, SECURITY y las plantillas de incidencias y pull requests; la carpeta docs con capturas se quitó.
+- La versión de la aplicación que se muestra en Ajustes y Acerca de es la 1.5.0.
+
+## 1.4.0
+
+- Integración con Spinly: el menú «+» del cuadro de mensaje ahora tiene «Spinly» en lugar de «Encuesta». Abre Spinly (https://spinly-psi.vercel.app/) en una ventana emergente, ruleta normal o torneo, y el ganador se puede compartir en el chat como una tarjeta. También funciona desde una llamada. Spinly no es parte de Chatterly: solo los conecta un pequeño puente de mensajes con comprobación de origen, y Ajustes > Integraciones muestra si tu cuenta de Spinly (preajustes) está conectada. El lado de Spinly (`src/scripts/chatterly-bridge.ts`) también reproduce los sonidos de tic y de victoria de Chatterly.
+- Las previsualizaciones de enlaces con vídeo (YouTube, Instagram, X...) son un solo bloque: el reproductor arriba, el enlace debajo. Se reproduce al hacer clic, o al instante si los vídeos se cargan solos.
+- Marcas de estado de los mensajes (enviado, entregado, leído) dibujadas como pequeños puntos elegantes en lugar de ticks. Ajustes > Privacidad tiene interruptores para las marcas y para las confirmaciones de lectura; apagar las confirmaciones oculta tus lecturas y las suyas, y los contadores de no leídos siguen funcionando.
+- Los nombres y las horas de los mensajes son más grandes y más espaciados; «Cifrado de extremo a extremo» y «Cifrado - clave vN» pasaron a una etiqueta tranquila y menos redondeada. La etiqueta «Verificado» ya no está: se marca el escudo junto al nombre.
+- El dueño del grupo puede arrastrar a los miembros para reordenarlos.
+- Hacer clic fuera del menú de ajustes lo cierra. Ya no hay destello de fondo al pasar entre Inicio, grupos y chats.
+- Cursor: cada estado (enlaces, texto, ocupado, redimensionar, arrastrar...) tiene tema, ninguno recurre al predeterminado de Windows.
+- La hora de 12 horas muestra AM o PM tras la hora.
+- Rendimiento: páginas de entrar y registrarse prerrenderizadas, CSS crítico en línea, precarga retrasada de las rutas diferidas y una CSP más estricta; Lighthouse 100 en móvil y 100 en escritorio para entrar y registrarse.
+- Código: todo en inglés, un comentario de cabecera en cada script y un comentario en las funciones, sin expresiones lambda, código muerto eliminado (encuestas, ayudantes sin uso). Un solo test: `pnpm test` o `test/chatterly-test.exe`.
+- La versión de la aplicación que se muestra en Ajustes y Acerca de es la 1.4.0.
+
+## 1.3.0
+
+- Los canales conservan su orden de llegada, y el dueño del grupo puede reordenarlos: arrastra un canal arriba o abajo (texto con texto, voz con voz) o haz clic derecho y elige «Mover el canal arriba/abajo». El orden se guarda en el servidor para todos. La lista de miembros también sigue el orden de llegada (ya no se reordena por estado en línea).
+- Cursor: el estado de pasar el puntero es ahora la misma flecha con un brillo suave y un relleno más claro (mismo punto activo, así que nunca salta), y las dos formas se funden y escalan con suavidad en lugar de intercambiarse. Nuevo ajuste «Color del cursor» (también colorea la estela), con un botón para volver al color del tema.
+- Selector de emojis: emojis más grandes (7 columnas, glifos mayores) y un efecto suave al pasar el puntero que solo escala el emoji en lugar de un botón grande.
+- Cerrar Ajustes ya no desvanece el fondo oscuro hasta dejar el fondo animado desnudo; solo se desvanece el contenido.
+- La barra lateral de canales tiene más color: una cabecera de grupo teñida, canales de texto con color de acento, un segundo color para los canales de voz, y filas coloreadas al pasar el puntero y al estar activas.
+- Apariencia: la zona de prueba del cursor ya no está, y las secciones plegables están separadas con cabeceras más espaciosas.
+- Cursor: el cursor personalizado y la estela vuelven ahora a ponerse encima cada vez que se abre un menú, selector o diálogo (se comprueba tras cada clic, pulsación de tecla y de vez en cuando mientras se mueve), así que nunca acaban bajo la capa superior del navegador.
+- Cursor: sobre las extensiones del navegador y los paneles de gestores de contraseñas (marcos que la página no puede seguir) se vuelve a mostrar el cursor del sistema, para que se puedan ver y pulsar; el cursor personalizado vuelve en cuanto regresas a la página. El cursor ya no vuelve a comprobar la capa superior mientras se mueve.
+- Arreglado: abrir el sitio en la raíz (`/`) sin sesión dejaba vacía la caja de entrar; ahora va a entrar. El test lo cubre.
+- Los ajustes se abren ahora encima de la pantalla en la que estabas (una ruta secundaria), así que el chat o la llamada de detrás siguen visibles en lugar de desaparecer; cambiar de sección nunca la toca.
+- Perfil: el nombre visible pasó a «Estilo del nombre» con su propia fila, los pronombres ya no están, el estado tiene un selector de emojis, «Sobre mí» permite 1000 caracteres y tiene los mismos 3 colores, 3 degradados y degradado personalizado que el chat (el cursor cae dentro de la etiqueta para poder escribir al instante). La barra de cambios sin guardar se pega ahora al fondo de la pantalla con Guardar y Restablecer lado a lado.
+- Temas: Pizarra quitado; el tema personalizado ahora también puede fijar los paneles, el texto, el texto suave y el segundo acento.
+- Los efectos al pasar el puntero usan una curva más suave y duran más; las estelas del cursor son más cortas y se dibujan segmento a segmento, así que nunca fallan al cruzarse consigo mismas.
+- Los sonidos son mucho más fuertes, con volúmenes separados de Efectos y Música (Música controla YouTube; Spotify tiene su propio volumen). El icono de subir es una nube con una flecha.
+- Acerca de: la línea de cierre se reemplaza por un enlace animado a GitHub (un candado que se abre). El panel de contenido compartido en los chats directos ya no está; «Cifrado de extremo a extremo» y «Cifrado - clave vN» enlazan ahora con Privacidad y seguridad; los pies de imágenes y GIF aparecen como una superposición al pasar el puntero; los nombres del chat se iluminan al pasar el puntero y la hora es más brillante con más espacio.
+- El menú de estado se abre justo encima de tu panel en lugar de saltar.
+- Doce estilos de burbuja de chat (nuevos: Cristal, Neón, Hoja, Ticket, Flotante, Discontinuo).
+- Nueva ventana de selector de color: cuadrado más grande, barra de tono vertical, cuentagotas, campos HEX y R/G/B, con el estilo del sitio, y se puede arrastrar a cualquier parte por su barra de título.
+- La rueda del ratón sobre cualquier deslizador lo mueve un paso arriba o abajo.
+- La versión de la aplicación que se muestra en Ajustes y Acerca de es la 1.3.0.
+
+## 1.2.0
+
+- Las estelas de cometa, cinta y arcoíris se dibujan como una sola forma suave (ya no cuentas); nuevo cursor Prisma; el cursor personalizado y la estela se sitúan ahora en la capa superior del navegador, así que los menús y selectores ya no los cubren, y el texto de los mensajes ya no los oculta; los iconos del menú `+` ya no giran.
+- Menú del cursor rediseñado: una zona de prueba, las formas primero y luego filas de comportamiento; el contorno que pulsa es sutil y la estela tiene deslizadores separados de grosor y longitud. Acerca de muestra los logotipos de las tecnologías; el menú `+` del cuadro de mensaje tiene iconos de colores y descripciones.
+- Los ajustes del cursor se ordenaron en filas (animación, selector de estela, deslizador del tamaño de la estela, tamaño del cursor); la animación es ahora un contorno que pulsa alrededor de toda la forma del cursor en lugar de un anillo en la punta.
+- Cuadro de mensaje: Ctrl+Z deshace y Ctrl+Y (o Ctrl+Mayús+Z) rehace, también tras dar formato o insertar emojis; elegir un color sin texto deja el cursor dentro, listo para escribir; la barra de enlaces es una línea delgada y la vista previa del formato ya no aparece solo por un enlace; emojis más grandes; el panel de usuario tiene dos filas más espaciosas.
+- Cursores v2: familias de puntero que combinan con el sitio (Temático, Suave, Cristal, Baldosa, Halo, Clásico), un interruptor Estático/Animado para cada una, tamaño ajustable (16-56 px) y un selector de estela aparte con 8 estelas suaves (cometa, cinta, brillo, tinta, arcoíris, polvo de estrellas, burbujas, fuego). La estela sale ahora del cuerpo del cursor, no de su punta.
+- Las previsualizaciones de enlaces son opcionales por mensaje: escribe un enlace y elige «Añadir vista previa». El servidor abre el enlace una vez (solo https, direcciones privadas bloqueadas) y la tarjeta viaja dentro del mensaje cifrado. YouTube y Spotify usan su oEmbed oficial, así que también funcionan.
+- Los mensajes muestran primero el nombre y luego la hora; hacer clic en tu nombre abre los ajustes de tu perfil, hacer clic en el de otra persona abre su tarjeta de perfil. Nuevo Ajustes > Idioma > Formato de hora (Automático, 12 h, 24 h).
+- Clic derecho sobre un canal para renombrarlo o borrarlo (solo el dueño); seis estilos de burbuja; los avisos emergentes son más pequeños, más cortos y se pueden desactivar; tras una llamada vuelves a la pantalla en la que estabas; el cuadro de mensaje vuelve a encogerse tras enviar un texto largo; los bloques de código ya no muestran líneas al seleccionarse.
+- Fondos: modo mezcla, un color sólido configurable, más escenas; 8 tipografías más y 6 temas más, además de un tema personalizado a partir de un color.
+- Encuestas (cifradas, los votos son reacciones cifradas), menús de clic derecho (mensajes, grupos, amigos), apodos de amigos que solo ves tú, y escuchar juntos un enlace de YouTube o Spotify en una llamada.
+- Entrar y registrarse comparten un marco (sin recarga entre ellos); se arregló el bucle de rutas que congelaba la página cuando ya había sesión. Fondo ligero de partículas que reacciona al ratón (sin estelas, sin paralaje), mucho más oscuro.
+- Cuadro de mensaje: un menú `+` a la derecha (adjuntar, nota de voz, encuesta, estilo de texto y colores), 3 colores + 3 degradados + 1 degradado personalizado, selector de emojis opaco con celdas más pequeñas, menú de mensaje al pasar el puntero más ordenado.
+- Fondos: modo mezcla (en cada recarga o cada N minutos) más escenas nuevas; sólido primero; olas y nebulosa rehechas.
+- Cursores: nuevos preajustes más bonitos (orbe, elegante), cursores con estelas (cometa, cinta, polvo de estrellas), tamaño menor, y tus propios cursores `.cur`, `.ani` y GIF/WebP animados.
+- Perfil: el estilo del nombre sobre «Sobre ti», que ahora tiene botones de formato y una vista previa en vivo. Los ajustes se abren y se cierran con un fundido. El color de acento personalizado está etiquetado.
+- El tablero de sonidos se abre centrado, nuevos sonidos incorporados más suaves y una reducción general de volumen; sonidos tranquilos de silenciar y ensordecer.
+- Llamadas: el vestíbulo ya no está; cuando termina una llamada vuelves a la pantalla de inicio. Los nombres de canal se muestran como texto legible («Chat general»).
+- Seguridad: detección de reutilización del token de renovación, `Cache-Control: no-store`, `Permissions-Policy`.
+- Todo archivo fuente empieza ahora con un comentario que dice qué hace.
+
+- Antes en esta línea de versiones: pantallas de entrada de vuelta al aspecto original con una red de partículas animada; selector de color arreglado (se abría fuera de la pantalla dentro del chat; los paneles usan ahora la capa superior del navegador); degradados para el color del nombre y un constructor de degradado personalizado en el chat; opción de densidad quitada; 9 sonidos de clic más; 8 fondos animados más; preajustes de cursor reformados y cursores subidos como entradas con nombre; indicaciones globales que nunca se cortan; la cuadrícula de la llamada ajusta las ventanas a la altura disponible y cualquier participante se puede fijar; Acerca de rediseñado; GIF mediante GIPHY (+ Tenor opcional) unificados; detección de reutilización del token de renovación, `Cache-Control: no-store` y `Permissions-Policy` en la API; `pnpm app` sirve la compilación de producción.
+
+## 1.1.0
+
+- Llamadas cifradas de extremo a extremo (fotogramas de voz y vídeo), con un código de seguridad para verificar.
+- Interfaz nueva: menos redondeada, cursor con tema, sonidos de la interfaz, efectos al pasar el puntero más suaves, fondo animado desenfocado, menú de ajustes, idiomas, créditos animados.
+- Las fotos de perfil, los banners y los iconos de grupo son imágenes subidas; fuentes y más opciones de perfil.
+- Creación de canales de texto y de voz, selector de emojis propio, texto con color, selector de GIF (GIPHY, necesita `GIPHY_API_KEY`), pegatinas con importación de WhatsApp. Los servidores se llaman ahora grupos.
+- Arreglo: la compilación de producción perdía todos los estilos con la CSP estricta (la inserción del CSS crítico usa un manejador en línea); ahora está desactivada.
+- Arreglo: Tenor descontinuó su API, así que los GIF usan ahora GIPHY.
+- Rendimiento: sin desenfoque de fondo en ninguna parte y un fondo animado solo por GPU (11 escenas, más rápido y más visible, el desenfoque suaviza las formas); los menús ya no van con tirones.
+- Selector de color propio con cuentagotas que funciona en todos los navegadores (alternativa con captura de pantalla), usado en todos los sitios donde se elige un color.
+- Degradados de banner con opacidad, 13 fuentes de nombre, 15 anillos de avatar, 5 temas más, 5 fuentes de interfaz más; las fuentes, temas, fondos y cursores son listas desplegables compactas con vistas previas.
+- Preajustes de cursor (anillo, punto, píxel, neón) y tu propio cursor subido.
+- Silenciar y ensordecer funcionan fuera de las llamadas; el tablero de sonidos accesible desde la barra izquierda con sonidos subibles; pantalla de llamada rediseñada (ventanas 16:9 fijas que nunca saltan, cajón lateral para chat, contenido y estadísticas); vestíbulo de voz rediseñado.
+- Aspecto de entrada antiguo restaurado; clic derecho bloqueado; copiar funciona cuando la API del portapapeles está bloqueada; paleta de búsqueda quitada; arregladas barras de desplazamiento horizontales sueltas y píxeles verdes.
+- Todos los tests anteriores se reemplazaron por un único test que se limpia solo (`pnpm test`).
+
+## 1.0.0 — Chatterly-Renewed 2026-09-04
+
+Primera versión completa.
+
+- Cuentas de conocimiento cero (PBKDF2 → separación HKDF, scrypt en el servidor, claves de identidad ECDH/ECDSA envueltas).
+- Mensajes directos y canales de grupo cifrados de extremo a extremo y firmados, con rotación de la clave del grupo.
+- Adjuntos cifrados, notas de voz, reacciones, respuestas, ediciones, indicadores de escritura.
+- Amigos, presencia, grupos, canales de voz y llamadas de mensaje directo por WebRTC en malla completa con señalización cifrada y firmada.
+- Audio espacial, telemetría de llamada en vivo, compartir pantalla, tablero de sonidos.
+- Interfaz de Angular 21 / Tailwind 4 con fondos animados, temas de acento y marcos de aura.
+- 117 tests automáticos más un test de humo con navegador con Playwright.
+
+## 0.4.0 - 2026-05-23
+
+- Los tres paquetes (raíz, backend y frontend) pasaron de npm a pnpm, con archivos de espacio de trabajo y un archivo de bloqueo para cada uno.
+
+## 0.3.0 - 2026-05-16
+
+- El diseño con sesión iniciada: una barra social (amigos y mensajes directos) y una barra de usuario (avatar, estado y ajustes rápidos). Los primeros componentes se quitaron y se reescribieron en torno al nuevo diseño principal.
+
+## 0.2.0 - 2026-05-14
+
+- Páginas de entrar y registrarse reconstruidas con Tailwind, y un guardián de autenticación que mantiene a los visitantes sin sesión fuera del área privada.
+
+## 0.1.0 - 2026-05-05
+
+- Primera subida: el frontend de Angular y el backend de Fastify que más tarde se convirtieron en Chatterly-Renewed.

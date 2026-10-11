@@ -48,15 +48,13 @@ const PAUSE_MS = 900;
       gap: 0.5rem 0.75rem;
     }
     .tour-round {
-      padding: 0.2rem 0.65rem;
-      border-radius: 99px;
-      border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
-      background: color-mix(in oklab, var(--accent) 14%, transparent);
-      font-size: 0.68rem;
+      padding: 0.1rem 0 0.1rem 0.7rem;
+      border-left: 2px solid var(--accent);
+      font-size: 0.7rem;
       font-weight: 800;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--fg);
     }
     .tour-bo {
       font-size: 0.7rem;
@@ -69,10 +67,9 @@ const PAUSE_MS = 900;
       min-width: 4rem;
     }
     .tour-progress i {
-      height: 5px;
+      height: 2px;
       flex: 1;
-      border-radius: 99px;
-      background: rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.14);
       transition: background-color 0.4s var(--ease-suave);
     }
     .tour-progress i.is-done {
@@ -93,14 +90,15 @@ const PAUSE_MS = 900;
       min-width: 0;
       align-items: center;
       gap: 0.6rem;
-      padding: 0.6rem 1.5rem 0.6rem 0.7rem;
+      padding: 0.7rem 1.6rem 0.7rem 0.8rem;
       overflow: hidden;
-      border-radius: calc(var(--r) * 1.2);
-      border: 1px solid color-mix(in oklab, var(--side) 40%, transparent);
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 2px solid var(--side);
       background: linear-gradient(
-        160deg,
-        color-mix(in oklab, var(--side) 15%, transparent),
-        rgba(0, 0, 0, 0.2)
+        180deg,
+        color-mix(in oklab, var(--side) 9%, var(--ink-850)),
+        color-mix(in oklab, var(--ink-900) 96%, transparent)
       );
       transition:
         border-color 0.4s var(--ease-suave),
@@ -108,12 +106,13 @@ const PAUSE_MS = 900;
     }
     .tour-side.right {
       flex-direction: row-reverse;
-      padding: 0.6rem 0.7rem 0.6rem 1.5rem;
+      padding: 0.7rem 0.8rem 0.7rem 1.6rem;
       text-align: right;
     }
     .tour-side.is-lead {
-      border-color: var(--side);
-      box-shadow: 0 0 22px -8px var(--side);
+      border-color: color-mix(in oklab, var(--side) 45%, transparent);
+      border-top-width: 3px;
+      box-shadow: 0 10px 24px -16px var(--side);
     }
     .tour-disc {
       display: grid;
@@ -121,12 +120,11 @@ const PAUSE_MS = 900;
       height: 2.4rem;
       flex-shrink: 0;
       place-items: center;
-      border-radius: 50%;
+      border-radius: 3px;
       background: var(--side);
       color: #07090f;
       font-size: 1.05rem;
       font-weight: 900;
-      box-shadow: 0 4px 12px -4px var(--side);
     }
     .tour-info {
       display: flex;
@@ -143,40 +141,44 @@ const PAUSE_MS = 900;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.95rem;
-      font-weight: 800;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
     .tour-pips {
       display: flex;
       gap: 4px;
     }
     .tour-pips i {
-      width: 0.6rem;
-      height: 0.6rem;
-      border-radius: 50%;
-      border: 2px solid color-mix(in oklab, var(--side) 70%, transparent);
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 1px;
+      transform: rotate(45deg);
+      border: 1.5px solid color-mix(in oklab, var(--side) 70%, transparent);
       transition:
         background-color 0.3s var(--ease-suave),
         transform 0.3s var(--ease);
     }
     .tour-pips i.is-on {
       background: var(--side);
-      transform: scale(1.1);
+      transform: rotate(45deg) scale(1.1);
     }
     /* the score sits between the two sides, a little over both */
     .tour-score {
       z-index: 1;
       display: grid;
-      min-width: 3.9rem;
-      margin: 0 -1rem;
-      padding: 0.45rem 0.7rem;
+      min-width: 4.4rem;
+      margin: 0 -1.1rem;
+      padding: 0.5rem 0.8rem;
       place-items: center;
-      border-radius: 99px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(8, 10, 18, 0.92));
-      box-shadow: 0 8px 20px -8px #000;
-      font-size: 1.25rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: var(--ink-900);
+      box-shadow: 0 10px 24px -12px #000;
+      font-size: 1.35rem;
       font-weight: 800;
+      letter-spacing: 0.08em;
       font-variant-numeric: tabular-nums;
     }
     /* in a narrow card (the chat) the score goes on top and the two sides below it, one at each side */
@@ -204,9 +206,9 @@ const PAUSE_MS = 900;
     }
     .tour-match {
       position: relative;
-      border-radius: calc(var(--r) * 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(0, 0, 0, 0.22);
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: color-mix(in oklab, var(--ink-850) 85%, transparent);
       font-size: 0.75rem;
     }
     /* Lines that join a match to the next round, so the bracket reads from left to right. */
@@ -228,19 +230,18 @@ const PAUSE_MS = 900;
     }
     .bracket-title {
       align-self: center;
-      padding: 0.15rem 0.6rem;
-      border-radius: 99px;
-      background: rgba(255, 255, 255, 0.07);
+      padding: 0.15rem 0.1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.22);
       font-size: 0.625rem;
       font-weight: 700;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
       color: var(--muted);
     }
     .tour-match.is-now {
-      border-color: var(--accent);
-      background: color-mix(in oklab, var(--accent) 9%, transparent);
-      box-shadow: 0 0 16px -6px var(--accent);
+      border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+      border-left: 2px solid var(--accent);
+      background: color-mix(in oklab, var(--accent) 8%, transparent);
     }
     .tour-row {
       display: flex;
@@ -249,10 +250,10 @@ const PAUSE_MS = 900;
       padding: 0.3rem 0.5rem;
     }
     .tour-row:first-child {
-      border-radius: calc(var(--r) * 0.8) calc(var(--r) * 0.8) 0 0;
+      border-radius: 3px 3px 0 0;
     }
     .tour-row:last-child {
-      border-radius: 0 0 calc(var(--r) * 0.8) calc(var(--r) * 0.8);
+      border-radius: 0 0 3px 3px;
     }
     .tour-row + .tour-row {
       border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -271,18 +272,18 @@ const PAUSE_MS = 900;
       opacity: 0.6;
     }
     .tour-row-dot {
-      width: 0.5rem;
-      height: 0.5rem;
+      width: 0.45rem;
+      height: 0.45rem;
       flex-shrink: 0;
-      border-radius: 50%;
+      border-radius: 1px;
     }
     .tour-champion {
       position: relative;
       overflow: hidden;
       padding: 1.4rem 1rem 1.1rem;
       text-align: center;
-      border-radius: calc(var(--r) * 1.3);
-      border: 1px solid color-mix(in oklab, var(--side) 55%, transparent);
+      border-radius: 5px;
+      border: 1px solid color-mix(in oklab, var(--side) 45%, transparent);
       background:
         radial-gradient(
           ellipse at 50% 0%,
@@ -331,7 +332,7 @@ const PAUSE_MS = 900;
       align-items: center;
       gap: 0.4rem;
       padding: 0.2rem 0.65rem 0.2rem 0.25rem;
-      border-radius: 99px;
+      border-radius: 3px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: rgba(0, 0, 0, 0.25);
     }
@@ -340,7 +341,7 @@ const PAUSE_MS = 900;
       width: 1.3rem;
       height: 1.3rem;
       place-items: center;
-      border-radius: 50%;
+      border-radius: 2px;
       background: rgba(255, 255, 255, 0.14);
       font-size: 0.7rem;
     }

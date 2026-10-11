@@ -695,6 +695,15 @@ function followCover(part: string, element: Element | null): void {
         animation: rise 0.8s var(--ease) calc(1.7s + var(--i) * 55ms) forwards;
       }
     }
+    /* light mode: the dark layer comes in with a fade (the circle that opens is drawn again every frame) and the aurora stays still */
+    :root[data-perf='low'] .arr-login,
+    :root[data-perf='low'] .arr-logout,
+    :root[data-perf='low'] .arr-register {
+      animation: fade 0.45s both;
+    }
+    :root[data-perf='low'] .arr-aurora {
+      animation: fade 0.5s forwards;
+    }
     :root[data-perf='low'] .arr-floor,
     :root[data-perf='low'] .arr-ripple.r2,
     :root[data-perf='low'] .arr-ripple.r3,

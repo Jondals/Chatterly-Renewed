@@ -8,7 +8,7 @@
 
 **English** · [Español](README.es.md)
 
-![version](https://img.shields.io/badge/version-2.23.1-2ef2b0?style=flat-square)
+![version](https://img.shields.io/badge/version-2.24.0-2ef2b0?style=flat-square)
 ![encryption](https://img.shields.io/badge/E2EE-AES--256--GCM%20%C2%B7%20ECDH%20P--256%20%C2%B7%20ECDSA-8b5cf6?style=flat-square)
 ![calls](https://img.shields.io/badge/calls-WebRTC%20mesh%20%C2%B7%20DTLS--SRTP-38e8ff?style=flat-square)
 ![tests](https://img.shields.io/badge/test-1%20completo-2ef2b0?style=flat-square)
@@ -154,13 +154,27 @@ Profile pictures and banners are **end-to-end encrypted** (since 2.18.0): the br
 
 The application cannot protect you from a server that serves you malicious JavaScript: the end-to-end guarantees assume the code you load is the code in this repository.
 
-Usernames, profile fields, friend graph, guild/channel names and membership, message timestamps, sizes (bucketed)
+Usernames, profile fields, friend graph, guild membership (**not** the names of guilds, channels and member tags: since 2.24.0 they are sealed with the group key; the tag a person chooses to show on their profile is public), message timestamps, sizes (bucketed)
 and sender/recipient ids, file sizes, who is online and who is in which call. It sees **no** message text,
 attachment content, reaction emoji, call audio/video or call signaling content.
 
 Known limitations: DM keys are static pairwise keys (no per-message forward secrecy / double ratchet yet);
 a user who loses their password cannot recover their identity; a compromised _client_ (malicious frontend
 build, XSS) is outside what E2EE can protect. Deploy the frontend from a source you trust and pin it.
+
+How the pieces fit together, and why they are the way they are, is explained in [ARCHITECTURE.md](ARCHITECTURE.md) (in Spanish: [ARCHITECTURE.es.md](ARCHITECTURE.es.md)).
+
+## Desktop app (Windows)
+
+The same app in its own window, with the web build inside it and a self-update that installs by itself. Everything to run, test, build the installer, publish updates and ship to the Microsoft Store is in [desktop/README.md](desktop/README.md):
+
+```
+pnpm build                  # the web app the installer carries
+pnpm --dir desktop install
+pnpm --dir desktop dist     # desktop/dist/Chatterly Setup <version>.exe
+```
+
+The server must list `app://chatterly` in `CORS_ORIGINS` (`docker-compose.yml` already does).
 
 ## Project layout
 
@@ -181,7 +195,7 @@ frontend/                Angular 21 (signals) + Tailwind 4
   public/sounds          every sound of the app as an audio file in organized folders (see its README)
   scripts/postbuild.mjs  pre-render and CSP hash
 scripts/                 production server used by the test and Lighthouse
-test/                    the single end-to-end test (run.mjs) and chatterly-test.exe
+test/                    the single test, split by topic: run.mjs + e2e/ (browser), security.mts + security/ (no browser), chatterly-test.exe
 deploy/                  server and deployment: Caddy, coturn, systemd, update script (see deploy/DEPLOY.md)
 .github/                 CONTRIBUTING, code of conduct, issue and pull request templates, deploy workflow
 Dockerfile, docker-compose.yml   stay at the root: the server and its deployment build from here
@@ -209,7 +223,7 @@ There is one test, `pnpm test` (or run `test/chatterly-test.exe`), and it leaves
 
 ## Contributing
 
-Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first. Security problems go through [SECURITY.md](SECURITY.md); everyone is expected to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
+Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first. Security problems go through [SECURITY.md](SECURITY.md) (Spanish: [SECURITY.es.md](SECURITY.es.md)); everyone is expected to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
 
 ## License
 

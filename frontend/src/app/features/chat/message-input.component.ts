@@ -564,17 +564,21 @@ const GRADIENTS = [
               </div>
             }
           </div>
-          @if (canSend()) {
-            <button
-              class="btn btn-icon btn-primary anim-pop"
-              type="button"
-              (click)="send()"
-              [disabled]="sending()"
-              [attr.aria-label]="'Send' | t"
-            >
-              <app-icon name="send" [size]="17" />
-            </button>
-          }
+          <!-- only on a phone (on a computer Enter sends); always there, so that typing never moves what is beside it -->
+          <button
+            class="btn btn-icon btn-primary transition-[opacity,transform] duration-200 sm:!hidden"
+            [class.pointer-events-none]="!canSend()"
+            [class.scale-75]="!canSend()"
+            [class.opacity-0]="!canSend()"
+            type="button"
+            (click)="send()"
+            [disabled]="sending() || !canSend()"
+            [attr.tabindex]="canSend() ? 0 : -1"
+            [attr.aria-hidden]="!canSend()"
+            [attr.aria-label]="'Send' | t"
+          >
+            <app-icon name="send" [size]="17" />
+          </button>
         </div>
       }
       <div

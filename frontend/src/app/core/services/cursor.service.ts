@@ -70,7 +70,9 @@ export class CursorService {
     const root = document.documentElement;
     const mode = this.settings.cursor();
     const custom = this.findCustom(mode);
-    const chosenColor = this.settings.cursorColor();
+    // ! The color goes into the drawing of the cursor (markup): only a hex color is used, whatever was saved or came in a preset.
+    const saved = this.settings.cursorColor();
+    const chosenColor = /^#[0-9a-fA-F]{3,8}$/.test(saved) ? saved : '';
     const accent =
       chosenColor || getComputedStyle(root).getPropertyValue('--accent').trim() || '#2ef2b0';
     const accent2 =

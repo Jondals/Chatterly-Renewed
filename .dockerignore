@@ -19,3 +19,4 @@ secrets.json
 *.key
 deploy/turnserver.generated.conf
 backups
+desktop

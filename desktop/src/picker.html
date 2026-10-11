@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"
+    />
+    <title>Share your screen</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #06070b;
+        color: #e8eaf2;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      #grid {
+        flex: 1;
+        overflow: auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+        align-content: start;
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        border: 1px solid #262a3a;
+        border-radius: 10px;
+        background: #0e1019;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+      .card:hover,
+      .card:focus-visible {
+        border-color: #7c8cff;
+        outline: none;
+      }
+      .card img {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: contain;
+        background: #000;
+        border-radius: 6px;
+      }
+      .card span {
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 12px;
+      }
+      #cancel {
+        padding: 8px 16px;
+        border: 1px solid #262a3a;
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Choose a screen or a window to share</h1>
+    <div id="grid"></div>
+    <footer><button id="cancel" type="button">Cancel</button></footer>
+  </body>
+</html>

@@ -25,8 +25,6 @@ const ASSET_LABELS: Record<AssetName, string> = {
   wallpaper: 'Wallpaper',
   fontUi: 'Font',
   fontName: 'Name font',
-  avatar: 'Picture',
-  banner: 'Banner',
   thumb: 'Picture',
 };
 

@@ -1,5 +1,7 @@
 # Security policy
 
+Spanish version: [SECURITY.es.md](SECURITY.es.md).
+
 Chatterly-Renewed is built so that the server cannot read messages or listen to calls. If you find a way around that, or any other vulnerability, please tell us privately.
 
 ## What the app guarantees (and what it does not)
@@ -7,6 +9,8 @@ Chatterly-Renewed is built so that the server cannot read messages or listen to 
 - Messages, reactions and attachments are encrypted in the browser; the server stores only ciphertext. Call media is encrypted frame by frame in the browser, and the signaling that sets calls up is encrypted and signed between the two people.
 - With `RELAY_ONLY=1` calls use only your TURN relay and fail instead of connecting directly. The relay and the machine that hosts it can see network addresses and traffic volume.
 - Profile pictures and banners are end-to-end encrypted: the server stores ciphertext, and the key of each picture is sealed for the people who may see it (friends, people who share a server, direct conversations). The server still knows who has a picture and how big it is, someone who saw a picture keeps what they saw, and a new contact gets the key the next time the owner is online. Group icons are encrypted too (since 2.23.0): the key of the icon travels with the group, sealed with the group key, and the server gives the icon only to the members of the group. Private photographs are best sent as attachments.
+- **The names of groups, of their channels and of member tags are sealed with the group key (since 2.24.0):** the server cannot read them, and every text is bound to its group, to what it names and to the key version. (The tag a person chooses to show on their profile is public, because it is shown to people outside the group.) Groups made before are sealed by their owner the next time the owner opens the app.
+- An account that writes too much in an hour (largest messages, one after another) is stopped, so one account cannot fill the disk.
 - Keys of contacts are pinned the first time they are seen; calls with a changed key are refused until reviewed. Compare the safety number for high-stakes conversations.
 - A server that serves malicious JavaScript can defeat any of this: the guarantees assume the code you load is this repository's.
 

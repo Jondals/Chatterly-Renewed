@@ -1,0 +1,76 @@
+{
+  "name": "chatterly-renewed-desktop",
+  "version": "2.24.0",
+  "productName": "Chatterly",
+  "description": "Chatterly-Renewed desktop shell (Electron): the same end-to-end encrypted web app in a hardened window.",
+  "main": "src/main.cjs",
+  "private": true,
+  "license": "ISC",
+  "author": "Jondals",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "test": "node test/desktop.mjs",
+    "web": "node scripts/copy-web.mjs",
+    "dist": "node scripts/copy-web.mjs && electron-builder --win nsis --publish never",
+    "dist:store": "node scripts/dist-store.mjs",
+    "release": "node scripts/copy-web.mjs && electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^1.8.0",
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "app.chatterly.renewed",
+    "productName": "Chatterly",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "web/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Jondals",
+        "repo": "ChatterlyRenewed",
+        "releaseType": "release"
+      }
+    ],
+    "appx": {
+      "applicationId": "Chatterly",
+      "displayName": "Chatterly",
+      "languages": [
+        "en-US",
+        "es-ES"
+      ],
+      "showNameOnTiles": false
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

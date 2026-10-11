@@ -134,6 +134,8 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
             [class.bubble-in]="bubbles() && !mine()"
             [class.bubble-emoji]="bigEmoji()"
             [class.is-single]="bigEmoji() && singleEmoji()"
+            [class.is-many]="bigEmoji() && emojiCount() > 3 && emojiCount() <= 6"
+            [class.is-lots]="bigEmoji() && emojiCount() > 6"
             [attr.data-pop]="bigEmoji() ? emojiPop() : null"
             [attr.data-mood]="bigEmoji() && singleEmoji() ? emojiMoodOf() : null"
             [class.px-0]="!bubbles()"
@@ -359,6 +361,16 @@ export class MessageItemComponent {
       return (
         [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].length === 1
       );
+    }.bind(this),
+  );
+  /** How many emoji the message has (the more there are, the smaller each one is drawn). */
+  protected readonly emojiCount = computed(
+    function (this: MessageItemComponent) {
+      return [
+        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+          this.message().text.trim(),
+        ),
+      ].length;
     }.bind(this),
   );
   protected readonly bigEmoji = computed(

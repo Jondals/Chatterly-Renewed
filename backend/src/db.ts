@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS friendships (
 CREATE TABLE IF NOT EXISTS guilds (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
-  icon            TEXT NOT NULL DEFAULT '',
   owner_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key_version     INTEGER NOT NULL DEFAULT 1,
   needs_rotation  INTEGER NOT NULL DEFAULT 0,
@@ -277,6 +276,14 @@ function migrate(db: Database.Database): void {
       })
     )
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+  // The emoji that a group once had was never shown and was kept in clear: the column goes away.
+  if (
+    (db.prepare('PRAGMA table_info(guilds)').all() as { name: string }[]).some(function isIcon(c) {
+      return c.name === 'icon';
+    })
+  ) {
+    db.exec('ALTER TABLE guilds DROP COLUMN icon');
   }
   // The icons that were already in use belong to the group that shows them.
   db.exec(

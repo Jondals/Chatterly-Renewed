@@ -3,11 +3,39 @@
  * Routes of the application: the sign-in frame (login and register), the private area and the redirects.
  * The settings are a secondary route ("settings" outlet) that opens on top of whatever screen is showing.
  */
-import { Routes } from '@angular/router';
+import type { Route, Routes, UrlMatchResult, UrlSegment } from '@angular/router';
 import { authGuard, guestOnlyGuard } from './core/guards/auth-guard';
 import { AuthShellComponent } from './features/auth/auth-shell.component';
 import { LoginComponent } from './features/auth/login.component';
 import { RegisterComponent } from './features/auth/register.component';
+
+/**
+ * A route for a screen that has a path with optional parts (`groups`, `groups/:guildId`, `groups/:guildId/:channelId`).
+ * ? It is ONE route, not one per shape of the address: with several routes, going from `groups/a` to `groups/a/b` (which the
+ * screen does to put the channel in the address) destroyed the screen and built it again, and the page jumped.
+ */
+function optionalParams(
+  prefix: string,
+  names: string[],
+  loadComponent: NonNullable<Route['loadComponent']>,
+): Route {
+  return {
+    matcher: function match(segments: UrlSegment[]): UrlMatchResult | null {
+      if (segments[0]?.path !== prefix || segments.length > names.length + 1) {
+        return null;
+      }
+      const posParams: Record<string, UrlSegment> = {};
+      names.forEach(function take(name, index) {
+        const segment = segments[index + 1];
+        if (segment) {
+          posParams[name] = segment;
+        }
+      });
+      return { consumed: segments, posParams };
+    },
+    loadComponent,
+  };
+}
 
 /** Loads the shell of the private area (side bars and the page that changes). */
 function loadMainLayout() {
@@ -62,11 +90,8 @@ export const routes: Routes = [
     loadComponent: loadMainLayout,
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'direct' },
-      { path: 'direct', loadComponent: loadDirectHub },
-      { path: 'direct/:channelId', loadComponent: loadDirectHub },
-      { path: 'groups', loadComponent: loadGroupView },
-      { path: 'groups/:guildId', loadComponent: loadGroupView },
-      { path: 'groups/:guildId/:channelId', loadComponent: loadGroupView },
+      optionalParams('direct', ['channelId'], loadDirectHub),
+      optionalParams('groups', ['guildId', 'channelId'], loadGroupView),
       { path: 'voice', loadComponent: loadVoiceStage },
       // The settings open in a secondary outlet, on top of the current screen (which is not unloaded).
       { path: 'settings', outlet: 'settings', pathMatch: 'full', redirectTo: 'settings/profile' },

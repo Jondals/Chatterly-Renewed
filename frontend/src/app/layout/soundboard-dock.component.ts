@@ -88,9 +88,10 @@ const CATEGORY_NAME_MAX = 20;
     }
 
     <ng-template #board>
-      <div class="flex items-center justify-between border-b border-white/8 px-5 py-3.5">
-        <div class="min-w-0">
-          <div class="text-sm font-semibold">{{ 'Soundboard' | t }}</div>
+      <div class="sb-head">
+        <span class="sb-mark"><app-icon name="music" [size]="20" /></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[0.95rem] font-semibold">{{ 'Soundboard' | t }}</div>
           <div class="text-[0.6875rem] text-muted">
             {{
               call.inCall()
@@ -144,13 +145,14 @@ const CATEGORY_NAME_MAX = 20;
         </button>
       </div>
 
-      <div class="flex items-center gap-3 border-b border-white/8 px-5 py-2.5">
+      <div class="sb-volume">
         <app-icon name="volume" [size]="15" class="text-muted" />
         <input
           type="range"
           min="0"
           max="100"
-          class="min-w-0 flex-1 accent-[var(--accent)]"
+          class="ui-range min-w-0 flex-1"
+          [style.--p.%]="settings.callEffectsVolume()"
           [value]="settings.callEffectsVolume()"
           (input)="settings.callEffectsVolume.set(+$any($event.target).value)"
           [attr.aria-label]="'Soundboard volume' | t"
@@ -179,15 +181,15 @@ const CATEGORY_NAME_MAX = 20;
         </div>
       }
 
-      <div #scroller class="min-h-0 flex-1 overflow-y-auto p-3" (scroll)="drawMore(scroller)">
+      <div
+        #scroller
+        class="min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-1"
+        (scroll)="drawMore(scroller)"
+      >
         @for (tab of [current()]; track tab) {
           <div class="anim-fade-in">
-            <button
-              type="button"
-              class="btn btn-sm mb-1 w-full justify-center gap-1.5"
-              (click)="upload()"
-            >
-              <app-icon name="plus" [size]="14" /> {{ 'Add a sound' | t }}
+            <button type="button" class="sb-add" (click)="upload()">
+              <app-icon name="plus" [size]="15" /> {{ 'Add a sound' | t }}
             </button>
             @for (part of visibleParts(); track part.id) {
               @if (part.name) {

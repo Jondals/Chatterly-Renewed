@@ -4,7 +4,7 @@
  * block on the browser's own context menu, the mouse wheel on sliders and the late start of cursors and tooltips.
  */
 import { Component, HostListener, Injector, NgZone, effect, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { I18nService } from './core/i18n/i18n.service';
 import { ArrivalService } from './core/services/arrival.service';
 import { SettingsService } from './core/services/settings.service';
@@ -106,6 +106,7 @@ export class AppComponent {
   private readonly settingsSync = inject(SettingsSyncService);
   private readonly i18n = inject(I18nService);
   private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
   private readonly wheelHandler = this.onWheel.bind(this);
   /** The pending long press of a finger, and where it started. */
   private press: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null;
@@ -115,8 +116,16 @@ export class AppComponent {
     window.setTimeout(this.loadExtras.bind(this), 0);
     // The very first visit opens with a short animation (nothing is shown to people who are already signed in).
     window.setTimeout(this.arrival.maybeIntro.bind(this.arrival), 0);
-    // The sounds load while the page starts, so the first press already has its sound.
-    window.setTimeout(this.sound.preload.bind(this.sound), 800);
+    // The sounds load soon after the page is shown, so the first press already has its sound (on a phone a little later, so
+    // that fifty small files do not compete with the first paint); a press before that loads them at once.
+    const soundDelay = document.documentElement.dataset['perf'] === 'low' ? 5000 : 1500;
+    window.setTimeout(this.sound.preload.bind(this.sound), soundDelay);
+    document.addEventListener('pointerdown', this.sound.preload.bind(this.sound), {
+      once: true,
+      passive: true,
+    });
+    // The address that search engines see for a page is the page itself (the HTML carries the one of the home page).
+    this.router.events.subscribe(this.updateCanonical.bind(this));
     // ! Not passive: the page must not scroll while the wheel turns over a slider.
     document.addEventListener('wheel', this.wheelHandler, { passive: false });
     document.addEventListener('pointerdown', this.onFingerDown.bind(this), { passive: true });
@@ -125,6 +134,17 @@ export class AppComponent {
     document.addEventListener('pointercancel', this.cancelPress.bind(this), { passive: true });
     effect(this.applyAccent.bind(this));
     effect(this.applyLanguage.bind(this));
+  }
+
+  /** Points the canonical link at the page that is open (without its query), when the page changes. */
+  private updateCanonical(event: unknown): void {
+    if (!(event instanceof NavigationEnd) || !location.protocol.startsWith('http')) {
+      return;
+    }
+    const link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (link) {
+      link.href = location.origin + event.urlAfterRedirects.split(/[?#(]/)[0]!;
+    }
   }
 
   /** The chosen accent color re-themes the whole interface. */

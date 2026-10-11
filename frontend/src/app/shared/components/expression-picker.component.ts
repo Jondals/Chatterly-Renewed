@@ -186,7 +186,12 @@ export class GifThumbComponent {
               </button>
             }
           </div>
-          <div #scroller class="min-h-0 flex-1 overflow-y-auto px-3 pb-2" (scroll)="onScroll()">
+          <div
+            #scroller
+            class="min-h-0 flex-1 overflow-y-auto px-3 pb-2"
+            [class.is-scrolling]="scrolling()"
+            (scroll)="onScroll()"
+          >
             @if (loading()) {
               <div class="grid grid-cols-7 gap-1 pt-2">
                 @for (i of skeleton; track i) {
@@ -401,6 +406,8 @@ export class ExpressionPickerComponent {
   /** How many emoji of the open category are drawn so far: one screen, and more only while the list needs them. */
   private readonly shown = signal(FIRST_CHUNK);
   private growFrame = 0;
+  protected readonly scrolling = signal(false);
+  private scrollTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly destroyRef = inject(DestroyRef);
   private readonly freq = signal<Record<string, number>>(this.readFreq());
 
@@ -613,6 +620,10 @@ export class ExpressionPickerComponent {
   /** The list was scrolled: when it is close to its end, the next rows are drawn (never all of them at once). */
   protected onScroll(): void {
     this.drawMoreIfNeeded();
+    // while it scrolls the cells do not react to the pointer (hundreds of cells under it would change state all the time)
+    this.scrolling.set(true);
+    clearTimeout(this.scrollTimer);
+    this.scrollTimer = setTimeout(this.scrolling.set.bind(this.scrolling, false), 140);
   }
 
   /** Draws a few more rows when the end of what is drawn is close to the visible part. Returns whether it added any. */

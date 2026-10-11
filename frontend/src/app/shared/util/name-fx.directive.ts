@@ -225,16 +225,26 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     }
   }
 
-  /** The pointer is over the name: the letters start. */
+  /** The pointer is over the name: the letters start (or go on, the ones that were resting). */
   protected enter(): void {
     this.stopping = false;
     this.host.nativeElement.classList.add('nfx-on');
+    this.resume();
   }
 
-  /** The pointer left: the letters finish the movement they are in. */
+  /** The pointer left: each letter finishes the turn it is in and rests there. */
   protected leave(): void {
     if (!this.fxLive()) {
       this.stopping = true;
+    }
+  }
+
+  /** Lets every piece that was left resting go on. */
+  private resume(): void {
+    for (const piece of Array.from(
+      this.layer?.querySelectorAll<HTMLElement>('.nfx-l, .nfx-halo') ?? [],
+    )) {
+      piece.style.animationPlayState = '';
     }
   }
 
@@ -243,15 +253,21 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     this.host.nativeElement.classList.toggle('nfx-on', on);
   }
 
-  /** The last letter ended a turn: if the pointer is gone, this is the moment to stop (all the letters are resting). */
+  /**
+   * A piece (a letter or the light) ended a turn. If the pointer is gone this piece stops here, at rest: every letter is in a
+   * different moment of its movement (they start one after another), so each one waits for its own end and none stays in
+   * the air.
+   */
   private iterated(event: Event): void {
-    const last = this.layer?.querySelector('.nfx-letters')?.lastElementChild;
-    if (this.stopping && (event.target === last || !last)) {
-      this.stopping = false;
-      // the pointer may be over the name again (the page changed under it): then the letters go on
-      if (!this.host.nativeElement.matches(':hover')) {
-        this.host.nativeElement.classList.remove('nfx-on');
-      }
+    if (!this.stopping || !(event.target instanceof HTMLElement)) {
+      return;
     }
+    // the pointer may be over the name again (the page changed under it): then everything goes on
+    if (this.host.nativeElement.matches(':hover')) {
+      this.stopping = false;
+      this.resume();
+      return;
+    }
+    event.target.style.animationPlayState = 'paused';
   }
 }

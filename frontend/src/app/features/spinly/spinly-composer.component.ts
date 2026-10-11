@@ -15,7 +15,7 @@ import {
   viewChild,
   type OnInit,
 } from '@angular/core';
-import { TranslatePipe } from '../../core/i18n/i18n.service';
+import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { SpinlyService } from '../../core/services/spinly.service';
 import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -550,13 +550,16 @@ export class SpinlyComposerComponent implements OnInit {
   protected readonly pointerColor = computed(this.pickPointer.bind(this));
   protected readonly lightColor = computed(this.pickLight.bind(this));
 
+  private readonly i18n = inject(I18nService);
   private nextId = 1;
 
   /** Fills the form from the starting point. */
   ngOnInit(): void {
     const start = this.initial();
     if (!start) {
-      this.entries.set([this.row('', 0), this.row('', 1), this.row('', 2)]);
+      // it starts with values (the person changes them): three options, so that it can be sent as it is
+      const option = this.i18n.t('Option');
+      this.entries.set([0, 1, 2].map(this.defaultRow.bind(this, option)));
       return;
     }
     this.kind.set(start.kind);
@@ -591,7 +594,12 @@ export class SpinlyComposerComponent implements OnInit {
     return PALETTE_HEX[index % PALETTE_HEX.length];
   }
 
-  /** A new row. */
+  /** A row with a default name ("Option 1"). */
+  private defaultRow(option: string, index: number): Entry {
+    return this.row(option + ' ' + (index + 1), index);
+  }
+
+  /** A row with a name and the color that belongs to its place. */
   private row(name: string, index: number): Entry {
     return { id: this.nextId++, name, color: this.autoColor(index) };
   }

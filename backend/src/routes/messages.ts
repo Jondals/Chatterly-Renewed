@@ -77,10 +77,34 @@ const messageOut = function (m: MessageRow, reactions: ReactionRow[] = []) {
   };
 };
 
+/** The most ciphertext one account may write in an hour (a message may carry 90 000 characters: without this one account could fill the disk). */
+const WRITTEN_PER_HOUR = 8 * 1024 * 1024;
+const HOUR_MS = 60 * 60 * 1000;
+
 export function registerMessageRoutes(app: FastifyInstance, ctx: AppContext): void {
   const { db, hub, config } = ctx;
   const me = callerId;
   const auth = { onRequest: [app.authenticate] };
+
+  /** How much each account wrote in the hour that is running (kept in memory: it only has to stop abuse, not to last). */
+  const written = new Map<string, { since: number; chars: number }>();
+
+  /** Adds what an account is writing to its hour; false when it would go over the limit. */
+  function withinBudget(userId: string, chars: number): boolean {
+    const now = Date.now();
+    let entry = written.get(userId);
+    if (!entry || now - entry.since > HOUR_MS) {
+      entry = { since: now, chars: 0 };
+      written.set(userId, entry);
+      // old entries do not pile up: a new hour for somebody is the moment to forget the ones that ended
+      for (const [id, other] of written) {
+        if (now - other.since > HOUR_MS) written.delete(id);
+      }
+    }
+    if (entry.chars + chars > WRITTEN_PER_HOUR) return false;
+    entry.chars += chars;
+    return true;
+  }
 
   /** 404 for both "missing" and "not yours" so channel ids cannot be probed. */
   function requireChannel(
@@ -277,6 +301,9 @@ export function registerMessageRoutes(app: FastifyInstance, ctx: AppContext): vo
         signature: string;
         keyVersion: number;
       };
+      if (!withinBudget(self, body.ciphertext.length)) {
+        return reply.code(429).send({ error: 'write_quota' });
+      }
       const expected = channel.guild_id
         ? (
             db.prepare('SELECT key_version FROM guilds WHERE id = ?').get(channel.guild_id) as {
@@ -350,6 +377,9 @@ export function registerMessageRoutes(app: FastifyInstance, ctx: AppContext): vo
         ciphertext: string;
         signature: string;
       };
+      if (!withinBudget(me(req), body.ciphertext.length)) {
+        return reply.code(429).send({ error: 'write_quota' });
+      }
       const editedAt = Date.now();
       db.prepare(
         'UPDATE messages SET iv = ?, ciphertext = ?, signature = ?, edited_at = ? WHERE id = ?',

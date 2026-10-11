@@ -8,7 +8,7 @@
 
 [English](README.md) · **Español**
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-2.23.1-2ef2b0?style=flat-square)
+![versión](https://img.shields.io/badge/versi%C3%B3n-2.24.0-2ef2b0?style=flat-square)
 ![cifrado](https://img.shields.io/badge/E2EE-AES--256--GCM%20%C2%B7%20ECDH%20P--256%20%C2%B7%20ECDSA-8b5cf6?style=flat-square)
 ![llamadas](https://img.shields.io/badge/llamadas-WebRTC%20malla%20%C2%B7%20DTLS--SRTP-38e8ff?style=flat-square)
 
@@ -47,7 +47,7 @@ pnpm typecheck
 pnpm app         # compila y sirve la versión de producción (:4200 + :3000)
 ```
 
-`pnpm test` ejecuta [`test/run.mjs`](test/run.mjs) y, dentro, [`test/security.mts`](test/security.mts) (autorización, sesiones, subidas, SSRF, borrado de cuenta, política de relay y cifrado de frames). Necesita Chromium una vez: `pnpm exec playwright install chromium`.
+`pnpm test` ejecuta [`test/run.mjs`](test/run.mjs) y, dentro, [`test/security.mts`](test/security.mts) (un archivo por tema en `test/security/`) (autorización, sesiones, subidas, SSRF, borrado de cuenta, política de relay y cifrado de frames). Necesita Chromium una vez: `pnpm exec playwright install chromium`.
 
 La búsqueda de GIFs necesita una clave gratuita de GIPHY en `backend/.env` (`GIPHY_API_KEY=...`).
 
@@ -80,12 +80,24 @@ Todo se configura con variables de entorno (ver [`backend/.env.example`](backend
 
 ### Lo que el servidor sí ve (modelo de amenazas honesto)
 
-Nombres de usuario, campos del perfil, grafo de amigos, nombres y miembros de grupos y canales, horas y tamaños aproximados de los mensajes, tamaños de archivo, quién está en línea (según tu opción de privacidad) y quién está en qué llamada. **No** ve el texto de los mensajes, el contenido de los adjuntos, las reacciones, el audio/vídeo de las llamadas ni el contenido de la señalización.
+Nombres de usuario, campos del perfil, grafo de amigos, miembros de grupos (**no** los nombres de grupos, canales y etiquetas de miembro: desde la 2.24.0 van sellados con la clave del grupo; la etiqueta que una persona elige mostrar en su perfil es pública), horas y tamaños aproximados de los mensajes, tamaños de archivo, quién está en línea (según tu opción de privacidad) y quién está en qué llamada. **No** ve el texto de los mensajes, el contenido de los adjuntos, las reacciones, el audio/vídeo de las llamadas ni el contenido de la señalización.
 
 - **Las fotos de perfil y los banners están cifrados de extremo a extremo** (desde la 2.18.0): el navegador cifra cada uno con su propia clave aleatoria, el servidor guarda solo texto cifrado y la clave se sella para cada persona que puede verlo (amistades, gente que comparte un servidor, conversaciones directas) con la clave de par entre quien lo sube y esa persona. Quien no está en ese círculo no recibe nada y el servidor no puede abrirlos. Límites: quien vio una foto conserva lo que vio, una amistad nueva ve la foto la próxima vez que su dueño esté conectado (su navegador sella la clave entonces) y el servidor sigue sabiendo quién tiene foto y cuánto pesa. **Los iconos de grupo también se cifran** (desde la 2.23.0): el navegador del dueño cifra el icono, la clave viaja con el grupo sellada con la clave del grupo y el servidor solo entrega el icono a los miembros del grupo. Las fotos privadas deben enviarse como adjuntos.
 - El relay TURN (y la máquina que lo aloja) ve las direcciones de red y el volumen de tráfico, pero no el contenido.
 - Un servidor que sirva JavaScript malicioso puede anular cualquier garantía de extremo a extremo: despliega el frontend desde una fuente en la que confíes.
 - Las claves de mensajes directos son claves estáticas entre pares (todavía sin secreto hacia delante por mensaje) y quien pierde su contraseña no puede recuperar su identidad.
+
+## App de escritorio (Windows)
+
+La misma app en su propia ventana, con la web dentro y una actualización automática que se instala sola. Todo lo necesario para ejecutarla, probarla, generar el instalador, publicar actualizaciones y subirla a la Microsoft Store está en [desktop/README.es.md](desktop/README.es.md):
+
+```
+pnpm build                  # la web que lleva el instalador
+pnpm --dir desktop install
+pnpm --dir desktop dist     # desktop/dist/Chatterly Setup <versión>.exe
+```
+
+El servidor debe listar `app://chatterly` en `CORS_ORIGINS` (`docker-compose.yml` ya lo hace).
 
 ## Estructura del proyecto
 
@@ -93,7 +105,7 @@ Nombres de usuario, campos del perfil, grafo de amigos, nombres y miembros de gr
 backend/     Fastify 5 + SQLite (better-sqlite3) + WebSocket
 frontend/    Angular 21 (signals) + Tailwind 4
 scripts/     servidor de producción, copias de seguridad
-test/        el único test (run.mjs) y las comprobaciones de seguridad (security.mts)
+test/        el único test, dividido por temas: run.mjs + e2e/ (navegador), security.mts + security/ (sin navegador)
 deploy/      guía para un servidor gratuito (Oracle Cloud), Caddy, coturn y comprobaciones
 ```
 
@@ -103,7 +115,7 @@ La guía completa está en [`deploy/DEPLOY.md`](deploy/DEPLOY.md): Docker, Caddy
 
 ## Contribuir
 
-Lee primero [CONTRIBUTING.md](.github/CONTRIBUTING.md). Los problemas de seguridad se comunican según [SECURITY.md](SECURITY.md) y se espera que todo el mundo siga el [código de conducta](.github/CODE_OF_CONDUCT.md).
+Lee primero [CONTRIBUTING.es.md](.github/CONTRIBUTING.es.md). Los problemas de seguridad se comunican según [SECURITY.es.md](SECURITY.es.md) y se espera que todo el mundo siga el [código de conducta](.github/CODE_OF_CONDUCT.es.md). Cómo encaja todo y por qué está hecho así: [ARCHITECTURE.es.md](ARCHITECTURE.es.md).
 
 ## Sonidos y licencias
 
@@ -111,4 +123,4 @@ Los sonidos grabados de la interfaz son de [Kenney](https://www.kenney.nl) (CC0,
 
 ## Licencia
 
-ISC © colaboradores de Chatterly-Renewed. Consulta el [CHANGELOG](CHANGELOG.md) para ver las novedades de cada versión.
+ISC © colaboradores de Chatterly-Renewed. Consulta el [registro de cambios](CHANGELOG.es.md) para ver las novedades de cada versión.

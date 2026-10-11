@@ -187,7 +187,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     [dockArea]="stageHostEl()"
                     [allowed]="places"
                     [class.!w-64]="settings.musicMini()"
-                    class="music-card absolute z-30 w-[23rem] max-w-[calc(100%-1.5rem)] transition-[width] duration-300 select-none rounded-ui-lg border border-white/10 bg-ink-900/95 p-3.5 shadow-xl backdrop-blur"
+                    class="music-card absolute z-30 w-[25rem] max-w-[calc(100%-1.5rem)] transition-[width] duration-300 select-none rounded-ui-lg border border-white/10 bg-ink-900/95 p-3.5 shadow-xl backdrop-blur"
                     [class]="musicClass()"
                     [style.bottom.px]="musicBottom()"
                     (docked)="settings.musicPlace.set($event)"
@@ -220,16 +220,18 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                       ></iframe>
                     }
                     <div
-                      class="music-grip flex items-center gap-2.5"
+                      class="music-grip flex items-center gap-3"
                       data-drag
                       [attr.title]="'Drag to move' | t"
                     >
-                      <span class="ring-bars" [class.is-paused]="paused()" aria-hidden="true"
-                        ><i></i><i></i><i></i><i></i
-                      ></span>
+                      <span class="mc-badge" aria-hidden="true">
+                        <span class="ring-bars" [class.is-paused]="paused()"
+                          ><i></i><i></i><i></i><i></i
+                        ></span>
+                      </span>
                       <div class="min-w-0 flex-1 leading-tight">
                         <div class="truncate text-sm font-semibold">{{ titleOf(m.url) }}</div>
-                        <div class="truncate text-xs text-muted">
+                        <div class="mt-0.5 truncate text-xs text-muted">
                           {{ 'Listening together' | t }} · {{ directory.get(m.by)?.displayName }}
                         </div>
                       </div>
@@ -272,107 +274,18 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                       [attr.inert]="settings.musicMini() ? '' : null"
                     >
                       <div class="mc-inner">
-                        <div class="mt-3 flex items-center gap-2">
-                          @if (musicSrc() && m.link.kind === 'youtube') {
-                            <button
-                              type="button"
-                              class="btn btn-icon btn-sm shrink-0"
-                              [attr.title]="(paused() ? 'Play' : 'Pause') | t"
-                              [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
-                              (click)="togglePause()"
-                            >
-                              <app-icon [name]="paused() ? 'play' : 'pause'" [size]="15" />
-                            </button>
-                          }
-                          @if (call.hasNext()) {
-                            <button
-                              type="button"
-                              class="btn btn-sm shrink-0 gap-1"
-                              [class.btn-active]="iVotedSkip()"
-                              [attr.title]="'Vote to skip' | t"
-                              [attr.aria-label]="'Vote to skip' | t"
-                              (click)="call.voteSkip()"
-                            >
-                              <app-icon name="skip-forward" [size]="14" />
-                              <span class="font-mono text-[0.6875rem]"
-                                >{{ call.skipVotes().length }}/{{ call.skipNeeded() }}</span
-                              >
-                            </button>
-                          }
-                          <button
-                            type="button"
-                            class="btn btn-sm shrink-0 gap-1"
-                            data-queue-toggle
-                            [class.btn-active]="queueOpen()"
-                            [attr.title]="'Queue' | t"
-                            [attr.aria-label]="'Queue' | t"
-                            (mousedown)="$event.stopPropagation()"
-                            (click)="queueOpen.set(!queueOpen())"
-                          >
-                            <app-icon name="list" [size]="14" />
-                            <span class="font-mono text-[0.6875rem]">{{ queuedCount() }}</span>
-                          </button>
-                          @if (musicSrc() && m.link.kind === 'youtube') {
-                            <div class="relative shrink-0">
-                              <button
-                                type="button"
-                                class="btn btn-icon btn-sm"
-                                [class.btn-active]="volumeOpen()"
-                                [attr.title]="'Volume' | t"
-                                [attr.aria-label]="'Volume' | t"
-                                (mousedown)="$event.stopPropagation()"
-                                (click)="toggleVolume()"
-                              >
-                                <app-icon
-                                  [name]="settings.musicVolume() === 0 ? 'volume-x' : 'volume-2'"
-                                  [size]="15"
-                                />
-                              </button>
-                              @if (volumeOpen()) {
-                                <div
-                                  animate.leave="leave-pop"
-                                  class="panel anim-pop absolute bottom-full left-0 z-20 mb-2 w-56 !bg-ink-850 p-3 shadow-2xl"
-                                  (mousedown)="$event.stopPropagation()"
-                                >
-                                  <div class="mb-2 flex items-center justify-between text-xs">
-                                    <span class="font-semibold">{{ 'Music volume' | t }}</span>
-                                    <b class="font-mono text-accent"
-                                      >{{ settings.musicVolume() }}%</b
-                                    >
-                                  </div>
-                                  <div class="relative">
-                                    <input
-                                      type="range"
-                                      min="0"
-                                      max="100"
-                                      step="1"
-                                      class="volume-range w-full"
-                                      [value]="settings.musicVolume()"
-                                      [attr.aria-label]="'Music volume' | t"
-                                      (input)="setMusicVolume($event)"
-                                    />
-                                    <div class="volume-ticks" aria-hidden="true">
-                                      @for (tick of volumeTicks; track tick) {
-                                        <span [style.left.%]="tick"></span>
-                                      }
-                                    </div>
-                                  </div>
-                                </div>
-                              }
-                            </div>
-                          }
-                        </div>
                         @if (musicSrc() && m.link.kind === 'youtube' && duration() > 0) {
-                          <span class="timeline mt-2 flex min-w-0 items-center gap-2">
+                          <span class="timeline mt-3.5 flex min-w-0 items-center gap-2.5">
                             <span
                               class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
                               >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
                             >
                             <input
                               type="range"
-                              class="min-w-0 flex-1"
+                              class="ui-range min-w-0 flex-1"
                               min="0"
                               step="1"
+                              [style.--p.%]="timeFill()"
                               [max]="duration()"
                               [value]="elapsed()"
                               [attr.aria-label]="'Timeline' | t"
@@ -388,6 +301,91 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             >
                           </span>
                         }
+                        <!-- the queue on the left, play and skip in the middle, the volume on the right -->
+                        <div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                          <div class="flex justify-start">
+                            <button
+                              type="button"
+                              class="mc-chip"
+                              [class.is-on]="queueOpen()"
+                              [attr.title]="'Queue' | t"
+                              [attr.aria-label]="'Queue' | t"
+                              (mousedown)="$event.stopPropagation()"
+                              (click)="queueOpen.set(!queueOpen())"
+                            >
+                              <app-icon name="list" [size]="14" />
+                              <span class="font-mono text-[0.6875rem]">{{ queuedCount() }}</span>
+                            </button>
+                          </div>
+                          <div class="flex items-center gap-2.5">
+                            @if (musicSrc() && m.link.kind === 'youtube') {
+                              <button
+                                type="button"
+                                class="btn btn-icon btn-primary !h-10 !w-10 !rounded-full"
+                                [attr.title]="(paused() ? 'Play' : 'Pause') | t"
+                                [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
+                                (click)="togglePause()"
+                              >
+                                <app-icon [name]="paused() ? 'play' : 'pause'" [size]="18" />
+                              </button>
+                            }
+                            @if (call.hasNext()) {
+                              <button
+                                type="button"
+                                class="mc-chip"
+                                [class.is-on]="iVotedSkip()"
+                                [attr.title]="'Vote to skip' | t"
+                                [attr.aria-label]="'Vote to skip' | t"
+                                (click)="call.voteSkip()"
+                              >
+                                <app-icon name="skip-forward" [size]="14" />
+                                <span class="font-mono text-[0.6875rem]"
+                                  >{{ call.skipVotes().length }}/{{ call.skipNeeded() }}</span
+                                >
+                              </button>
+                            }
+                          </div>
+                          <div class="relative flex justify-end">
+                            @if (musicSrc() && m.link.kind === 'youtube') {
+                              <button
+                                type="button"
+                                class="mc-chip"
+                                [class.is-on]="volumeOpen()"
+                                [attr.title]="'Volume' | t"
+                                [attr.aria-label]="'Volume' | t"
+                                (mousedown)="$event.stopPropagation()"
+                                (click)="toggleVolume()"
+                              >
+                                <app-icon
+                                  [name]="settings.musicVolume() === 0 ? 'volume-x' : 'volume-2'"
+                                  [size]="15"
+                                />
+                              </button>
+                              @if (volumeOpen()) {
+                                <div
+                                  animate.leave="leave-pop"
+                                  class="volume-pop anim-pop"
+                                  (mousedown)="$event.stopPropagation()"
+                                >
+                                  <b class="font-mono text-[0.6875rem] text-accent"
+                                    >{{ settings.musicVolume() }}%</b
+                                  >
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    class="volume-range ui-range"
+                                    [style.--p.%]="settings.musicVolume()"
+                                    [value]="settings.musicVolume()"
+                                    [attr.aria-label]="'Music volume' | t"
+                                    (input)="setMusicVolume($event)"
+                                  />
+                                </div>
+                              }
+                            }
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -601,12 +599,12 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     @if (activitiesOpen()) {
                       <div
                         animate.leave="leave-pop"
-                        class="panel act-menu anim-pop absolute bottom-14 left-1/2 z-30 w-[22rem] -translate-x-1/2 !bg-ink-850 p-2.5 shadow-2xl max-md:fixed max-md:inset-x-3 max-md:bottom-28 max-md:left-3 max-md:w-auto max-md:translate-x-0"
+                        class="panel act-menu anim-pop absolute bottom-14 left-1/2 z-30 w-[26rem] -translate-x-1/2 !bg-ink-850 p-4 shadow-2xl max-md:fixed max-md:inset-x-3 max-md:bottom-28 max-md:left-3 max-md:w-auto max-md:translate-x-0"
                         (mousedown)="$event.stopPropagation()"
                       >
                         @if (!activityForm()) {
                           <div
-                            class="px-3 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
+                            class="px-1 pb-3 pt-0.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
                           >
                             {{ 'Activities' | t }}
                           </div>
@@ -1566,12 +1564,30 @@ export class VoiceStageComponent {
     effect(this.watchCall.bind(this));
     effect(this.watchConnections.bind(this));
     this.startStage();
+    // The player reports its time a couple of times a second: between two reports the timeline moves by the clock.
+    const ticker = setInterval(this.smoothTime.bind(this), 250);
+    this.destroyRef.onDestroy(clearInterval.bind(null, ticker));
     // In the capture phase, so that a press which something else stops on its way (a floating tile) still closes the queue.
     const close = this.closeQueueOutside.bind(this);
     document.addEventListener('pointerdown', close, true);
     this.destroyRef.onDestroy(
       document.removeEventListener.bind(document, 'pointerdown', close, true),
     );
+  }
+
+  /** Moves the timeline by the clock while the video plays, so that it never waits for the next report of the player. */
+  private smoothTime(): void {
+    if (
+      !this.call.music() ||
+      this.paused() ||
+      this.scrubbing() ||
+      this.duration() <= 0 ||
+      !this.reportedAt
+    ) {
+      return;
+    }
+    const now = this.playerTime + (performance.now() - this.reportedAt) / 1000;
+    this.elapsed.set(Math.min(this.duration(), now));
   }
 
   /** A press outside of the queue (and of the button that opens it) closes it. */
@@ -2007,6 +2023,8 @@ export class VoiceStageComponent {
   protected readonly paused = signal(false);
   /** Where the YouTube player says it is, in seconds. */
   private playerTime = 0;
+  /** When the player last said where it is, to move the timeline by the clock between two reports. */
+  private reportedAt = 0;
   /** Length of what plays, in seconds (0 when unknown). */
   protected readonly duration = signal(0);
   /** The second shown on the timeline of the music bar. */
@@ -2028,6 +2046,14 @@ export class VoiceStageComponent {
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   /** Where the thumb of the timeline is while it is dragged (the bar itself is not rewritten during the drag: a browser that is given a new value while the thumb is held stops the drag). */
   protected readonly scrubTime = signal(0);
+  /** How much of the timeline is filled (percent), following the thumb while it is dragged. */
+  protected readonly timeFill = computed(
+    function (this: VoiceStageComponent) {
+      const total = this.duration();
+      const now = this.scrubbing() ? this.scrubTime() : this.elapsed();
+      return total > 0 ? Math.min(100, (now / total) * 100) : 0;
+    }.bind(this),
+  );
   /** The last time the player reported, to notice a jump made inside the video itself. */
   private lastSample: { time: number; at: number } | null = null;
   /** The position of the playlist the player is at. */
@@ -2196,6 +2222,7 @@ export class VoiceStageComponent {
     if (typeof info.currentTime === 'number') {
       const time = info.currentTime;
       this.playerTime = time;
+      this.reportedAt = performance.now();
       if (!this.scrubbing()) {
         this.elapsed.set(time);
       }

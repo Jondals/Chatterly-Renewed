@@ -47,12 +47,8 @@ const CORNERS = [2, 6, 10, 14, 18, 22];
       </div>
     } @else {
       <div class="thumb profile">
-        <app-banner class="banner" [image]="bannerImage()" [color]="text('bannerColor')" />
-        <span
-          class="face"
-          [style.background-image]="avatarImage()"
-          style="background-color: #4b5263"
-        ></span>
+        <app-banner class="banner" [color]="text('bannerColor')" />
+        <span class="face" style="background-color: #4b5263"></span>
         <span
           class="who"
           [appNameColor]="text('profileColor')"
@@ -134,23 +130,13 @@ export class PresetThumbComponent {
   readonly preset = input.required<Preset>();
   private readonly destroyRef = inject(DestroyRef);
   /** The addresses made for the pieces of the preset (they are given back when the picture goes). */
-  protected readonly urls = signal<{
-    avatar: string;
-    banner: string;
-    thumb: string;
-  }>({
-    thumb: '',
-    avatar: '',
-    banner: '',
-  });
+  protected readonly urls = signal<{ thumb: string }>({ thumb: '' });
 
   protected readonly accent = computed(this.pickAccent.bind(this));
   protected readonly background = computed(this.pickBackground.bind(this));
   protected readonly own = computed(this.pickOwn.bind(this));
   protected readonly other = computed(this.pickOther.bind(this));
   protected readonly radius = computed(this.pickRadius.bind(this));
-  protected readonly avatarImage = computed(this.pickAvatar.bind(this));
-  protected readonly bannerImage = computed(this.pickBanner.bind(this));
 
   constructor() {
     effect(this.makeUrls.bind(this));
@@ -163,8 +149,6 @@ export class PresetThumbComponent {
     untracked(this.freeUrls.bind(this));
     this.urls.set({
       thumb: assets.thumb ? URL.createObjectURL(assets.thumb) : '',
-      avatar: assets.avatar ? URL.createObjectURL(assets.avatar) : '',
-      banner: assets.banner ? URL.createObjectURL(assets.banner) : '',
     });
   }
 
@@ -224,17 +208,5 @@ export class PresetThumbComponent {
   private pickRadius(): number {
     const step = this.preset().data['pref.cornerStep'];
     return CORNERS[typeof step === 'number' ? Math.min(5, Math.max(0, step)) : 3]!;
-  }
-
-  /** The picture of the profile as a CSS value. */
-  private pickAvatar(): string | null {
-    const url = this.urls().avatar;
-    return url ? 'url(' + url + ')' : null;
-  }
-
-  /** The banner picture as a CSS value. */
-  private pickBanner(): string | null {
-    const url = this.urls().banner;
-    return url ? 'url(' + url + ')' : null;
   }
 }

@@ -140,6 +140,15 @@
           transform: scale(1.18);
         }
       }
+      /* a phone: the dark layer stays still (the aurora that sways and the glow that breathes cost battery while the app starts) */
+      @media (pointer: coarse) {
+        #boot-cover::before {
+          animation: boot-in 0.5s forwards;
+        }
+        #boot-cover::after {
+          animation: boot-in 0.6s 0.2s forwards;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         #boot-cover {
           display: none;

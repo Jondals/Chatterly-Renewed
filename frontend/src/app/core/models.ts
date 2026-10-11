@@ -111,7 +111,6 @@ export interface GuildTag {
 export interface Guild {
   id: string;
   name: string;
-  icon: string;
   iconImage: string | null;
   ownerId: string;
   keyVersion: number;

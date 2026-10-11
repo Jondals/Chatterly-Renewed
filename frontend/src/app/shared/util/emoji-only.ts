@@ -1,13 +1,13 @@
 /**
  * src/app/shared/util/emoji-only.ts
- * Detects a message that is only one to three emoji, which the chat draws big (like WhatsApp does).
+ * Detects a message that is only a few emoji (up to ten), which the chat draws big (like WhatsApp does): the fewer, the bigger.
  */
 
 /** One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ. */
 const EMOJI =
-  /^(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*){1,3}$/u;
+  /^(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*){1,10}$/u;
 
-/** True when the text (ignoring spaces at both ends) is only one to three emoji. */
+/** True when the text (ignoring spaces at both ends) is only one to ten emoji. */
 export function isOnlyEmoji(text: string): boolean {
   return EMOJI.test(text.trim());
 }

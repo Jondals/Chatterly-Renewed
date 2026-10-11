@@ -18,7 +18,7 @@ function start(): void {
 }
 
 /**
- * Marks weak devices (4 cores or fewer, 4 GB of memory or less, or "save data" on) so the page can do less of what is only
+ * Marks weak devices (a phone, 4 cores or fewer, 4 GB of memory or less, or "save data" on) so the page can do less of what is only
  * decoration: no blur behind panels, a lighter animation of arriving, no web fonts for emoji and names, and quick motion.
  */
 function markWeakDevice(): void {
@@ -26,7 +26,10 @@ function markWeakDevice(): void {
     deviceMemory?: number;
     connection?: { saveData?: boolean };
   };
+  // a phone (a touch screen that is small) starts in light mode: its first seconds are the ones that must not stutter
+  const phone = window.matchMedia('(pointer: coarse) and (max-width: 820px)').matches;
   if (
+    phone ||
     (info.hardwareConcurrency ?? 8) <= 4 ||
     (info.deviceMemory ?? 8) <= 4 ||
     info.connection?.saveData === true

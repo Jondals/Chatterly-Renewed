@@ -11,6 +11,10 @@ name: Deploy Chatterly-Renewed to VPS
 on:
   push:
     branches: [master, main]
+    # * The desktop and mobile apps are built and published on their own; changing them must not redeploy the server.
+    paths-ignore:
+      - 'desktop/**'
+      - 'mobile/**'
   workflow_dispatch:
 
 # The job only needs to read the repository (the server is reached with the SSH key, not with the token of GitHub).

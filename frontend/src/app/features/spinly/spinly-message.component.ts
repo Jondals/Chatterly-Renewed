@@ -24,10 +24,10 @@ import { SpinlyWheelCardComponent, type WheelRun } from './spinly-wheel-card.com
   template: `
     @if (message().activity; as activity) {
       <div
-        class="anim-fade-up mt-1 w-[min(24rem,calc(100vw-7rem))] overflow-hidden rounded-ui-lg border border-white/10 bg-black/25"
+        class="anim-fade-up mt-1 w-[min(24rem,calc(100vw-7rem))] overflow-hidden rounded-ui-lg border border-accent/25 bg-ink-850/80 shadow-[0_10px_30px_-14px_var(--accent)]"
       >
         <div
-          class="sp-head flex items-center gap-2 border-b border-white/8 px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-accent"
+          class="sp-head flex items-center gap-2 border-b border-accent/20 px-3 py-2.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-accent"
         >
           <app-icon [name]="activity.kind === 'wheel' ? 'wheel' : 'trophy'" [size]="14" />
           {{ (activity.kind === 'wheel' ? 'Spinly wheel' : 'Spinly tournament') | t }}

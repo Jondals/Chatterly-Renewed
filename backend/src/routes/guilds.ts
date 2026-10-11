@@ -2,7 +2,6 @@
  * src/routes/guilds.ts
  * Grupos: crear, editar, confirmDelete, invitar, expulsar, canales y claves de grupo cifradas.
  */
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -17,13 +16,12 @@ import {
   toSelfUser,
 } from '../models';
 import { refreshServerTag, showingTagOf, TAG_ICONS } from '../server-tag';
-import { b64Field, emojiOrShort, callerId, cleanText } from '../validation';
+import { b64Field, callerId, sealedText, sealedVersion } from '../validation';
 import { deleteImage, ownsImage } from './images';
 
 interface GuildRow {
   id: string;
   name: string;
-  icon: string;
   icon_image: string | null;
   owner_id: string;
   key_version: number;
@@ -56,8 +54,66 @@ const iconKeySchema = {
   },
 } as const;
 
-const nameField = { type: 'string', minLength: 1, maxLength: 48 } as const;
-const clean = cleanText;
+const uuidField = {
+  type: 'string',
+  pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+} as const;
+
+/**
+ * ! What a group calls itself is sealed in the browsers of its members with the key of the group (see core/crypto/guild-meta.ts):
+ * the name, the emoji, the name of every channel and of every tag (with its color). The server stores those texts as they come
+ * and never reads them. This is the whole set, sealed with one key version.
+ */
+const metaSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'channels', 'tags'],
+  properties: {
+    name: sealedText,
+    channels: {
+      type: 'array',
+      maxItems: 40,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'name'],
+        properties: { id: { type: 'string', maxLength: 64 }, name: sealedText },
+      },
+    },
+    tags: {
+      type: 'array',
+      maxItems: 12,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'name'],
+        properties: { id: { type: 'string', maxLength: 64 }, name: sealedText },
+      },
+    },
+  },
+} as const;
+
+interface Meta {
+  name: string;
+  channels: { id: string; name: string }[];
+  tags: { id: string; name: string }[];
+}
+
+/** Whether two lists have the same ids (no more, no less, none twice). */
+function sameIds(given: { id: string }[], wanted: string[]): boolean {
+  const ids = new Set(
+    given.map(function id(item) {
+      return item.id;
+    }),
+  );
+  return (
+    ids.size === given.length &&
+    ids.size === wanted.length &&
+    wanted.every(function has(id) {
+      return ids.has(id);
+    })
+  );
+}
 
 /**
  * What a member receives about a group: channels, members with their tags, the tags, and only THEIR own wrapped keys.
@@ -94,7 +150,6 @@ export function guildPayload(db: Db, guild: GuildRow, userId: string) {
   return {
     id: guild.id,
     name: guild.name,
-    icon: guild.icon,
     iconImage: guild.icon_image,
     ownerId: guild.owner_id,
     keyVersion: guild.key_version,
@@ -203,15 +258,23 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['name', 'envelope'],
+          required: ['id', 'name', 'envelope', 'channels'],
           properties: {
-            id: {
-              type: 'string',
-              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-            },
-            name: nameField,
-            icon: emojiOrShort,
+            id: uuidField,
+            name: sealedText,
             envelope: envelopeSchema,
+            // The first channels (a text one and a voice one), with their names sealed.
+            channels: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 2,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['id', 'name', 'type'],
+                properties: { id: uuidField, name: sealedText, type: { enum: ['text', 'voice'] } },
+              },
+            },
           },
         },
       },
@@ -222,23 +285,46 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
     async function (req, reply) {
       const self = me(req);
       const body = req.body as {
-        id?: string;
+        id: string;
         name: string;
-        icon?: string;
         envelope: { iv: string; data: string };
+        channels: { id: string; name: string; type: 'text' | 'voice' }[];
       };
       const count = (
         db.prepare('SELECT COUNT(*) AS n FROM guilds WHERE owner_id = ?').get(self) as { n: number }
       ).n;
       if (count >= 25) return reply.code(403).send({ error: 'guild_limit' });
-      // Key envelopes are bound to the guild id, so the creator may choose it.
-      const id = body.id ?? randomUUID();
+      // Key envelopes and sealed texts are bound to the guild id, so the creator chooses it.
+      const id = body.id;
       if (getGuild(id)) return reply.code(409).send({ error: 'id_taken' });
+      const first = [
+        body.name,
+        ...body.channels.map(function name(c) {
+          return c.name;
+        }),
+      ];
+      if (
+        first.some(function stale(text) {
+          return text && sealedVersion(text) !== 1;
+        }) ||
+        body.channels[0]!.type !== 'text' ||
+        body.channels[1]!.type !== 'voice' ||
+        body.channels[0]!.id === body.channels[1]!.id
+      ) {
+        return reply.code(400).send({ error: 'invalid_group' });
+      }
+      if (
+        db
+          .prepare('SELECT 1 FROM channels WHERE id IN (?, ?)')
+          .get(body.channels[0]!.id, body.channels[1]!.id)
+      ) {
+        return reply.code(409).send({ error: 'id_taken' });
+      }
       const now = Date.now();
       db.transaction(function () {
         db.prepare(
-          'INSERT INTO guilds (id, name, icon, owner_id, key_version, created_at) VALUES (?,?,?,?,1,?)',
-        ).run(id, clean(body.name) || 'New Guild', clean(body.icon ?? ''), self, now);
+          'INSERT INTO guilds (id, name, owner_id, key_version, created_at) VALUES (?,?,?,1,?)',
+        ).run(id, body.name, self, now);
         db.prepare(
           "INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?,?, 'owner', ?)",
         ).run(id, self, now);
@@ -248,8 +334,9 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         const addChannel = db.prepare(
           'INSERT INTO channels (id, guild_id, type, name, position, created_at) VALUES (?,?,?,?,?,?)',
         );
-        addChannel.run(randomUUID(), id, 'text', 'general', 0, now);
-        addChannel.run(randomUUID(), id, 'voice', 'Voice', 1, now);
+        body.channels.forEach(function add(channel, index) {
+          addChannel.run(channel.id, id, channel.type, channel.name, index, now);
+        });
       })();
       return reply.code(201).send({ guild: guildPayload(db, getGuild(id)!, self) });
     },
@@ -264,8 +351,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
           type: 'object',
           additionalProperties: false,
           properties: {
-            name: nameField,
-            icon: emojiOrShort,
+            name: sealedText,
             iconImage: {
               type: ['string', 'null'],
               pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
@@ -281,20 +367,22 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       },
     },
     /**
-     * PATCH /api/guilds/:id: renames the group or changes its icon (the icon must be a picture the owner uploaded).
+     * PATCH /api/guilds/:id: renames the group (a sealed name) or changes its icon (a picture the owner uploaded) and its tag.
      */
     async function (req, reply) {
       const guild = requireOwner(req, reply);
       if (!guild) return;
       const body = req.body as {
         name?: string;
-        icon?: string;
         iconImage?: string | null;
         iconKey?: { version: number; iv: string; data: string };
         tag?: string;
         tagColor?: string;
         tagIcon?: string;
       };
+      if (body.name && sealedVersion(body.name) !== guild.key_version) {
+        return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
+      }
       let iconImage = guild.icon_image;
       let iconKey = {
         version: guild.icon_key_version,
@@ -326,9 +414,8 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       db.prepare(
         'UPDATE guilds SET icon_key_version = ?, icon_key_iv = ?, icon_key_data = ? WHERE id = ?',
       ).run(iconKey.version, iconKey.iv, iconKey.data, guild.id);
-      db.prepare('UPDATE guilds SET name = ?, icon = ?, icon_image = ? WHERE id = ?').run(
-        body.name !== undefined ? clean(body.name) || guild.name : guild.name,
-        body.icon !== undefined ? clean(body.icon) : guild.icon,
+      db.prepare('UPDATE guilds SET name = ?, icon_image = ? WHERE id = ?').run(
+        body.name ?? guild.name,
         iconImage,
         guild.id,
       );
@@ -425,28 +512,29 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['name', 'color'],
-          properties: {
-            name: { type: 'string', minLength: 1, maxLength: 24 },
-            color: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
-          },
+          required: ['id', 'name'],
+          properties: { id: uuidField, name: sealedText },
         },
       },
     },
-    /** POST /api/guilds/:id/tags: creates a tag (name and color are validated; at most 12 per group). */
+    /** POST /api/guilds/:id/tags: creates a tag (its name and color travel sealed; at most 12 per group). */
     async function (req, reply) {
       const guild = requireOwner(req, reply);
       if (!guild) return;
-      const body = req.body as { name: string; color: string };
-      const name = clean(body.name);
-      if (!name) return reply.code(400).send({ error: 'invalid_name' });
+      const body = req.body as { id: string; name: string };
+      if (sealedVersion(body.name) !== guild.key_version) {
+        return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
+      }
+      if (db.prepare('SELECT 1 FROM guild_tags WHERE id = ?').get(body.id)) {
+        return reply.code(409).send({ error: 'id_taken' });
+      }
       const count = (
         db.prepare('SELECT COUNT(*) AS n FROM guild_tags WHERE guild_id = ?').get(guild.id) as {
           n: number;
         }
       ).n;
       if (count >= MAX_TAGS) return reply.code(400).send({ error: 'too_many_tags' });
-      const id = randomUUID();
+      const id = body.id;
       const last = (
         db
           .prepare('SELECT COALESCE(MAX(position), 0) AS p FROM guild_tags WHERE guild_id = ?')
@@ -454,7 +542,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       ).p;
       db.prepare(
         'INSERT INTO guild_tags (id, guild_id, name, color, created_at, position) VALUES (?,?,?,?,?,?)',
-      ).run(id, guild.id, name, body.color.toLowerCase(), Date.now(), last + 1);
+      ).run(id, guild.id, body.name, '', Date.now(), last + 1);
       notifyGuild(guild.id);
       return reply.code(201).send({ id });
     },
@@ -610,9 +698,11 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['keyVersion', 'envelopes'],
+          required: ['keyVersion', 'envelopes', 'meta'],
           properties: {
             keyVersion: { type: 'integer', minimum: 2 },
+            // The names of the group sealed again with the new key (all of them: a member who comes later only has the new key).
+            meta: metaSchema,
             // The key of the icon sealed again with the new key of the group (needed when the group has an encrypted icon).
             iconKey: {
               type: 'object',
@@ -646,6 +736,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       if (!guild) return;
       const body = req.body as {
         keyVersion: number;
+        meta: Meta;
         iconKey?: { iv: string; data: string };
         envelopes: { userId: string; iv: string; data: string }[];
       };
@@ -655,6 +746,8 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       if (guild.icon_key_data && !body.iconKey) {
         return reply.code(400).send({ error: 'icon_key_required' });
       }
+      const refused = checkMeta(guild, body.meta, body.keyVersion);
+      if (refused) return reply.code(refused.status).send({ error: refused.error });
       const members = new Set(memberIds(guild.id));
       const given = new Set(
         body.envelopes.map(function (e) {
@@ -684,9 +777,82 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
             'UPDATE guilds SET icon_key_version = ?, icon_key_iv = ?, icon_key_data = ? WHERE id = ?',
           ).run(body.keyVersion, body.iconKey.iv, body.iconKey.data, guild.id);
         }
+        writeMeta(guild.id, body.meta);
       })();
       notifyGuild(guild.id);
       return { keyVersion: body.keyVersion };
+    },
+  );
+
+  /** Checks a whole set of sealed names against the group (every channel and tag, one key version). */
+  function checkMeta(
+    guild: GuildRow,
+    meta: Meta,
+    version: number,
+  ): { status: number; error: string } | null {
+    const texts = [
+      meta.name,
+      ...meta.channels.map(function name(c) {
+        return c.name;
+      }),
+      ...meta.tags.map(function name(c) {
+        return c.name;
+      }),
+    ];
+    if (
+      texts.some(function stale(text) {
+        return text && sealedVersion(text) !== version;
+      })
+    ) {
+      return { status: 409, error: 'stale_key_version' };
+    }
+    const channels = (
+      db.prepare('SELECT id FROM channels WHERE guild_id = ?').all(guild.id) as { id: string }[]
+    ).map(function id(row) {
+      return row.id;
+    });
+    const tags = (
+      db.prepare('SELECT id FROM guild_tags WHERE guild_id = ?').all(guild.id) as { id: string }[]
+    ).map(function id(row) {
+      return row.id;
+    });
+    if (!sameIds(meta.channels, channels) || !sameIds(meta.tags, tags)) {
+      return { status: 409, error: 'meta_mismatch' };
+    }
+    return null;
+  }
+
+  /** Stores a whole set of sealed names (call it inside a transaction). */
+  function writeMeta(guildId: string, meta: Meta): void {
+    db.prepare('UPDATE guilds SET name = ? WHERE id = ?').run(meta.name, guildId);
+    const channel = db.prepare('UPDATE channels SET name = ? WHERE id = ? AND guild_id = ?');
+    for (const item of meta.channels) channel.run(item.name, item.id, guildId);
+    const tag = db.prepare(
+      "UPDATE guild_tags SET name = ?, color = '' WHERE id = ? AND guild_id = ?",
+    );
+    for (const item of meta.tags) tag.run(item.name, item.id, guildId);
+  }
+
+  // A group made before the names were sealed: its owner seals them all (the browser does it when it opens the app).
+  app.put(
+    '/api/guilds/:id/meta',
+    {
+      ...auth,
+      config: { rateLimit: { max: 20, timeWindow: 60_000 } },
+      schema: { body: metaSchema },
+    },
+    /** PUT /api/guilds/:id/meta: replaces the names of the group by their sealed version (owner only, current key). */
+    async function (req, reply) {
+      const guild = requireOwner(req, reply);
+      if (!guild) return;
+      const meta = req.body as Meta;
+      const refused = checkMeta(guild, meta, guild.key_version);
+      if (refused) return reply.code(refused.status).send({ error: refused.error });
+      db.transaction(function () {
+        writeMeta(guild.id, meta);
+      })();
+      notifyGuild(guild.id);
+      return { ok: true };
     },
   );
 
@@ -700,9 +866,10 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['name', 'type'],
+          required: ['id', 'name', 'type'],
           properties: {
-            name: { type: 'string', minLength: 1, maxLength: 32 },
+            id: uuidField,
+            name: sealedText,
             type: { type: 'string', enum: ['text', 'voice'] },
           },
         },
@@ -712,24 +879,26 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
     async function (req, reply) {
       const guild = requireOwner(req, reply);
       if (!guild) return;
-      const body = req.body as { name: string; type: 'text' | 'voice' };
+      const body = req.body as { id: string; name: string; type: 'text' | 'voice' };
+      if (sealedVersion(body.name) !== guild.key_version) {
+        return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
+      }
+      if (db.prepare('SELECT 1 FROM channels WHERE id = ?').get(body.id)) {
+        return reply.code(409).send({ error: 'id_taken' });
+      }
       const count = (
         db.prepare('SELECT COUNT(*) AS n FROM channels WHERE guild_id = ?').get(guild.id) as {
           n: number;
         }
       ).n;
       if (count >= 40) return reply.code(403).send({ error: 'channel_limit' });
-      const name =
-        body.type === 'text'
-          ? clean(body.name).toLowerCase().replace(/\s+/g, '-')
-          : clean(body.name);
-      if (!name) return reply.code(400).send({ error: 'invalid_name' });
-      const id = randomUUID();
       db.prepare(
         'INSERT INTO channels (id, guild_id, type, name, position, created_at) VALUES (?,?,?,?,?,?)',
-      ).run(id, guild.id, body.type, name, count, Date.now());
+      ).run(body.id, guild.id, body.type, body.name, count, Date.now());
       notifyGuild(guild.id);
-      return reply.code(201).send({ channel: { id, name, type: body.type, position: count } });
+      return reply
+        .code(201)
+        .send({ channel: { id: body.id, name: body.name, type: body.type, position: count } });
     },
   );
 
@@ -848,7 +1017,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
           type: 'object',
           additionalProperties: false,
           required: ['name'],
-          properties: { name: { type: 'string', minLength: 1, maxLength: 32 } },
+          properties: { name: sealedText },
         },
       },
     },
@@ -862,14 +1031,12 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         .get(channelId, guild.id) as { type: 'text' | 'voice' } | undefined;
       if (!channel) return reply.code(404).send({ error: 'not_found' });
       const body = req.body as { name: string };
-      const name =
-        channel.type === 'text'
-          ? clean(body.name).toLowerCase().replace(/\s+/g, '-')
-          : clean(body.name);
-      if (!name) return reply.code(400).send({ error: 'invalid_name' });
-      db.prepare('UPDATE channels SET name = ? WHERE id = ?').run(name, channelId);
+      if (sealedVersion(body.name) !== guild.key_version) {
+        return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
+      }
+      db.prepare('UPDATE channels SET name = ? WHERE id = ?').run(body.name, channelId);
       notifyGuild(guild.id);
-      return { channel: { id: channelId, name } };
+      return { channel: { id: channelId, name: body.name } };
     },
   );
 

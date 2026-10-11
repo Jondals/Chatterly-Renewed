@@ -1,4 +1,4 @@
-# Chatterly-Renewed: the sign-in and registration pages can be indexed; the app itself (private, behind a login) and the API cannot.
+# Chatterly-Renewed: a crawler can open every page of the app, but it only ever sees the sign-in screen (everything private is behind a login). Only the API, the socket and the sounds are closed to it.
 User-agent: *
 Allow: /$
 Allow: /login
@@ -6,9 +6,6 @@ Allow: /register
 Allow: /og-image.jpg
 Disallow: /api/
 Disallow: /ws
-Disallow: /direct
-Disallow: /groups
-Disallow: /voice
 Disallow: /sounds/
 
 Sitemap: __SITE_URL__/sitemap.xml

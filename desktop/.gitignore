@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Copy of frontend/dist made by "pnpm web"; never edit it by hand.
+web/

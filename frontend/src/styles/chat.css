@@ -96,8 +96,11 @@ button:disabled,
 
 /* Emoji grid: light on purpose (a cell is one color glyph; hundreds are drawn at once). */
 .emoji-cell {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 2.6rem;
+  transition: none;
+  contain: layout paint style;
+}
+.is-scrolling .emoji-grid {
+  pointer-events: none;
 }
 
 .emoji-cell .emoji-glyph {
@@ -307,6 +310,14 @@ button:disabled,
   animation: emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   transform-origin: bottom left;
   transition: filter 0.25s var(--ease-suave);
+}
+
+.bubble-emoji.is-many {
+  font-size: 2.4rem !important;
+}
+
+.bubble-emoji.is-lots {
+  font-size: 1.9rem !important;
 }
 
 .bubble-emoji[data-pop='1'] {
@@ -541,9 +552,11 @@ button:disabled,
    (anticipation, squash and stretch, overshoot, follow-through). The real text is hidden in a wrapper that keeps its width and a
    layer of letters goes over it. Only transform and opacity change, so the graphics chip does all the work, and the letters
    move only while the name is under the pointer or (in the chat) on the screen: nfx-on. */
+/* the letters have room above and below, and a little at the sides (a script font reaches outside its box) */
 .nfx {
-  overflow: clip !important;
-  overflow-clip-margin: 0.7em;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  clip-path: inset(-0.9em -0.45em -0.9em -0.45em);
 }
 .nfx-orig {
   position: relative;

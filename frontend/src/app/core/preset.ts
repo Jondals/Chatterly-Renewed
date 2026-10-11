@@ -63,15 +63,13 @@ export const PROFILE_FIELDS = [
 ] as const;
 
 /** The pieces that can travel with a preset, each one a file. */
-export type AssetName = 'wallpaper' | 'fontUi' | 'fontName' | 'avatar' | 'banner' | 'thumb';
+export type AssetName = 'wallpaper' | 'fontUi' | 'fontName' | 'thumb';
 
 /** The most each piece may weigh (bytes). */
 export const ASSET_LIMITS: Record<AssetName, number> = {
   wallpaper: 12 * 1024 * 1024,
   fontUi: 5 * 1024 * 1024,
   fontName: 5 * 1024 * 1024,
-  avatar: 2 * 1024 * 1024,
-  banner: 4 * 1024 * 1024,
   thumb: 256 * 1024,
 };
 /** The most a shared preset may weigh in all (the server takes 12 MB a file). */
@@ -79,7 +77,7 @@ export const SHARE_LIMIT = 11 * 1024 * 1024;
 /** The pieces each kind may carry. */
 const ASSETS_OF: Record<PresetKind, AssetName[]> = {
   theme: ['wallpaper', 'fontUi', 'thumb'],
-  profile: ['fontName', 'avatar', 'banner', 'thumb'],
+  profile: ['fontName', 'thumb'],
 };
 
 /** A preset kept on this device. */

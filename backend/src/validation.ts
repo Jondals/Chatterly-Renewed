@@ -21,7 +21,16 @@ export const usernameField = {
   pattern: '^[a-zA-Z0-9_.-]{3,24}$',
 } as const;
 
-export const emojiOrShort = { type: 'string', maxLength: 16 } as const;
+/**
+ * A text of a group that its members sealed with the key of the group (a name, a channel, a tag): `g1.<key version>.<iv>.<data>`.
+ * The server cannot read it; it only checks the shape and which key version it was made with.
+ */
+export const SEALED_TEXT = '^g1\\.[0-9]{1,6}\\.[A-Za-z0-9+/]{16}\\.[A-Za-z0-9+/]{22,640}={0,2}$';
+export const sealedText = { type: 'string', pattern: SEALED_TEXT, maxLength: 700 } as const;
+/** The key version a sealed text was made with (0 when it is empty). */
+export function sealedVersion(text: string): number {
+  return text ? Number(text.split('.')[1]) : 0;
+}
 
 /** Removes control characters and the spaces around a text: every name and short text is stored like this. */
 // eslint-disable-next-line no-control-regex
