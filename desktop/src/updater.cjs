@@ -1,38 +1,37 @@
 /**
  * desktop/src/updater.cjs
- * The app updates ITSELF, with no questions: it looks for a new version at start and every few hours, downloads it in
- * the background and installs it without a window.
+ * Updates of the installed app, driven by the person from inside the app.
  *
- * * When it restarts: (1) right away if the update arrived in the first minutes after starting (nobody is in a call
- *   yet); (2) when the app closes; (3) when the window has been hidden in the tray and silent for a while.
- *   ! It never restarts while a call may be running: only a hidden, silent window is restarted.
- * * Updates come from the GitHub Releases of the repository (the same version number as the web app). The Microsoft
- *   Store version is updated by the Store and never by this file. CHATTERLY_NO_UPDATE=1 turns it off.
+ * * The app looks for a new version at start and every few hours, and only TELLS: the web app shows it in the
+ *   notifications of the Home bell. The person downloads it (a progress bar), then restarts to apply it. Nothing is
+ *   downloaded, installed or restarted behind their back, and nothing is installed when the app merely closes.
+ * * Updates come from the GitHub Releases of the repository (one release per version of the whole project, the same
+ *   number as the web app). The Microsoft Store version is updated by the Store and never by this file.
+ *   CHATTERLY_NO_UPDATE=1 turns it off.
  * ! An update is trusted because of the https connection to GitHub and the sha512 in latest.yml. Until the installer is
  *   signed there is no publisher check on top of that: sign it (or ship through the Store) to get one.
+ * ! Only the main page of the app may use the four commands (see isTrustedSender); an embedded frame cannot.
  * * Nothing is sent but the usual request for the release files: no account, no identifier.
  * ? Development only: CHATTERLY_UPDATE_URL=<folder with latest.yml> checks and downloads from there and never installs
  *   (a packaged app ignores it). desktop/test/desktop.mjs uses it.
  */
 'use strict';
 
-const { app } = require('electron');
+const { app, ipcMain } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
-/** An update that arrives this soon after starting is installed at once. */
-const FRESH_START_MS = 3 * 60 * 1000;
-/** Hidden and silent for this long: nobody is using the app, so it may restart. */
-const IDLE_MS = 10 * 60 * 1000;
-const IDLE_CHECK_MS = 60 * 1000;
+const STATE_CHANNEL = 'updates:state';
 
+/**
+ * What the web app sees. status: 'unavailable' (this build does not update itself), 'idle', 'checking', 'none'
+ * (already the latest), 'available', 'downloading', 'ready', 'error'.
+ */
+let state = { status: 'unavailable', version: '', percent: 0, error: '' };
 let autoUpdater = null;
 let mainWindow = null;
-let downloaded = false;
-let startedAt = 0;
-let quietSince = 0;
-let idleTimer = null;
+let isAppAddress = null;
 let checkTimer = null;
 
 function devFeed() {
@@ -52,53 +51,107 @@ function log(message) {
   }
 }
 
-function onError(error) {
-  // A failed check is not shown to anybody: the next one tries again.
-  log('error: ' + (error && error.message ? error.message : error));
+/** Changes the state and tells the page. */
+function setState(patch) {
+  state = { ...state, ...patch };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(STATE_CHANNEL, state);
+  }
 }
 
-/** Installs the downloaded update and starts the app again. Silent: no installer window. */
-function installNow() {
-  if (!downloaded || !autoUpdater) return;
+function describe(error) {
+  return error && error.message ? String(error.message).slice(0, 300) : 'Unknown error';
+}
+
+function onError(error) {
+  log('error: ' + describe(error));
+  // A failed check is shown as an error only if the person had asked for something (download/restart).
+  if (state.status === 'downloading' || state.status === 'checking') {
+    setState({ status: 'error', error: describe(error) });
+  }
+}
+
+// ── The four commands the page may use ───────────────────────────────────────────────────────────────
+
+/** ! Only the main page of the app, at the app's own address, may talk to the updater. */
+function isTrustedSender(event) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (event.sender !== mainWindow.webContents) return false;
+  const frame = event.senderFrame;
+  return Boolean(frame) && frame === mainWindow.webContents.mainFrame && isAppAddress(frame.url);
+}
+
+function handleGet(event) {
+  if (!isTrustedSender(event)) return null;
+  return state;
+}
+
+function handleCheck(event) {
+  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (state.status === 'downloading' || state.status === 'ready') return state;
+  setState({ status: 'checking', error: '' });
+  autoUpdater.checkForUpdates().catch(onError);
+  return state;
+}
+
+function handleDownload(event) {
+  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (state.status !== 'available' && state.status !== 'error') return state;
+  setState({ status: 'downloading', percent: 0, error: '' });
+  autoUpdater.downloadUpdate().catch(onError);
+  return state;
+}
+
+function handleInstall(event) {
+  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (state.status !== 'ready') return state;
   if (devFeed()) {
     log('would restart to install (not done in development)');
-    return;
+    return state;
   }
   log('restarting to install');
+  // Silent installer, and the app starts again by itself when it is done.
   autoUpdater.quitAndInstall(true, true);
+  return state;
 }
 
-/** True when the window is hidden and nothing is playing (no call with somebody talking). */
-function isQuiet() {
-  if (!mainWindow || mainWindow.isDestroyed()) return true;
-  return !mainWindow.isVisible() && !mainWindow.webContents.isCurrentlyAudible();
+// ── Events of electron-updater ───────────────────────────────────────────────────────────────────────
+
+function onAvailable(info) {
+  log('available ' + info.version);
+  setState({ status: 'available', version: info.version, percent: 0, error: '' });
 }
 
-function onIdleTick() {
-  if (!downloaded) return;
-  if (!isQuiet()) {
-    quietSince = 0;
-    return;
-  }
-  if (quietSince === 0) quietSince = Date.now();
-  if (Date.now() - quietSince >= IDLE_MS) installNow();
+function onNone() {
+  log('up to date');
+  // Only a manual check shows "up to date"; the silent ones go back to idle.
+  setState({ status: state.status === 'checking' ? 'none' : 'idle', error: '' });
 }
 
-function onUpdateDownloaded(info) {
-  downloaded = true;
+function onProgress(progress) {
+  setState({ status: 'downloading', percent: Math.round(progress.percent || 0) });
+}
+
+function onDownloaded(info) {
   log('downloaded ' + info.version);
-  if (Date.now() - startedAt < FRESH_START_MS) installNow();
+  setState({ status: 'ready', version: info.version, percent: 100, error: '' });
 }
 
 function check() {
+  // A background check does not change what the page shows unless it finds something.
+  if (state.status === 'downloading' || state.status === 'ready') return;
   autoUpdater.checkForUpdates().catch(onError);
 }
 
-/** Starts checking for updates now and every few hours. Safe to call when updates are off. */
-function start(window) {
-  if (!enabled()) return;
+/** Starts looking for updates and opens the four commands. Safe to call when updates are off. */
+function start(window, isAppAddressFn) {
   mainWindow = window;
-  startedAt = Date.now();
+  isAppAddress = isAppAddressFn;
+  ipcMain.handle('updates:get', handleGet);
+  ipcMain.handle('updates:check', handleCheck);
+  ipcMain.handle('updates:download', handleDownload);
+  ipcMain.handle('updates:install', handleInstall);
+  if (!enabled()) return;
   try {
     autoUpdater = require('electron-updater').autoUpdater;
   } catch (error) {
@@ -115,24 +168,20 @@ function start(window) {
     autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.setFeedURL({ provider: 'generic', url: feed });
   }
-  autoUpdater.autoDownload = true;
-  // * If nothing restarted it earlier, the update is installed when the app closes.
-  autoUpdater.autoInstallOnAppQuit = !feed;
+  // * The person decides: nothing is downloaded or installed on its own.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on('error', onError);
-  autoUpdater.on('update-available', function onAvailable(info) {
-    log('available ' + info.version);
-  });
-  autoUpdater.on('update-not-available', function onNone() {
-    log('up to date');
-  });
-  autoUpdater.on('update-downloaded', onUpdateDownloaded);
+  autoUpdater.on('update-available', onAvailable);
+  autoUpdater.on('update-not-available', onNone);
+  autoUpdater.on('download-progress', onProgress);
+  autoUpdater.on('update-downloaded', onDownloaded);
+  setState({ status: 'idle' });
   check();
   checkTimer = setInterval(check, CHECK_EVERY_MS);
   checkTimer.unref();
-  idleTimer = setInterval(onIdleTick, IDLE_CHECK_MS);
-  idleTimer.unref();
 }
 
 module.exports = { start, enabled };

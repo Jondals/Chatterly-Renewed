@@ -10,10 +10,10 @@
  *   2. Checks the rule for the server address (https only when packaged).
  *   3. Starts the real Electron app against a tiny local server and checks, with the app running: the page cannot reach
  *      Node, navigation and pop-ups cannot leave the app, permissions go only to the app itself (not to an embedded
- *      frame), camera and microphone work, screen sharing goes through the picker, closing hides to the tray, a second
+ *      frame), camera and microphone work, screen sharing goes through the picker, closing the window closes the app, a second
  *      copy does not start, and an unreachable server shows the offline page and recovers by itself.
  *   4. The bundled mode: the web app inside the app, served as app://chatterly, and what that server refuses.
- *   5. The updater: it finds a newer version in a local feed, downloads it, refuses a wrong hash.
+ *   5. The updater: it announces a newer version from a local feed, the page downloads and applies it, a wrong hash is refused.
  *   6. If a packaged build exists (pnpm --dir desktop dist), checks its fuses and that it starts.
  *   7. Deletes everything temporary.
  *
@@ -133,7 +133,23 @@ function auditSource() {
   const updaterSource = text['updater.cjs'];
   check(
     !updaterSource.includes('showMessageBox'),
-    'the updater asks nothing: it updates by itself',
+    'the updater shows no native dialog: the app itself tells the person',
+  );
+  check(
+    updaterSource.includes('autoDownload = false'),
+    'nothing is downloaded unless the person asks',
+  );
+  check(
+    updaterSource.includes('autoInstallOnAppQuit = false'),
+    'nothing is installed just because the app closes',
+  );
+  check(
+    (updaterSource.match(/isTrustedSender\(event\)/g) || []).length >= 4,
+    'every update command checks who is asking',
+  );
+  check(
+    !/new Tray|Tray,/.test(text['main.cjs']),
+    'there is no tray: closing the window closes the app',
   );
   check(
     updaterSource.includes('!app.isPackaged ? process.env.CHATTERLY_UPDATE_URL'),
@@ -144,10 +160,52 @@ function auditSource() {
     'the update installs silently and the app starts again',
   );
   const preload = text['preload.cjs'];
-  check(!preload.includes('ipcRenderer'), 'the page preload exposes no IPC');
+  const allowedPageChannels = new Set([
+    'updates:get',
+    'updates:check',
+    'updates:download',
+    'updates:install',
+    'updates:state',
+  ]);
+  const usedChannels = [...preload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(function name(m) {
+    return m[1];
+  });
+  check(usedChannels.length > 0, 'the page preload talks to the main process');
+  for (const channel of usedChannels) {
+    check(
+      allowedPageChannels.has(channel),
+      'the page preload uses only a listed channel: ' + channel,
+    );
+  }
+  check(
+    !preload.slice(preload.indexOf('exposeInMainWorld(')).includes('ipcRenderer'),
+    'the page preload never hands ipcRenderer itself to the page',
+  );
+  check(
+    !/ipcRenderer\.(send|sendSync|postMessage)\(/.test(preload),
+    'the page preload cannot send free messages',
+  );
+  const exposed = [...preload.matchAll(/exposeInMainWorld\(\s*'([^']+)'/g)].map(function name(m) {
+    return m[1];
+  });
+  check(
+    exposed.sort().join(',') === 'CHATTERLY_API,chatterlyDesktop',
+    'the page preload exposes only CHATTERLY_API and chatterlyDesktop',
+  );
   check(
     (preload.match(/require\(/g) || []).length === 1 && preload.includes("require('electron')"),
     'the page preload requires nothing but electron',
+  );
+  const mainChannels = new Set();
+  for (const name of ['main.cjs', 'updater.cjs']) {
+    for (const m of text[name].matchAll(/ipcMain\.(?:handle|on|once)\('([^']+)'/g))
+      mainChannels.add(m[1]);
+  }
+  check(
+    [...mainChannels].sort().join(',') ===
+      'picker:cancel,picker:choose,updates:check,updates:download,updates:get,updates:install',
+    'the main process listens on exactly the expected channels: ' +
+      [...mainChannels].sort().join(', '),
   );
   for (const name of Object.keys(text).filter(function isHtml(n) {
     return n.endsWith('.html');
@@ -312,7 +370,10 @@ async function runningApp() {
   check(world.buffer === 'undefined', 'no Buffer in the page');
   check(world.ipc === 'undefined', 'no ipcRenderer in the page');
   check(world.apiAddress === 'undefined', 'remote mode does not inject an API address');
-  check(world.api === 'isDesktop,platform', 'the page sees only isDesktop and platform');
+  check(
+    world.api === 'isDesktop,platform,updates',
+    'the page sees only isDesktop, platform and the update commands',
+  );
   check(world.isDesktop === true, 'the page can tell it runs in the desktop app');
   const tampered = await page.evaluate(function () {
     try {
@@ -432,18 +493,25 @@ async function runningApp() {
   check(again.status === 0, 'a second copy exits cleanly');
   check(page.url() === appOrigin + '/', 'the first copy is still running');
 
-  step('Closing the window hides it to the tray');
-  const closed = await app.evaluate(function (electronModule) {
-    const win = electronModule.BrowserWindow.getAllWindows()[0];
-    win.close();
-    return { destroyed: win.isDestroyed(), visible: win.isVisible() };
+  step('Closing the window closes the app');
+  const exited = new Promise(function executor(resolve) {
+    app.process().once('exit', resolve);
   });
+  await app.evaluate(function (electronModule) {
+    electronModule.BrowserWindow.getAllWindows()[0].close();
+  });
+  const outcome = await Promise.race([
+    exited.then(function done() {
+      return 'exited';
+    }),
+    sleep(10000).then(function late() {
+      return 'still running';
+    }),
+  ]);
   check(
-    closed.destroyed === false && closed.visible === false,
-    'the window is hidden, not destroyed',
+    outcome === 'exited',
+    'closing the window ends the process (nothing stays in the background)',
   );
-  await app.close();
-  check(true, 'the app quits for real when asked to quit');
 }
 
 async function offlineApp() {
@@ -620,9 +688,9 @@ async function bundledApp() {
   await app.close();
 }
 
-/** The app updates itself: it finds a newer version, downloads it, checks the hash and decides to restart. */
+/** Updates: the app tells the person, who downloads and applies the new version from inside the app. */
 async function updatingApp() {
-  step('Updates: found, downloaded and verified by itself');
+  step('Updates: the app notifies, the person downloads and applies');
   const feedDir = path.join(TMP, 'feed');
   fs.mkdirSync(feedDir, { recursive: true });
   const installer = Buffer.from('not a real installer, only bytes with a known hash');
@@ -653,12 +721,21 @@ async function updatingApp() {
     }
     res.end(fs.readFileSync(file));
   });
+  const foreign = await listen(function foreignHandler(req, res) {
+    res.setHeader('content-type', 'text/html');
+    res.end('<!doctype html><title>foreign</title>');
+  });
   const stub = await listen(function stubHandler(req, res) {
     res.setHeader('content-type', 'text/html');
-    res.end('<!doctype html><title>stub</title>');
+    res.end(
+      '<!doctype html><title>stub</title><iframe src="http://127.0.0.1:' +
+        foreign.port +
+        '/"></iframe>',
+    );
   });
 
-  async function runWithFeed(label, version, hash, expected) {
+  /** Starts the app against the feed and returns what is needed to drive its update commands from the page. */
+  async function open(label, version, hash) {
     writeFeed(version, hash);
     const env = appEnv('http://127.0.0.1:' + stub.port);
     delete env.CHATTERLY_NO_UPDATE;
@@ -671,50 +748,128 @@ async function updatingApp() {
       timeout: 30000,
     });
     apps.push(app);
-    await app.firstWindow();
-    async function readLog() {
+    const page = await app.firstWindow();
+    await page.waitForURL('http://127.0.0.1:' + stub.port + '/');
+    // The page records every state the app announces.
+    await page.evaluate(function () {
+      window.__states = [];
+      window.chatterlyDesktop.updates.onState(function remember(state) {
+        window.__states.push(state);
+      });
+    });
+    async function state() {
+      return page.evaluate(function () {
+        return window.chatterlyDesktop.updates.getState();
+      });
+    }
+    async function until(status, ms = 20000) {
+      let last = null;
+      try {
+        return await waitFor(
+          async function reached() {
+            last = await state();
+            return last.status === status ? last : null;
+          },
+          label + ' to reach ' + status,
+          ms,
+        );
+      } catch (error) {
+        throw new Error(error.message + ' (last state: ' + JSON.stringify(last) + ')');
+      }
+    }
+    async function call(name) {
+      return page.evaluate(function (command) {
+        return window.chatterlyDesktop.updates[command]();
+      }, name);
+    }
+    async function seen() {
+      return page.evaluate(function () {
+        return window.__states.map(function status(s) {
+          return s.status;
+        });
+      });
+    }
+    async function log() {
       return (
         await app.evaluate(function () {
           return globalThis.__updaterLog || [];
         })
       ).join(' | ');
     }
-    let log = '';
-    try {
-      await waitFor(
-        async function sawResult() {
-          log = await readLog();
-          return expected.some(function seen(text) {
-            return log.includes(text);
-          });
-        },
-        label + ' to finish',
-        30000,
-      );
-    } catch (error) {
-      throw new Error(error.message + ' (updater log: ' + log + ')');
-    }
-    await sleep(500);
-    log = await readLog();
-    await app.close();
-    return log;
+    return { app, page, state, until, call, seen, log };
   }
 
-  const good = await runWithFeed('good', '2.99.0', sha512, ['would restart to install']);
-  check(good.includes('available 2.99.0'), 'a newer version published in the feed is found');
-  check(good.includes('downloaded 2.99.0'), 'it is downloaded without anybody asking');
+  // 1. A newer version: the app only tells.
+  const good = await open('good', '2.99.0', sha512);
+  const found = await good.until('available');
   check(
-    good.includes('would restart to install'),
-    'an update that arrives right after starting is installed at once (not done in development)',
+    found.version === '2.99.0',
+    'a newer version in the feed is announced to the page (' + found.version + ')',
   );
-  const tampered = await runWithFeed('tampered', '2.99.0', 'A'.repeat(86) + '==', ['error:']);
+  await sleep(2500);
+  check((await good.state()).status === 'available', 'it waits: nothing is downloaded by itself');
   check(
-    !tampered.includes('downloaded 2.99.0'),
-    'a file whose hash does not match is never accepted',
+    !(await good.log()).includes('downloaded'),
+    'no download started without the person asking',
   );
-  check(/sha512|checksum/i.test(tampered), 'the refusal says the hash does not match');
-  const same = await runWithFeed('same', '2.24.0', sha512, ['up to date']);
-  check(same.includes('up to date'), 'nothing is downloaded when already on the latest version');
+
+  // 2. The person downloads it: progress, then ready.
+  await good.call('download');
+  const ready = await good.until('ready');
+  check(ready.percent === 100, 'the download finishes and the page is told it is ready');
+  const statuses = await good.seen();
+  check(
+    statuses.includes('downloading') && statuses.includes('ready'),
+    'the page heard downloading, then ready (' + statuses.join(', ') + ')',
+  );
+
+  // 3. The person applies it.
+  await good.call('install');
+  await waitFor(
+    async function logged() {
+      return (await good.log()).includes('would restart to install');
+    },
+    'the restart request',
+    10000,
+  );
+  check(true, 'applying asks the app to restart and install (not done in development)');
+
+  // 4. An embedded frame from another site cannot use the commands.
+  const frame = good.page.frames().find(function isForeign(f) {
+    return f.url().startsWith('http://127.0.0.1:' + foreign.port);
+  });
+  check(Boolean(frame), 'the stub page embeds a frame from another site');
+  const inFrame = await frame.evaluate(function () {
+    return typeof window.chatterlyDesktop + ',' + typeof window.CHATTERLY_API;
+  });
+  check(
+    inFrame === 'undefined,undefined',
+    'an embedded frame from another site has no update commands',
+  );
+  await good.app.close();
+
+  // 5. A download whose hash does not match is refused and reported.
+  const tampered = await open('tampered', '2.99.0', 'A'.repeat(86) + '==');
+  await tampered.until('available');
+  await tampered.call('download');
+  const failed = await tampered.until('error');
+  check(
+    /sha512|checksum/i.test(failed.error),
+    'a wrong hash is refused, with a clear message (' + failed.error.slice(0, 80) + ')',
+  );
+  check(!(await tampered.seen()).includes('ready'), 'a refused file never becomes ready');
+  await tampered.call('install');
+  check(!(await tampered.log()).includes('would restart'), 'a refused file cannot be applied');
+  await tampered.app.close();
+
+  // 6. Already on the latest version: only a manual check says so.
+  const same = await open('same', '2.24.0', sha512);
+  await same.until('idle');
+  check(!(await same.seen()).includes('available'), 'on the latest version nothing is announced');
+  await same.call('check');
+  await same.until('none');
+  check(true, 'a manual check says it is up to date');
+  await same.app.close();
 }
 
 /** The packaged exe (pnpm --dir desktop dist): fuses are really set, and it starts and shows the offline page. */

@@ -13,9 +13,9 @@ macOS and Linux use the same code (only the packaging differs; see the end).
 - **Links never leave the app.** Other sites open in your default browser; pop-ups are denied.
 - **Permissions.** Camera, microphone, notifications and screen capture are granted to the app itself only, never to an embedded frame (YouTube and the like).
 - **Screen sharing** has its own picker. System audio is not shared on purpose: on Windows it would also capture the voices of the call and echo them to everyone.
-- **Tray.** Closing the window hides it and a call keeps going; the tray menu quits for real.
+- **Closing the window closes the app.** Nothing stays running in the background (there is no tray).
 - **Offline page** (remote mode only): if the server is unreachable it shows a page and retries every 5 seconds.
-- **Updates by itself** (see [Updates](#updates-they-install-by-themselves)).
+- **Updates from inside the app** (a notice in the bell, then you download and restart when you choose; see [Updates](#updates)).
 - **Electron fuses** are set at build time: no `ELECTRON_RUN_AS_NODE`, no `NODE_OPTIONS`, no `--inspect`, asar integrity checked, loads only from the asar, no extra `file://` privileges.
 
 ## What you need
@@ -81,7 +81,7 @@ An installed app ignores `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` and `CHATTERLY_UP
 pnpm --dir desktop test
 ```
 
-About 200 checks of the shell: dangerous settings in the source, the rule for the server address, the running app (no Node in the page, navigation, permissions, microphone and camera, screen picker, one copy only, tray), the `app://` server (what it serves and refuses, path traversal), the updater (finds, downloads, refuses a wrong hash) and, if you built one, the installed app (fuses, starts from its asar).
+About 230 checks of the shell: dangerous settings in the source, the rule for the server address, the running app (no Node in the page, navigation, permissions, microphone and camera, screen picker, one copy only, closing the window closes the app), the `app://` server (what it serves and refuses, path traversal), the updater (announces, downloads on request, refuses a wrong hash) and, if you built one, the installed app (fuses, starts from its asar).
 
 It is also part of the root `pnpm test`, which adds a step where this app signs up against the real backend from `app://chatterly`.
 
@@ -107,30 +107,30 @@ The installer is **not signed**. Windows SmartScreen shows "Windows protected yo
 
 Your data (the keys of your account, settings) lives in `%APPDATA%\Chatterly`. Uninstalling from Windows settings keeps it; delete the folder to wipe everything.
 
-## Updates (they install by themselves)
+## Updates
 
-The installed app looks for a new version **at start and every 6 hours**, downloads it in the background and installs it **without asking anything**:
+The installed app looks for a new version **at start and every 6 hours**, and only **tells you**. Nothing is downloaded, installed or restarted behind your back:
 
-1. If it arrives in the first 3 minutes after starting (nobody can be in a call yet), the app restarts at once.
-2. Otherwise it installs when the app closes.
-3. If the window is hidden in the tray and nothing has been playing for 10 minutes, it restarts then. It never restarts while the window is visible or something is playing, so a call is not cut.
+1. A notice "A new version is available" appears, and the **notifications of the bell** (Home) show a card with the new version.
+2. You press **Download**. A progress bar shows how it goes.
+3. When it is ready you press **Restart and update**. Chatterly closes, installs silently and opens again.
 
-It reads the **GitHub Releases** of the repository, and it checks the sha512 of the download against `latest.yml`. Until the installer is signed there is no publisher check on top of that, which is the reason to sign it or use the Store. The Microsoft Store version is updated by the Store, not by this.
+_Settings > About_ has a **Check for updates** button for a manual check. If you never press anything, the app stays as it is.
 
-### Publish a version (so installed apps update)
+It reads the **GitHub Releases** of the repository and checks the sha512 of the download against `latest.yml`; a file whose hash does not match is refused and the card says so. Until the installer is signed there is no publisher check on top of that, which is the reason to sign it or use the Store. The Microsoft Store version is updated by the Store and shows no card.
+
+The page talks to the app through four fixed commands (`getState`, `check`, `download`, `install`) and one event, all in `src/preload.cjs`. Only the main page of the app can use them, never an embedded frame.
+
+### Publish a version (so installed apps see it)
+
+There is **one release for the whole project**, not one per platform:
 
 1. Raise the version **everywhere, to the same number**: `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` and `desktop/package.json`. Add the entry in `CHANGELOG.md`.
 2. Commit and push.
-3. Push a tag with that number:
 
-   ```
-   git tag v2.25.0
-   git push origin v2.25.0
-   ```
+That is all. The same push updates the server (`deploy.yml`) and the workflow [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) builds the web app, runs the desktop tests, builds the installer and publishes it as the release `v<version>` with `Chatterly Setup …exe`, `latest.yml` and the blockmap. If that version already has a release (a push that did not raise it), nothing is built. Installed apps find it within hours and show it in the bell.
 
-4. The workflow [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) builds the web app, runs the desktop tests, builds the installer and attaches `Chatterly Setup …exe`, `latest.yml` and the blockmap to the release of that tag. Installed apps find it within hours.
-
-The repository (or at least its Releases) must be **public**, or the apps cannot download updates. The tag push does not deploy the server (`deploy.yml` ignores `desktop/` and tags).
+The repository (or at least its Releases) must be **public**, or the apps cannot download updates.
 
 By hand instead of the workflow (needs a GitHub token with write access to the repository):
 
@@ -184,7 +184,7 @@ Once signed, add `publisherName` under `build.win` in `package.json` so the upda
 
 ## macOS and Linux (not built yet)
 
-The code is the same. For macOS add a `mac` target (dmg) to `build` in `package.json`, build on a Mac (or a macOS runner), and sign and notarize with an Apple Developer account. For Linux add `AppImage` or `deb`. The tray, picker and menu already handle both.
+The code is the same. For macOS add a `mac` target (dmg) to `build` in `package.json`, build on a Mac (or a macOS runner), and sign and notarize with an Apple Developer account. For Linux add `AppImage` or `deb`. The picker and menu already handle both.
 
 ## Troubleshooting
 
@@ -202,7 +202,7 @@ The code is the same. For macOS add a `mac` target (dmg) to `build` in `package.
 
 ```
 desktop/
-  src/main.cjs           the app: window, tray, permissions, screen picker, navigation lock
+  src/main.cjs           the app: window, permissions, screen picker, navigation lock
   src/preload.cjs        the only thing the page sees (isDesktop, platform, the API address)
   src/bundle.cjs         serves the packed web app as app://chatterly
   src/updater.cjs        the self-update
@@ -213,6 +213,6 @@ desktop/
   scripts/copy-web.mjs   copies the web build into desktop/web
   scripts/dist-store.mjs builds the Microsoft Store package
   test/desktop.mjs       the checks
-  build/icon.png         the icon (the installer and the tray)
+  build/icon.png         the icon (the installer and the window)
   web/  dist/            made by the build; never committed
 ```

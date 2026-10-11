@@ -13,9 +13,9 @@ macOS y Linux usan el mismo código (solo cambia el empaquetado; mira el final).
 - **Los enlaces no sacan la app de su sitio.** Otras webs se abren en tu navegador; las ventanas emergentes se deniegan.
 - **Permisos.** Cámara, micrófono, notificaciones y captura de pantalla se conceden solo a la propia app, nunca a un marco incrustado (YouTube y similares).
 - **Compartir pantalla** tiene su propio selector. El audio del sistema no se comparte a propósito: en Windows capturaría también las voces de la llamada y las devolvería como eco.
-- **Bandeja.** Al cerrar la ventana se esconde y una llamada sigue; el menú de la bandeja cierra de verdad.
+- **Cerrar la ventana cierra la app.** No queda nada en segundo plano (no hay bandeja).
 - **Página sin conexión** (solo en modo remoto): si no llega al servidor muestra una página y reintenta cada 5 segundos.
-- **Se actualiza sola** (mira [Actualizaciones](#actualizaciones-se-instalan-solas)).
+- **Se actualiza desde la propia app** (un aviso en la campana; descargas y reinicias cuando quieras; mira [Actualizaciones](#actualizaciones)).
 - **Fusibles de Electron** fijados al compilar: sin `ELECTRON_RUN_AS_NODE`, sin `NODE_OPTIONS`, sin `--inspect`, integridad del asar comprobada, solo carga desde el asar, sin privilegios extra para `file://`.
 
 ## Qué necesitas
@@ -81,7 +81,7 @@ Una app instalada ignora `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` y `CHATTERLY_UPDA
 pnpm --dir desktop test
 ```
 
-Unas 200 comprobaciones de la app: ajustes peligrosos en el código, la regla de la dirección del servidor, la app en marcha (sin Node en la página, navegación, permisos, micrófono y cámara, selector de pantalla, una sola copia, bandeja), el servidor `app://` (qué sirve y qué rechaza, recorrido de rutas), el actualizador (encuentra, descarga, rechaza un hash falso) y, si has generado uno, la app instalada (fusibles, arranca desde su asar).
+Unas 230 comprobaciones de la app: ajustes peligrosos en el código, la regla de la dirección del servidor, la app en marcha (sin Node en la página, navegación, permisos, micrófono y cámara, selector de pantalla, una sola copia, cerrar la ventana cierra la app), el servidor `app://` (qué sirve y qué rechaza, recorrido de rutas), el actualizador (avisa, descarga si se lo pides, rechaza un hash falso) y, si has generado uno, la app instalada (fusibles, arranca desde su asar).
 
 También forma parte del `pnpm test` de la raíz, que añade un paso donde esta app se registra contra el backend real desde `app://chatterly`.
 
@@ -107,30 +107,30 @@ El instalador **no está firmado**. Windows SmartScreen muestra "Windows protegi
 
 Tus datos (las claves de tu cuenta y los ajustes) viven en `%APPDATA%\Chatterly` (`Chatterly-dev` si la ejecutas desde el código). Al desinstalar desde los ajustes de Windows se conservan; borra la carpeta para borrar todo.
 
-## Actualizaciones (se instalan solas)
+## Actualizaciones
 
-La app instalada busca una versión nueva **al arrancar y cada 6 horas**, la descarga en segundo plano y la instala **sin preguntar nada**:
+La app instalada busca una versión nueva **al arrancar y cada 6 horas**, y solo **te avisa**. Nada se descarga, se instala ni se reinicia a tus espaldas:
 
-1. Si llega en los primeros 3 minutos tras arrancar (nadie puede estar en una llamada todavía), la app se reinicia en el acto.
-2. Si no, se instala al cerrar la app.
-3. Si la ventana está escondida en la bandeja y no ha sonado nada en 10 minutos, se reinicia entonces. Nunca se reinicia con la ventana visible ni con algo sonando, así que una llamada no se corta.
+1. Aparece el aviso "Hay una versión nueva" y las **notificaciones de la campana** (Inicio) muestran una tarjeta con la versión nueva.
+2. Pulsas **Descargar**. Una barra de progreso te dice cómo va.
+3. Cuando está lista pulsas **Reiniciar y actualizar**. Chatterly se cierra, instala en silencio y se abre otra vez.
 
-Lee las **Releases de GitHub** del repositorio y comprueba el sha512 de la descarga contra `latest.yml`. Mientras el instalador no esté firmado no hay comprobación del editor encima de eso, que es el motivo para firmarlo o usar la Store. La versión de la Microsoft Store la actualiza la Store, no esto.
+_Ajustes > Acerca de_ tiene un botón **Buscar actualizaciones** para comprobarlo a mano. Si no pulsas nada, la app se queda como está.
 
-### Publicar una versión (para que las apps instaladas se actualicen)
+Lee las **Releases de GitHub** del repositorio y comprueba el sha512 de la descarga contra `latest.yml`; un archivo cuyo hash no coincide se rechaza y la tarjeta lo dice. Mientras el instalador no esté firmado no hay comprobación del editor encima de eso, que es el motivo para firmarlo o usar la Store. La versión de la Microsoft Store la actualiza la Store y no muestra tarjeta.
+
+La página habla con la app mediante cuatro comandos fijos (`getState`, `check`, `download`, `install`) y un evento, todo en `src/preload.cjs`. Solo la página principal de la app puede usarlos, nunca un marco incrustado.
+
+### Publicar una versión (para que las apps instaladas la vean)
+
+Hay **una sola publicación para todo el proyecto**, no una por plataforma:
 
 1. Sube la versión **en todos los sitios, al mismo número**: `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` y `desktop/package.json`. Añade la entrada en `CHANGELOG.md`.
 2. Haz commit y push.
-3. Sube una etiqueta con ese número:
 
-   ```
-   git tag v2.25.0
-   git push origin v2.25.0
-   ```
+Ya está. Ese mismo push actualiza el servidor (`deploy.yml`) y el flujo [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) compila la web, pasa las pruebas de escritorio, genera el instalador y lo publica como la release `v<versión>` con `Chatterly Setup …exe`, `latest.yml` y el blockmap. Si esa versión ya tiene release (un push que no la subió), no compila nada. Las apps instaladas la encuentran en unas horas y la muestran en la campana.
 
-4. El flujo [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) compila la web, pasa las pruebas de escritorio, genera el instalador y adjunta `Chatterly Setup …exe`, `latest.yml` y el blockmap a la release de esa etiqueta. Las apps instaladas la encuentran en unas horas.
-
-El repositorio (o al menos sus Releases) debe ser **público**, o las apps no pueden descargar actualizaciones. Subir la etiqueta no despliega el servidor (`deploy.yml` ignora `desktop/` y las etiquetas).
+El repositorio (o al menos sus Releases) debe ser **público**, o las apps no pueden descargar actualizaciones.
 
 A mano en vez del flujo (necesita un token de GitHub con permiso de escritura en el repositorio):
 
@@ -184,7 +184,7 @@ Una vez firmado, añade `publisherName` en `build.win` de `package.json` para qu
 
 ## macOS y Linux (aún sin generar)
 
-El código es el mismo. Para macOS añade un objetivo `mac` (dmg) en `build` de `package.json`, compila en un Mac (o un runner de macOS) y firma y notariza con una cuenta de Apple Developer. Para Linux añade `AppImage` o `deb`. La bandeja, el selector y el menú ya sirven para ambos.
+El código es el mismo. Para macOS añade un objetivo `mac` (dmg) en `build` de `package.json`, compila en un Mac (o un runner de macOS) y firma y notariza con una cuenta de Apple Developer. Para Linux añade `AppImage` o `deb`. El selector y el menú ya sirven para ambos.
 
 ## Si algo falla
 
@@ -202,7 +202,7 @@ El código es el mismo. Para macOS añade un objetivo `mac` (dmg) en `build` de 
 
 ```
 desktop/
-  src/main.cjs           la app: ventana, bandeja, permisos, selector de pantalla, bloqueo de navegación
+  src/main.cjs           la app: ventana, permisos, selector de pantalla, bloqueo de navegación
   src/preload.cjs        lo único que ve la página (isDesktop, platform, la dirección de la API)
   src/bundle.cjs         sirve la web empaquetada como app://chatterly
   src/updater.cjs        la actualización automática
@@ -213,6 +213,6 @@ desktop/
   scripts/copy-web.mjs   copia la web compilada a desktop/web
   scripts/dist-store.mjs genera el paquete de la Microsoft Store
   test/desktop.mjs       las comprobaciones
-  build/icon.png         el icono (instalador y bandeja)
+  build/icon.png         el icono (instalador y ventana)
   web/  dist/            los crea la compilación; nunca se suben a Git
 ```

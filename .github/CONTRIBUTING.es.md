@@ -1,5 +1,7 @@
 # Contribuir a Chatterly-Renewed
 
+[English](CONTRIBUTING.md)
+
 Gracias por querer ayudar. Esta guía es corta a propósito.
 
 ## Preparar el entorno
@@ -30,3 +32,28 @@ No registres, guardes ni envíes nunca el texto de los mensajes, las contraseña
 ## Añadir un idioma
 
 Las traducciones viven en un diccionario por idioma en `frontend/src/app/core/i18n/`. Copia `es.ts`, traduce los valores y registra el idioma en `i18n.service.ts`.
+
+## App de escritorio (Windows)
+
+La app de Windows vive en `desktop/` (Electron) y lleva la web compilada dentro.
+
+```
+pnpm --dir desktop install
+pnpm --dir desktop start      # ejecutarla desde el código
+pnpm --dir desktop test       # unas 230 comprobaciones de la app (también forma parte de pnpm test)
+pnpm build && pnpm --dir desktop dist   # genera el instalador en desktop/dist
+```
+
+Cómo ejecutarla, probarla, generar el instalador, actualizarla y publicarla en la Microsoft Store está en [desktop/README.es.md](../desktop/README.es.md) (inglés: [desktop/README.md](../desktop/README.md)). Dos reglas para esta carpeta:
+
+- La página solo puede hablar con la app de escritorio a través de los comandos fijos de `desktop/src/preload.cjs`. Un comando o canal nuevo necesita una revisión de seguridad y su entrada en la lista que comprueba `desktop/test/desktop.mjs`.
+- Vale el mismo estilo de código: inglés, un comentario de cabecera por archivo, sin funciones flecha, Prettier.
+
+## Publicar versiones
+
+Hay una sola versión para todo el proyecto (web, servidor y app de escritorio). Para publicar:
+
+1. Sube la versión, al mismo número, en `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` y `desktop/package.json`, y añade la entrada en `CHANGELOG.md`.
+2. Haz commit y push.
+
+El servidor se actualiza con ese push (`deploy.yml`) y el instalador de Windows lo publica el flujo `desktop.yml` como la release `v<versión>`. Nadie tiene que crear etiquetas a mano. Quien use la app de escritorio ve "Hay una versión nueva" en las notificaciones de la campana, la descarga y reinicia cuando quiera.

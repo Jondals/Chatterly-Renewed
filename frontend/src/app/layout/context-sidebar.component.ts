@@ -15,6 +15,7 @@ import { ContextMenuService, type MenuItem } from '../core/services/context-menu
 import { DialogService } from '../core/services/dialog.service';
 import { AuthService } from '../core/services/auth.service';
 import { CallService } from '../core/services/call.service';
+import { DesktopUpdateService } from '../core/services/desktop-update.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { UiService } from '../core/services/ui.service';
 import { AvatarComponent } from '../shared/components/avatar.component';
@@ -281,6 +282,76 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                 (mousedown)="$event.stopPropagation()"
               >
                 <div class="label px-2 py-1.5">{{ 'Notifications' | t }}</div>
+                @if (desktopUpdate.pending()) {
+                  <div class="rounded-ui p-2 hover:bg-white/5">
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-white/8 text-accent"
+                      >
+                        <app-icon name="download" [size]="17" />
+                      </span>
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm font-semibold">
+                          {{ 'A new version is available' | t }}
+                        </div>
+                        <div class="text-xs text-muted">
+                          {{ 'Chatterly {v}' | t: { v: desktopUpdate.state().version } }}
+                        </div>
+                      </div>
+                    </div>
+                    @switch (desktopUpdate.state().status) {
+                      @case ('available') {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary mt-2 w-full"
+                          (click)="desktopUpdate.download()"
+                        >
+                          <app-icon name="download" [size]="15" /> {{ 'Download' | t }}
+                        </button>
+                      }
+                      @case ('downloading') {
+                        <div
+                          class="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
+                          role="progressbar"
+                          [attr.aria-valuenow]="desktopUpdate.state().percent"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                        >
+                          <div
+                            class="h-full rounded-full bg-accent transition-all"
+                            [style.width.%]="desktopUpdate.state().percent"
+                          ></div>
+                        </div>
+                        <div class="mt-1 text-xs text-muted">
+                          {{ 'Downloading… {n}%' | t: { n: desktopUpdate.state().percent } }}
+                        </div>
+                      }
+                      @case ('ready') {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary mt-2 w-full"
+                          (click)="desktopUpdate.install()"
+                        >
+                          <app-icon name="spin" [size]="15" /> {{ 'Restart and update' | t }}
+                        </button>
+                        <div class="mt-1 text-xs text-muted">
+                          {{ 'Chatterly will close and open again with the new version.' | t }}
+                        </div>
+                      }
+                    }
+                  </div>
+                } @else if (desktopUpdate.state().status === 'error') {
+                  <div class="rounded-ui p-2 text-sm">
+                    <div class="font-semibold">{{ 'The update could not be downloaded' | t }}</div>
+                    <button
+                      type="button"
+                      class="btn btn-sm mt-2 w-full"
+                      (click)="desktopUpdate.download()"
+                    >
+                      {{ 'Try again' | t }}
+                    </button>
+                  </div>
+                }
                 @for (u of social.incomingUsers(); track u.id) {
                   <div class="flex items-center gap-3 rounded-ui p-2 hover:bg-white/5">
                     <app-avatar [user]="u" [size]="34" />
@@ -505,6 +576,7 @@ export class ContextSidebarComponent {
   protected readonly messages = inject(MessageStore);
   protected readonly directory = inject(DirectoryService);
   protected readonly call = inject(CallService);
+  protected readonly desktopUpdate = inject(DesktopUpdateService);
   private readonly router = inject(Router);
   private readonly contextMenu = inject(ContextMenuService);
   private readonly dialog = inject(DialogService);
@@ -586,7 +658,9 @@ export class ContextSidebarComponent {
   );
   protected readonly notificationCount = computed(
     function (this: ContextSidebarComponent) {
-      return this.social.incoming().length + this.unreadChats();
+      return (
+        this.social.incoming().length + this.unreadChats() + (this.desktopUpdate.pending() ? 1 : 0)
+      );
     }.bind(this),
   );
   /** A right click on the own panel opens the profile of the person, big. */

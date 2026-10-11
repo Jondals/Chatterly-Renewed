@@ -1,6 +1,7 @@
 /**
  * desktop/src/main.cjs
  * The Electron shell of Chatterly-Renewed for Windows (and, with the same code, macOS and Linux later).
+ * * Closing the window closes the app. There is no tray and nothing stays running in the background.
  *
  * * It is only a window around the web app: the encryption, the calls and the relay-only policy all run in the web
  *   code, exactly as in a browser. The shell adds nothing that can read messages and sends nothing anywhere.
@@ -16,8 +17,6 @@ const {
   app,
   BrowserWindow,
   Menu,
-  Tray,
-  nativeImage,
   session,
   shell,
   desktopCapturer,
@@ -46,8 +45,6 @@ let webDir = null;
 let appOrigin = '';
 let mainWindow = null;
 let pickerWindow = null;
-let tray = null;
-let quitting = false;
 let retryTimer = null;
 
 // * The profile (the keys of the account, settings) lives in %APPDATA%\Chatterly, not under the package name. A copy run
@@ -114,11 +111,6 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-}
-
-function quitApp() {
-  quitting = true;
-  app.quit();
 }
 
 // ── Permissions and screen sharing ───────────────────────────────────────────────────────────────────
@@ -254,7 +246,7 @@ function onWebContentsCreated(event, contents) {
   contents.on('will-attach-webview', onWillAttachWebview);
 }
 
-// ── Window, tray and menu ────────────────────────────────────────────────────────────────────────────
+// ── Window and menu ─────────────────────────────────────────────────────────────────────────────────────
 
 function loadApp() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -267,13 +259,6 @@ function onFailLoad(event, errorCode, errorDescription, validatedUrl, isMainFram
   mainWindow.loadFile(path.join(__dirname, 'offline.html'));
   clearTimeout(retryTimer);
   retryTimer = setTimeout(loadApp, RETRY_MS);
-}
-
-function onWindowClose(event) {
-  // * Closing the window keeps the app (and a running call) alive in the tray. The tray menu quits for real.
-  if (quitting || !tray) return;
-  event.preventDefault();
-  mainWindow.hide();
 }
 
 function createWindow() {
@@ -298,30 +283,13 @@ function createWindow() {
       spellcheck: false,
       // * Bundled: the page learns the API address from the preload (window.CHATTERLY_API), nothing else.
       additionalArguments: webDir ? ['--chatterly-api=' + serverUrl.origin] : [],
-      // * A call must keep its timers and its key rotation while the window is hidden in the tray.
+      // * A call must keep its timers and its key rotation while the window is behind other windows or minimized.
       backgroundThrottling: false,
     },
   });
   mainWindow.once('ready-to-show', showMainWindow);
-  mainWindow.on('close', onWindowClose);
   mainWindow.webContents.on('did-fail-load', onFailLoad);
   loadApp();
-}
-
-function createTray() {
-  const icon = nativeImage
-    .createFromPath(path.join(__dirname, 'icon.png'))
-    .resize({ width: 16, height: 16 });
-  tray = new Tray(icon);
-  tray.setToolTip('Chatterly');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open Chatterly', click: showMainWindow },
-      { type: 'separator' },
-      { label: 'Quit', click: quitApp },
-    ]),
-  );
-  tray.on('click', showMainWindow);
 }
 
 /** Zoom and edit shortcuts only. There is no entry for the developer tools. */
@@ -366,12 +334,8 @@ function onActivate() {
 }
 
 function onWindowAllClosed() {
-  // The tray keeps the app alive; without a tray there is nothing left to show.
-  if (!tray && process.platform !== 'darwin') app.quit();
-}
-
-function onBeforeQuit() {
-  quitting = true;
+  // * Closing the window closes the app: nothing keeps running in the background.
+  app.quit();
 }
 
 async function start() {
@@ -395,8 +359,7 @@ async function start() {
 
   createMenu();
   createWindow();
-  createTray();
-  updater.start(mainWindow);
+  updater.start(mainWindow, isAppOrigin);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -406,6 +369,5 @@ if (!app.requestSingleInstanceLock()) {
   app.on('web-contents-created', onWebContentsCreated);
   app.on('activate', onActivate);
   app.on('window-all-closed', onWindowAllClosed);
-  app.on('before-quit', onBeforeQuit);
   start();
 }

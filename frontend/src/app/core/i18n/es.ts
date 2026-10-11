@@ -1398,4 +1398,22 @@ export const ES: Record<string, string> = {
     'Tubos al rojo blanco con un halo ceñido que parpadean uno a uno.',
   'The letters rise like bubbles, fading in and out.':
     'Las letras suben como burbujas, apareciendo y desapareciendo.',
+  'A new version is available': 'Hay una versión nueva',
+  'Open the notifications (the bell) to update.':
+    'Abre las notificaciones (la campana) para actualizar.',
+  'Chatterly {v}': 'Chatterly {v}',
+  'Download': 'Descargar',
+  'Downloading… {n}%': 'Descargando… {n}%',
+  'Restart and update': 'Reiniciar y actualizar',
+  'Chatterly will close and open again with the new version.':
+    'Chatterly se cerrará y se abrirá de nuevo con la versión nueva.',
+  'The update could not be downloaded': 'No se pudo descargar la actualización',
+  'Updates': 'Actualizaciones',
+  'Check for updates': 'Buscar actualizaciones',
+  'Checking…': 'Buscando…',
+  'You have the latest version': 'Tienes la última versión',
+  'Version {v} is available (see the notifications)':
+    'La versión {v} está disponible (mira las notificaciones)',
+  'Ready to restart': 'Lista para reiniciar',
+  'The check failed': 'No se pudo comprobar',
 };

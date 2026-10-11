@@ -223,7 +223,7 @@ There is one test, `pnpm test` (or run `test/chatterly-test.exe`), and it leaves
 
 ## Contributing
 
-Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first. Security problems go through [SECURITY.md](SECURITY.md) (Spanish: [SECURITY.es.md](SECURITY.es.md)); everyone is expected to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
+Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first (Spanish: [CONTRIBUTING.es.md](.github/CONTRIBUTING.es.md)). Security problems go through [SECURITY.md](SECURITY.md) (Spanish: [SECURITY.es.md](SECURITY.es.md)); everyone is expected to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
 
 ## License
 

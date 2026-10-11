@@ -1,5 +1,7 @@
 # Contributing to Chatterly-Renewed
 
+[Español](CONTRIBUTING.es.md)
+
 Thank you for wanting to help. This guide is short on purpose.
 
 ## Set up
@@ -29,3 +31,28 @@ Never log, store or send message text, passwords or keys. If you find a vulnerab
 ## Adding a language
 
 Translations live in one dictionary per language in `frontend/src/app/core/i18n/`. Copy `es.ts`, translate the values and register the language in `i18n.service.ts`.
+
+## Desktop app (Windows)
+
+The Windows app lives in `desktop/` (Electron) and carries the web build inside it.
+
+```
+pnpm --dir desktop install
+pnpm --dir desktop start      # run it from the source
+pnpm --dir desktop test       # about 230 checks of the shell (also part of pnpm test)
+pnpm build && pnpm --dir desktop dist   # builds the installer in desktop/dist
+```
+
+How to run, test, build the installer, update and publish to the Microsoft Store is in [desktop/README.md](../desktop/README.md) (Spanish: [desktop/README.es.md](../desktop/README.es.md)). Two rules for this folder:
+
+- The page may talk to the desktop shell only through the fixed commands in `desktop/src/preload.cjs`. A new command or channel needs a security review and its entry in the list that `desktop/test/desktop.mjs` checks.
+- The same code style applies: English, a header comment per file, no arrow functions, Prettier.
+
+## Releases
+
+There is one version for the whole project (web, server and desktop app). To release:
+
+1. Raise the version, to the same number, in `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` and `desktop/package.json`, and add the entry to `CHANGELOG.md`.
+2. Commit and push.
+
+The server updates itself from that push (`deploy.yml`), and the Windows installer is published by the `desktop.yml` workflow as the release `v<version>`. Nobody needs to create tags by hand. People using the desktop app see "A new version is available" in the notifications of the bell, download it and restart when they choose.

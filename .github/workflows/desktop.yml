@@ -1,9 +1,11 @@
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 # .github/workflows/desktop.yml
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
-# * Builds the Windows app (desktop/) and attaches it to the GitHub Release of the tag, which is also where the installed
-#   apps look for updates. Start it by pushing a tag with the same number as the version: v2.24.0.
-#   Nothing here touches the server (deploy.yml is the one that does, and it ignores desktop/).
+# * One release for the whole project: you raise the version, commit and push, and that is all. This workflow then builds
+#   the Windows app and publishes it as the GitHub Release "v<version>" (the version in desktop/package.json), which is
+#   also where installed apps look for updates and show them in the notifications of the bell.
+#   If that release already exists (a push that did not raise the version) it does nothing.
+#   deploy.yml updates the server on the same push; the two are independent.
 # * By hand (Actions tab > Run workflow) it builds the Microsoft Store package instead and keeps it as a download.
 #   Secrets for the Store (Settings > Secrets and variables > Actions): STORE_IDENTITY_NAME, STORE_PUBLISHER and
 #   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
@@ -12,36 +14,60 @@ name: Build the desktop app
 
 on:
   push:
-    tags: ['v*']
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
     if: github.event_name == 'push'
     runs-on: windows-latest
     permissions:
-      contents: write # to attach the installer to the release
+      contents: write # to create the release and attach the installer
     steps:
       - uses: actions/checkout@v4
+      - name: Is this version already released?
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./desktop/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION already has a release: nothing to build."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v4
+        if: steps.version.outputs.released == 'false'
         with:
           version: 12.9.1
       - uses: actions/setup-node@v4
+        if: steps.version.outputs.released == 'false'
         with:
           node-version: 24
       - name: Install
+        if: steps.version.outputs.released == 'false'
         run: |
           pnpm install --frozen-lockfile
           pnpm --dir frontend install --frozen-lockfile
           pnpm --dir desktop install --frozen-lockfile
       - name: Build the web app
+        if: steps.version.outputs.released == 'false'
         run: pnpm --dir frontend build
       - name: Check the desktop shell
+        if: steps.version.outputs.released == 'false'
         run: pnpm --dir desktop test
       - name: Build and publish the installer
+        if: steps.version.outputs.released == 'false'
         run: pnpm --dir desktop release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,6 +5,8 @@
 import { _electron as electron } from 'playwright';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BACKEND, ROOT, TMP, children, step, check, run, freePort, waitFor } from './support.mjs';
@@ -44,7 +46,47 @@ export async function step22(world) {
   children.push(backend);
   await waitFor(API + '/api/rtc/config');
 
-  const env = { ...process.env, CHATTERLY_URL: API, CHATTERLY_WEB_DIR: world.webDir };
+  // * A feed with a newer version, so the update notice, the download and the restart can be driven from the real UI.
+  const feedDir = path.join(TMP, 'desktop-feed');
+  fs.mkdirSync(feedDir, { recursive: true });
+  const installer = Buffer.from('bytes of a pretend installer');
+  fs.writeFileSync(path.join(feedDir, 'Chatterly-Setup-2.99.0.exe'), installer);
+  const hash = createHash('sha512').update(installer).digest('base64');
+  fs.writeFileSync(
+    path.join(feedDir, 'latest.yml'),
+    [
+      'version: 2.99.0',
+      'files:',
+      '  - url: Chatterly-Setup-2.99.0.exe',
+      '    sha512: ' + hash,
+      '    size: ' + installer.length,
+      'path: Chatterly-Setup-2.99.0.exe',
+      'sha512: ' + hash,
+      "releaseDate: '2026-01-01T00:00:00.000Z'",
+      '',
+    ].join('\n'),
+  );
+  const feed = http.createServer(function feedHandler(req, res) {
+    const file = path.join(feedDir, path.basename(new URL(req.url, 'http://x').pathname));
+    if (!fs.existsSync(file)) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+    res.end(fs.readFileSync(file));
+  });
+  const feedPort = await freePort();
+  await new Promise(function listening(resolve) {
+    feed.listen(feedPort, '127.0.0.1', resolve);
+  });
+
+  const env = {
+    ...process.env,
+    CHATTERLY_URL: API,
+    CHATTERLY_WEB_DIR: world.webDir,
+    CHATTERLY_UPDATE_URL: 'http://127.0.0.1:' + feedPort,
+  };
+  delete env.CHATTERLY_NO_UPDATE;
   // ! Some editors set this, and Electron would then run as plain Node.
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({
@@ -53,6 +95,8 @@ export async function step22(world) {
       DESKTOP,
       '--user-data-dir=' + path.join(TMP, 'profile-desktop'),
       '--use-fake-device-for-media-stream',
+      // ? The app follows the language of the system (here maybe Spanish); the checks below read English.
+      '--lang=en-US',
     ],
     cwd: DESKTOP,
     env,
@@ -112,20 +156,52 @@ export async function step22(world) {
     check(hasKeys, 'the identity keys are stored in the app profile');
 
     await page.waitForTimeout(2500);
-    check(sockets.length > 0, 'the app opened its WebSocket (' + (sockets[0] ? sockets[0].url : '') + ')');
+    check(
+      sockets.length > 0,
+      'the app opened its WebSocket (' + (sockets[0] ? sockets[0].url : '') + ')',
+    );
     check(
       sockets.some(function (s) {
         return !s.closed;
       }),
       'the WebSocket stays open (the server accepted the origin app://chatterly)',
     );
-    check(problems.length === 0, 'no console errors or CSP violations in the desktop app: ' + problems.join(' | '));
+    check(
+      problems.length === 0,
+      'no console errors or CSP violations in the desktop app: ' + problems.join(' | '),
+    );
+
+    // The update: a notice in the bell, then download with a progress bar, then restart. Nothing happens by itself.
+    const bell = page.locator('button.tip:has(app-icon[name=bell])').first();
+    await bell.click();
+    await page.getByText('A new version is available').first().waitFor({ timeout: 30000 });
+    check(true, 'a newer version shows up in the notifications of the bell');
+    const earlyLog = await app.evaluate(function () {
+      return (globalThis.__updaterLog || []).join(' | ');
+    });
+    check(!earlyLog.includes('downloaded'), 'it was not downloaded without the person asking');
+    await page.getByRole('button', { name: 'Download' }).click();
+    await page.getByRole('button', { name: 'Restart and update' }).waitFor({ timeout: 30000 });
+    check(true, 'after downloading, the button to restart and update appears');
+    await page.getByRole('button', { name: 'Restart and update' }).click();
+    await page.waitForTimeout(800);
+    const lateLog = await app.evaluate(function () {
+      return (globalThis.__updaterLog || []).join(' | ');
+    });
+    check(
+      lateLog.includes('would restart to install'),
+      'pressing it asks the app to restart and install',
+    );
 
     const prefs = await app.evaluate(function (electronModule) {
       return electronModule.BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
     });
-    check(prefs.sandbox === true && prefs.contextIsolation === true, 'the window stays sandboxed with context isolation');
+    check(
+      prefs.sandbox === true && prefs.contextIsolation === true,
+      'the window stays sandboxed with context isolation',
+    );
   } finally {
     await app.close();
+    feed.close();
   }
 }
