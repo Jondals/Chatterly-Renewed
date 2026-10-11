@@ -244,6 +244,11 @@ html.cursor-js.cursor-native * {
     border-radius: 0 !important;
     background: transparent !important;
   }
+  /* the line of a row would be a second line above a fold that follows it (the fold draws its own) */
+  .settings-card app-setting-row:has(+ app-collapse),
+  .settings-card app-setting-row:has(+ div > app-collapse:first-child) {
+    border-bottom-width: 0 !important;
+  }
   .settings-card-title {
     padding: 0.75rem 0 0.6rem;
     font-size: 0.875rem;

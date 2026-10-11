@@ -3,7 +3,6 @@
  * One chat message: bubble, reactions, replies, editing, the hover menu and the right-click menu.
  */
 import { NameColorDirective } from '../../shared/util/name-color.directive';
-import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
@@ -39,18 +38,19 @@ import { SpinlyMessageComponent } from '../spinly/spinly-message.component';
 import { UiService } from '../../core/services/ui.service';
 import { ContextMenuService, type MenuItem } from '../../core/services/context-menu.service';
 import { fontClassOf } from '../../shared/util/user-font.directive';
+import { ServerTagComponent } from '../../shared/components/server-tag.component';
 
 @Component({
   selector: 'app-message-item',
   standalone: true,
   imports: [
+    ServerTagComponent,
     AvatarComponent,
     LinkCardComponent,
     SpinlyCardComponent,
     SpinlyMessageComponent,
     StatusMarkComponent,
     NameColorDirective,
-    NameFxDirective,
     IconComponent,
     TimestampPipe,
     AttachmentComponent,
@@ -91,13 +91,12 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
               class="msg-name text-base font-semibold"
               [class]="nameClass()"
               [appNameColor]="sender()?.profileColor ?? ''"
-              [nameFx]="sender()?.nameFx"
-              [fxLive]="true"
               [fallback]="mine() ? 'var(--accent)' : 'var(--fg)'"
               (click)="openProfile()"
             >
               {{ sender()?.displayName ?? auth.user()?.displayName ?? '…' }}
             </button>
+            <app-server-tag class="-ml-1.5 self-center" [tag]="sender()?.serverTag" />
             <span class="text-[0.8125rem] text-muted">{{ m.createdAt | timestamp }}</span>
             @if (mine() && settings.showMessageStatus() && !m.pending && !m.failed && m.verified) {
               <app-status-mark [status]="store.statusOf(m)" />

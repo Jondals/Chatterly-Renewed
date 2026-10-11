@@ -44,10 +44,3 @@ export function sanitizeResult(raw: unknown): SpinlyResult | null {
   }
   return { kind, title: cleanText(record['title'], 40), names, winner };
 }
-
-/** A spin to replay: the options as they were, the final angle of the disc and the winner. */
-export interface SpinlySpin {
-  options: { name: string; color: string }[];
-  rotation: number;
-  winner: string;
-}

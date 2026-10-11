@@ -32,6 +32,14 @@ export type AuraId =
   | 'comet'
   | 'nebula';
 
+/** The tag of a group that a person shows next to their name. */
+export interface ServerTag {
+  guildId: string;
+  text: string;
+  color: string;
+  icon: string;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -52,6 +60,8 @@ export interface User {
   nameFont: NameFont;
   /** The animation of the name (see NAME_FX). */
   nameFx?: string;
+  /** The tag of a group that the person chose to show (null: none). */
+  serverTag?: ServerTag | null;
   avatarColor: string;
   publicKeys: PublicKeys;
   createdAt: number;
@@ -106,6 +116,10 @@ export interface Guild {
   ownerId: string;
   keyVersion: number;
   needsRotation: boolean;
+  /** The tag of the group (empty text: it has none). */
+  tag?: { text: string; color: string; icon: string };
+  /** The key of the encrypted icon, sealed with the key of the group (null: an old icon that is not encrypted yet). */
+  iconKey?: { keyVersion: number; iv: string; data: string } | null;
   channels: GuildChannel[];
   members: { userId: string; role: 'owner' | 'member'; tags: string[] }[];
   /** The tags of the group (only its owner creates them and gives them). */

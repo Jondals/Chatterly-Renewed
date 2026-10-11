@@ -3,6 +3,7 @@
  * Types of the database rows and the functions that turn them into public objects for the client.
  */
 import type { Db } from './db';
+import { parseServerTag, type ServerTag } from './server-tag';
 
 export interface UserRow {
   id: string;
@@ -27,6 +28,8 @@ export interface UserRow {
   profile_color: string;
   name_font: string;
   name_fx: string;
+  server_tag: string;
+  tag_guild: string | null;
   avatar_color: string;
   presence_visibility: 'everyone' | 'friends' | 'nobody';
   friend_requests: 'everyone' | 'nobody';
@@ -57,6 +60,7 @@ export interface PublicUser {
   profileColor: string;
   nameFont: string;
   nameFx: string;
+  serverTag: ServerTag | null;
   avatarColor: string;
   publicKeys: { ecdh: string; ecdsa: string };
   createdAt: number;
@@ -80,6 +84,7 @@ export function toPublicUser(row: UserRow): PublicUser {
     profileColor: row.profile_color,
     nameFont: row.name_font,
     nameFx: row.name_fx,
+    serverTag: parseServerTag(row.server_tag ?? ''),
     avatarColor: row.avatar_color,
     publicKeys: { ecdh: row.pub_ecdh, ecdsa: row.pub_ecdsa },
     createdAt: row.created_at,

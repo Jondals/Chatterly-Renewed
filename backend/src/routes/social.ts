@@ -3,8 +3,11 @@
  * User search, friendships, direct messages and presence.
  */
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
+import { refreshServerTag } from '../server-tag';
 import { areFriends, getUser, getUsers, orderedPair, toPublicUser, type UserRow } from '../models';
 import { usernameField, callerId } from '../validation';
 
@@ -17,7 +20,7 @@ interface FriendRow {
 
 /** Registers the routes of friends, direct chats and presence. */
 export function registerSocialRoutes(app: FastifyInstance, ctx: AppContext): void {
-  const { db, hub } = ctx;
+  const { db, hub, config } = ctx;
   const me = callerId;
   const auth = { onRequest: [app.authenticate] };
 
@@ -98,6 +101,112 @@ export function registerSocialRoutes(app: FastifyInstance, ctx: AppContext): voi
       outgoing,
       users: getUsers(db, [...friends, ...incoming, ...outgoing]),
     };
+  }
+
+  /** Deletes the files of the database from the disk (after the rows are gone). */
+  function removeFromDisk(ids: string[]): void {
+    for (const id of ids) {
+      fs.rm(path.join(config.uploadDir, id), { force: true }, function done() {
+        return undefined;
+      });
+    }
+  }
+
+  /**
+   * The remover and the other person stop being friends and nothing is left between them: the direct chat is deleted
+   * with its messages, files and reactions; the other person is taken out of every group the remover owns (their messages
+   * and files there go too) and the group key is marked to be renewed, so that the key they knew is not used any more;
+   * the keys of the pictures that each one had shared with the other are dropped.
+   */
+  function eraseFriendship(self: string, other: string): void {
+    const [a, b] = orderedPair(self, other);
+    const files: string[] = [];
+    const touchedGuilds: string[] = [];
+    db.transaction(function erase() {
+      const chat = db.prepare('SELECT id FROM channels WHERE dm_key = ?').get(`${a}:${b}`) as
+        { id: string } | undefined;
+      if (chat) {
+        const own = db.prepare('SELECT id FROM files WHERE channel_id = ?').all(chat.id) as {
+          id: string;
+        }[];
+        files.push(
+          ...own.map(function id(f) {
+            return f.id;
+          }),
+        );
+        db.prepare('DELETE FROM channels WHERE id = ?').run(chat.id);
+      }
+      const guilds = db
+        .prepare(
+          `SELECT g.id FROM guilds g JOIN guild_members m ON m.guild_id = g.id
+            WHERE g.owner_id = ? AND m.user_id = ?`,
+        )
+        .all(self, other) as { id: string }[];
+      for (const guild of guilds) {
+        const theirs = db
+          .prepare(
+            `SELECT f.id FROM files f JOIN channels c ON c.id = f.channel_id
+              WHERE c.guild_id = ? AND f.uploader_id = ?`,
+          )
+          .all(guild.id, other) as { id: string }[];
+        files.push(
+          ...theirs.map(function id(f) {
+            return f.id;
+          }),
+        );
+        db.prepare(
+          'DELETE FROM messages WHERE sender_id = ? AND channel_id IN (SELECT id FROM channels WHERE guild_id = ?)',
+        ).run(other, guild.id);
+        db.prepare(
+          'DELETE FROM reactions WHERE user_id = ? AND message_id IN (SELECT m.id FROM messages m JOIN channels c ON c.id = m.channel_id WHERE c.guild_id = ?)',
+        ).run(other, guild.id);
+        db.prepare(
+          'DELETE FROM files WHERE uploader_id = ? AND channel_id IN (SELECT id FROM channels WHERE guild_id = ?)',
+        ).run(other, guild.id);
+        db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?').run(
+          guild.id,
+          other,
+        );
+        db.prepare('DELETE FROM guild_member_tags WHERE guild_id = ? AND user_id = ?').run(
+          guild.id,
+          other,
+        );
+        db.prepare('DELETE FROM guild_keys WHERE guild_id = ? AND user_id = ?').run(
+          guild.id,
+          other,
+        );
+        db.prepare('UPDATE guilds SET needs_rotation = 1 WHERE id = ?').run(guild.id);
+        touchedGuilds.push(guild.id);
+      }
+      db.prepare(
+        `DELETE FROM image_keys WHERE (viewer_id = ? AND image_id IN (SELECT id FROM images WHERE owner_id = ?))
+                                   OR (viewer_id = ? AND image_id IN (SELECT id FROM images WHERE owner_id = ?))`,
+      ).run(other, self, self, other);
+      db.prepare('DELETE FROM friendships WHERE user_a = ? AND user_b = ?').run(a, b);
+    })();
+    removeFromDisk(files);
+    for (const id of touchedGuilds) {
+      const room = hub.roomOf(other);
+      if (
+        room &&
+        db.prepare('SELECT 1 FROM channels WHERE id = ? AND guild_id = ?').get(room, id)
+      ) {
+        hub.leaveRoom(other);
+      }
+      refreshServerTag(db, other);
+      hub.sendTo(other, { t: 'guild.removed', guildId: id });
+      const members = db
+        .prepare('SELECT user_id FROM guild_members WHERE guild_id = ?')
+        .all(id) as {
+        user_id: string;
+      }[];
+      hub.sendToMany(
+        members.map(function user(m) {
+          return m.user_id;
+        }),
+        { t: 'guild.update', guildId: id },
+      );
+    }
   }
 
   const notifyFriends = function (a: string, b: string) {
@@ -183,8 +292,16 @@ export function registerSocialRoutes(app: FastifyInstance, ctx: AppContext): voi
     const self = me(req);
     const other = (req.params as { id: string }).id;
     const [a, b] = orderedPair(self, other);
-    const result = db.prepare('DELETE FROM friendships WHERE user_a = ? AND user_b = ?').run(a, b);
-    if (!result.changes) return reply.code(404).send({ error: 'not_found' });
+    const row = db
+      .prepare('SELECT status FROM friendships WHERE user_a = ? AND user_b = ?')
+      .get(a, b) as { status: string } | undefined;
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+    if (row.status === 'accepted') {
+      // * Removing a friend erases what the two had: the private chat, and the other person leaves the groups of the remover.
+      eraseFriendship(self, other);
+    } else {
+      db.prepare('DELETE FROM friendships WHERE user_a = ? AND user_b = ?').run(a, b);
+    }
     notifyFriends(self, other);
     return reply.code(204).send();
   });

@@ -66,6 +66,34 @@ export class WallpaperStore {
     return true;
   }
 
+  /** The saved wallpaper as a file (null when there is none): a preset keeps it. */
+  async read(): Promise<Blob | null> {
+    try {
+      const saved = await runInStore<Blob | undefined>(LOCATION, 'readonly', function get(store) {
+        return store.get(KEY);
+      });
+      // ! A copy in memory: a file that IndexedDB hands out stops being valid when its record is replaced or deleted (and
+      // putting it back then fails with "the operation failed for reasons unrelated to the database state").
+      return saved ? new Blob([await saved.arrayBuffer()], { type: saved.type }) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Puts a file as the wallpaper (a preset brings it). Throws a readable message when it is too big. */
+  async set(file: Blob): Promise<void> {
+    const video = file.type.startsWith('video/');
+    if (file.size > (video ? WALLPAPER_MAX_VIDEO : WALLPAPER_MAX_IMAGE)) {
+      throw new Error(
+        video ? 'The video is bigger than 25 MB.' : 'The picture is bigger than 12 MB.',
+      );
+    }
+    await runInStore(LOCATION, 'readwrite', function put(store) {
+      return store.put(file, KEY);
+    });
+    this.show(file);
+  }
+
   /** Forgets the wallpaper. */
   async remove(): Promise<void> {
     await runInStore(LOCATION, 'readwrite', function del(store) {

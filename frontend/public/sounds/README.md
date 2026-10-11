@@ -40,6 +40,8 @@ sound you add is louder than the others, lower its `trim` in `sound-library.ts` 
 `classic.ogg`, `christmas.ogg`, `halloween.ogg` and `newyear.ogg`. The pause between repetitions is `gap` in
 `sound-library.ts`. The person can also upload their own ringtone in Settings > Sounds & notifications.
 
+`secret.ogg` is a joke tone that cannot be chosen anywhere: an incoming call rings with it once in ten thousand (`SECRET_RING_CHANCE` in `sound.service.ts`).
+
 ## `auth/` — the animations of arriving (each file is the whole soundtrack of its animation)
 
 | File                     | Animation                                          |

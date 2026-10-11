@@ -96,7 +96,8 @@ import { CollapseComponent } from '../../shared/components/collapse.component';
                 [src]="stickers.url(s)"
                 alt=""
                 loading="lazy"
-                class="h-full w-full object-contain"
+                class="stk h-full w-full object-contain"
+                [attr.data-move]="s.move"
               />
               <span
                 class="absolute inset-0 flex items-center justify-center rounded-ui bg-black/60 opacity-0 group-hover:opacity-100"

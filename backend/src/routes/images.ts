@@ -2,10 +2,10 @@
  * src/routes/images.ts
  * Upload and download of profile pictures, banners and group icons.
  *
- * * Profile pictures and banners are END-TO-END ENCRYPTED: the browser encrypts the picture with a random key, the server
- * stores only ciphertext, and the key is sealed once for each person who may see it (table image_keys) with the pair key
- * of the owner and that person, so the server cannot open it. Group icons stay readable by signed-in users (they have no
- * owner key to share; the server checks and cleans them).
+ * * Every picture is END-TO-END ENCRYPTED: the browser encrypts it with a random key and the server stores only ciphertext.
+ * The key of a profile picture or banner is sealed once for each person who may see it (table image_keys) with the pair
+ * key of the owner and that person. The key of a group icon is sealed with the key of the group (it travels with the group,
+ * see routes/guilds.ts) and the server hands the icon only to the members of that group. The server cannot open any of them.
  */
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -14,7 +14,6 @@ import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 import { callerId } from '../validation';
 import { canSeeProfile, profileAudience } from '../models';
-import { sanitizeImage } from '../security/image-sanitize';
 
 export const IMAGE_KINDS = ['avatar', 'banner', 'group'] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
@@ -39,11 +38,19 @@ export function deleteImage(ctx: AppContext, id: string | null | undefined): voi
   });
 }
 
-/** True when `id` is an image of `kind` uploaded by `ownerId`. */
-export function ownsImage(ctx: AppContext, id: string, ownerId: string, kind: ImageKind): boolean {
+/** True when `id` is an image of `kind` uploaded by `ownerId` (a group icon must also be one of the group `guildId`). */
+export function ownsImage(
+  ctx: AppContext,
+  id: string,
+  ownerId: string,
+  kind: ImageKind,
+  guildId?: string,
+): boolean {
   return !!ctx.db
-    .prepare('SELECT 1 FROM images WHERE id = ? AND owner_id = ? AND kind = ?')
-    .get(id, ownerId, kind);
+    .prepare(
+      'SELECT 1 FROM images WHERE id = ? AND owner_id = ? AND kind = ? AND (? IS NULL OR guild_id = ?)',
+    )
+    .get(id, ownerId, kind, guildId ?? null, guildId ?? null);
 }
 
 export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -51,8 +58,8 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
   const me = callerId;
   const auth = { onRequest: [app.authenticate] };
 
-  // ! Profile pictures and banners arrive as ciphertext (the server cannot look inside, so it only bounds the size);
-  // group icons arrive as a picture that is checked and rebuilt without metadata.
+  // ! Every picture arrives as ciphertext (the server cannot look inside, so it only bounds the size). A group icon names
+  // the group it is for, and only the owner of that group may upload it.
   app.post(
     '/api/images',
     {
@@ -63,31 +70,35 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
         querystring: {
           type: 'object',
           required: ['kind'],
-          properties: { kind: { type: 'string', enum: [...IMAGE_KINDS] } },
+          properties: {
+            kind: { type: 'string', enum: [...IMAGE_KINDS] },
+            guild: {
+              type: 'string',
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+            },
+          },
         },
       },
     },
     async function (req, reply) {
       const owner = me(req);
-      const { kind } = req.query as { kind: ImageKind };
+      const { kind, guild } = req.query as { kind: ImageKind; guild?: string };
       const body = req.body;
-      if (!Buffer.isBuffer(body) || body.length < 16 || body.length > config.maxImageBytes) {
+      if (
+        !Buffer.isBuffer(body) ||
+        body.length < MIN_ENCRYPTED_BYTES ||
+        body.length > config.maxImageBytes
+      ) {
         return reply.code(400).send({ error: 'invalid_image' });
       }
-      const encrypted = kind !== 'group';
-      let data: Buffer = body;
-      let mime = 'application/octet-stream';
-      if (encrypted) {
-        if (body.length < MIN_ENCRYPTED_BYTES) {
-          return reply.code(400).send({ error: 'invalid_image' });
-        }
-      } else {
-        // The type comes from the bytes. The picture is rebuilt without metadata (EXIF, GPS, text chunks) and
-        // ! refused when it is malformed or its dimensions are absurd: the browser is not trusted to have done it.
-        const clean = sanitizeImage(body);
-        if (!clean) return reply.code(415).send({ error: 'unsupported_image_type' });
-        data = clean.data;
-        mime = clean.mime;
+      if (
+        kind === 'group' &&
+        !(
+          guild &&
+          db.prepare('SELECT 1 FROM guilds WHERE id = ? AND owner_id = ?').get(guild, owner)
+        )
+      ) {
+        return reply.code(403).send({ error: 'owner_only' });
       }
       const count = (
         db.prepare('SELECT COUNT(*) AS n FROM images WHERE owner_id = ?').get(owner) as {
@@ -97,11 +108,11 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
       if (count >= MAX_IMAGES_PER_USER) return reply.code(429).send({ error: 'too_many_images' });
       const id = randomUUID();
       fs.mkdirSync(path.dirname(imageFile(ctx, id)), { recursive: true });
-      await fs.promises.writeFile(imageFile(ctx, id), data, { mode: 0o600 });
+      await fs.promises.writeFile(imageFile(ctx, id), body, { mode: 0o600 });
       try {
         db.prepare(
-          'INSERT INTO images (id, owner_id, kind, mime, size, created_at, encrypted) VALUES (?,?,?,?,?,?,?)',
-        ).run(id, owner, kind, mime, data.length, Date.now(), encrypted ? 1 : 0);
+          "INSERT INTO images (id, owner_id, kind, mime, size, created_at, encrypted, guild_id) VALUES (?,?,?,'application/octet-stream',?,?,1,?)",
+        ).run(id, owner, kind, body.length, Date.now(), kind === 'group' ? guild : null);
       } catch (error) {
         // * No row, no file: an upload that cannot be recorded must not leave bytes on the disk.
         await fs.promises.rm(imageFile(ctx, id), { force: true });
@@ -114,8 +125,9 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
   /** Who may see a picture of this person and does not hold its key yet (with their public key, to seal it for them). */
   app.get('/api/images/:id/audience', auth, async function (req, reply) {
     const id = (req.params as { id: string }).id;
-    const row = db.prepare('SELECT owner_id FROM images WHERE id = ? AND encrypted = 1').get(id) as
-      { owner_id: string } | undefined;
+    const row = db
+      .prepare("SELECT owner_id FROM images WHERE id = ? AND encrypted = 1 AND kind <> 'group'")
+      .get(id) as { owner_id: string } | undefined;
     if (!row || row.owner_id !== me(req)) return reply.code(404).send({ error: 'not_found' });
     const have = new Set(
       (
@@ -179,7 +191,7 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
       const id = (req.params as { id: string }).id;
       const owner = me(req);
       const row = db
-        .prepare('SELECT owner_id FROM images WHERE id = ? AND encrypted = 1')
+        .prepare("SELECT owner_id FROM images WHERE id = ? AND encrypted = 1 AND kind <> 'group'")
         .get(id) as { owner_id: string } | undefined;
       if (!row || row.owner_id !== owner) return reply.code(404).send({ error: 'not_found' });
       const allowed = new Set([owner, ...profileAudience(db, owner)]);
@@ -233,11 +245,28 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
 
   app.get('/api/images/:id', auth, async function (req, reply) {
     const id = (req.params as { id: string }).id;
-    const row = db.prepare('SELECT mime, encrypted, owner_id FROM images WHERE id = ?').get(id) as
-      { mime: string; encrypted: number; owner_id: string } | undefined;
+    const row = db
+      .prepare('SELECT mime, encrypted, owner_id, kind, guild_id FROM images WHERE id = ?')
+      .get(id) as
+      | { mime: string; encrypted: number; owner_id: string; kind: string; guild_id: string | null }
+      | undefined;
     if (!row) return reply.code(404).send({ error: 'not_found' });
-    // ! An encrypted picture is handed only to the people it was sealed for: to anyone else it does not exist.
+    // ! A group icon is handed only to the members of its group (and to the owner while it is not the icon of a group yet).
     if (
+      row.kind === 'group' &&
+      row.owner_id !== me(req) &&
+      !(
+        row.guild_id &&
+        db
+          .prepare('SELECT 1 FROM guild_members WHERE guild_id = ? AND user_id = ?')
+          .get(row.guild_id, me(req))
+      )
+    ) {
+      return reply.code(404).send({ error: 'not_found' });
+    }
+    // ! A profile picture or banner is handed only to the people it was sealed for: to anyone else it does not exist.
+    if (
+      row.kind !== 'group' &&
       row.encrypted &&
       (!db
         .prepare('SELECT 1 FROM image_keys WHERE image_id = ? AND viewer_id = ?')

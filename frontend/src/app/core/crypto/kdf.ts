@@ -4,8 +4,6 @@
  */
 import { fromB64, utf8 } from './bytes';
 
-export const DEFAULT_KDF_ITERATIONS = 600_000; // OWASP 2023 guidance for PBKDF2-HMAC-SHA256
-
 export interface DerivedSecrets {
   /** Sent to the server (which hashes it again with scrypt). Reveals nothing about the wrapping key. */
   authSecret: string;

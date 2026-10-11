@@ -55,6 +55,8 @@ export const SOUNDS = {
   ringtoneChristmas: { file: 'ringtones/christmas.ogg', gap: 0.8 },
   ringtoneHalloween: { file: 'ringtones/halloween.ogg', gap: 0.9 },
   ringtoneNewyear: { file: 'ringtones/newyear.ogg', gap: 0.8 },
+  // the secret one: it cannot be chosen anywhere (see SoundService.ring)
+  ringtoneSecret: { file: 'ringtones/secret.ogg', gap: 1 },
   // ---- soundtracks of the animations of arriving (auth/)
   authIntro: { file: 'auth/intro.ogg' },
   authSignIn: { file: 'auth/sign-in-unlock.ogg' },

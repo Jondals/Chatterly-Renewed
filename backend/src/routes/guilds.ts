@@ -8,7 +8,15 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppContext } from '../context';
 import type { Db } from '../db';
-import { areFriends, getUsers } from '../models';
+import {
+  areFriends,
+  getUser,
+  getUsers,
+  profileAudience,
+  toPublicUser,
+  toSelfUser,
+} from '../models';
+import { refreshServerTag, showingTagOf, TAG_ICONS } from '../server-tag';
 import { b64Field, emojiOrShort, callerId, cleanText } from '../validation';
 import { deleteImage, ownsImage } from './images';
 
@@ -20,6 +28,12 @@ interface GuildRow {
   owner_id: string;
   key_version: number;
   needs_rotation: number;
+  tag_text: string;
+  tag_color: string;
+  tag_icon: string;
+  icon_key_version: number;
+  icon_key_iv: string;
+  icon_key_data: string;
   created_at: number;
 }
 
@@ -28,6 +42,18 @@ const envelopeSchema = {
   additionalProperties: false,
   required: ['iv', 'data'],
   properties: { iv: b64Field(16, 16), data: b64Field(60, 200) },
+} as const;
+
+/** The key of the encrypted icon of a group, sealed in the browser of the owner with the key of the group (version `version`). */
+const iconKeySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['version', 'iv', 'data'],
+  properties: {
+    version: { type: 'integer', minimum: 1 },
+    iv: b64Field(16, 16),
+    data: b64Field(60, 200),
+  },
 } as const;
 
 const nameField = { type: 'string', minLength: 1, maxLength: 48 } as const;
@@ -73,6 +99,11 @@ export function guildPayload(db: Db, guild: GuildRow, userId: string) {
     ownerId: guild.owner_id,
     keyVersion: guild.key_version,
     needsRotation: !!guild.needs_rotation,
+    tag: { text: guild.tag_text, color: guild.tag_color, icon: guild.tag_icon },
+    // null: the icon is an old one that is not encrypted yet (its owner's browser encrypts it the next time it opens the app)
+    iconKey: guild.icon_key_data
+      ? { keyVersion: guild.icon_key_version, iv: guild.icon_key_iv, data: guild.icon_key_data }
+      : null,
     channels,
     members: (members as { userId: string; role: string }[]).map(function withTags(member) {
       return { ...member, tags: tagsOf.get(member.userId) ?? [] };
@@ -110,6 +141,14 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       t: 'guild.update',
       guildId,
     });
+  };
+
+  /** Tells everybody who may see a person that their public profile changed (their tag). */
+  const announceUser = function (userId: string) {
+    const row = getUser(db, userId);
+    if (!row) return;
+    hub.sendToMany(profileAudience(db, userId), { t: 'user.update', user: toPublicUser(row) });
+    hub.sendTo(userId, { t: 'user.update', user: toSelfUser(row) });
   };
 
   /** Loads the guild and checks the caller belongs to it (404 otherwise, so ids don't leak). */
@@ -231,6 +270,12 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
               type: ['string', 'null'],
               pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
             },
+            // With a new icon comes the key that opens it (sealed with the key of the group).
+            iconKey: iconKeySchema,
+            // The tag of the group: up to four letters or numbers, a color and one icon of a fixed list.
+            tag: { type: 'string', pattern: '^[A-Za-z0-9]{0,4}$' },
+            tagColor: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
+            tagIcon: { type: 'string', enum: ['', ...TAG_ICONS] },
           },
         },
       },
@@ -245,14 +290,42 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         name?: string;
         icon?: string;
         iconImage?: string | null;
+        iconKey?: { version: number; iv: string; data: string };
+        tag?: string;
+        tagColor?: string;
+        tagIcon?: string;
       };
       let iconImage = guild.icon_image;
+      let iconKey = {
+        version: guild.icon_key_version,
+        iv: guild.icon_key_iv,
+        data: guild.icon_key_data,
+      };
       if (body.iconImage !== undefined) {
-        if (body.iconImage !== null && !ownsImage(ctx, body.iconImage, me(req), 'group')) {
-          return reply.code(400).send({ error: 'invalid_image' });
+        if (body.iconImage !== null) {
+          // ! A new icon is an encrypted picture of this group, with the key that opens it (made with the current group key).
+          if (
+            !ownsImage(ctx, body.iconImage, me(req), 'group', guild.id) ||
+            !body.iconKey ||
+            body.iconKey.version !== guild.key_version
+          ) {
+            return reply.code(400).send({ error: 'invalid_image' });
+          }
+          iconKey = body.iconKey;
+        } else {
+          iconKey = { version: 0, iv: '', data: '' };
         }
         iconImage = body.iconImage;
       }
+      db.prepare('UPDATE guilds SET tag_text = ?, tag_color = ?, tag_icon = ? WHERE id = ?').run(
+        body.tag !== undefined ? body.tag.toUpperCase() : guild.tag_text,
+        body.tagColor ?? guild.tag_color,
+        body.tagIcon ?? guild.tag_icon,
+        guild.id,
+      );
+      db.prepare(
+        'UPDATE guilds SET icon_key_version = ?, icon_key_iv = ?, icon_key_data = ? WHERE id = ?',
+      ).run(iconKey.version, iconKey.iv, iconKey.data, guild.id);
       db.prepare('UPDATE guilds SET name = ?, icon = ?, icon_image = ? WHERE id = ?').run(
         body.name !== undefined ? clean(body.name) || guild.name : guild.name,
         body.icon !== undefined ? clean(body.icon) : guild.icon,
@@ -260,6 +333,12 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         guild.id,
       );
       if (guild.icon_image && guild.icon_image !== iconImage) deleteImage(ctx, guild.icon_image);
+      if (body.tag !== undefined || body.tagColor !== undefined || body.tagIcon !== undefined) {
+        for (const who of showingTagOf(db, guild.id)) {
+          refreshServerTag(db, who);
+          announceUser(who);
+        }
+      }
       notifyGuild(guild.id);
       return { guild: guildPayload(db, getGuild(guild.id)!, me(req)) };
     },
@@ -269,12 +348,17 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
     const guild = requireOwner(req, reply);
     if (!guild) return;
     const members = memberIds(guild.id);
+    const showing = showingTagOf(db, guild.id);
     const files = db
       .prepare(
         'SELECT f.id FROM files f JOIN channels c ON c.id = f.channel_id WHERE c.guild_id = ?',
       )
       .all(guild.id) as { id: string }[];
     db.prepare('DELETE FROM guilds WHERE id = ?').run(guild.id);
+    for (const who of showing) {
+      refreshServerTag(db, who);
+      announceUser(who);
+    }
     deleteImage(ctx, guild.icon_image);
     for (const file of files)
       fs.rm(path.join(config.uploadDir, file.id), { force: true }, function () {
@@ -503,6 +587,8 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       db.prepare('DELETE FROM guild_keys WHERE guild_id = ? AND user_id = ?').run(guild.id, target);
       db.prepare('UPDATE guilds SET needs_rotation = 1 WHERE id = ?').run(guild.id);
     })();
+    refreshServerTag(db, target);
+    announceUser(target);
     const room = hub.roomOf(target);
     if (
       room &&
@@ -527,6 +613,13 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
           required: ['keyVersion', 'envelopes'],
           properties: {
             keyVersion: { type: 'integer', minimum: 2 },
+            // The key of the icon sealed again with the new key of the group (needed when the group has an encrypted icon).
+            iconKey: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['iv', 'data'],
+              properties: { iv: b64Field(16, 16), data: b64Field(60, 200) },
+            },
             envelopes: {
               type: 'array',
               maxItems: 50,
@@ -553,10 +646,14 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       if (!guild) return;
       const body = req.body as {
         keyVersion: number;
+        iconKey?: { iv: string; data: string };
         envelopes: { userId: string; iv: string; data: string }[];
       };
       if (body.keyVersion !== guild.key_version + 1) {
         return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
+      }
+      if (guild.icon_key_data && !body.iconKey) {
+        return reply.code(400).send({ error: 'icon_key_required' });
       }
       const members = new Set(memberIds(guild.id));
       const given = new Set(
@@ -582,6 +679,11 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
           body.keyVersion,
           guild.id,
         );
+        if (guild.icon_key_data && body.iconKey) {
+          db.prepare(
+            'UPDATE guilds SET icon_key_version = ?, icon_key_iv = ?, icon_key_data = ? WHERE id = ?',
+          ).run(body.keyVersion, body.iconKey.iv, body.iconKey.data, guild.id);
+        }
       })();
       notifyGuild(guild.id);
       return { keyVersion: body.keyVersion };

@@ -19,13 +19,50 @@ export const IMAGE_PRESETS: Record<ImageKind, { width: number; height: number }>
   banner: { width: 1200, height: 400 },
 };
 
+/** Whether the bytes of a picture are an animation (a GIF, or a WebP that says it has frames). */
+function isAnimated(bytes: Uint8Array): boolean {
+  const head = String.fromCharCode(...bytes.slice(0, 4));
+  if (head === 'GIF8') {
+    return true;
+  }
+  const form = String.fromCharCode(...bytes.slice(8, 16));
+  return head === 'RIFF' && form === 'WEBPVP8X' && (bytes[20]! & 0x02) !== 0;
+}
+
+/** A new random key for a picture. */
+function newPictureKey(): Promise<CryptoKey> {
+  return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+/** A picture as the server keeps it: a 12-byte nonce, then the ciphertext. */
+async function encryptPicture(
+  plain: Uint8Array<ArrayBuffer>,
+  key: CryptoKey,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const iv = randomBytes(12);
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plain),
+  );
+  const bytes = new Uint8Array(iv.length + cipher.length);
+  bytes.set(iv);
+  bytes.set(cipher, iv.length);
+  return bytes;
+}
+
+/** Opens a picture made by `encryptPicture`. */
+async function decryptPicture(bytes: Uint8Array<ArrayBuffer>, key: CryptoKey): Promise<Blob> {
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: bytes.slice(0, 12), tagLength: 128 },
+    key,
+    bytes.slice(12),
+  );
+  return new Blob([plain], { type: 'image/webp' });
+}
+
 /** How often the keys of the own pictures are offered to the people who arrived since (while the page is open). */
 const SHARE_EVERY_MS = 5 * 60 * 1000;
 /** A picture that was offered less than this long ago is not offered again (the page may have been reloaded). */
 const SHARE_AGAIN_AFTER_MS = 4 * 60 * 1000;
-
-/** Size of a wallpaper that stays on this device. */
-const WALLPAPER_SIZE = { width: 1920, height: 1080 };
 
 /**
  * Profile pictures, banners and group icons. Pictures are center-cropped and re-encoded to WebP in the
@@ -35,16 +72,23 @@ const WALLPAPER_SIZE = { width: 1920, height: 1080 };
  * * Profile pictures and banners are END-TO-END ENCRYPTED. Each picture gets a random AES-256-GCM key; the server stores
  * only the ciphertext; the key is sealed for each person who may see it with the pair key between the owner and that
  * person (the same ECDH identity the direct messages use). Only the owner's browser seals keys, so a new friend sees the
- * picture the next time the owner is online (see `shareMine`). Group icons are not encrypted (members read them).
+ * picture the next time the owner is online (see `shareMine`).
+ *
+ * * A group icon is encrypted the same way, but its key travels with the group: the owner seals it with the key of the group
+ * (see GuildStore) and every member opens it from there. The server hands the icon only to the members.
  */
 @Injectable({ providedIn: 'root' })
 export class ImageService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly urls = signal<Record<string, string>>({});
+  /** The first frame of each picture that moves. */
+  private readonly stills = signal<Record<string, string>>({});
   private readonly inflight = new Set<string>();
   /** The key of each encrypted picture this browser already has (by picture id). */
   private readonly pictureKeys = new Map<string, CryptoKey>();
+  /** The key of each encrypted group icon this browser has opened (by picture id). */
+  private readonly groupIconKeys = new Map<string, CryptoKey>();
   /** The encrypted pictures that are being opened or were opened, by id (one request each). */
   private readonly opened = new Map<string, Promise<Blob>>();
   /** The own pictures that were already offered to the people around in this session. */
@@ -92,14 +136,46 @@ export class ImageService {
       .finally(this.inflight.delete.bind(this.inflight, id));
   }
 
+  /** The file of a profile picture or banner (a preset keeps it). */
+  openPicture(id: string): Promise<Blob> {
+    return this.fetchPicture(id, true);
+  }
+
   /** Downloads a picture and opens it when it is encrypted. */
   private fetchPicture(id: string, sealed: boolean): Promise<Blob> {
     if (!sealed) {
-      return this.api.download('/api/images/' + id).then(function plain(bytes) {
-        return new Blob([bytes]);
-      });
+      return this.api.download('/api/images/' + id).then(this.openGroupIcon.bind(this, id));
     }
     return this.loadSealed(id);
+  }
+
+  /** Opens the bytes of a group icon with its key (an old icon that is not encrypted yet is shown as it is). */
+  private async openGroupIcon(id: string, bytes: ArrayBuffer): Promise<Blob> {
+    const key = this.groupIconKeys.get(id);
+    return key ? decryptPicture(new Uint8Array(bytes), key) : new Blob([bytes]);
+  }
+
+  /** Learns the key of a group icon (the groups store opens it from the sealed key that comes with the group). */
+  async learnGroupIcon(id: string, raw: Uint8Array<ArrayBuffer>): Promise<void> {
+    this.groupIconKeys.set(
+      id,
+      await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']),
+    );
+  }
+
+  /** Encrypts a group icon and uploads it for a group of the person; returns its id and the key that opens it. */
+  async uploadGroupIcon(
+    guildId: string,
+    blob: Blob,
+  ): Promise<{ id: string; raw: Uint8Array<ArrayBuffer> }> {
+    const key = await newPictureKey();
+    const response = await this.api.upload<{ id: string }>(
+      '/api/images?kind=group&guild=' + guildId,
+      await encryptPicture(new Uint8Array(await blob.arrayBuffer()), key),
+    );
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key));
+    await this.learnGroupIcon(response.id, raw);
+    return { id: response.id, raw };
   }
 
   /**
@@ -142,19 +218,42 @@ export class ImageService {
       key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', true, ['encrypt', 'decrypt']);
       this.pictureKeys.set(id, key);
     }
-    const bytes = fromB64(answer.data);
-    const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: bytes.slice(0, 12), tagLength: 128 },
-      key,
-      bytes.slice(12),
-    );
-    return new Blob([plain], { type: 'image/webp' });
+    return decryptPicture(fromB64(answer.data), key);
   }
 
-  /** Keeps a downloaded picture as a blob URL. */
+  /** Keeps a downloaded picture as a blob URL (and, when it moves, its first frame: it moves only under the pointer). */
   private storeImage(id: string, blob: Blob): void {
     this.retries.delete(id);
     this.urls.set({ ...this.urls(), [id]: URL.createObjectURL(blob) });
+    void this.makeStill(id, blob);
+  }
+
+  /** The first frame of an animated picture, as a still picture. */
+  private async makeStill(id: string, blob: Blob): Promise<void> {
+    try {
+      if (!isAnimated(new Uint8Array(await blob.slice(0, 32).arrayBuffer()))) {
+        return;
+      }
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(bitmap.width, 256);
+      canvas.height = Math.round((canvas.width / bitmap.width) * bitmap.height);
+      canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const still = await new Promise<Blob | null>(function encode(resolve) {
+        canvas.toBlob(resolve, 'image/webp', 0.85);
+      });
+      if (still) {
+        this.stills.set({ ...this.stills(), [id]: URL.createObjectURL(still) });
+      }
+    } catch {
+      /* without a still the picture just moves all the time */
+    }
+  }
+
+  /** Reactive: the still first frame of a picture that moves (null when it does not move, or before it is made). */
+  still(id: string | null | undefined): string | null {
+    return id ? (this.stills()[id] ?? null) : null;
   }
 
   /**
@@ -210,26 +309,12 @@ export class ImageService {
   }
 
   /**
-   * Uploads a processed picture and returns its id. A profile picture or banner is encrypted first, and its key is sealed
-   * for everybody who may see it before the id is returned.
+   * Uploads a processed profile picture or banner and returns its id. It is encrypted first, and its key is sealed for
+   * everybody who may see it before the id is returned.
    */
-  async upload(kind: ImageKind, blob: Blob): Promise<string> {
-    const plain = new Uint8Array(await blob.arrayBuffer());
-    if (kind === 'group') {
-      const response = await this.api.upload<{ id: string }>('/api/images?kind=group', plain);
-      return response.id;
-    }
-    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
-      'encrypt',
-      'decrypt',
-    ]);
-    const iv = randomBytes(12);
-    const cipher = new Uint8Array(
-      await crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, plain),
-    );
-    const bytes = new Uint8Array(iv.length + cipher.length);
-    bytes.set(iv);
-    bytes.set(cipher, iv.length);
+  async upload(kind: 'avatar' | 'banner', blob: Blob): Promise<string> {
+    const key = await newPictureKey();
+    const bytes = await encryptPicture(new Uint8Array(await blob.arrayBuffer()), key);
     const response = await this.api.upload<{ id: string }>('/api/images?kind=' + kind, bytes);
     this.pictureKeys.set(response.id, key);
     await this.shareMine(response.id);
@@ -289,20 +374,5 @@ export class ImageService {
     } catch {
       /* the picture has no key for this person (an old one): nothing to share */
     }
-  }
-
-  /** A wallpaper kept only on this device, as a data URL (it never leaves the device). */
-  async toWallpaperDataUrl(file: Blob): Promise<string> {
-    const blob = await this.process(file, WALLPAPER_SIZE, { mime: 'image/jpeg', quality: 0.8 });
-    return new Promise<string>(function read(resolve, reject) {
-      const reader = new FileReader();
-      reader.onload = function loaded() {
-        resolve(reader.result as string);
-      };
-      reader.onerror = function failed() {
-        reject(reader.error);
-      };
-      reader.readAsDataURL(blob);
-    });
   }
 }

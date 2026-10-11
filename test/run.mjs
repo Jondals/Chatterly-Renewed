@@ -44,6 +44,9 @@ async function shot(page, name) {
 }
 
 const step = function (s) {
+  // CHATTERLY_STOP_BEFORE=<text>: stops at the step with that text in its title (to work on one part without running it all)
+  const stop = process.env.CHATTERLY_STOP_BEFORE;
+  if (stop && s.includes(stop)) throw new Error('Stopped on purpose before: ' + s);
   return console.log('\n== ' + s);
 };
 const check = function (cond, msg) {
@@ -495,8 +498,8 @@ async function main() {
   await a.click('[data-tip="Deafen"]');
   await a.waitForSelector('[data-tip="Undeafen"]');
   check(true, 'muting and deafening works outside a call');
+  // (undeafening also unmutes: the mute that came with the deafening goes away with it)
   await a.click('[data-tip="Undeafen"]');
-  await a.click('[data-tip="Unmute"]');
   await a.waitForSelector('[data-tip="Mute"]');
   check(
     await a.evaluate(function () {
@@ -617,9 +620,44 @@ async function main() {
   await a.locator('.grid-cols-4 button').first().click();
   await b.waitForSelector('img.drop-shadow-lg', { timeout: 15000 });
   check(true, 'sticker sent and received');
+  check(
+    await b.evaluate(function () {
+      const sticker = document.querySelector('img.stk-live');
+      return !!sticker && getComputedStyle(sticker).animationName.startsWith('stk-');
+    }),
+    'the sticker moves: the picture is still and the page moves it',
+  );
   await b.reload();
   await b.waitForSelector('img.drop-shadow-lg', { timeout: 15000 });
   check(true, 'the sticker is still visible after reloading the page');
+
+  step('presets: save the look, share it in the chat, a friend imports it with one button');
+  await a.click('[data-tip="Settings"]');
+  await a.waitForSelector('.settings-overlay');
+  await a.click('a:has-text("Appearance")');
+  await a.click('button[aria-expanded]:has-text("Theme presets")');
+  await a.fill('input[aria-label="Name of the preset"]', 'Night');
+  await a.click('button:has-text("Save what I have now")');
+  await a.waitForSelector('app-presets >> text=Night');
+  check(true, 'a preset of the theme is saved with a name');
+  await a.keyboard.press('Escape');
+  await a.waitForSelector('.settings-overlay', { state: 'detached' });
+  // it is shared from the "+" menu of the chat
+  await a.click('[data-tip="More"]');
+  await a.click('button.menu-card:has-text("Share a preset")');
+  await a.click('[role=dialog] [role=tab]:has-text("Theme of the app")');
+  await a.click('[role=dialog] button:has-text("Night")');
+  await b.waitForSelector('app-attachment button:has-text("Import and use")', { timeout: 15000 });
+  await shot(b, '04d-preajuste-en-el-chat');
+  // a theme can be tried before keeping it, and the person goes back to theirs
+  await b.click('app-attachment button:has-text("Try")');
+  await b.waitForSelector('text=You are trying');
+  await b.click('button:has-text("Go back")');
+  await b.waitForSelector('text=You are trying', { state: 'detached' });
+  check(true, 'a theme of a message can be tried and given back');
+  await b.click('app-attachment button:has-text("Import and use")');
+  await b.waitForSelector('text=Preset imported and applied', { timeout: 15000 });
+  check(true, 'the friend gets the preset with one button');
 
   step('name and time on every message');
   const orden = await b.evaluate(function () {
@@ -627,9 +665,10 @@ async function main() {
       return e.textContent.includes('colourful reply') || e.textContent.includes('Hello Bob');
     });
     const cab = fila && fila.querySelector('button.font-semibold');
-    return (
-      !!cab && !!cab.nextElementSibling && /\d{1,2}:\d{2}/.test(cab.nextElementSibling.textContent)
-    );
+    // (the tag of a group, when the person shows one, sits between the name and the time)
+    let next = cab && cab.nextElementSibling;
+    while (next && next.tagName === 'APP-SERVER-TAG') next = next.nextElementSibling;
+    return !!cab && !!next && /\d{1,2}:\d{2}/.test(next.textContent);
   });
   check(orden, 'in every message the name comes first and the time after it');
   // 12-hour format: the time is followed by AM or PM
@@ -767,6 +806,7 @@ async function main() {
   await rows.nth(2).fill('Eva');
   await a.click('[role=dialog][aria-label="Spinly"] button:has-text("Add participant")');
   await rows.nth(3).fill('Mia');
+  await shot(a, '07c2-spinly-tournament-composer');
   await a.click('[role=dialog][aria-label="Spinly"] button:has-text("Send to the chat")');
   await b.waitForSelector('app-spinly-message button:has-text("Start the tournament")', {
     timeout: 15000,
@@ -816,6 +856,7 @@ async function main() {
       (await a.locator('[role=dialog][aria-label="Spinly"] .stepper-card').count()) === 0,
     'a tournament offers just three modes (fast, classic, epic)',
   );
+  await a.click('[role=dialog][aria-label="Spinly"] [role=tab]:has-text("Wheel")');
   // The color of a slice, of the arrow and of the lights is edited with the normal color picker.
   await a.locator('[role=dialog][aria-label="Spinly"] path.slice').first().click({ force: true });
   await a.waitForSelector('.picker-panel .sv-area');
@@ -835,6 +876,7 @@ async function main() {
     (await a.locator('[role=dialog][aria-label="Spinly"]').count()) === 1,
     'a press outside closes only the color picker',
   );
+  await a.click('[role=dialog][aria-label="Spinly"] [role=tab]:has-text("Tournament")');
   await a.click('[role=dialog][aria-label="Spinly"] .rule-preset >> nth=2');
   await a.waitForSelector('[role=dialog][aria-label="Spinly"] .rule-preset.is-on:has-text("Epic")');
   await shot(a, '07f-spinly-rules');
@@ -1046,6 +1088,27 @@ async function main() {
       (await b.locator('.call-tile iframe').count()) === 0,
     'music is only sound: a small player, not a tile of the stage',
   );
+  // The card of the music can be made small and big again (its body folds away and comes back).
+  const bodyHeight = function () {
+    return b.locator('.music-card .mc-inner').evaluate(function (e) {
+      return e.getBoundingClientRect().height;
+    });
+  };
+  await b.waitForFunction(
+    function () {
+      const inner = document.querySelector('.music-card .mc-inner');
+      return !!inner && inner.getBoundingClientRect().height > 20;
+    },
+    null,
+    { timeout: 5000 },
+  );
+  check(true, 'the card of the music shows its controls');
+  await b.click('.music-card button[aria-label="Minimize"]');
+  await b.waitForTimeout(700);
+  check((await bodyHeight()) < 2, 'the card of the music can be minimized');
+  await b.click('.music-card button[aria-label="Expand"]');
+  await b.waitForTimeout(700);
+  check((await bodyHeight()) > 20, 'and made big again');
   // Anybody can queue a song, and a vote of everybody skips to the next one.
   await a.click('.music-card button[aria-label="Queue"]');
   await a.fill('.music-card form input', 'https://youtu.be/jNQXAC9IVRw');
@@ -1076,24 +1139,29 @@ async function main() {
   await b.waitForSelector('.timeline input[type=range]:not([disabled])', { timeout: 25000 });
   check(true, 'the timeline of the video is enabled once the player reports its length');
   const videoFrom = Number(await b.locator('.timeline input[type=range]').inputValue());
-  await b.locator('.timeline input[type=range]').fill('120');
+  // a real drag of the thumb with the mouse (not a value written by the test)
+  const bar = await b.locator('.timeline input[type=range]').boundingBox();
+  await b.mouse.move(bar.x + 8, bar.y + bar.height / 2);
+  await b.mouse.down();
+  await b.mouse.move(bar.x + bar.width * 0.5, bar.y + bar.height / 2, { steps: 12 });
+  await b.mouse.up();
   await b.waitForFunction(
     function (from) {
       return Number(document.querySelector('.timeline input[type=range]').value) >= from;
     },
-    100,
+    20,
     { timeout: 8000 },
   );
   // The player itself must have jumped (the bar follows what the player says: if the jump had not happened it would go back).
   await b.waitForTimeout(2500);
   check(
-    videoFrom < 100 && Number(await b.locator('.timeline input[type=range]').inputValue()) >= 118,
+    videoFrom < 100 && Number(await b.locator('.timeline input[type=range]').inputValue()) >= 30,
     'the timeline moves the video',
   );
   await a.waitForFunction(
     function () {
       const bar = document.querySelector('.timeline input[type=range]');
-      return !!bar && Number(bar.value) >= 110;
+      return !!bar && Number(bar.value) >= 20;
     },
     null,
     { timeout: 12000 },
@@ -1274,6 +1342,8 @@ async function main() {
   await saveAdjusted(a);
   await a.waitForSelector('img[src^="blob:"]');
   await a.click('button:has-text("Create group")');
+  await a.waitForSelector('a[data-tip="Rust Crew"] img[src^="blob:"]', { timeout: 20000 });
+  check(true, 'the encrypted icon of the group is opened and shown');
   await a.waitForURL('**/groups/**/**', { timeout: 20000 });
   await a.waitForTimeout(800);
   await a.fill('textarea[aria-label=Message]', 'First message in the group');
@@ -1393,6 +1463,26 @@ async function main() {
   await a.click('[data-tip="Settings"]');
   await a.waitForSelector('.settings-overlay');
   await a.waitForTimeout(700);
+  // the pointer lights the entries of the menu, one after another and also when it goes back and forth quickly
+  const entries = a.locator('.settings-overlay a.nav-item');
+  const lit = [];
+  for (const at of [0, 1, 2, 3, 2, 1, 4, 0, 5, 3]) {
+    await entries.nth(at).hover();
+    await a.waitForTimeout(80);
+    lit.push(
+      await entries.nth(at).evaluate(function (e) {
+        return getComputedStyle(e).backgroundColor;
+      }),
+    );
+  }
+  await a.waitForTimeout(500);
+  const finalLit = await entries.nth(3).evaluate(function (e) {
+    return getComputedStyle(e).backgroundColor;
+  });
+  check(
+    finalLit !== 'rgba(0, 0, 0, 0)' && lit.every(Boolean),
+    'hovering an entry of the settings menu lights it ' + finalLit,
+  );
   await a.mouse.click(4, 400);
   await a.waitForSelector('.settings-overlay', {
     state: 'detached',
@@ -1429,6 +1519,23 @@ async function main() {
   await saveAdjusted(a);
   await a.click('button[aria-expanded]:has-text("Name font")');
   await a.click('button.choice-card:has-text("Serif")');
+  // the letters of the name move (one element per letter; only transform moves)
+  await a.click('button[aria-expanded]:has-text("Name animation")');
+  await a.click('button.choice-card:has-text("Bounce")');
+  await a.waitForTimeout(900);
+  await shot(a, '04c-animacion-nombre');
+  await a.waitForSelector('.nfx-l');
+  check(
+    await a.evaluate(function () {
+      const letter = document.querySelector('.nfx-l');
+      return (
+        document.querySelectorAll('.nfx-l').length >= 3 &&
+        !!letter &&
+        getComputedStyle(letter).animationName === 'nfx-bounce'
+      );
+    }),
+    'a name animation moves the letters of the name',
+  );
   // the banner color is offered when the banner is not a picture
   await a.click('button:has-text("Remove banner")');
   await a.click('button[aria-label="Banner color"]');
@@ -1557,7 +1664,10 @@ async function main() {
   await shot(a, '05a-tipografia');
   await a.click('button[aria-expanded]:has-text("Accent color")');
   await a.click('button[aria-label="Rose"]');
-  await a.click('button[aria-expanded]:has-text("Theme")');
+  await a
+    .locator('button[aria-expanded]', { hasText: /^\s*Theme(?! presets)/ })
+    .first()
+    .click();
   await a.click('button:has-text("Dusk")');
   await a.click('button[aria-expanded]:has-text("Background")');
   await shot(a, '05b-fondos');
@@ -1897,6 +2007,20 @@ async function main() {
       `"${secret.slice(0, 18)}" does not appear in the database or in the files`,
     );
   }
+
+  // every picture on the disk is ciphertext (profile pictures, banners and the icon of the group): none starts like an image
+  const pictures = fs.readdirSync(path.join(dataDir, 'uploads', 'images'));
+  check(
+    pictures.length > 0,
+    'there are pictures stored (the icon, the profile picture and the banner)',
+  );
+  check(
+    pictures.every(function (name) {
+      const head = fs.readFileSync(path.join(dataDir, 'uploads', 'images', name)).subarray(0, 4);
+      return head.toString('latin1') !== 'PNG' && head.toString('latin1') !== 'RIFF';
+    }),
+    'no picture is stored as a picture: the group icon is ciphertext too',
+  );
 
   step('deleting the account');
   const C = { user: 'carol_' + suffix, pw: 'correct-horse-battery-1' };

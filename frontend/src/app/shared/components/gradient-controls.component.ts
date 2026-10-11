@@ -10,6 +10,51 @@ import { gradientCss, sortedStops, type GradientParts, type Stop } from '../util
 import { ColorPickerComponent } from './color-picker.component';
 import { IconComponent } from './icon.component';
 
+/** Turns the hue of a #rrggbb color by some degrees (the lightness and the saturation stay). */
+function turnHue(hex: string, degrees: number): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const light = (max + min) / 2;
+  const span = max - min;
+  let hue = 0;
+  if (span > 0) {
+    if (max === r) {
+      hue = ((g - b) / span) % 6;
+    } else if (max === g) {
+      hue = (b - r) / span + 2;
+    } else {
+      hue = (r - g) / span + 4;
+    }
+  }
+  const saturation = span === 0 ? 0 : span / (1 - Math.abs(2 * light - 1));
+  const turned = (((hue * 60 + degrees) % 360) + 360) % 360;
+  const chroma = (1 - Math.abs(2 * light - 1)) * saturation;
+  const x = chroma * (1 - Math.abs(((turned / 60) % 2) - 1));
+  const m = light - chroma / 2;
+  const sector = Math.floor(turned / 60) % 6;
+  const parts = [
+    [chroma, x, 0],
+    [x, chroma, 0],
+    [0, chroma, x],
+    [0, x, chroma],
+    [x, 0, chroma],
+    [chroma, 0, x],
+  ][sector]!;
+  return (
+    '#' +
+    parts
+      .map(function channel(value) {
+        return Math.round((value + m) * 255)
+          .toString(16)
+          .padStart(2, '0');
+      })
+      .join('')
+  );
+}
+
 /** Edits the colors and the angle of a gradient and reports every change. */
 @Component({
   selector: 'app-gradient-controls',
@@ -32,7 +77,7 @@ import { IconComponent } from './icon.component';
             @for (stop of parts().stops; track $index) {
               <button
                 type="button"
-                class="gstop"
+                class="gstop anim-fade-in"
                 [class.is-on]="selected() === $index"
                 [style.left.%]="stop.pos"
                 [style.background]="stop.color"
@@ -85,55 +130,89 @@ import { IconComponent } from './icon.component';
           </button>
         }
       }
-      @if (open() && !compact()) {
-        <div class="gpanel anim-fade-up">
-          <div class="flex items-center gap-2.5">
-            <app-color-picker
-              [value]="current().color"
-              [size]="34"
-              label="Color"
-              (valueChange)="setColor($event)"
-            />
-            <span class="gchip font-mono">{{ current().color }}</span>
-            @if (showPosition()) {
-              <span class="gchip font-mono">{{ current().pos }}%</span>
-            }
-            <span class="flex-1"></span>
-            @if (parts().stops.length < 5) {
-              <button
-                type="button"
-                class="btn btn-sm btn-icon"
-                [attr.aria-label]="'Add a color' | t"
-                [attr.title]="'Add a color' | t"
-                (click)="add()"
-              >
-                <app-icon name="plus" [size]="14" />
-              </button>
-            }
-            @if (parts().stops.length > 2) {
-              <button
-                type="button"
-                class="btn btn-sm btn-icon btn-soft-danger"
-                [attr.aria-label]="'Remove this color' | t"
-                [attr.title]="'Remove this color' | t"
-                (click)="remove()"
-              >
-                <app-icon name="trash" [size]="14" />
-              </button>
-            }
+      @if (!compact()) {
+        <div class="gfold" [class.open]="open()" [attr.inert]="open() ? null : ''">
+          <div class="gfold-inner">
+            <div class="gpanel">
+              <div class="flex items-center gap-2.5">
+                <app-color-picker
+                  [value]="current().color"
+                  [size]="34"
+                  label="Color"
+                  (valueChange)="setColor($event)"
+                />
+                <span class="gchip font-mono">{{ current().color }}</span>
+                @if (showPosition()) {
+                  <span class="gchip font-mono">{{ current().pos }}%</span>
+                }
+                <span class="flex-1"></span>
+                @if (parts().stops.length < 5) {
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-icon"
+                    [attr.aria-label]="'Add a color' | t"
+                    [attr.title]="'Add a color' | t"
+                    (click)="add()"
+                  >
+                    <app-icon name="plus" [size]="14" />
+                  </button>
+                }
+                @if (parts().stops.length > 2) {
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-icon btn-soft-danger"
+                    [attr.aria-label]="'Remove this color' | t"
+                    [attr.title]="'Remove this color' | t"
+                    (click)="remove()"
+                  >
+                    <app-icon name="trash" [size]="14" />
+                  </button>
+                }
+              </div>
+              <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span class="mr-1">{{ 'Turn the hue' | t }}</span>
+                <button
+                  type="button"
+                  class="btn btn-icon btn-sm"
+                  [attr.aria-label]="'Turn the hue back' | t"
+                  [attr.title]="'Turn the hue back' | t"
+                  (click)="turn(-30)"
+                >
+                  <app-icon name="refresh" [size]="13" class="-scale-x-100" />
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-icon btn-sm"
+                  [attr.aria-label]="'Turn the hue forward' | t"
+                  [attr.title]="'Turn the hue forward' | t"
+                  (click)="turn(30)"
+                >
+                  <app-icon name="refresh" [size]="13" />
+                </button>
+                <label class="ml-1 flex cursor-pointer items-center gap-1.5"
+                  ><input
+                    type="checkbox"
+                    class="accent-[var(--accent)]"
+                    [checked]="together()"
+                    (change)="together.set($any($event.target).checked)"
+                  />
+                  {{ 'All the colors together' | t }}</label
+                >
+              </div>
+              @if (showAngle()) {
+                <label class="block text-xs text-muted"
+                  >{{ 'Angle' | t }} <b class="float-right text-fg">{{ parts().angle }}°</b>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    class="mt-1.5 w-full accent-[var(--accent)]"
+                    [value]="parts().angle"
+                    (input)="changed.emit({ angle: +$any($event.target).value })"
+                /></label>
+              }
+            </div>
           </div>
-          @if (showAngle()) {
-            <label class="block text-xs text-muted"
-              >{{ 'Angle' | t }} <b class="float-right text-fg">{{ parts().angle }}°</b>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                class="mt-1.5 w-full accent-[var(--accent)]"
-                [value]="parts().angle"
-                (input)="changed.emit({ angle: +$any($event.target).value })"
-            /></label>
-          }
         </div>
       }
     </div>
@@ -172,6 +251,24 @@ import { IconComponent } from './icon.component';
       border-color: var(--accent);
       z-index: 1;
     }
+    .gfold {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+    }
+    .gfold.open {
+      grid-template-rows: 1fr;
+    }
+    .gfold-inner {
+      min-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.28s ease;
+    }
+    .open > .gfold-inner {
+      opacity: 1;
+      transition-delay: 0.08s;
+    }
     .gpanel {
       display: grid;
       gap: 0.85rem;
@@ -198,6 +295,8 @@ export class GradientControlsComponent {
   readonly changed = output<Partial<GradientParts>>();
   protected readonly open = signal(false);
   protected readonly selected = signal(0);
+  /** Whether turning the hue turns every color (or only the chosen one). */
+  protected readonly together = signal(true);
   private dragging = -1;
 
   /** The gradient as CSS (a straight bar for the preview). */
@@ -257,6 +356,16 @@ export class GradientControlsComponent {
     }
     const stops = [...this.parts().stops, { color, pos: at }];
     this.selected.set(stops.length - 1);
+    this.changed.emit({ stops });
+  }
+
+  /** Turns the hue of every color, or of the chosen one only. */
+  protected turn(degrees: number): void {
+    const chosen = this.selected();
+    const all = this.together();
+    const stops = this.parts().stops.map(function turned(stop, index) {
+      return all || index === chosen ? { ...stop, color: turnHue(stop.color, degrees) } : stop;
+    });
     this.changed.emit({ stops });
   }
 

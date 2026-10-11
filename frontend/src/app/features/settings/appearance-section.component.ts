@@ -41,34 +41,9 @@ import {
   SettingRowComponent,
   ToggleComponent,
 } from '../../shared/components/controls.component';
+import { ACCENTS, THEMES } from '../../core/theme-data';
+import { PresetsComponent } from './presets.component';
 
-const ACCENTS: { id: AccentId; label: string; color: string }[] = [
-  { id: 'mint', label: 'Mint', color: '#2ef2b0' },
-  { id: 'quantum', label: 'Cyan', color: '#38e8ff' },
-  { id: 'indigo', label: 'Indigo', color: '#818cf8' },
-  { id: 'violet', label: 'Violet', color: '#b794f6' },
-  { id: 'rose', label: 'Rose', color: '#fb6f9a' },
-  { id: 'coral', label: 'Coral', color: '#ff8a7a' },
-  { id: 'amber', label: 'Amber', color: '#fbbf24' },
-  { id: 'lime', label: 'Lime', color: '#a3e635' },
-  { id: 'obsidian', label: 'Silver', color: '#d9dde8' },
-];
-const THEMES: { id: ThemeId; label: string; colors: [string, string, string] }[] = [
-  { id: 'midnight', label: 'Midnight', colors: ['#07080c', '#14171f', '#242937'] },
-  { id: 'graphite', label: 'Graphite', colors: ['#0a0a0b', '#1b1b1d', '#2d2d31'] },
-  { id: 'amoled', label: 'AMOLED black', colors: ['#000000', '#101010', '#212121'] },
-  { id: 'dusk', label: 'Dusk', colors: ['#0b0814', '#1e1730', '#342a4e'] },
-  { id: 'forest', label: 'Forest', colors: ['#060b09', '#131e19', '#24352d'] },
-  { id: 'ocean', label: 'Ocean', colors: ['#050b12', '#112336', '#223f5c'] },
-  { id: 'crimson', label: 'Crimson', colors: ['#0d0607', '#261418', '#43232b'] },
-  { id: 'mocha', label: 'Mocha', colors: ['#0c0908', '#231b17', '#3d2f27'] },
-  { id: 'nord', label: 'Nord', colors: ['#0c1016', '#1d2530', '#323d4d'] },
-  { id: 'matrix', label: 'Matrix', colors: ['#010603', '#081a0e', '#12331e'] },
-  { id: 'rose', label: 'Rose', colors: ['#0e070b', '#27141f', '#472538'] },
-  { id: 'abyss', label: 'Abyss', colors: ['#04100f', '#0e2b28', '#1c4b46'] },
-  { id: 'plum', label: 'Plum', colors: ['#0b0612', '#221433', '#3d265c'] },
-  { id: 'tangerine', label: "Tangerine's Pop", colors: ['#190a03', '#3d1c0d', '#934d27'] },
-];
 const FONTS: { id: FontId; label: string; css: string }[] = [
   { id: 'system', label: 'System', css: 'system-ui' },
   { id: 'inter', label: 'Inter', css: "'Inter Variable'" },
@@ -133,6 +108,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
   selector: 'app-appearance-section',
   standalone: true,
   imports: [
+    PresetsComponent,
     StepSliderComponent,
     GradientControlsComponent,
     IconComponent,
@@ -435,7 +411,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
       >
         <app-step-slider
           label="Background blur"
-          [max]="120"
+          [max]="100"
           [value]="s.bgBlur()"
           [labels]="blurLabels()"
           (valueChange)="s.bgBlur.set($event)"
@@ -586,7 +562,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
           [label]="'Actions over a message' | t"
         />
       </app-setting-row>
-      <div class="mt-3">
+      <div>
         <app-collapse title="Chat bubbles" [summary]="s.bubbleOwn() ? 'Custom' : 'Accent color'">
           <span preview class="flex gap-1">
             <span
@@ -917,6 +893,13 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
         </app-collapse>
       </section>
     }
+
+    <section class="settings-card">
+      <h2 class="settings-card-title">{{ 'Presets' | t }}</h2>
+      <app-collapse title="Theme presets" summary="Save, apply and share the look of the app">
+        <app-presets kind="theme" />
+      </app-collapse>
+    </section>
   `,
 })
 export class AppearanceSectionComponent {
@@ -929,6 +912,15 @@ export class AppearanceSectionComponent {
   protected readonly accents = ACCENTS;
   protected readonly themes = THEMES;
   protected readonly fonts = FONTS;
+
+  /** The files of the typefaces start to download as soon as the section opens, so the previews are ready when the fold is. */
+  constructor() {
+    for (const font of FONTS) {
+      void document.fonts.load('16px ' + font.css).catch(function ignore() {
+        return undefined;
+      });
+    }
+  }
   protected readonly backgrounds = BACKGROUNDS;
   protected readonly cursors = CURSORS;
   protected readonly bubbles: { id: BubbleStyle; label: string }[] = [
@@ -1147,20 +1139,6 @@ export class AppearanceSectionComponent {
       );
     }.bind(this),
   );
-  protected readonly trailName = computed(
-    function (this: AppearanceSectionComponent) {
-      return (
-        TRAILS.find(
-          function (
-            this: AppearanceSectionComponent,
-            e: { id: TrailType | 'off'; label: string; hint: string },
-          ) {
-            return e.id === this.s.cursorTrail();
-          }.bind(this),
-        )?.label ?? 'None'
-      );
-    }.bind(this),
-  );
   protected readonly currentCursor = computed(this.cursorName.bind(this));
   protected readonly ownCss = computed(this.computeOwnBubble.bind(this));
 
@@ -1227,7 +1205,7 @@ export class AppearanceSectionComponent {
 
   /** The ends of the blur slider and, between them, the value in use. */
   private buildBlurLabels(): StepLabel[] {
-    return this.endsAndCurrent(0, 120, this.s.bgBlur(), '0', '120', String(this.s.bgBlur()));
+    return this.endsAndCurrent(0, 100, this.s.bgBlur(), '0', '100', String(this.s.bgBlur()));
   }
 
   /** The ends of the text size slider and, between them, the size in use. */

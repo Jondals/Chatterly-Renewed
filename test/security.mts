@@ -27,7 +27,6 @@ import { openDatabase, SCHEMA_VERSION } from '../backend/src/db';
 import { runMaintenance, IMAGE_GRACE_MS } from '../backend/src/maintenance';
 import { assertFetchable, isPrivateAddress, metaTags } from '../backend/src/routes/preview';
 import { canSeeProfile } from '../backend/src/models';
-import { sanitizeImage } from '../backend/src/security/image-sanitize';
 import {
   MediaKeyChain,
   RATCHET_MS,
@@ -208,101 +207,6 @@ async function makeGuild(app: TestApp, owner: Account): Promise<{ id: string; te
   return { id: guild.id, text: text.id };
 }
 
-// ---- pictures built by hand -----------------------------------------------------------------------------------
-
-/** One PNG chunk with its CRC. */
-function pngChunk(type: string, data: Buffer): Buffer {
-  const head = Buffer.alloc(8);
-  head.writeUInt32BE(data.length, 0);
-  head.write(type, 4, 'latin1');
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(zlib.crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
-  return Buffer.concat([head, data, crc]);
-}
-
-/** A tiny PNG carrying text and EXIF chunks that mention a secret place. */
-function pngWithMetadata(width = 1, height = 1, extra: Buffer[] = []): Buffer {
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr.set([8, 2, 0, 0, 0], 8);
-  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(Math.min(width, 4) * 3, 200)]);
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('tEXt', Buffer.from('Comment\0GPS-secret-place')),
-    pngChunk('eXIf', Buffer.from('Exif-GPS-secret-place')),
-    ...extra,
-    pngChunk('IDAT', zlib.deflateSync(row)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
-/** A tiny JPEG with a JFIF header, an EXIF block with a GPS tag, a comment and a scan. */
-function jpegWithExif(width = 2, height = 2): Buffer {
-  function segment(marker: number, body: Buffer): Buffer {
-    const length = Buffer.alloc(2);
-    length.writeUInt16BE(body.length + 2, 0);
-    return Buffer.concat([Buffer.from([0xff, marker]), length, body]);
-  }
-  const frame = Buffer.alloc(9);
-  frame[0] = 8;
-  frame.writeUInt16BE(height, 1);
-  frame.writeUInt16BE(width, 3);
-  frame.set([1, 1, 0x11, 0], 5);
-  return Buffer.concat([
-    Buffer.from([0xff, 0xd8]),
-    segment(0xe0, Buffer.from('JFIF\0\x01\x01\0\0\x01\0\x01\0\0', 'latin1')),
-    segment(0xe1, Buffer.from('Exif\0\0GPSLatitude-secret-place', 'latin1')),
-    segment(0xfe, Buffer.from('comment-secret-place')),
-    segment(0xc0, frame),
-    segment(0xda, Buffer.from([1, 1, 0, 0, 0x3f, 0])),
-    Buffer.from([0x12, 0x34, 0x56]),
-    Buffer.from([0xff, 0xd9]),
-  ]);
-}
-
-/** A tiny WebP (lossless) with EXIF and XMP chunks and the flags that announce them. */
-function webpWithMetadata(): Buffer {
-  function chunk(type: string, data: Buffer): Buffer {
-    const head = Buffer.alloc(8);
-    head.write(type, 0, 'latin1');
-    head.writeUInt32LE(data.length, 4);
-    return Buffer.concat([head, data, data.length % 2 ? Buffer.alloc(1) : Buffer.alloc(0)]);
-  }
-  const extended = Buffer.alloc(10);
-  extended[0] = 0x2c;
-  extended.set([2, 0, 0], 4);
-  extended.set([2, 0, 0], 7);
-  const body = Buffer.concat([
-    Buffer.from('WEBP', 'latin1'),
-    chunk('VP8X', extended),
-    chunk('VP8L', Buffer.from([0x2f, 2, 0x80, 0, 0, 1, 2, 3])),
-    chunk('EXIF', Buffer.from('GPS-secret-place')),
-    chunk('XMP ', Buffer.from('xmp-secret-place')),
-  ]);
-  const head = Buffer.alloc(8);
-  head.write('RIFF', 0, 'latin1');
-  head.writeUInt32LE(body.length, 4);
-  return Buffer.concat([head, body]);
-}
-
-/** A tiny GIF with a comment extension that hides text. */
-function gifWithComment(): Buffer {
-  return Buffer.concat([
-    Buffer.from('GIF89a', 'latin1'),
-    Buffer.from([1, 0, 1, 0, 0x80, 0, 0]),
-    Buffer.from([0, 0, 0, 255, 255, 255]),
-    Buffer.from([0x21, 0xfe, 6]),
-    Buffer.from('secret'),
-    Buffer.from([0]),
-    Buffer.from([0x21, 0xf9, 4, 0, 0, 0, 0, 0]),
-    Buffer.from([0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0]),
-    Buffer.from([2, 2, 0x44, 0x01, 0]),
-    Buffer.from([0x3b]),
-  ]);
-}
-
 // ---- checks ---------------------------------------------------------------------------------------------------
 
 /** Relay-only calls must fail closed on the server, and the configuration must be strict about secrets. */
@@ -403,6 +307,26 @@ async function checkRelayConfiguration(): Promise<void> {
       ready.turn !== null && relayProblem(ready) === null,
       'a valid relay satisfies relay-only',
     );
+    check(ready.turn?.ttlSec === 3600, 'the relay credentials last one hour by default');
+    const ttlCases: [string, number][] = [
+      ['86400', 86400],
+      ['10', 300],
+      ['99999999', 7 * 24 * 3600],
+      ['abc', 3600],
+      ['-5', 3600],
+    ];
+    for (const [value, expected] of ttlCases) {
+      process.env['TURN_TTL_SEC'] = value;
+      const withTtl = loadConfig({
+        jwtSecret: 'j'.repeat(48),
+        serverSecret: 's'.repeat(48),
+      });
+      check(
+        withTtl.turn?.ttlSec === expected,
+        `TURN_TTL_SEC=${value} gives ${expected} seconds (limits: 5 minutes to 7 days)`,
+      );
+    }
+    delete process.env['TURN_TTL_SEC'];
     delete process.env['RELAY_ONLY'];
     process.env['JWT_SECRET'] = 'too-short';
     process.env['SERVER_SECRET'] = 'q'.repeat(48);
@@ -834,106 +758,17 @@ async function checkAuthorization(): Promise<void> {
   await app.close();
 }
 
-/** Uploaded pictures are checked and rebuilt without metadata; ids cannot reach other files. */
+/** Every picture is uploaded as ciphertext; a group icon goes only to the members of its group; ids cannot reach other files. */
 async function checkImages(): Promise<void> {
-  step('pictures: metadata, malformed files and limits');
-  const png = sanitizeImage(pngWithMetadata());
-  check(png !== null && png.mime === 'image/png', 'a PNG is accepted');
-  check(
-    png !== null &&
-      !png.data.includes('GPS-secret-place') &&
-      !png.data.includes('tEXt') &&
-      !png.data.includes('eXIf'),
-    'the text and EXIF chunks of a PNG are removed',
-  );
-  check(
-    png !== null &&
-      png.data.includes('IHDR') &&
-      png.data.includes('IDAT') &&
-      png.data.includes('IEND'),
-    'the chunks that draw the PNG stay',
-  );
-  const jpeg = sanitizeImage(jpegWithExif());
-  check(
-    jpeg !== null && jpeg.mime === 'image/jpeg' && jpeg.width === 2 && jpeg.height === 2,
-    'a JPEG is accepted with its size',
-  );
-  check(
-    jpeg !== null &&
-      !jpeg.data.includes('GPSLatitude') &&
-      !jpeg.data.includes('Exif') &&
-      !jpeg.data.includes('secret-place'),
-    'the EXIF block and the comment of a JPEG are removed',
-  );
-  check(
-    jpeg !== null && jpeg.data.includes('JFIF') && jpeg.data[jpeg.data.length - 1] === 0xd9,
-    'the JPEG keeps its header and end',
-  );
-  const webp = sanitizeImage(webpWithMetadata());
-  check(
-    webp !== null && webp.mime === 'image/webp' && webp.width === 3 && webp.height === 3,
-    'a WebP is accepted with its size',
-  );
-  check(
-    webp !== null &&
-      !webp.data.includes('GPS-secret-place') &&
-      !webp.data.includes('xmp-secret-place'),
-    'the EXIF and XMP chunks of a WebP are removed',
-  );
-  check(webp !== null && (webp.data[20]! & 0x0c) === 0, 'and their flags are cleared');
-  check(
-    webp !== null && webp.data.readUInt32LE(4) === webp.data.length - 8,
-    'and the size of the file is right',
-  );
-  const gif = sanitizeImage(gifWithComment());
-  check(
-    gif !== null && gif.mime === 'image/gif' && !gif.data.includes('secret'),
-    'the comment of a GIF is removed',
-  );
-
-  check(
-    sanitizeImage(
-      Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
-    ) === null,
-    'SVG is refused',
-  );
-  check(
-    sanitizeImage(Buffer.from('<html><script>alert(1)</script></html>')) === null,
-    'HTML is refused',
-  );
-  check(sanitizeImage(Buffer.alloc(0)) === null, 'an empty file is refused');
-  check(sanitizeImage(randomBytes(64)) === null, 'random bytes are refused');
-  check(sanitizeImage(pngWithMetadata().subarray(0, 40)) === null, 'a truncated PNG is refused');
-  check(
-    sanitizeImage(pngWithMetadata(60000, 60000)) === null,
-    'a PNG that declares a gigantic size is refused',
-  );
-  check(
-    sanitizeImage(pngWithMetadata(4097, 10)) === null,
-    'a side longer than 4096 pixels is refused',
-  );
-  check(
-    sanitizeImage(pngWithMetadata(1, 1, [pngChunk('ABCD', Buffer.from('x'))])) === null,
-    'an unknown critical PNG chunk is refused',
-  );
-  check(
-    sanitizeImage(jpegWithExif(65535, 65535)) === null,
-    'a JPEG that declares a gigantic size is refused',
-  );
-  check(
-    sanitizeImage(Buffer.concat([Buffer.from('GIF89a'), Buffer.from([1, 0, 1, 0])])) === null,
-    'a truncated GIF is refused',
-  );
-
   step('pictures: the routes');
   // (the global limit of requests is lifted here: this block makes more than the real limit allows in a minute)
   const app = await makeApp({ rateLimit: { max: 100000, authMax: 100000, windowMs: 60_000 } });
   const alice = await signUp(app, 'alice');
   const bob = await signUp(app, 'bob');
-  const upload = async function (who: Account | null, body: Buffer, kind = 'group') {
+  const upload = async function (who: Account | null, body: Buffer, kind = 'avatar', guild = '') {
     return app.inject({
       method: 'POST',
-      url: '/api/images?kind=' + kind,
+      url: '/api/images?kind=' + kind + (guild ? '&guild=' + guild : ''),
       headers: {
         ...(who ? bearer(who) : {}),
         'content-type': 'application/octet-stream',
@@ -941,29 +776,121 @@ async function checkImages(): Promise<void> {
       payload: body,
     });
   };
-  check((await upload(null, pngWithMetadata())).statusCode === 401, 'uploading needs a session');
+  check((await upload(null, randomBytes(64))).statusCode === 401, 'uploading needs a session');
   check(
-    (await upload(alice, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'))).statusCode ===
-      415,
-    'a non-image is refused with 415',
-  );
-  check(
-    (await upload(alice, pngWithMetadata(), 'wallpaper')).statusCode === 400,
+    (await upload(alice, randomBytes(64), 'wallpaper')).statusCode === 400,
     'an unknown kind is refused',
   );
-  const stored = await upload(alice, pngWithMetadata());
-  check(stored.statusCode === 201, 'a PNG with metadata is accepted');
-  const imageId = stored.json().id;
-  const onDisk = fs.readFileSync(path.join(app.ctx.config.uploadDir, 'images', imageId));
-  check(!onDisk.includes('GPS-secret-place'), 'the file on the disk has no metadata');
-  const downloaded = await call(app, bob, 'GET', `/api/images/${imageId}`);
+  step('group icons are end-to-end encrypted and only for the members');
+  const club = await makeGuild(app, alice);
   check(
-    downloaded.statusCode === 200 && downloaded.headers['content-type'] === 'image/png',
-    'group icons are readable by signed-in users (by design) with their real type',
+    (await upload(alice, randomBytes(64), 'group')).statusCode === 403,
+    'a group icon says which group it is for',
+  );
+  check(
+    (await upload(bob, randomBytes(64), 'group', club.id)).statusCode === 403,
+    'only the owner of the group uploads its icon',
+  );
+  check(
+    (await upload(alice, Buffer.from('tiny'), 'group', club.id)).statusCode === 400,
+    'something too short to be ciphertext is refused',
+  );
+  const secretIcon = randomBytes(300);
+  const stored = await upload(alice, secretIcon, 'group', club.id);
+  check(stored.statusCode === 201, 'the owner uploads the icon as the ciphertext it is');
+  const imageId = stored.json().id;
+  check(
+    fs.readFileSync(path.join(app.ctx.config.uploadDir, 'images', imageId)).equals(secretIcon),
+    'the server keeps the bytes untouched (it cannot read or rebuild them)',
+  );
+  check(
+    (await call(app, bob, 'GET', `/api/images/${imageId}`)).statusCode === 404,
+    'a group icon is not given to somebody who is not in its group',
+  );
+  const iconKey = { version: 1, iv: blob(12), data: blob(48) };
+  check(
+    (await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { iconImage: imageId }))
+      .statusCode === 400,
+    'an icon needs the key that opens it',
+  );
+  check(
+    (
+      await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, {
+        iconImage: imageId,
+        iconKey: { ...iconKey, version: 7 },
+      })
+    ).statusCode === 400,
+    'and that key is sealed with the key the group has now',
+  );
+  const otherClub = await makeGuild(app, alice);
+  check(
+    (
+      await call(app, alice, 'PATCH', `/api/guilds/${otherClub.id}`, {
+        iconImage: imageId,
+        iconKey,
+      })
+    ).statusCode === 400,
+    'an icon of one group cannot be used by another',
+  );
+  const attached = await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, {
+    iconImage: imageId,
+    iconKey,
+  });
+  check(
+    attached.statusCode === 200 && attached.json().guild.iconKey.data === iconKey.data,
+    'the owner makes it the icon, with its sealed key',
+  );
+  const member = await signUp(app, 'iconmember');
+  await befriend(app, alice, member);
+  await call(app, alice, 'POST', `/api/guilds/${club.id}/members`, {
+    userId: member.id,
+    envelope: envelope(),
+  });
+  const downloaded = await call(app, member, 'GET', `/api/images/${imageId}`);
+  check(
+    downloaded.statusCode === 200 && downloaded.rawPayload.equals(secretIcon),
+    'the members of the group read the icon (still ciphertext)',
+  );
+  check(
+    (await call(app, member, 'GET', '/api/guilds')).json().guilds[0].iconKey.keyVersion === 1,
+    'and the sealed key of the icon comes with the group',
+  );
+  const newKeys = [
+    { userId: alice.id, ...envelope() },
+    { userId: member.id, ...envelope() },
+  ];
+  check(
+    (
+      await call(app, alice, 'POST', `/api/guilds/${club.id}/rotate`, {
+        keyVersion: 2,
+        envelopes: newKeys,
+      })
+    ).statusCode === 400,
+    'a new key of the group needs the key of the icon sealed again with it',
+  );
+  check(
+    (
+      await call(app, alice, 'POST', `/api/guilds/${club.id}/rotate`, {
+        keyVersion: 2,
+        iconKey: { iv: blob(12), data: blob(48) },
+        envelopes: newKeys,
+      })
+    ).statusCode === 200,
+    'and with it the new key is accepted',
+  );
+  check(
+    (await call(app, member, 'GET', '/api/guilds')).json().guilds[0].iconKey.keyVersion === 2,
+    'the key of the icon follows the key of the group',
+  );
+  // (the member is sent away again, so that the pictures tests below still start with nobody around the owner)
+  await call(app, alice, 'DELETE', `/api/friends/${member.id}`);
+  check(
+    (await call(app, member, 'GET', `/api/images/${imageId}`)).statusCode === 404,
+    'whoever leaves the group is not given the icon any more',
   );
   check(
     String(downloaded.headers['content-security-policy']).includes('sandbox'),
-    'and are served sandboxed',
+    'and the pictures are served sandboxed',
   );
   check(downloaded.headers['x-content-type-options'] === 'nosniff', 'and with nosniff');
   check(
@@ -1114,9 +1041,9 @@ async function checkImages(): Promise<void> {
   for (let i = 0; i < 30; i++) await call(limited, heavy, 'GET', '/api/friends');
   const uploaded = await limited.inject({
     method: 'POST',
-    url: '/api/images?kind=group',
+    url: '/api/images?kind=avatar',
     headers: { ...bearer(heavy), 'content-type': 'application/octet-stream' },
-    payload: pngWithMetadata(),
+    payload: randomBytes(64),
   });
   check(
     uploaded.statusCode === 201,
@@ -1342,20 +1269,21 @@ async function checkDeletion(): Promise<void> {
   const alone = await makeGuild(app, alice);
   const icon = await app.inject({
     method: 'POST',
-    url: '/api/images?kind=group',
+    url: `/api/images?kind=group&guild=${club.id}`,
     headers: { ...bearer(alice), 'content-type': 'application/octet-stream' },
-    payload: pngWithMetadata(),
+    payload: randomBytes(64),
   });
   const iconId = icon.json().id;
   await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, {
     iconImage: iconId,
+    iconKey: { version: 1, iv: blob(12), data: blob(48) },
   });
   const avatar = (
     await app.inject({
       method: 'POST',
       url: '/api/images?kind=avatar',
       headers: { ...bearer(alice), 'content-type': 'application/octet-stream' },
-      payload: pngWithMetadata(),
+      payload: randomBytes(64),
     })
   ).json().id;
   await call(app, alice, 'PATCH', '/api/me', { avatarImage: avatar });
@@ -1585,6 +1513,7 @@ async function checkDeletion(): Promise<void> {
     (
       await call(app, bob, 'POST', `/api/guilds/${club.id}/rotate`, {
         keyVersion: 2,
+        iconKey: { iv: blob(12), data: blob(48) },
         envelopes: [
           { userId: bob.id, ...envelope() },
           { userId: carol.id, ...envelope() },
@@ -2324,11 +2253,14 @@ async function checkPrivacy(): Promise<void> {
   await befriend(app, alice, bob);
   // Dave shares a group with Alice but is not her friend (he was, to be added, and then was removed from her friends).
   await befriend(app, alice, dave);
-  const club = await makeGuild(app, alice);
-  await call(app, alice, 'POST', `/api/guilds/${club.id}/members`, {
-    userId: dave.id,
-    envelope: envelope(),
-  });
+  await befriend(app, bob, dave);
+  const club = await makeGuild(app, bob);
+  for (const member of [alice, dave]) {
+    await call(app, bob, 'POST', `/api/guilds/${club.id}/members`, {
+      userId: member.id,
+      envelope: envelope(),
+    });
+  }
   await call(app, alice, 'DELETE', `/api/friends/${dave.id}`);
 
   const sockets = {
@@ -2464,6 +2396,114 @@ async function checkPrivacy(): Promise<void> {
 }
 
 /** Runs every group. */
+/** Removing a friend erases the chat and takes them out of the groups of whoever removed them. */
+async function checkFriendRemoval(): Promise<void> {
+  step('friends: removing one erases what the two had');
+  const app = await makeApp();
+  const alice = await signUp(app, 'alice');
+  const bob = await signUp(app, 'bob');
+  const channel = await befriend(app, alice, bob);
+  const club = await makeGuild(app, alice);
+  await call(app, alice, 'POST', `/api/guilds/${club.id}/members`, {
+    userId: bob.id,
+    envelope: envelope(),
+  });
+  const spoken = await call(app, bob, 'POST', `/api/channels/${club.text}/messages`, {
+    ...sealed(),
+    keyVersion: 1,
+  });
+  check(spoken.statusCode === 201, 'the friend wrote in the group');
+  await call(app, alice, 'POST', `/api/channels/${channel}/messages`, {
+    ...sealed(),
+    keyVersion: 1,
+  });
+  check(
+    (await call(app, alice, 'DELETE', `/api/friends/${bob.id}`)).statusCode === 204,
+    'a friend is removed',
+  );
+  check(
+    (await call(app, alice, 'GET', `/api/channels/${channel}/messages`)).statusCode === 404 ||
+      (await call(app, alice, 'GET', `/api/channels/${channel}/messages`)).statusCode === 403,
+    'the direct chat is gone',
+  );
+  const left = (await call(app, alice, 'GET', `/api/channels/${club.text}/messages`)).json();
+  check(
+    !(left.messages ?? []).some(function theirs(m: { senderId: string }) {
+      return m.senderId === bob.id;
+    }),
+    'their messages in the group of the remover are gone',
+  );
+  check(
+    (await call(app, bob, 'GET', `/api/channels/${club.text}/messages`)).statusCode >= 400,
+    'and they cannot read that group any more',
+  );
+  check(
+    (await call(app, bob, 'POST', '/api/dms', { userId: alice.id })).statusCode === 403,
+    'they cannot open a chat again until they are friends again',
+  );
+}
+
+/** The tag of a group: the owner makes it, a member chooses to show it, and it goes when they leave. */
+async function checkServerTags(): Promise<void> {
+  step('groups: the tag of a group');
+  const app = await makeApp();
+  const alice = await signUp(app, 'alice');
+  const bob = await signUp(app, 'bob');
+  const eve = await signUp(app, 'eve');
+  await befriend(app, alice, bob);
+  const club = await makeGuild(app, alice);
+  await call(app, alice, 'POST', `/api/guilds/${club.id}/members`, {
+    userId: bob.id,
+    envelope: envelope(),
+  });
+  check(
+    (await call(app, bob, 'PATCH', `/api/guilds/${club.id}`, { tag: 'BOB' })).statusCode === 403,
+    'only the owner makes the tag',
+  );
+  check(
+    (await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { tag: 'TOO LONG' })).statusCode ===
+      400,
+    'a tag is up to four letters or numbers',
+  );
+  check(
+    (await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { tagIcon: '<b>' })).statusCode ===
+      400,
+    'the icon of a tag is one of a fixed list',
+  );
+  check(
+    (
+      await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, {
+        tag: 'devl',
+        tagColor: '#ff0066',
+        tagIcon: '💎',
+      })
+    ).statusCode === 200,
+    'the owner makes the tag',
+  );
+  const none = (await call(app, bob, 'GET', '/api/me')).json().user;
+  check(none.serverTag === null, 'a member shows nothing until they choose');
+  check(
+    (await call(app, eve, 'PATCH', '/api/me', { tagGuild: club.id })).json().user.serverTag ===
+      null,
+    'somebody who is not in the group cannot show its tag',
+  );
+  const chosen = (await call(app, bob, 'PATCH', '/api/me', { tagGuild: club.id })).json().user;
+  check(
+    chosen.serverTag?.text === 'DEVL' && chosen.serverTag.icon === '💎',
+    'a member shows it when they choose',
+  );
+  await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { tag: 'NEW' });
+  check(
+    (await call(app, bob, 'GET', '/api/me')).json().user.serverTag?.text === 'NEW',
+    'when the owner changes the tag, the ones who show it follow',
+  );
+  await call(app, alice, 'DELETE', `/api/guilds/${club.id}/members/${bob.id}`);
+  check(
+    (await call(app, bob, 'GET', '/api/me')).json().user.serverTag === null,
+    'whoever leaves the group stops showing its tag',
+  );
+}
+
 async function main(): Promise<void> {
   try {
     await checkRelayConfiguration();
@@ -2472,6 +2512,8 @@ async function main(): Promise<void> {
     await checkImages();
     await checkPreview();
     await checkDeletion();
+    await checkFriendRemoval();
+    await checkServerTags();
     await checkPrivacy();
     await checkDatabase();
     await checkSockets();

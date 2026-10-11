@@ -51,10 +51,21 @@ export interface AppConfig {
   logger: boolean;
 }
 
-export const APP_VERSION = '2.22.0';
+export const APP_VERSION = '2.23.0';
 
 /** ! The shortest secret the server accepts from the environment (generated ones are 64 characters). */
 const MIN_SECRET_LENGTH = 32;
+
+/**
+ * How long the credentials of the relay stay valid, in seconds: TURN_TTL_SEC, kept between 5 minutes and 7 days (one
+ * hour when it is missing or not a number). A call can last as long as its credentials are valid, and the app asks for
+ * new ones before they expire, so a long TTL only means that nothing has to be renewed during a normal call.
+ */
+function turnTtlSec(value: string | undefined): number {
+  const seconds = Math.floor(Number(value));
+  if (!Number.isFinite(seconds) || seconds <= 0) return 3600;
+  return Math.min(Math.max(seconds, 300), 7 * 24 * 3600);
+}
 
 /** A list from an environment variable, separated by commas. */
 function list(value: string | undefined, fallback: string[]): string[] {
@@ -184,7 +195,9 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     ),
     relayOnly: relayRequested,
     turn:
-      turnUrls.length && turnSecret ? { urls: turnUrls, secret: turnSecret, ttlSec: 3600 } : null,
+      turnUrls.length && turnSecret
+        ? { urls: turnUrls, secret: turnSecret, ttlSec: turnTtlSec(process.env['TURN_TTL_SEC']) }
+        : null,
     tls: tlsKey && tlsCert ? { key: tlsKey, cert: tlsCert } : null,
     logger: process.env['NODE_ENV'] !== 'test',
   };

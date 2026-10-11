@@ -2,6 +2,7 @@
  * src/app/features/voice/voice-stage.component.ts
  * Call screen: participant tiles, controls, shared music and statistics.
  */
+import { FoldComponent } from '../../shared/components/fold.component';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -83,6 +84,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
   selector: 'app-voice-stage',
   standalone: true,
   imports: [
+    FoldComponent,
     PersonMenuComponent,
     DeviceMenuComponent,
     DockableDirective,
@@ -109,7 +111,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
         <app-page-header [title]="roomTitle()" icon="volume" [subtitle]="subtitle()">
           <button
             type="button"
-            class="chip hover:brightness-125"
+            class="chip !px-3 !py-1.5 hover:brightness-125"
             [class.chip-accent]="call.mediaEncryption() === 'active'"
             [class.chip-amber]="call.mediaEncryption() === 'pending'"
             [class.chip-red]="call.mediaEncryption() === 'failing'"
@@ -119,7 +121,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
           >
             <app-icon
               [name]="call.mediaEncryption() === 'pending' ? 'shield' : 'lock'"
-              [size]="11"
+              [size]="17"
               [class.animate-pulse]="call.mediaEncryption() === 'pending'"
             />
             @if (call.mediaEncryption() === 'failing') {
@@ -184,7 +186,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     appDockable
                     [dockArea]="stageHostEl()"
                     [allowed]="places"
-                    [class.!w-auto]="settings.musicMini()"
+                    [class.!w-64]="settings.musicMini()"
                     class="music-card absolute z-30 w-[23rem] max-w-[calc(100%-1.5rem)] transition-[width] duration-300 select-none rounded-ui-lg border border-white/10 bg-ink-900/95 p-3.5 shadow-xl backdrop-blur"
                     [class]="musicClass()"
                     [style.bottom.px]="musicBottom()"
@@ -263,121 +265,130 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                         <app-icon name="x" [size]="15" />
                       </button>
                     </div>
-                    @if (!settings.musicMini()) {
-                      <div class="mt-3 flex items-center gap-2">
-                        @if (musicSrc() && m.link.kind === 'youtube') {
-                          <button
-                            type="button"
-                            class="btn btn-icon btn-sm shrink-0"
-                            [attr.title]="(paused() ? 'Play' : 'Pause') | t"
-                            [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
-                            (click)="togglePause()"
-                          >
-                            <app-icon [name]="paused() ? 'play' : 'pause'" [size]="15" />
-                          </button>
-                        }
-                        @if (call.hasNext()) {
+                    <!-- the body folds away and comes back smoothly (the same movement both ways) -->
+                    <div
+                      class="mc-body"
+                      [class.is-open]="!settings.musicMini()"
+                      [attr.inert]="settings.musicMini() ? '' : null"
+                    >
+                      <div class="mc-inner">
+                        <div class="mt-3 flex items-center gap-2">
+                          @if (musicSrc() && m.link.kind === 'youtube') {
+                            <button
+                              type="button"
+                              class="btn btn-icon btn-sm shrink-0"
+                              [attr.title]="(paused() ? 'Play' : 'Pause') | t"
+                              [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
+                              (click)="togglePause()"
+                            >
+                              <app-icon [name]="paused() ? 'play' : 'pause'" [size]="15" />
+                            </button>
+                          }
+                          @if (call.hasNext()) {
+                            <button
+                              type="button"
+                              class="btn btn-sm shrink-0 gap-1"
+                              [class.btn-active]="iVotedSkip()"
+                              [attr.title]="'Vote to skip' | t"
+                              [attr.aria-label]="'Vote to skip' | t"
+                              (click)="call.voteSkip()"
+                            >
+                              <app-icon name="skip-forward" [size]="14" />
+                              <span class="font-mono text-[0.6875rem]"
+                                >{{ call.skipVotes().length }}/{{ call.skipNeeded() }}</span
+                              >
+                            </button>
+                          }
                           <button
                             type="button"
                             class="btn btn-sm shrink-0 gap-1"
-                            [class.btn-active]="iVotedSkip()"
-                            [attr.title]="'Vote to skip' | t"
-                            [attr.aria-label]="'Vote to skip' | t"
-                            (click)="call.voteSkip()"
+                            [class.btn-active]="queueOpen()"
+                            [attr.title]="'Queue' | t"
+                            [attr.aria-label]="'Queue' | t"
+                            (mousedown)="$event.stopPropagation()"
+                            (click)="queueOpen.set(!queueOpen())"
                           >
-                            <app-icon name="skip-forward" [size]="14" />
-                            <span class="font-mono text-[0.6875rem]"
-                              >{{ call.skipVotes().length }}/{{ call.skipNeeded() }}</span
-                            >
+                            <app-icon name="list" [size]="14" />
+                            <span class="font-mono text-[0.6875rem]">{{ queuedCount() }}</span>
                           </button>
-                        }
-                        <button
-                          type="button"
-                          class="btn btn-sm shrink-0 gap-1"
-                          [class.btn-active]="queueOpen()"
-                          [attr.title]="'Queue' | t"
-                          [attr.aria-label]="'Queue' | t"
-                          (mousedown)="$event.stopPropagation()"
-                          (click)="queueOpen.set(!queueOpen())"
-                        >
-                          <app-icon name="list" [size]="14" />
-                          <span class="font-mono text-[0.6875rem]">{{ queuedCount() }}</span>
-                        </button>
-                        @if (musicSrc() && m.link.kind === 'youtube') {
-                          <div class="relative shrink-0">
-                            <button
-                              type="button"
-                              class="btn btn-icon btn-sm"
-                              [class.btn-active]="volumeOpen()"
-                              [attr.title]="'Volume' | t"
-                              [attr.aria-label]="'Volume' | t"
-                              (mousedown)="$event.stopPropagation()"
-                              (click)="toggleVolume()"
-                            >
-                              <app-icon
-                                [name]="settings.musicVolume() === 0 ? 'volume-x' : 'volume-2'"
-                                [size]="15"
-                              />
-                            </button>
-                            @if (volumeOpen()) {
-                              <div
-                                animate.leave="leave-pop"
-                                class="panel anim-pop absolute bottom-full left-0 z-20 mb-2 w-56 !bg-ink-850 p-3 shadow-2xl"
+                          @if (musicSrc() && m.link.kind === 'youtube') {
+                            <div class="relative shrink-0">
+                              <button
+                                type="button"
+                                class="btn btn-icon btn-sm"
+                                [class.btn-active]="volumeOpen()"
+                                [attr.title]="'Volume' | t"
+                                [attr.aria-label]="'Volume' | t"
                                 (mousedown)="$event.stopPropagation()"
+                                (click)="toggleVolume()"
                               >
-                                <div class="mb-2 flex items-center justify-between text-xs">
-                                  <span class="font-semibold">{{ 'Music volume' | t }}</span>
-                                  <b class="font-mono text-accent">{{ settings.musicVolume() }}%</b>
-                                </div>
-                                <div class="relative">
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    class="volume-range w-full"
-                                    [value]="settings.musicVolume()"
-                                    [attr.aria-label]="'Music volume' | t"
-                                    (input)="setMusicVolume($event)"
-                                  />
-                                  <div class="volume-ticks" aria-hidden="true">
-                                    @for (tick of volumeTicks; track tick) {
-                                      <span [style.left.%]="tick"></span>
-                                    }
+                                <app-icon
+                                  [name]="settings.musicVolume() === 0 ? 'volume-x' : 'volume-2'"
+                                  [size]="15"
+                                />
+                              </button>
+                              @if (volumeOpen()) {
+                                <div
+                                  animate.leave="leave-pop"
+                                  class="panel anim-pop absolute bottom-full left-0 z-20 mb-2 w-56 !bg-ink-850 p-3 shadow-2xl"
+                                  (mousedown)="$event.stopPropagation()"
+                                >
+                                  <div class="mb-2 flex items-center justify-between text-xs">
+                                    <span class="font-semibold">{{ 'Music volume' | t }}</span>
+                                    <b class="font-mono text-accent"
+                                      >{{ settings.musicVolume() }}%</b
+                                    >
+                                  </div>
+                                  <div class="relative">
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      class="volume-range w-full"
+                                      [value]="settings.musicVolume()"
+                                      [attr.aria-label]="'Music volume' | t"
+                                      (input)="setMusicVolume($event)"
+                                    />
+                                    <div class="volume-ticks" aria-hidden="true">
+                                      @for (tick of volumeTicks; track tick) {
+                                        <span [style.left.%]="tick"></span>
+                                      }
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            }
-                          </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                        @if (musicSrc() && m.link.kind === 'youtube' && duration() > 0) {
+                          <span class="timeline mt-2 flex min-w-0 items-center gap-2">
+                            <span
+                              class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
+                              >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
+                            >
+                            <input
+                              type="range"
+                              class="min-w-0 flex-1"
+                              min="0"
+                              step="1"
+                              [max]="duration()"
+                              [value]="elapsed()"
+                              [attr.aria-label]="'Timeline' | t"
+                              (pointerdown)="scrubbing.set(true)"
+                              (pointerup)="endScrub()"
+                              (pointercancel)="endScrub()"
+                              (input)="scrubTime.set(+$any($event.target).value)"
+                              (change)="seekTo(+$any($event.target).value)"
+                            />
+                            <span
+                              class="min-w-[2.7rem] font-mono text-[0.625rem] tabular-nums text-muted"
+                              >{{ clock(duration()) }}</span
+                            >
+                          </span>
                         }
                       </div>
-                      @if (musicSrc() && m.link.kind === 'youtube' && duration() > 0) {
-                        <span class="timeline mt-2 flex min-w-0 items-center gap-2">
-                          <span
-                            class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
-                            >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
-                          >
-                          <input
-                            type="range"
-                            class="min-w-0 flex-1"
-                            min="0"
-                            step="1"
-                            [max]="duration()"
-                            [value]="elapsed()"
-                            [attr.aria-label]="'Timeline' | t"
-                            (pointerdown)="scrubbing.set(true)"
-                            (pointerup)="endScrub()"
-                            (pointercancel)="endScrub()"
-                            (input)="scrubTime.set(+$any($event.target).value)"
-                            (change)="seekTo(+$any($event.target).value)"
-                          />
-                          <span
-                            class="min-w-[2.7rem] font-mono text-[0.625rem] tabular-nums text-muted"
-                            >{{ clock(duration()) }}</span
-                          >
-                        </span>
-                      }
-                    }
+                    </div>
                   </div>
                 }
               }
@@ -409,7 +420,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     [style.width.px]="box?.w ?? 0"
                     [style.height.px]="box?.h ?? 0"
                     [style.opacity]="box ? 1 : 0"
-                    (pointerdown)="floating && startFloat($event, t.id, 'move')"
+                    (pointerdown)="floating ? startFloat($event, t.id, 'move') : null"
                     (pointermove)="moveFloat($event)"
                     (pointerup)="endFloat($event)"
                     (pointercancel)="endFloat($event)"
@@ -800,14 +811,11 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                         >
                       </div>
                     </div>
-                    <details class="drawer-fold">
-                      <summary>
-                        <span>{{ 'Microphone' | t }}</span>
-                        <span class="font-mono text-[0.6875rem] font-normal text-muted"
-                          >{{ dbfs(myLevel()) }} dB</span
-                        >
-                      </summary>
-                      <div class="drawer-rows">
+                    <app-fold>
+                      <span foldTitle>{{ 'Microphone' | t }}</span>
+                      <span foldHint>{{ dbfs(myLevel()) }} dB</span>
+
+                      <div class="contents">
                         <div class="drawer-row">
                           <span>{{ 'Noise suppression' | t }}</span>
                           <app-toggle
@@ -878,15 +886,14 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             (input)="settings.inputGate.set(+$any($event.target).value)"
                         /></label>
                       </div>
-                    </details>
-                    <details class="drawer-fold">
-                      <summary>
-                        <span>{{ 'Camera' | t }}</span>
-                        <span class="font-mono text-[0.6875rem] font-normal text-muted"
-                          >{{ settings.cameraQuality() }}p · {{ settings.cameraFps() }}</span
-                        >
-                      </summary>
-                      <div class="drawer-rows">
+                    </app-fold>
+                    <app-fold>
+                      <span foldTitle>{{ 'Camera' | t }}</span>
+                      <span foldHint
+                        >{{ settings.cameraQuality() }}p · {{ settings.cameraFps() }}</span
+                      >
+
+                      <div class="contents">
                         <div class="drawer-block">
                           <span>{{ 'Quality' | t }}</span>
                           <app-segmented
@@ -916,7 +923,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           />
                         </div>
                       </div>
-                    </details>
+                    </app-fold>
                   </div>
                 }
               }
@@ -1156,8 +1163,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   ></iframe>
                   <!-- the picture is only a picture: a press on it plays or pauses for everybody, nothing of YouTube answers. While it is paused YouTube draws its own title, "more videos" and logo: a thick blur covers them (and our own mark shows). -->
                   <div
-                    class="absolute inset-0 flex cursor-pointer items-center justify-center transition-[backdrop-filter,background-color] duration-300"
+                    class="absolute inset-0 flex cursor-pointer items-center justify-center transition-colors duration-300"
                     [class.paused-cover]="paused() || unstarted()"
+                    [class.settle-cover]="settling() && !paused() && !unstarted()"
                     role="button"
                     tabindex="-1"
                     [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
@@ -1180,40 +1188,94 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               </div>
               @if (musicSrc()) {
                 <div
-                  class="timeline flex items-center gap-2 border-t border-white/8 px-3 py-2"
+                  class="timeline flex items-center gap-4 border-t border-white/8 px-4 py-3"
                   (dblclick)="$event.stopPropagation()"
                 >
                   <button
                     type="button"
-                    class="btn btn-icon btn-sm btn-ghost"
+                    class="btn btn-icon btn-primary shrink-0 !rounded-full"
                     [attr.title]="(paused() ? 'Play' : 'Pause') | t"
                     [attr.aria-label]="(paused() ? 'Play' : 'Pause') | t"
                     (click)="togglePause()"
                   >
-                    <app-icon [name]="paused() ? 'play' : 'pause'" [size]="15" />
+                    <app-icon [name]="paused() ? 'play' : 'pause'" [size]="16" />
                   </button>
-                  <span
-                    class="min-w-[2.7rem] text-right font-mono text-[0.625rem] tabular-nums text-muted"
-                    >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
+                  <div class="flex min-w-0 flex-1 items-center gap-3">
+                    <span
+                      class="min-w-[2.7rem] text-right font-mono text-[0.6875rem] tabular-nums text-muted"
+                      >{{ clock(scrubbing() ? scrubTime() : elapsed()) }}</span
+                    >
+                    <input
+                      type="range"
+                      class="min-w-0 flex-1"
+                      min="0"
+                      step="1"
+                      [max]="duration() || 1"
+                      [value]="elapsed()"
+                      [disabled]="duration() <= 0"
+                      [attr.aria-label]="'Timeline' | t"
+                      (pointerdown)="scrubbing.set(true)"
+                      (pointerup)="endScrub()"
+                      (pointercancel)="endScrub()"
+                      (input)="scrubTime.set(+$any($event.target).value)"
+                      (change)="seekTo(+$any($event.target).value)"
+                    />
+                    <span
+                      class="min-w-[2.7rem] font-mono text-[0.6875rem] tabular-nums text-muted"
+                      >{{ clock(duration()) }}</span
+                    >
+                  </div>
+                  <span class="mx-1 h-6 w-px shrink-0 bg-white/10"></span>
+                  <button
+                    type="button"
+                    class="btn btn-icon btn-sm shrink-0"
+                    [class.btn-active]="captions()"
+                    [attr.title]="(captions() ? 'Hide the subtitles' : 'Show the subtitles') | t"
+                    [attr.aria-label]="
+                      (captions() ? 'Hide the subtitles' : 'Show the subtitles') | t
+                    "
+                    [attr.aria-pressed]="captions()"
+                    (click)="toggleCaptions()"
                   >
-                  <input
-                    type="range"
-                    class="min-w-0 flex-1"
-                    min="0"
-                    step="1"
-                    [max]="duration() || 1"
-                    [value]="elapsed()"
-                    [disabled]="duration() <= 0"
-                    [attr.aria-label]="'Timeline' | t"
-                    (pointerdown)="scrubbing.set(true)"
-                    (pointerup)="endScrub()"
-                    (pointercancel)="endScrub()"
-                    (input)="scrubTime.set(+$any($event.target).value)"
-                    (change)="seekTo(+$any($event.target).value)"
-                  />
-                  <span class="min-w-[2.7rem] font-mono text-[0.625rem] tabular-nums text-muted">{{
-                    clock(duration())
-                  }}</span>
+                    <span class="text-[0.6875rem] font-extrabold tracking-wide">CC</span>
+                  </button>
+                  <div class="relative shrink-0">
+                    <button
+                      type="button"
+                      class="btn btn-icon btn-sm"
+                      [class.btn-active]="volumeOpen()"
+                      [attr.title]="'Volume' | t"
+                      [attr.aria-label]="'Volume' | t"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="toggleVolume()"
+                    >
+                      <app-icon
+                        [name]="settings.musicVolume() === 0 ? 'volume-x' : 'volume-2'"
+                        [size]="15"
+                      />
+                    </button>
+                    @if (volumeOpen()) {
+                      <div
+                        animate.leave="leave-pop"
+                        class="volume-pop anim-pop"
+                        (mousedown)="$event.stopPropagation()"
+                      >
+                        <b class="font-mono text-[0.6875rem] text-accent"
+                          >{{ settings.musicVolume() }}%</b
+                        >
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          class="volume-range"
+                          [value]="settings.musicVolume()"
+                          [attr.aria-label]="'Music volume' | t"
+                          (input)="setMusicVolume($event)"
+                        />
+                      </div>
+                    }
+                  </div>
                 </div>
               }
             </div>
@@ -1226,7 +1288,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
     <ng-template #tileTpl let-t let-small="small" let-focus="focus" let-short="short">
       <article
         class="tile-card anim-fade-in group isolate relative h-full w-full cursor-pointer overflow-hidden rounded-ui-lg border bg-ink-900"
-        (click)="t.kind !== 'activity' && clickTile(t)"
+        (click)="t.kind !== 'activity' ? clickTile(t) : null"
         (contextmenu)="t.kind !== 'activity' && openTileMenu($event, t)"
         (dblclick)="toggleFullscreen($event, t)"
         [attr.title]="(focus ? 'Click to go back to the grid' : 'Click to enlarge') | t"
@@ -1671,6 +1733,8 @@ export class VoiceStageComponent {
 
   /** The volume panel of the music card is open. */
   protected readonly volumeOpen = signal(false);
+  /** Whether the subtitles of the video are shown (off at the start: YouTube would turn them on by the choice of the person there). */
+  protected readonly captions = signal(false);
   /** Places where the volume slider holds for a moment (it can still be moved anywhere). */
   protected readonly volumeTicks = [0, 25, 50, 75, 100];
 
@@ -1939,12 +2003,17 @@ export class VoiceStageComponent {
   protected readonly scrubbing = signal(false);
   /** True while the player has not started (the browser asked for a press first). */
   protected readonly unstarted = signal(false);
+  /** True for a few seconds after a video starts or jumps: YouTube draws its title, buttons and logo then, and a blur covers them. */
+  protected readonly settling = signal(false);
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
   /** Where the thumb of the timeline is while it is dragged (the bar itself is not rewritten during the drag: a browser that is given a new value while the thumb is held stops the drag). */
   protected readonly scrubTime = signal(0);
   /** The last time the player reported, to notice a jump made inside the video itself. */
   private lastSample: { time: number; at: number } | null = null;
   /** The position of the playlist the player is at. */
   private playlistIndex = -1;
+  private lastState = -2;
+  private captionsReset = false;
   /** A command from the others was just applied: the echo of the player is not sent back before this time. */
   private quietUntil = 0;
   private readonly controlEffect = effect(this.applyControl.bind(this));
@@ -1989,6 +2058,20 @@ export class VoiceStageComponent {
     this.call.removeFromPlaylist(id);
   }
 
+  /** Covers the player for a moment (YouTube shows its own marks over a picture that has just started or moved). */
+  private settle(): void {
+    this.settling.set(true);
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(this.settling.set.bind(this.settling, false), 3000);
+  }
+
+  /** Shows or hides the subtitles of the video. */
+  protected toggleCaptions(): void {
+    const next = !this.captions();
+    this.captions.set(next);
+    this.commandPlayer(next ? 'loadModule' : 'unloadModule', ['captions']);
+  }
+
   /** The pause button of the music bar. */
   protected togglePause(): void {
     if (this.unstarted()) {
@@ -2019,6 +2102,7 @@ export class VoiceStageComponent {
     this.lastSample = null;
     this.quietUntil = Date.now() + 1500;
     this.commandPlayer('seekTo', [seconds, true]);
+    this.settle();
     this.call.setMusicPaused(this.paused(), seconds);
   }
 
@@ -2054,6 +2138,7 @@ export class VoiceStageComponent {
     }
     this.elapsed.set(control.pos);
     this.commandPlayer('seekTo', [control.pos, true]);
+    this.settle();
     this.commandPlayer(control.paused ? 'pauseVideo' : 'playVideo', []);
   }
 
@@ -2104,6 +2189,9 @@ export class VoiceStageComponent {
     if (typeof info.playlistIndex === 'number' && info.playlistIndex !== this.playlistIndex) {
       const changed = this.playlistIndex !== -1;
       this.playlistIndex = info.playlistIndex;
+      if (changed) {
+        this.settle();
+      }
       if (changed && now >= this.quietUntil) {
         this.lastSample = null;
         this.call.setMusicPaused(false, 0, info.playlistIndex);
@@ -2143,7 +2231,16 @@ export class VoiceStageComponent {
     // ? A browser that does not let the video start by itself (Firefox with sound) leaves it "unstarted" or "cued": the picture
     // asks for a press (the press is a gesture of the person, so the player may start).
     if (state !== undefined) {
+      // the player is ready: the subtitles start off, whatever the person chose in YouTube (asked once, never before it is ready)
+      if (!this.captionsReset && !this.captions()) {
+        this.captionsReset = true;
+        this.commandPlayer('unloadModule', ['captions']);
+      }
       this.unstarted.set(state === -1 || state === 5);
+      if (state === 1 && this.lastState !== 1) {
+        this.settle();
+      }
+      this.lastState = state;
     }
     if (state === 0 && this.call.music()) {
       this.call.musicEnded();
@@ -2180,6 +2277,8 @@ export class VoiceStageComponent {
     }
     this.musicFrame = marco;
     this.paused.set(false);
+    this.captions.set(false);
+    this.captionsReset = false;
     this.duration.set(0);
     this.elapsed.set(0);
     this.lastSample = null;
@@ -2216,7 +2315,10 @@ export class VoiceStageComponent {
 
   /** Asks again while the length of the video is still unknown and this is still the frame that plays. */
   private listenAgain(marco: HTMLIFrameElement): void {
-    if (marco === this.musicFrame && marco.isConnected && this.duration() <= 0) {
+    if (marco !== this.musicFrame || !marco.isConnected) {
+      return;
+    }
+    if (this.duration() <= 0) {
       this.listen(marco);
     }
   }
@@ -2596,11 +2698,6 @@ export class VoiceStageComponent {
   protected readonly myLevel = computed(
     function (this: VoiceStageComponent) {
       return this.call.levels()[this.auth.user()?.id ?? ''] ?? 0;
-    }.bind(this),
-  );
-  protected readonly dmPeerId = computed(
-    function (this: VoiceStageComponent) {
-      return this.social.dmByChannel(this.call.roomId() ?? '')?.userId ?? null;
     }.bind(this),
   );
   protected readonly roomTitle = computed(

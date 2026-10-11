@@ -27,6 +27,7 @@ export type ThemeId =
   | 'tangerine'
   | 'abyss'
   | 'plum'
+  | 'glacier'
   | 'custom';
 
 /** How opaque the big blocks of the interface are for each level of "background visibility", in percent. */
@@ -410,8 +411,10 @@ export class SettingsService {
       GLASS_LEVELS[Math.min(4, Math.max(0, this.bgVisibility()))] + '%',
     );
     root.style.setProperty('--font-size', this.fontSize() + 'px');
-    root.style.setProperty('--bg-blur', this.bgBlur() + 'px');
-    root.style.setProperty('--bg-core', Math.max(0, 45 - this.bgBlur() * 0.4) + '%');
+    // (the slider goes to 100; a larger value kept from before is read as 100)
+    const blur = Math.min(100, this.bgBlur());
+    root.style.setProperty('--bg-blur', blur + 'px');
+    root.style.setProperty('--bg-core', Math.max(0, 45 - blur * 0.4) + '%');
     root.style.setProperty('--bg-speed', String(speeds[this.bgMotion()]));
   }
 

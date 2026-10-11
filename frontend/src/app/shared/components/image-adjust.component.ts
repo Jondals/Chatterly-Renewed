@@ -375,18 +375,27 @@ export async function prepareImage(
 }
 
 /**
- * Lets the person pick a picture, adjust it and uploads it (the whole path of a new profile picture, banner or icon).
+ * Lets the person pick a picture and adjust it (the first part of the path of a new picture, banner or icon).
+ * @returns The picture, or null when the person cancels.
+ */
+export async function pickAndPrepareImage(
+  images: ImageService,
+  injector: EnvironmentInjector,
+  kind: ImageKind,
+): Promise<Blob | null> {
+  const file = await images.pickFile();
+  return file ? prepareImage(injector, file, IMAGE_PRESETS[kind]) : null;
+}
+
+/**
+ * Lets the person pick a profile picture or banner, adjust it and uploads it.
  * @returns The id of the new picture, or null when the person cancels.
  */
 export async function pickAndUploadImage(
   images: ImageService,
   injector: EnvironmentInjector,
-  kind: ImageKind,
+  kind: 'avatar' | 'banner',
 ): Promise<string | null> {
-  const file = await images.pickFile();
-  if (!file) {
-    return null;
-  }
-  const blob = await prepareImage(injector, file, IMAGE_PRESETS[kind]);
+  const blob = await pickAndPrepareImage(images, injector, kind);
   return blob ? images.upload(kind, blob) : null;
 }

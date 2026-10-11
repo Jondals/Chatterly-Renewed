@@ -28,7 +28,7 @@ export class SoundImportService {
 
   /** The decrypted file of an attachment. */
   private async blobOf(att: ViewAttachment): Promise<Blob> {
-    return (await fetch(await this.messages.attachmentUrl(att))).blob();
+    return this.messages.attachmentBlob(att);
   }
 
   /** The name of a sound from the name of its file. */

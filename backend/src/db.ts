@@ -214,6 +214,18 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['users', 'searchable', 'INTEGER NOT NULL DEFAULT 1'],
   // 1 when the bytes of the picture are ciphertext made in the browser (profile pictures and banners); 0 for group icons.
   ['images', 'encrypted', 'INTEGER NOT NULL DEFAULT 0'],
+  // The tag of a group (see server-tag.ts): the owner makes it, each member chooses whether to show it.
+  // The group a group icon belongs to: only its members are given the picture (set when the owner puts it as the icon).
+  ['images', 'guild_id', 'TEXT'],
+  ['guilds', 'tag_text', "TEXT NOT NULL DEFAULT ''"],
+  ['guilds', 'tag_color', "TEXT NOT NULL DEFAULT '#7c8cff'"],
+  ['guilds', 'tag_icon', "TEXT NOT NULL DEFAULT ''"],
+  ['users', 'tag_guild', 'TEXT'],
+  // The key of the encrypted icon of a group, sealed in the browser of the owner with the key of the group (see routes/guilds.ts).
+  ['guilds', 'icon_key_version', 'INTEGER NOT NULL DEFAULT 0'],
+  ['guilds', 'icon_key_iv', "TEXT NOT NULL DEFAULT ''"],
+  ['guilds', 'icon_key_data', "TEXT NOT NULL DEFAULT ''"],
+  ['users', 'server_tag', "TEXT NOT NULL DEFAULT ''"],
 ];
 
 /**
@@ -266,6 +278,10 @@ function migrate(db: Database.Database): void {
     )
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+  // The icons that were already in use belong to the group that shows them.
+  db.exec(
+    "UPDATE images SET guild_id = (SELECT g.id FROM guilds g WHERE g.icon_image = images.id) WHERE kind = 'group' AND guild_id IS NULL",
+  );
 }
 
 /** Version of the schema, kept in `PRAGMA user_version`: it only grows, and a database from the future is refused. */

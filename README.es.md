@@ -8,7 +8,7 @@
 
 [English](README.md) · **Español**
 
-![versión](https://img.shields.io/badge/versi%C3%B3n-2.22.0-2ef2b0?style=flat-square)
+![versión](https://img.shields.io/badge/versi%C3%B3n-2.23.0-2ef2b0?style=flat-square)
 ![cifrado](https://img.shields.io/badge/E2EE-AES--256--GCM%20%C2%B7%20ECDH%20P--256%20%C2%B7%20ECDSA-8b5cf6?style=flat-square)
 ![llamadas](https://img.shields.io/badge/llamadas-WebRTC%20malla%20%C2%B7%20DTLS--SRTP-38e8ff?style=flat-square)
 
@@ -26,6 +26,7 @@ Chatterly-Renewed es una aplicación al estilo Discord (mensajes directos, amigo
 - 📎 **Adjuntos cifrados** (clave propia por archivo, verificados con SHA-256), 🎙️ notas de voz, 😀 emojis (con una pestaña "Todos" que se carga poco a poco), reacciones cifradas, respuestas, edición y borrado.
 - 🔒 **Privacidad de verdad**: quién te ve en línea (todos, solo amigos o nadie), quién puede enviarte solicitudes, aparecer o no en las búsquedas, confirmaciones de lectura e indicador de escritura. El servidor hace cumplir estas opciones.
 - 🎡 **Ruedas y torneos de Spinly**, escuchar YouTube/Spotify juntos, ver vídeos juntos, atajos de teclado y panel de sonidos.
+- 🧩 **Preajustes y etiquetas de servidor**: guarda el aspecto de la app o de tu perfil (con fondo, fuentes e imágenes) con un nombre y compártelo en un chat; un amigo lo importa con un botón (todo lo que llega de otra persona se comprueba antes). El dueño de un grupo crea una etiqueta que los miembros pueden mostrar junto a su nombre. Al quitar a un amigo se borra el chat y sale de tus grupos.
 - 🎨 **Interfaz viva**: más de 20 fondos animados, anillos de aura, 10 temas, selector de color propio con cuentagotas, degradados de hasta cinco colores, cursores animados, sonidos de interfaz en archivos de audio que puedes sustituir (carpeta `frontend/public/sounds`), fotos de perfil y banners cifrados de extremo a extremo y tamaño de texto ajustable que escala toda la interfaz.
 
 ## Inicio rápido
@@ -81,7 +82,7 @@ Todo se configura con variables de entorno (ver [`backend/.env.example`](backend
 
 Nombres de usuario, campos del perfil, grafo de amigos, nombres y miembros de grupos y canales, horas y tamaños aproximados de los mensajes, tamaños de archivo, quién está en línea (según tu opción de privacidad) y quién está en qué llamada. **No** ve el texto de los mensajes, el contenido de los adjuntos, las reacciones, el audio/vídeo de las llamadas ni el contenido de la señalización.
 
-- **Las fotos de perfil y los banners están cifrados de extremo a extremo** (desde la 2.18.0): el navegador cifra cada uno con su propia clave aleatoria, el servidor guarda solo texto cifrado y la clave se sella para cada persona que puede verlo (amistades, gente que comparte un servidor, conversaciones directas) con la clave de par entre quien lo sube y esa persona. Quien no está en ese círculo no recibe nada y el servidor no puede abrirlos. Límites: quien vio una foto conserva lo que vio, una amistad nueva ve la foto la próxima vez que su dueño esté conectado (su navegador sella la clave entonces) y el servidor sigue sabiendo quién tiene foto y cuánto pesa. **Los iconos de grupo NO se cifran** (los ven los miembros; el servidor revisa su formato y les quita los metadatos). Las fotos privadas deben enviarse como adjuntos.
+- **Las fotos de perfil y los banners están cifrados de extremo a extremo** (desde la 2.18.0): el navegador cifra cada uno con su propia clave aleatoria, el servidor guarda solo texto cifrado y la clave se sella para cada persona que puede verlo (amistades, gente que comparte un servidor, conversaciones directas) con la clave de par entre quien lo sube y esa persona. Quien no está en ese círculo no recibe nada y el servidor no puede abrirlos. Límites: quien vio una foto conserva lo que vio, una amistad nueva ve la foto la próxima vez que su dueño esté conectado (su navegador sella la clave entonces) y el servidor sigue sabiendo quién tiene foto y cuánto pesa. **Los iconos de grupo también se cifran** (desde la 2.23.0): el navegador del dueño cifra el icono, la clave viaja con el grupo sellada con la clave del grupo y el servidor solo entrega el icono a los miembros del grupo. Las fotos privadas deben enviarse como adjuntos.
 - El relay TURN (y la máquina que lo aloja) ve las direcciones de red y el volumen de tráfico, pero no el contenido.
 - Un servidor que sirva JavaScript malicioso puede anular cualquier garantía de extremo a extremo: despliega el frontend desde una fuente en la que confíes.
 - Las claves de mensajes directos son claves estáticas entre pares (todavía sin secreto hacia delante por mensaje) y quien pierde su contraseña no puede recuperar su identidad.

@@ -2,7 +2,7 @@
  * src/app/shared/components/avatar.component.ts
  * Profile picture or initials, with ring, status dot and a highlight while speaking.
  */
-import { Component, computed, effect, inject, input, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { PresenceStatus, User } from '../../core/models';
 import { ImageService } from '../../core/services/image.service';
 
@@ -37,10 +37,10 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
           class="aura-core flex h-full w-full select-none items-center justify-center overflow-hidden font-bold text-ink-950"
           [class.rounded-full]="shape() === 'circle'"
           [style.border-radius]="shape() === 'square' ? 'var(--r-lg)' : null"
-          [style.background]="src() ? '#111' : background()"
+          [style.background]="shown() ? '#111' : background()"
           [style.fontSize.px]="size() * 0.4"
         >
-          @if (src(); as url) {
+          @if (shown(); as url) {
             <img
               [src]="url"
               alt=""
@@ -64,7 +64,11 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
       }
     </div>
   `,
-  host: { class: 'inline-block shrink-0 align-middle' },
+  host: {
+    class: 'inline-block shrink-0 align-middle',
+    '(mouseenter)': 'hover.set(true)',
+    '(mouseleave)': 'hover.set(false)',
+  },
 })
 export class AvatarComponent {
   readonly user = input<User | undefined | null>(undefined);
@@ -89,6 +93,15 @@ export class AvatarComponent {
   protected readonly src = computed(
     function (this: AvatarComponent) {
       return this.images.url(this.resolvedImage());
+    }.bind(this),
+  );
+  /** Whether the pointer is over the picture (a picture that moves moves only then). */
+  protected readonly hover = signal(false);
+  /** What is shown: the picture that moves under the pointer, its first frame the rest of the time. */
+  protected readonly shown = computed(
+    function (this: AvatarComponent) {
+      const still = this.images.still(this.resolvedImage());
+      return this.hover() || !still ? this.src() : still;
     }.bind(this),
   );
   protected readonly auraClass = computed(

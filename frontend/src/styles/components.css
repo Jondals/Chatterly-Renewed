@@ -120,6 +120,17 @@
   --accent-2: #fb923c;
 }
 
+[data-theme='glacier'] {
+  --ink-950: #050b0f;
+  --ink-900: #09131a;
+  --ink-850: #0d1b24;
+  --ink-800: #12252f;
+  --ink-700: #1a3442;
+  --ink-600: #254758;
+  --ink-500: #35607a;
+  --accent-2: #67e8f9;
+}
+
 [data-theme='abyss'] {
   --ink-950: #04100f;
   --ink-900: #071917;
@@ -1144,5 +1155,31 @@ label,
   /* tooltip: <button class="tip" data-tip="Label" data-tip-pos="right"> is drawn by TooltipService outside the interface */
   .tip {
     position: relative;
+  }
+}
+
+/* Hovering anything pressable eases in and out (a smooth change of color, border and shadow). It is in the lowest layer, so an
+   element that sets its own transition keeps it. */
+@layer base {
+  button,
+  a[href],
+  [role='button'],
+  [role='tab'],
+  [role='menuitem'],
+  .nav-item,
+  .choice-card,
+  .menu-card,
+  .ring-card,
+  .friend-row,
+  .chan-item,
+  .emoji-cell,
+  .seg-tab {
+    transition:
+      background-color 0.3s var(--ease-suave),
+      color 0.3s var(--ease-suave),
+      border-color 0.3s var(--ease-suave),
+      box-shadow 0.35s var(--ease-suave),
+      opacity 0.3s var(--ease-suave),
+      transform 0.3s var(--ease-suave);
   }
 }

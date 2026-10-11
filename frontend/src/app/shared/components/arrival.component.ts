@@ -315,6 +315,7 @@ function followCover(part: string, element: Element | null): void {
       border-radius: 50%;
       border: 1px solid var(--a);
       opacity: 0;
+      will-change: transform, opacity;
       animation: ripple 3.6s ease-out 0.8s infinite;
     }
     .arr-ripple.r2 {
@@ -346,8 +347,15 @@ function followCover(part: string, element: Element | null): void {
       margin: -4.5rem 0 0;
       border-radius: 50%;
       border: 2px solid var(--a);
-      box-shadow: 0 0 30px var(--a);
+      background: radial-gradient(
+        circle closest-side,
+        transparent 82%,
+        color-mix(in oklab, var(--a) 45%, transparent) 97%,
+        transparent
+      );
       opacity: 0;
+      /* it is drawn once and the compositor only scales that picture */
+      will-change: transform, opacity;
     }
     .arr-intro .arr-wave {
       animation: wave 1.3s ease-out 1.55s;
@@ -355,7 +363,12 @@ function followCover(part: string, element: Element | null): void {
     .arr-intro .arr-wave.w2 {
       animation-delay: 1.8s;
       border-color: var(--b);
-      box-shadow: 0 0 30px var(--b);
+      background: radial-gradient(
+        circle closest-side,
+        transparent 82%,
+        color-mix(in oklab, var(--b) 45%, transparent) 97%,
+        transparent
+      );
     }
     .arr-login .arr-wave,
     .arr-logout .arr-wave {
@@ -478,6 +491,7 @@ function followCover(part: string, element: Element | null): void {
       }
     }
     .arr-glow {
+      will-change: transform, opacity;
       position: absolute;
       top: 6rem;
       width: 18rem;
@@ -665,6 +679,32 @@ function followCover(part: string, element: Element | null): void {
       to {
         opacity: 0;
       }
+    }
+    /* A phone, or a device that is already slow: the parts that cost the most to draw are left out (the floor with its mask and its
+       3D, the light that sweeps over every letter, the extra rings), so the rest runs at the speed of the screen. */
+    @media (pointer: coarse), (max-width: 820px) {
+      .arr-floor,
+      .arr-ripple.r2,
+      .arr-ripple.r3,
+      .arr-orbit.o2 {
+        display: none;
+      }
+      .arr-title span {
+        background: none;
+        -webkit-text-fill-color: #fff;
+        animation: rise 0.8s var(--ease) calc(1.7s + var(--i) * 55ms) forwards;
+      }
+    }
+    :root[data-perf='low'] .arr-floor,
+    :root[data-perf='low'] .arr-ripple.r2,
+    :root[data-perf='low'] .arr-ripple.r3,
+    :root[data-perf='low'] .arr-orbit.o2 {
+      display: none;
+    }
+    :root[data-perf='low'] .arr-title span {
+      background: none;
+      -webkit-text-fill-color: #fff;
+      animation: rise 0.8s var(--ease) calc(1.7s + var(--i) * 55ms) forwards;
     }
   `,
 })

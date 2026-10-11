@@ -19,6 +19,7 @@ services:
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
+      TURN_TTL_SEC: ${TURN_TTL_SEC:-}
       RELAY_ONLY: ${RELAY_ONLY:-}
     logging:
       driver: json-file
@@ -78,6 +79,8 @@ services:
     command: ['-c', '/etc/coturn/turnserver.conf']
     volumes:
       - ./deploy/turnserver.generated.conf:/etc/coturn/turnserver.conf:ro
+      # TLS certificate of the relay (only used with `bash deploy/turn-setup.sh --tls`): see deploy/turn-cert-sync.sh
+      - ./deploy/tls:/etc/coturn/tls:ro
     # turnserver carries a file capability, so dropping every capability makes it fail to start.
     cap_drop:
       - ALL

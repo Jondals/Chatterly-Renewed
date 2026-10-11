@@ -532,65 +532,151 @@ button:disabled,
   }
 }
 
-/* The animations of the names (see name-fx.directive.ts). They play under the pointer and, in the chat (nfx-live), all the time.
-   Only transform, opacity and text-shadow move, and nobody who asked for less motion sees them. */
-/* in the components layer, so a name that is already block or flex (the utility classes) keeps its own display */
-@layer components {
-  .nfx {
-    display: inline-block;
-    transform-origin: 50% 60%;
-  }
+/* The animations of the names (see name-fx.directive.ts): the LETTERS move, one after another, with the principles of animation
+   (anticipation, squash and stretch, overshoot, follow-through). The real text is hidden in a wrapper that keeps its width and a
+   layer of letters goes over it. Only transform and opacity change, so the graphics chip does all the work, and the letters
+   move only while the name is under the pointer or (in the chat) on the screen: nfx-on. */
+.nfx {
+  overflow: clip !important;
+  overflow-clip-margin: 0.7em;
 }
-.nfx-float:hover,
-.nfx-float.nfx-live {
-  animation: nfx-float 3.2s ease-in-out infinite;
+.nfx-orig {
+  position: relative;
+  visibility: hidden;
 }
-.nfx-bounce:hover,
-.nfx-bounce.nfx-live {
-  animation: nfx-bounce 2.2s ease-in-out infinite;
+.nfx-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: visible;
+  white-space: pre;
+  pointer-events: none;
 }
-.nfx-pulse:hover,
-.nfx-pulse.nfx-live {
-  animation: nfx-pulse 1.6s ease-in-out infinite;
+.nfx-letters {
+  display: inline-block;
 }
-.nfx-shake:hover,
-.nfx-shake.nfx-live {
-  animation: nfx-shake 2.4s ease-in-out infinite;
+.nfx-l {
+  display: inline-block;
+  color: var(--name-color, currentColor);
+  transform-origin: 50% 100%;
+  animation-duration: var(--nfx-time, 2.4s);
+  animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+  animation-iteration-count: infinite;
+  animation-delay: calc(min(var(--i), 11) * var(--nfx-step, 70ms));
+  animation-play-state: paused;
 }
-.nfx-swing:hover,
-.nfx-swing.nfx-live {
-  animation: nfx-swing 2.8s ease-in-out infinite;
+/* a gradient is painted letter by letter (a letter that moves cannot be cut out of one piece) */
+.nfx-gradient .nfx-l {
+  color: transparent;
+  background-image: var(--name-image);
+  background-size: var(--w) 100%;
+  background-position: var(--x) 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.nfx-bounce .nfx-l {
+  --nfx-time: 1.4s;
+  --nfx-step: 90ms;
+  animation-name: nfx-bounce;
+}
+.nfx-jump .nfx-l {
+  --nfx-time: 3.2s;
+  --nfx-step: 70ms;
+  animation-name: nfx-jump;
+}
+.nfx-wave .nfx-l {
+  --nfx-time: 2.4s;
+  --nfx-step: 110ms;
+  transform-origin: 50% 80%;
+  animation-name: nfx-wave;
+}
+.nfx-drift .nfx-l {
+  --nfx-time: 4.2s;
+  --nfx-step: 160ms;
+  transform-origin: 50% 50%;
+  animation-name: nfx-drift;
+}
+.nfx-twinkle .nfx-l {
+  --nfx-time: 2.8s;
+  --nfx-step: 130ms;
+  transform-origin: 50% 50%;
+  animation-name: nfx-twinkle;
+}
+.nfx-jelly .nfx-l {
+  --nfx-time: 2.2s;
+  --nfx-step: 60ms;
+  animation-name: nfx-jelly;
+}
+.nfx-pop .nfx-l {
+  --nfx-time: 2.2s;
+  --nfx-step: 80ms;
+  transform-origin: 50% 60%;
+  animation-name: nfx-pop;
+}
+.nfx-swing .nfx-l {
+  --nfx-time: 2.8s;
+  --nfx-step: 80ms;
   transform-origin: 50% 0;
+  animation-name: nfx-swing;
 }
-.nfx-glow:hover,
-.nfx-glow.nfx-live {
-  animation: nfx-glow 2.6s ease-in-out infinite;
+.nfx-flip .nfx-l {
+  --nfx-time: 2.8s;
+  --nfx-step: 80ms;
+  transform-origin: 50% 50%;
+  animation-name: nfx-flip;
 }
-.nfx-neon:hover,
-.nfx-neon.nfx-live {
-  animation: nfx-neon 3.4s steps(1, end) infinite;
-}
-.nfx-glitch:hover,
-.nfx-glitch.nfx-live {
-  animation: nfx-glitch 3s steps(1, end) infinite;
-}
-.nfx-flip:hover,
-.nfx-flip.nfx-live {
-  animation: nfx-flip 4.2s ease-in-out infinite;
-}
-.nfx-sparkle::after {
-  content: '✦';
-  margin-left: 0.2em;
-  font-size: 0.7em;
-  vertical-align: 0.25em;
-  color: var(--accent);
+/* the lights: a blurred copy of the name behind it (drawn once), and only its opacity moves */
+.nfx-halo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--fx-color, currentColor);
+  filter: blur(0.32em);
   opacity: 0;
+  animation: nfx-breath 2.8s ease-in-out infinite;
+  animation-play-state: paused;
 }
-.nfx-sparkle:hover::after,
-.nfx-sparkle.nfx-live::after {
-  animation: nfx-twinkle 2.2s ease-in-out infinite;
+.nfx-neon .nfx-halo {
+  filter: blur(0.2em) brightness(1.4);
+  animation: nfx-flicker 4.4s linear infinite;
+  animation-play-state: paused;
 }
-:root[data-motion='reduced'] .nfx,
-:root[data-motion='reduced'] .nfx::after {
+.nfx-glow .nfx-l,
+.nfx-neon .nfx-l {
+  animation: none;
+}
+.nfx-on .nfx-l,
+.nfx-on .nfx-halo {
+  animation-play-state: running;
+}
+:root[data-motion='reduced'] .nfx-l,
+:root[data-motion='reduced'] .nfx-halo {
   animation: none !important;
+}
+
+/* A sticker moves under the pointer (the pickers, so fifty of them never run at once) and, as `stk-live`, all the time (a message). */
+.stk {
+  transform-origin: 50% 62%;
+}
+.stk[data-move='0'] {
+  --stk: stk-0;
+}
+.stk[data-move='1'] {
+  --stk: stk-1;
+}
+.stk[data-move='2'] {
+  --stk: stk-2;
+}
+.stk[data-move='3'] {
+  --stk: stk-3;
+}
+.stk[data-move='4'] {
+  --stk: stk-4;
+}
+.stk[data-move='5'] {
+  --stk: stk-5;
+}
+.stk:hover,
+.stk.stk-live {
+  animation: var(--stk, none) 1.8s ease-in-out infinite;
 }

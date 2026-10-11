@@ -14,6 +14,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { ServerTagPickerComponent } from './server-tag-picker.component';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DeleteAccountComponent } from './delete-account.component';
 import type { AuraId, NameFont, User } from '../../core/models';
@@ -30,7 +31,7 @@ import { BannerComponent } from '../../shared/components/banner.component';
 import { CollapseComponent } from '../../shared/components/collapse.component';
 import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { IconComponent } from '../../shared/components/icon.component';
-import { QUICK_COLORS, QUICK_GRADIENTS, parseRichText } from '../../shared/util/rich-text';
+import { QUICK_GRADIENTS } from '../../shared/util/rich-text';
 import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
 import { ProfileCardComponent } from '../../shared/components/profile-card.component';
 import { sortedStops, type GradientParts } from '../../shared/util/gradient';
@@ -77,11 +78,14 @@ const AURAS: { id: AuraId; label: string; colors: boolean }[] = [
 
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
+import { PresetsComponent } from './presets.component';
 @Component({
   selector: 'app-profile-section',
   standalone: true,
   host: { class: 'block' },
   imports: [
+    PresetsComponent,
+    ServerTagPickerComponent,
     GradientControlsComponent,
     UserFontDirective,
     NameFxDirective,
@@ -338,10 +342,7 @@ import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
               <div>
                 <app-collapse title="Name animation" [summary]="currentNameFx()">
                   <p class="mb-3 text-xs text-muted">
-                    {{
-                      'It plays when the pointer is over your name, and all the time in the chat.'
-                        | t
-                    }}
+                    {{ 'It plays when the pointer is over your name.' | t }}
                   </p>
                   <div class="grid grid-cols-3 gap-2.5">
                     @for (fx of nameEffects; track fx.id) {
@@ -648,11 +649,15 @@ import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
             </div>
           </div>
         </section>
+        <app-collapse title="Profile presets" summary="Save, apply and share your profile">
+          <app-presets kind="profile" (profileApplied)="applyPreset($event)" />
+        </app-collapse>
       </div>
 
       <aside class="xl:sticky xl:top-6 xl:self-start">
         <div class="label mb-2">{{ 'Preview' | t }}</div>
         <app-profile-card [user]="preview()" status="online" />
+        <app-server-tag-picker />
         <app-delete-account class="block" />
       </aside>
     </div>
@@ -714,13 +719,7 @@ export class ProfileSectionComponent {
   protected readonly auraColors = computed(this.readAuraColors.bind(this));
   protected readonly saving = signal(false);
   private readonly bio = viewChild<ElementRef<HTMLTextAreaElement>>('bio');
-  protected readonly bioSegments = computed(
-    function (this: ProfileSectionComponent) {
-      return parseRichText(this.draft().bio);
-    }.bind(this),
-  );
   protected readonly busy = signal(false);
-  protected readonly quickColors = QUICK_COLORS;
   /** Colors offered in the color panel of About me. */
   protected readonly bioPalette = [
     '#ff5d6c',
@@ -993,17 +992,6 @@ export class ProfileSectionComponent {
     }
   }
 
-  /** Takes every style mark (bold, italic, colors, gradients) out of About me and keeps the words. */
-  protected clearBioFormat(): void {
-    const plain = this.draft()
-      .bio.replace(/\[c=[^\]]*\]|\[\/c\]|\[g=[^\]]*\]|\[\/g\]/g, '')
-      .replace(/\*\*|~~/g, '')
-      .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2');
-    this.recordBio(true);
-    this.patch({ bio: plain });
-    this.recordBio(true);
-  }
-
   // ---- undo and redo of About me ------------------------------------------------------------
 
   private bioHistory: { text: string; caret: number }[] = [];
@@ -1130,6 +1118,11 @@ export class ProfileSectionComponent {
       gradient: false,
     };
     this.setBanner({ gradient: on, to: on && base.to === base.from ? '#2ef2b0' : base.to });
+  }
+
+  /** The fields of a profile preset go to the form: the person looks at them and saves them. */
+  protected applyPreset(fields: Record<string, unknown>): void {
+    this.draft.set({ ...this.draft(), ...(fields as Partial<Draft>) });
   }
 
   /** Throws away the changes and goes back to the saved profile. */

@@ -132,6 +132,19 @@ Qué hace: genera un secreto, escribe `deploy/turnserver.generated.conf` (modo 6
 > [!NOTE]
 > Con `--private`, **si el relay está caído las llamadas fallan** ("Llamada privada no disponible"). Es a propósito: nunca se cae a una conexión directa que enseñaría las IP.
 
+### Máxima privacidad: relay por TLS y sin registros (recomendado)
+
+```bash
+bash deploy/turn-setup.sh --private --tls --no-logs
+```
+
+- `--tls`: el relay solo contesta por **TLS** (`turns:`, TCP 5349), con el certificado que Caddy ya pidió para tu dominio. Quien mire la red (tu operadora, el wifi) ya no puede leer el nombre de usuario ni los mensajes de control del relay. Sigue viendo que te conectas a tu servidor y cuánto tráfico mueves. Abre en Oracle y en el sistema **TCP 5349** y **no abras el 3478**.
+- `--no-logs`: el relay no escribe ningún registro, así que no se guarda ninguna dirección.
+- Abre `https://tu-dominio` una vez antes (para que Caddy tenga el certificado). El certificado se renueva solo cada ~60 días: ejecuta `bash deploy/turn-cert-sync.sh` tras cada renovación, o déjalo en un temporizador diario.
+
+> [!NOTE]
+> El relay (tú) sigue viendo las IP mientras dura la llamada: es imprescindible para reenviar los paquetes. Con estas opciones simplemente no se guardan. Por TLS el audio y el vídeo viajan por TCP: en redes con muchas pérdidas pueden notar algo más de retardo que por UDP.
+
 ✔ Comprueba:
 
 ```bash

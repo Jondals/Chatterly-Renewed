@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-frontend",
-  "version": "2.22.0",
+  "version": "2.23.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -27,7 +27,6 @@
     "@fontsource-variable/space-grotesk": "^5.3.0",
     "@fontsource/noto-color-emoji": "^5.3.2",
     "@fontsource/pacifico": "^5.3.0",
-    "autoprefixer": "^10.6.1",
     "emojibase-data": "^17.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

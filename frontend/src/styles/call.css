@@ -482,9 +482,57 @@
   padding: 0.8rem;
 }
 
-/* A paused video of the call: YouTube draws its title, "more videos" and logo over a paused picture; this covers them. */
+/* YouTube draws its title, its buttons ("more videos", the center ones) and its logo over a picture that is paused or has just
+   started or moved. The picture is blurred and darkened under them while that lasts (no shapes over the video). */
+.paused-cover,
+.settle-cover {
+  -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(30px);
+}
 .paused-cover {
-  background-color: rgba(3, 4, 12, 0.5);
-  -webkit-backdrop-filter: blur(36px);
-  backdrop-filter: blur(36px);
+  background-color: rgba(3, 4, 12, 0.55);
+}
+.settle-cover {
+  background-color: rgba(3, 4, 12, 0.25);
+}
+
+/* The body of the card of the music folds away and comes back with the same smooth movement. */
+.mc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.4s var(--ease),
+    opacity 0.3s var(--ease-suave);
+}
+.mc-body.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.mc-inner {
+  min-height: 0;
+}
+.mc-body:not(.is-open) .mc-inner {
+  overflow: hidden;
+}
+
+/* The volume of the music: a small round popover over the button, with a short slider. */
+.volume-pop {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: -0.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 9.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ink-850, #11141c);
+  box-shadow: 0 12px 28px -10px #000;
+}
+.volume-pop .volume-range {
+  min-width: 0;
+  flex: 1;
 }

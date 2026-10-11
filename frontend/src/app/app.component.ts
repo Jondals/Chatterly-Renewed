@@ -14,6 +14,8 @@ import { ArrivalComponent } from './shared/components/arrival.component';
 import { MeshBackgroundComponent } from './shared/components/mesh-background.component';
 import { ToastHostComponent } from './shared/components/toast-host.component';
 import { watchFramePerformance } from './shared/util/perf-monitor';
+import { PresetService } from './core/services/preset.service';
+import { PresetTryComponent } from './shared/components/preset-try.component';
 
 /** Things that make a press feel like a press: tiny sounds under controls. */
 const PRESSABLE =
@@ -61,13 +63,24 @@ function weightOf(target: HTMLElement): PressWeight {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, ArrivalComponent, MeshBackgroundComponent, ToastHostComponent],
+  imports: [
+    RouterOutlet,
+    ArrivalComponent,
+    MeshBackgroundComponent,
+    PresetTryComponent,
+    ToastHostComponent,
+  ],
   template: `
     @defer (on idle) {
       <app-mesh-background />
     }
     <router-outlet />
     <app-toast-host />
+    @if (presets.trying() || presets.previewing()) {
+      @defer (on immediate) {
+        <app-preset-try />
+      }
+    }
     @if (arrival.current(); as a) {
       @defer (on immediate) {
         <app-arrival [kind]="a.kind" [name]="a.name" />
@@ -77,6 +90,7 @@ function weightOf(target: HTMLElement): PressWeight {
 })
 export class AppComponent {
   protected readonly arrival = inject(ArrivalService);
+  protected readonly presets = inject(PresetService);
   private readonly settings = inject(SettingsService);
   private readonly sound = inject(SoundService);
   // Made at the start: it brings the settings of the account when the person signs in, and keeps them.

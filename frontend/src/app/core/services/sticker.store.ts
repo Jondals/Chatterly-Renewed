@@ -11,6 +11,8 @@ import { readZip } from '../zip';
 export interface Sticker {
   id: string;
   blob: Blob;
+  /** How it moves (0 to 5, see `stk` in styles/keyframes.css): the picture itself is still, the page moves it. */
+  move?: number;
 }
 
 /** A pack of stickers. */
@@ -55,6 +57,32 @@ const STARTER = [
   '🦊',
   '👻',
   '💯',
+  '🥰',
+  '😴',
+  '🤯',
+  '🥺',
+  '😅',
+  '🤣',
+  '😇',
+  '🤩',
+  '😤',
+  '🤗',
+  '🫡',
+  '🙄',
+  '😏',
+  '🤝',
+  '💪',
+  '🙌',
+  '💔',
+  '✨',
+  '🎶',
+  '🎮',
+  '🍻',
+  '🍩',
+  '🐶',
+  '🦄',
+  '🌙',
+  '⚡',
 ];
 const IMAGE_EXTENSION = /\.(webp|png|jpe?g|gif)$/i;
 
@@ -122,13 +150,45 @@ function readCanvas(canvas: HTMLCanvasElement): 'blank' | 'flat' | 'picture' {
   }
 }
 
-/** Whether a real picture was drawn on the canvas. */
-function hasPicture(canvas: HTMLCanvasElement): boolean {
-  return readCanvas(canvas) === 'picture';
+/** How many movements a sticker can have (the keyframes `stk-0`... are in styles/keyframes.css). */
+const MOVE_COUNT = 6;
+
+/**
+ * An emoji as a STILL vector picture: it does not go through a canvas, so it works where the canvas is protected, and it
+ * stays light (about 0.4 KB). The movement is not inside the picture (a picture that moves inside is drawn again every frame
+ * and made the page lag): the page moves it with a transform, which the graphics chip does by itself.
+ */
+function emojiSvg(emoji: string): Blob {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><text x="128" y="132" font-size="190" text-anchor="middle" ' +
+    'dominant-baseline="central" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, sans-serif">' +
+    emoji +
+    '</text></svg>';
+  return new Blob([svg], { type: 'image/svg+xml' });
 }
 
-/** The movements of an animated sticker (the keyframes go inside the picture, so it moves wherever it is shown). */
-const MOVES: string[] = [
+/** An old sticker whose picture moved inside: its picture is made still and the movement is kept apart. */
+async function stillSticker(sticker: Sticker): Promise<Sticker | null> {
+  if (sticker.blob.type !== 'image/svg+xml' || sticker.blob.size > 4096) {
+    return null;
+  }
+  const text = await sticker.blob.text();
+  if (!text.includes('@keyframes m{')) {
+    return null;
+  }
+  const still = text.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<g style="[^"]*">/, '<g>');
+  const guess = OLD_MOVES.findIndex(function same(move) {
+    return text.includes(move);
+  });
+  return {
+    ...sticker,
+    blob: new Blob([still], { type: 'image/svg+xml' }),
+    move: Math.max(0, guess),
+  };
+}
+
+/** The keyframes the old emoji pictures carried, to know which movement each had. */
+const OLD_MOVES: string[] = [
   '0%,100%{transform:translateY(0)}50%{transform:translateY(-22px)}',
   '0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}',
   '0%,100%{transform:scale(1)}50%{transform:scale(1.14)}',
@@ -136,21 +196,6 @@ const MOVES: string[] = [
   '0%,40%,100%{transform:rotate(0)}10%{transform:rotate(-14deg)}20%{transform:rotate(12deg)}30%{transform:rotate(-8deg)}',
   '0%,100%{transform:scale(1,1)}25%{transform:scale(1.1,0.9)}50%{transform:scale(0.92,1.1)}75%{transform:scale(1.05,0.96)}',
 ];
-
-/**
- * An emoji as an ANIMATED vector picture (it moves in its own way, forever): it does not go through a canvas, so it works
- * where the canvas is protected, and it stays light (about 1 KB).
- */
-function emojiSvg(emoji: string, move = 0): Blob {
-  const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><style>@keyframes m{' +
-    MOVES[move % MOVES.length] +
-    '}</style><g style="transform-origin:128px 150px;animation:m 1.8s ease-in-out infinite"><text x="128" y="132" font-size="190" text-anchor="middle" ' +
-    'dominant-baseline="central" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, sans-serif">' +
-    emoji +
-    '</text></g></svg>';
-  return new Blob([svg], { type: 'image/svg+xml' });
-}
 
 /**
  * Personal sticker packs, stored on this device only (IndexedDB). A sticker is just an image: when you send
@@ -171,10 +216,27 @@ export class StickerStore {
     try {
       const packs = await runInStore<StickerPack[]>(LOCATION, 'readonly', readAll);
       this.packs.set(unpackBlobs(packs).sort(byCreation));
+      await this.stopOldMotion();
     } catch {
       this.packs.set([]);
     }
     this.loaded.set(true);
+  }
+
+  /** The emoji stickers made before the movement moved out of the picture are made still, keeping how each one moves. */
+  private async stopOldMotion(): Promise<void> {
+    for (const pack of this.packs()) {
+      const items: Sticker[] = [];
+      let changed = false;
+      for (const item of pack.items) {
+        const still = await stillSticker(item);
+        items.push(still ?? item);
+        changed = changed || !!still;
+      }
+      if (changed) {
+        await this.save({ ...pack, items });
+      }
+    }
   }
 
   /** Blob URL of a sticker (cached). */
@@ -271,12 +333,16 @@ export class StickerStore {
   }
 
   /** Adds images to an existing pack or creates a new one. Returns how many stickers were added. */
-  async addImages(files: Blob[], pack?: { id?: string; name: string }): Promise<number> {
+  async addImages(
+    files: Blob[],
+    pack?: { id?: string; name: string },
+    moves: number[] = [],
+  ): Promise<number> {
     const items: Sticker[] = [];
-    for (const file of files) {
+    for (const [at, file] of files.entries()) {
       const normalized = await this.normalize(file);
       if (normalized) {
-        items.push({ id: crypto.randomUUID(), blob: normalized });
+        items.push({ id: crypto.randomUUID(), blob: normalized, move: moves[at] });
       }
     }
     if (items.length === 0) {
@@ -360,50 +426,13 @@ export class StickerStore {
     return this.addImages(blobs, { name: name || 'WhatsApp pack' });
   }
 
-  /** A font that cannot be loaded is not an error here: the system emoji font is used instead. */
-  private ignoreFont(): void {
-    return;
-  }
-
-  /**
-   * Draws one emoji on a canvas: first with the emoji font of the system (the web font of the emoji does not draw on the
-   * canvas of some browsers, it leaves it blank), and with the web font only when the system has none.
-   * @returns Whether something was drawn.
-   */
-  private async drawEmoji(canvas: HTMLCanvasElement, emoji: string): Promise<boolean> {
-    const stacks = [
-      '"Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif',
-      '"Noto Color Emoji", sans-serif',
-    ];
-    for (const stack of stacks) {
-      if (stack.startsWith('"Noto')) {
-        // The emoji font arrives in pieces, only when a text needs them: ask for the piece of this emoji first.
-        await Promise.race([
-          document.fonts.load('200px "Noto Color Emoji"', emoji).catch(this.ignoreFont),
-          new Promise<void>(function wait(resolve) {
-            setTimeout(resolve, 1500);
-          }),
-        ]);
-      }
-      const context = canvas.getContext('2d')!;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.font = '200px ' + stack;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(emoji, 128, 140);
-      if (hasPicture(canvas)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /** Makes 24 animated emoji as stickers, so the tab is useful from the first click. Returns how many were made. */
+  /** Makes 50 animated emoji as stickers, so the tab is useful from the first click. Returns how many were made. */
   async addStarterPack(): Promise<number> {
-    const blobs = STARTER.map(function animated(emoji, index): Blob {
-      return emojiSvg(emoji, index);
+    const blobs = STARTER.map(emojiSvg);
+    const moves = STARTER.map(function move(_emoji, index): number {
+      return index % MOVE_COUNT;
     });
-    return this.addImages(blobs, { name: 'Emoji starter' });
+    return this.addImages(blobs, { name: 'Emoji starter' }, moves);
   }
 
   /** Opens the file chooser and imports what the person picks. */

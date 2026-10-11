@@ -337,7 +337,8 @@ export class GifThumbComponent {
                       [src]="stickers.url(s)"
                       alt=""
                       loading="lazy"
-                      class="h-full w-full object-contain transition duration-300 group-hover:scale-110"
+                      class="stk h-full w-full object-contain"
+                      [attr.data-move]="s.move"
                     />
                   </button>
                 }

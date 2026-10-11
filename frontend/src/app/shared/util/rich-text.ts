@@ -13,8 +13,7 @@ export type Segment =
   | { type: 'color'; color: string; children: Segment[] }
   | { type: 'gradient'; colors: string[]; children: Segment[] };
 
-/** Quick colors and gradients offered by both the chat and "About me". */
-export const QUICK_COLORS = ['#ff5d6c', '#4ade80', '#38bdf8'];
+/** Quick gradients offered by both the chat and "About me". */
 export const QUICK_GRADIENTS = [
   { name: 'Sunset', colors: ['#ff512f', '#f09819'] },
   { name: 'Ocean', colors: ['#00c6ff', '#7f5af0'] },

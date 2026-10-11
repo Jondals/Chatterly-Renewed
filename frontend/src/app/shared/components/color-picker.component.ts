@@ -67,7 +67,7 @@ function hexToHsv(hex: string): [number, number, number] {
   template: `
     <button
       type="button"
-      class="swatch relative overflow-hidden border border-white/20 hover:scale-105"
+      class="swatch relative block overflow-hidden border border-white/20 hover:scale-105"
       [class]="shape() === 'round' ? 'rounded-full' : 'rounded-[calc(var(--r)*.6)]'"
       [style.width.px]="size()"
       [style.height.px]="size() * (shape() === 'round' ? 1 : 0.8)"

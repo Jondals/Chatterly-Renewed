@@ -68,11 +68,6 @@ export async function sha256(data: BufferSource | string): Promise<Bytes> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', input));
 }
 
-/** SHA-256 hash of a text or of bytes, as hexadecimal text. */
-export async function sha256Hex(data: BufferSource | string): Promise<string> {
-  return toHex(await sha256(data));
-}
-
 /** Constant-time-ish comparison for short secrets such as hashes. */
 export function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;

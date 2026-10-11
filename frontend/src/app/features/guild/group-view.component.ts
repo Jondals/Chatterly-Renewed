@@ -31,6 +31,7 @@ import { GuildStore } from '../../store/guild.store';
 import { SocialStore } from '../../store/social.store';
 import { ChatPanelComponent } from '../chat/chat-panel.component';
 import { fontClassOf } from '../../shared/util/user-font.directive';
+import { ServerTagComponent } from '../../shared/components/server-tag.component';
 
 /** A member of the list, with the tags they have. */
 interface MemberRow {
@@ -50,6 +51,7 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
   selector: 'app-group-view',
   standalone: true,
   imports: [
+    ServerTagComponent,
     ToggleComponent,
     ColorPickerComponent,
     NameColorDirective,
@@ -204,6 +206,7 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
                             [appUserFont]="m.user.nameFont"
                             [nameFx]="m.user.nameFx"
                             >{{ m.user.displayName }}
+                            <app-server-tag [tag]="m.user.serverTag" />
                             @if (m.role === 'owner') {
                               <app-icon name="crown" [size]="12" class="text-amber" />
                             }

@@ -32,6 +32,24 @@ import { describeError, passwordScore } from '../../shared/util/errors';
     ToggleComponent,
     TranslatePipe,
   ],
+  styles: `
+    /* the fingerprint is one line: the letters shrink with the box (about 74 characters), and on a narrow screen it breaks in two balanced lines */
+    .fp-box {
+      container-type: inline-size;
+    }
+    .fp-text {
+      white-space: nowrap;
+      font-size: min(0.8125rem, 1.85cqw);
+    }
+    @container (max-width: 34rem) {
+      .fp-text {
+        white-space: normal;
+        text-wrap: balance;
+        word-spacing: 0.25em;
+        font-size: 0.8125rem;
+      }
+    }
+  `,
   template: `
     <section class="rounded-ui-lg border border-white/8 bg-black/20 p-5">
       <h2 class="mb-1 flex items-center gap-2 text-sm font-semibold">
@@ -44,10 +62,8 @@ import { describeError, passwordScore } from '../../shared/util/errors';
             | t
         }}
       </p>
-      <div
-        class="flex items-center gap-2 rounded-ui bg-black/30 p-3 font-mono text-sm font-bold tracking-wider"
-      >
-        <span class="selectable min-w-0 flex-1 break-all text-accent">{{ fingerprintText() }}</span>
+      <div class="fp-box flex items-center gap-2 rounded-ui bg-black/30 p-3 font-mono font-bold">
+        <span class="fp-text selectable min-w-0 flex-1 text-accent">{{ fingerprintText() }}</span>
         <button
           class="btn btn-icon btn-sm tip"
           [attr.data-tip]="'Copy' | t"

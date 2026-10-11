@@ -1,6 +1,6 @@
 /* The wheel and the tournaments (Spinly). */
 
-/* Spinly surfaces: a grid of lines that drifts by itself, like the real Spinly. */
+/* Spinly surfaces: a calm dark surface with a faint grid. It does not move (a moving background took the eyes from the wheel). */
 .sp-glow {
   position: relative;
   isolation: isolate;
@@ -10,18 +10,14 @@
 .sp-glow::before {
   content: '';
   position: absolute;
-  /* wider than the card by one period of the grid, so it can slide by exactly that and start again without a jump */
-  inset: -38px;
+  inset: 0;
   z-index: -1;
   pointer-events: none;
   background-color: rgba(2, 4, 8, 0.5);
   background-image:
-    linear-gradient(color-mix(in oklab, var(--accent) 8%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 8%, transparent) 1px, transparent 1px);
+    linear-gradient(color-mix(in oklab, var(--accent) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 4%, transparent) 1px, transparent 1px);
   background-size: 36px 36px;
-  filter: blur(1.1px);
-  will-change: transform;
-  animation: grid-drift 16s linear infinite;
 }
 
 /* The heads of the Spinly cards (chat and call): a soft band of the accent color. */

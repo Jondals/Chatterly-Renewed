@@ -653,7 +653,9 @@ export class DirectHubComponent {
     if (
       await this.dialog.confirm(
         t('Remove {name}?', { name: user.displayName }),
-        t('You will no longer be able to message or call each other.'),
+        t(
+          'Your chat with them is deleted, they leave the groups you own (and their messages there are deleted) and they stop showing up for you. You can add them again later.',
+        ),
         { danger: true, confirmLabel: t('Remove') },
       )
     ) {

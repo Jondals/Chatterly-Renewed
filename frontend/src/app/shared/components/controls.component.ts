@@ -38,7 +38,7 @@ export class ToggleComponent {
   standalone: true,
   imports: [TranslatePipe],
   template: `
-    <div class="inline-flex rounded-ui bg-black/30 p-0.5" role="radiogroup">
+    <div class="inline-flex max-w-full flex-wrap rounded-ui bg-black/30 p-0.5" role="radiogroup">
       @for (o of options(); track o.id) {
         <button
           type="button"

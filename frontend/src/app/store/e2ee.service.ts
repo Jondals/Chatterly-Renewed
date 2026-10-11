@@ -48,6 +48,8 @@ export interface AttachmentPayload {
   durationMs?: number;
   /** Sent from the sticker tab: shown large, without a bubble. */
   sticker?: boolean;
+  /** How an animated sticker moves (0 to 5). */
+  move?: number;
   /** Picked from the GIF tab (downloaded via the server, then re-encrypted like any file). */
   gif?: boolean;
   /** The sender offers this audio or video for the soundboard: the others get a button to add it to theirs. */
@@ -56,6 +58,8 @@ export interface AttachmentPayload {
   pack?: string;
   /** The emoji of a sound that is shared for the soundboard. */
   emoji?: string;
+  /** A preset of the theme or of the profile: the people who get it have a button to import it. */
+  preset?: { kind: 'theme' | 'profile'; name: string; thumb?: string };
 }
 
 export interface SealedForServer extends Sealed {

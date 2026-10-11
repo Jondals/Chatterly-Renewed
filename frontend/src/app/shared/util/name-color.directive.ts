@@ -72,6 +72,9 @@ export function encodeNameColor(parts: NameColorParts): string {
     '[style.background-image]': 'image()',
     '[style.background-clip]': 'image() ? "text" : null',
     '[style.-webkit-background-clip]': 'image() ? "text" : null',
+    '[style.--fx-color]': 'light()',
+    '[style.--name-color]': 'solid()',
+    '[style.--name-image]': 'image()',
   },
 })
 export class NameColorDirective {
@@ -80,6 +83,10 @@ export class NameColorDirective {
   private readonly parsed = computed(this.readColor.bind(this));
   protected readonly image = computed(this.computeImage.bind(this));
   protected readonly color = computed(this.computeColor.bind(this));
+  /** The plain color of the letters when the name moves (null over a gradient: every letter paints its part of it). */
+  protected readonly solid = computed(this.computeSolid.bind(this));
+  /** The color the animations of the name shine with (the first color: over a gradient the text itself is transparent). */
+  protected readonly light = computed(this.computeLight.bind(this));
 
   /** The parts of the chosen color. */
   private readColor(): NameColorParts | null {
@@ -90,6 +97,20 @@ export class NameColorDirective {
   private computeImage(): string | null {
     const parts = this.parsed();
     return parts && parts.gradient ? gradientCss(parts) : null;
+  }
+
+  /** The plain color of the text, when it has one. */
+  private computeSolid(): string | null {
+    const parts = this.parsed();
+    if (parts) {
+      return parts.gradient ? null : parts.from;
+    }
+    return this.fallback();
+  }
+
+  /** The color of the light of an animation of the name. */
+  private computeLight(): string | null {
+    return this.parsed()?.from ?? this.fallback();
   }
 
   /** The text color: transparent over a gradient, the solid color, or the fallback. */

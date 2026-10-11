@@ -107,43 +107,112 @@ interface Entry {
       [width]="900"
       (closed)="closed.emit()"
     >
+      <div
+        class="relative mb-5 grid grid-cols-2 rounded-ui border border-white/8 bg-black/25 p-1"
+        role="tablist"
+      >
+        <span
+          class="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[calc(var(--r)*.75)] bg-accent/20 shadow-[0_0_0_1px_var(--accent)] transition-transform duration-300 ease-out"
+          [style.transform]="kind() === 'tournament' ? 'translateX(100%)' : 'none'"
+        ></span>
+        <button
+          type="button"
+          role="tab"
+          class="relative z-10 flex h-9 items-center justify-center gap-2 text-sm font-semibold transition-colors"
+          [class]="kind() === 'wheel' ? 'text-accent' : 'text-muted hover:text-fg'"
+          (click)="setKind('wheel')"
+        >
+          <app-icon name="wheel" [size]="16" /> {{ 'Wheel' | t }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="relative z-10 flex h-9 items-center justify-center gap-2 text-sm font-semibold transition-colors"
+          [class]="kind() === 'tournament' ? 'text-accent' : 'text-muted hover:text-fg'"
+          (click)="setKind('tournament')"
+        >
+          <app-icon name="trophy" [size]="16" /> {{ 'Tournament' | t }}
+        </button>
+      </div>
+
       <div class="sp-glow grid gap-6 md:grid-cols-[18rem_minmax(0,1fr)]">
         <!-- The wheel as it is being made, and how it looks -->
         <div class="min-w-0 max-md:contents md:self-start">
-          <div
-            class="relative mx-auto w-full rounded-ui-lg border border-white/8 px-5 pb-4 pt-8 max-md:order-1 max-md:pb-3 max-md:pt-6"
-            [style.background]="glow()"
-          >
+          @if (kind() === 'tournament') {
             <div
-              class="mx-auto w-full max-w-[16rem] max-md:max-w-[11rem]"
-              data-keep-click
-              (pointerdown)="rememberPress($event)"
+              class="relative mx-auto flex w-full flex-col items-center gap-3 rounded-ui-lg border border-white/8 bg-black/20 px-5 pb-5 pt-6 text-center max-md:order-1"
             >
-              <app-spinly-wheel
-                [sectors]="sectors()"
-                [theme]="theme()"
-                [interactive]="true"
-                [selected]="target() === 'slice' ? selected() : null"
-                [highlight]="target() === 'slice' ? selected() : null"
-                (sectorClick)="selectSlice($event)"
-                (pointerClick)="edit('pointer')"
-                (lightsClick)="edit('light')"
+              <span class="tp-trophy"><app-icon name="trophy" [size]="30" /></span>
+              <b class="text-sm">{{ 'Knockout tournament' | t }}</b>
+              <div class="grid w-full grid-cols-3 gap-2">
+                <span class="tp-stat"
+                  ><b>{{ filled() }}</b
+                  >{{ 'players' | t }}</span
+                >
+                <span class="tp-stat"
+                  ><b>{{ duels() }}</b
+                  >{{ 'duels' | t }}</span
+                >
+                <span class="tp-stat"
+                  ><b>{{ rounds() }}</b
+                  >{{ 'rounds' | t }}</span
+                >
+              </div>
+              <ol class="tp-list">
+                @for (entry of entries(); track entry.id; let i = $index) {
+                  @if (entry.name.trim()) {
+                    <li class="anim-fade-in">
+                      <i [style.background]="entry.color"></i>
+                      <span class="min-w-0 flex-1 truncate">{{ entry.name }}</span>
+                      <b>{{ i + 1 }}</b>
+                    </li>
+                  }
+                }
+              </ol>
+              <p class="text-[0.6875rem] leading-snug text-muted">
+                {{
+                  'Every duel is a spin of a wheel with the two of them: the winner goes on.' | t
+                }}
+              </p>
+            </div>
+          } @else {
+            <div
+              class="relative mx-auto w-full rounded-ui-lg border border-white/8 px-5 pb-4 pt-8 max-md:order-1 max-md:pb-3 max-md:pt-6"
+              [style.background]="glow()"
+            >
+              <div
+                class="mx-auto w-full max-w-[16rem] max-md:max-w-[11rem]"
+                data-keep-click
+                (pointerdown)="rememberPress($event)"
+              >
+                <app-spinly-wheel
+                  [sectors]="sectors()"
+                  [theme]="theme()"
+                  [interactive]="true"
+                  [selected]="target() === 'slice' ? selected() : null"
+                  [highlight]="target() === 'slice' ? selected() : null"
+                  (sectorClick)="selectSlice($event)"
+                  (pointerClick)="edit('pointer')"
+                  (lightsClick)="edit('light')"
+                />
+              </div>
+              <p
+                class="mt-3 border-t border-white/8 pt-3 text-center text-xs leading-snug text-muted"
+              >
+                {{
+                  'Click a slice, the arrow or the lights of the wheel to change their color.' | t
+                }}
+              </p>
+              <app-color-picker
+                #editorPicker
+                class="pointer-events-none fixed left-0 top-0 h-0 w-0 opacity-0"
+                label="Color"
+                [value]="editorColor()"
+                (valueChange)="setEditorColor($event)"
+                (closed)="closeEditor()"
               />
             </div>
-            <p
-              class="mt-3 border-t border-white/8 pt-3 text-center text-xs leading-snug text-muted"
-            >
-              {{ 'Click a slice, the arrow or the lights of the wheel to change their color.' | t }}
-            </p>
-            <app-color-picker
-              #editorPicker
-              class="pointer-events-none fixed left-0 top-0 h-0 w-0 opacity-0"
-              label="Color"
-              [value]="editorColor()"
-              (valueChange)="setEditorColor($event)"
-              (closed)="closeEditor()"
-            />
-          </div>
+          }
           <div class="mt-4 space-y-2 max-md:order-3 max-md:mt-0">
             <div class="fold" [class.is-open]="lookOpen()">
               <button
@@ -242,34 +311,6 @@ interface Entry {
         <div
           class="min-w-0 space-y-4 max-md:order-2 md:max-h-[calc(92dvh-12rem)] md:overflow-y-auto md:pr-2"
         >
-          <div
-            class="relative grid grid-cols-2 rounded-ui border border-white/8 bg-black/25 p-1"
-            role="tablist"
-          >
-            <span
-              class="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[calc(var(--r)*.75)] bg-accent/20 shadow-[0_0_0_1px_var(--accent)] transition-transform duration-300 ease-out"
-              [style.transform]="kind() === 'tournament' ? 'translateX(100%)' : 'none'"
-            ></span>
-            <button
-              type="button"
-              role="tab"
-              class="relative z-10 flex h-9 items-center justify-center gap-2 text-sm font-semibold transition-colors"
-              [class]="kind() === 'wheel' ? 'text-accent' : 'text-muted hover:text-fg'"
-              (click)="setKind('wheel')"
-            >
-              <app-icon name="wheel" [size]="16" /> {{ 'Wheel' | t }}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="relative z-10 flex h-9 items-center justify-center gap-2 text-sm font-semibold transition-colors"
-              [class]="kind() === 'tournament' ? 'text-accent' : 'text-muted hover:text-fg'"
-              (click)="setKind('tournament')"
-            >
-              <app-icon name="trophy" [size]="16" /> {{ 'Tournament' | t }}
-            </button>
-          </div>
-
           <div class="contents">
             <div>
               <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -368,6 +409,60 @@ interface Entry {
     </app-modal>
   `,
   styles: `
+    .tp-trophy {
+      display: grid;
+      width: 3.6rem;
+      height: 3.6rem;
+      place-items: center;
+      border-radius: 50%;
+      color: #fbbf24;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.22), transparent 70%);
+      filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.45));
+    }
+    .tp-stat {
+      display: grid;
+      gap: 0.1rem;
+      padding: 0.5rem 0.2rem;
+      border-radius: var(--r);
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .tp-stat b {
+      font-size: 1.15rem;
+      letter-spacing: 0;
+      color: var(--fg);
+    }
+    .tp-list {
+      display: grid;
+      width: 100%;
+      max-height: 11rem;
+      gap: 0.25rem;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 0.78rem;
+    }
+    .tp-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.55rem;
+      border-radius: calc(var(--r) * 0.8);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .tp-list i {
+      width: 0.55rem;
+      height: 0.55rem;
+      flex-shrink: 0;
+      border-radius: 50%;
+    }
+    .tp-list b {
+      font-size: 0.625rem;
+      color: var(--dim);
+    }
     .rule-preset {
       display: flex;
       align-items: center;
@@ -429,12 +524,9 @@ export class SpinlyComposerComponent implements OnInit {
   protected readonly target = computed(this.pickTarget.bind(this));
   /** The color the editor shows. */
   protected readonly editorColor = computed(this.pickEditorColor.bind(this));
-  /** The name of what the editor changes. */
-  protected readonly editorName = computed(this.pickEditorName.bind(this));
   /** The theme the person started from, offered in the list of themes. */
   private readonly extraTheme = signal<SpinlyTheme | undefined>(undefined);
 
-  protected readonly maxTitle = MAX_TITLE;
   protected readonly minimum = MIN_OPTIONS;
   protected readonly rulePresets = RULE_PRESETS;
   protected readonly activePreset = computed(this.findActivePreset.bind(this));
@@ -442,6 +534,8 @@ export class SpinlyComposerComponent implements OnInit {
   protected readonly chosen = computed(this.pickChosen.bind(this));
   /** How many duels the tournament will have. */
   protected readonly duels = computed(this.countDuels.bind(this));
+  /** How many rounds the tournament will have. */
+  protected readonly rounds = computed(this.countRounds.bind(this));
   protected readonly palette = PALETTE_HEX;
   protected readonly limit = computed(this.pickLimit.bind(this));
   protected readonly maxName = computed(this.pickMaxName.bind(this));
@@ -796,18 +890,6 @@ export class SpinlyComposerComponent implements OnInit {
     }
   }
 
-  /** The label of what is being edited. */
-  private pickEditorName(): string {
-    switch (this.target()) {
-      case 'pointer':
-        return 'Pointer';
-      case 'light':
-        return 'Lights';
-      default:
-        return this.chosen()?.name || '…';
-    }
-  }
-
   /** A new color from the editor goes to the slice, the pointer or the lights. */
   protected setEditorColor(color: string): void {
     const target = this.target();
@@ -850,6 +932,11 @@ export class SpinlyComposerComponent implements OnInit {
   }
 
   /** The number of duels: one less than the participants, plus the one for third place. */
+  private countRounds(): number {
+    return Math.max(1, Math.ceil(Math.log2(Math.max(2, this.filled()))));
+  }
+
+  /** How many duels the tournament will have. */
   private countDuels(): number {
     const count = this.filled();
     const third = this.config().thirdPlace && count >= 4 ? 1 : 0;

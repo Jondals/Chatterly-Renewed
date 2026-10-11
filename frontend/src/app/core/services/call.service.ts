@@ -511,17 +511,12 @@ export class CallService {
   /** Looks the title of a YouTube or Spotify link up (it is only a label; nothing depends on it). */
   findTitle(url: string): void {
     if (this.titleRequests.has(url) || this.musicTitles()[url]) return;
-    const parsed = parseMusicLink(url);
-    if (!parsed) return;
+    if (!parseMusicLink(url)) return;
     this.titleRequests.add(url);
-    const service =
-      parsed.kind === 'spotify'
-        ? 'https://open.spotify.com/oembed?url='
-        : 'https://www.youtube.com/oembed?format=json&url=';
-    fetch(service + encodeURIComponent(url), { credentials: 'omit', referrerPolicy: 'no-referrer' })
-      .then(function toJson(answer) {
-        return answer.json();
-      })
+    // The title is asked of our own server, which asks the service: this browser never talks to YouTube or Spotify about it
+    // (it would tell them the address of the person and what they are looking at).
+    this.api
+      .get<{ title?: unknown }>('/api/preview?url=' + encodeURIComponent(url))
       .then(this.keepTitle.bind(this, url))
       .catch(function ignore() {
         return undefined;

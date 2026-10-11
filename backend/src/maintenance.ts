@@ -13,6 +13,8 @@ import { imageFile } from './routes/images';
 
 /** How long a new upload may wait to be attached to a profile or a group before it is considered abandoned. */
 export const IMAGE_GRACE_MS = 24 * 60 * 60 * 1000;
+/** How long an old group icon that is not encrypted may wait for its owner to open the app (which encrypts it) before it is erased. */
+export const PLAIN_ICON_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 /** How often the cleanup runs. */
 export const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -21,7 +23,7 @@ export interface MaintenanceReport {
   sessions: number;
   spentTokens: number;
   images: number;
-  /** Profile pictures and banners stored before they were encrypted: they are erased so the person uploads them again. */
+  /** Pictures stored before they were encrypted (profile pictures, banners, and old group icons that waited too long): erased. */
   plainPictures: number;
 }
 
@@ -45,6 +47,14 @@ export function runMaintenance(ctx: AppContext, now = Date.now()): MaintenanceRe
     db.prepare('DELETE FROM images WHERE id = ?').run(image.id);
     fs.rmSync(imageFile(ctx, image.id), { force: true });
   }
+  const oldIcons = db
+    .prepare("SELECT id FROM images WHERE encrypted = 0 AND kind = 'group' AND created_at < ?")
+    .all(now - PLAIN_ICON_GRACE_MS) as { id: string }[];
+  for (const image of oldIcons) {
+    db.prepare('UPDATE guilds SET icon_image = NULL WHERE icon_image = ?').run(image.id);
+    db.prepare('DELETE FROM images WHERE id = ?').run(image.id);
+    fs.rmSync(imageFile(ctx, image.id), { force: true });
+  }
   const abandoned = db
     .prepare(
       `SELECT id FROM images
@@ -63,6 +73,6 @@ export function runMaintenance(ctx: AppContext, now = Date.now()): MaintenanceRe
     sessions,
     spentTokens,
     images: abandoned.length,
-    plainPictures: plain.length,
+    plainPictures: plain.length + oldIcons.length,
   };
 }

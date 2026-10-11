@@ -16,10 +16,12 @@ import { RichTextComponent } from './rich-text.component';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NameFxDirective } from '../util/name-fx.directive';
 import { fontClassOf } from '../util/user-font.directive';
+import { ServerTagComponent } from './server-tag.component';
 @Component({
   selector: 'app-profile-card',
   standalone: true,
   imports: [
+    ServerTagComponent,
     UserFontDirective,
     NameFxDirective,
     AvatarComponent,
@@ -47,6 +49,7 @@ import { fontClassOf } from '../util/user-font.directive';
             [nameFx]="u.nameFx"
           >
             {{ u.displayName }}
+            <app-server-tag class="ml-1.5" [tag]="u.serverTag" />
           </h2>
           @if (showHandle() || u.pronouns) {
             <p class="text-xs text-muted">

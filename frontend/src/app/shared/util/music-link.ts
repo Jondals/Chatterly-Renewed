@@ -90,7 +90,7 @@ export function embedUrl(link: MusicLink, start = 0): string {
   const options =
     // controls=0: the bar of the call (play, time, timeline) is the only one; the one of YouTube hid itself in some browsers
     // on a Short and was a second set of buttons that did not tell the others in the call.
-    'enablejsapi=1&autoplay=1&rel=0&modestbranding=1&playsinline=1&controls=0&disablekb=1&fs=0&iv_load_policy=3' +
+    'enablejsapi=1&autoplay=1&rel=0&modestbranding=1&playsinline=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0' +
     originOption() +
     (start > 1 && link.type !== 'list' ? '&start=' + Math.floor(start) : '');
   const base = 'https://www.youtube-nocookie.com/embed/';

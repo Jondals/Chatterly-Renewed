@@ -28,6 +28,7 @@ import type { Sticker } from '../../core/services/sticker.store';
 import { ToastService } from '../../core/services/toast.service';
 import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
 import { SpinlyLogoComponent } from '../../shared/components/spinly-logo.component';
+import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
@@ -45,6 +46,7 @@ import { autoFenceCode, parseRichText, plainText, RAINBOW } from '../../shared/u
 import { ApiService } from '../../core/services/api.service';
 import { UiService } from '../../core/services/ui.service';
 import { MessageStore, type OutgoingFile, type ViewMessage } from '../../store/message.store';
+import { PresetShareComponent } from './preset-share.component';
 
 const MAX_FILE = 10 * 1024 * 1024;
 const COLORS = ['#ff5d6c', '#4ade80', '#38bdf8'];
@@ -59,6 +61,8 @@ const GRADIENTS = [
   selector: 'app-message-input',
   standalone: true,
   imports: [
+    PresetShareComponent,
+    ColorPickerComponent,
     NameColorDirective,
     UserFontDirective,
     NameFxDirective,
@@ -326,6 +330,16 @@ const GRADIENTS = [
               [attr.aria-label]="c"
             ></button>
           }
+          <!-- any color: it is chosen in the picker and put on the selection when the picker closes -->
+          <app-color-picker
+            [value]="customColor()"
+            [size]="22"
+            [rainbow]="true"
+            shape="round"
+            label="Any color"
+            (valueChange)="customColor.set($event); customTouched.set(true)"
+            (closed)="applyCustomColor()"
+          />
           <span class="mx-1 h-5 w-px bg-white/10"></span>
           <button
             type="button"
@@ -530,6 +544,22 @@ const GRADIENTS = [
                       }}</span></span
                     >
                   </button>
+                  <button
+                    type="button"
+                    class="menu-card anim-fade-up"
+                    style="--d: 120ms"
+                    (click)="plusOpen.set(false); presetShareOpen.set(true)"
+                  >
+                    <span class="menu-icon bg-violet/15 text-violet"
+                      ><app-icon name="palette" [size]="18"
+                    /></span>
+                    <span class="min-w-0 flex-1"
+                      ><b class="block text-sm">{{ 'Share a preset' | t }}</b
+                      ><span class="block text-xs text-muted">{{
+                        'Your profile or the look of the app, to import with one button' | t
+                      }}</span></span
+                    >
+                  </button>
                 </div>
               </div>
             }
@@ -553,6 +583,9 @@ const GRADIENTS = [
         <span>{{ 'Enter to send · Shift+Enter for a new line' | t }}</span>
       </div>
     </div>
+    @if (presetShareOpen()) {
+      <app-preset-share [channelId]="channelId()" (closed)="presetShareOpen.set(false)" />
+    }
   `,
 })
 export class MessageInputComponent implements OnDestroy {
@@ -576,6 +609,9 @@ export class MessageInputComponent implements OnDestroy {
   private readonly box = viewChild<ElementRef<HTMLTextAreaElement>>('box');
 
   protected readonly colors = COLORS;
+  /** The color chosen in the picker for the selected text. */
+  protected readonly customColor = signal('#ff5d6c');
+  protected readonly customTouched = signal(false);
   private readonly spinly = inject(SpinlyService);
 
   /** Opens the window to make a wheel or a tournament that is sent to this conversation. */
@@ -583,6 +619,8 @@ export class MessageInputComponent implements OnDestroy {
     this.spinly.composeForChat(this.channelId());
   }
   protected readonly plusOpen = signal(false);
+  /** Whether the window to send a preset is open. */
+  protected readonly presetShareOpen = signal(false);
 
   @HostListener('document:mousedown') closeMenus() {
     this.plusOpen.set(false);
@@ -842,6 +880,14 @@ export class MessageInputComponent implements OnDestroy {
     this.applyText(e.texto, e.caret, false);
   }
 
+  /** The picker closed: a color that was chosen in it goes on the selected text. */
+  protected applyCustomColor(): void {
+    if (this.customTouched()) {
+      this.customTouched.set(false);
+      this.color(this.customColor());
+    }
+  }
+
   /** Puts the chosen color on the selected text. */
   protected color(hex: string): void {
     this.wrap(`[c=${hex}]`, '[/c]');
@@ -893,6 +939,7 @@ export class MessageInputComponent implements OnDestroy {
       name: 'sticker.webp',
       mime: sticker.blob.type || 'image/webp',
       sticker: true,
+      move: sticker.move,
     });
   }
 

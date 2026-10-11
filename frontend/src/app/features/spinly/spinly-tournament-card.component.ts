@@ -84,55 +84,66 @@ const PAUSE_MS = 900;
     .tour-versus {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-      align-items: stretch;
-      gap: 0.5rem;
+      align-items: center;
+      gap: 0;
     }
     .tour-side {
       position: relative;
       display: flex;
       min-width: 0;
-      flex-direction: column;
-      gap: 0.35rem;
-      padding: 0.65rem 0.8rem 0.65rem 1rem;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1.5rem 0.6rem 0.7rem;
       overflow: hidden;
-      border-radius: calc(var(--r) * 1.1);
-      border: 1px solid color-mix(in oklab, var(--side) 45%, transparent);
+      border-radius: calc(var(--r) * 1.2);
+      border: 1px solid color-mix(in oklab, var(--side) 40%, transparent);
       background: linear-gradient(
         160deg,
-        color-mix(in oklab, var(--side) 16%, transparent),
-        rgba(0, 0, 0, 0.18)
+        color-mix(in oklab, var(--side) 15%, transparent),
+        rgba(0, 0, 0, 0.2)
       );
       transition:
-        background-color 0.4s var(--ease-suave),
+        border-color 0.4s var(--ease-suave),
         box-shadow 0.4s var(--ease-suave);
     }
-    /* The colour of the side as a bar on its outer edge. */
-    .tour-side::before {
-      content: '';
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 4px;
-      background: var(--side);
-    }
-    .tour-side.right::before {
-      inset: 0 0 0 auto;
+    .tour-side.right {
+      flex-direction: row-reverse;
+      padding: 0.6rem 0.7rem 0.6rem 1.5rem;
+      text-align: right;
     }
     .tour-side.is-lead {
-      box-shadow:
-        0 0 26px -8px var(--side),
-        inset 0 0 0 1px color-mix(in oklab, var(--side) 35%, transparent);
+      border-color: var(--side);
+      box-shadow: 0 0 22px -8px var(--side);
     }
-    .tour-side.right {
+    .tour-disc {
+      display: grid;
+      width: 2.4rem;
+      height: 2.4rem;
+      flex-shrink: 0;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--side);
+      color: #07090f;
+      font-size: 1.05rem;
+      font-weight: 900;
+      box-shadow: 0 4px 12px -4px var(--side);
+    }
+    .tour-info {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .tour-side.right .tour-info {
       align-items: flex-end;
-      padding: 0.65rem 1rem 0.65rem 0.8rem;
-      text-align: right;
     }
     .tour-name {
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 800;
     }
     .tour-pips {
@@ -140,8 +151,8 @@ const PAUSE_MS = 900;
       gap: 4px;
     }
     .tour-pips i {
-      width: 0.7rem;
-      height: 0.7rem;
+      width: 0.6rem;
+      height: 0.6rem;
       border-radius: 50%;
       border: 2px solid color-mix(in oklab, var(--side) 70%, transparent);
       transition:
@@ -152,18 +163,44 @@ const PAUSE_MS = 900;
       background: var(--side);
       transform: scale(1.1);
     }
+    /* the score sits between the two sides, a little over both */
     .tour-score {
-      display: flex;
-      align-items: center;
-      padding: 0 0.85rem;
-      border-radius: calc(var(--r) * 1.1);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.4));
-      box-shadow: 0 6px 18px -8px #000;
-      font-size: 1.6rem;
+      z-index: 1;
+      display: grid;
+      min-width: 3.9rem;
+      margin: 0 -1rem;
+      padding: 0.45rem 0.7rem;
+      place-items: center;
+      border-radius: 99px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(8, 10, 18, 0.92));
+      box-shadow: 0 8px 20px -8px #000;
+      font-size: 1.25rem;
       font-weight: 800;
-      letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
+    }
+    /* in a narrow card (the chat) the score goes on top and the two sides below it, one at each side */
+    @container (max-width: 27rem) {
+      .tour-versus {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0.5rem;
+      }
+      .tour-score {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        margin: 0 auto;
+      }
+      .tour-side,
+      .tour-side.right {
+        grid-row: 2;
+        flex-direction: column;
+        padding: 0.65rem 0.5rem;
+        text-align: center;
+      }
+      .tour-info,
+      .tour-side.right .tour-info {
+        align-items: center;
+      }
     }
     .tour-match {
       position: relative;
@@ -392,11 +429,14 @@ const PAUSE_MS = 900;
                 [style.--side]="colorOf(match.a)"
                 [class.is-lead]="match.winsA > match.winsB"
               >
-                <span class="tour-name">{{ nameOf(match.a) }}</span>
-                <span class="tour-pips">
-                  @for (on of pips(match, 'a'); track $index) {
-                    <i [class.is-on]="on"></i>
-                  }
+                <span class="tour-disc">{{ initialOf(match.a) }}</span>
+                <span class="tour-info">
+                  <span class="tour-name">{{ nameOf(match.a) }}</span>
+                  <span class="tour-pips">
+                    @for (on of pips(match, 'a'); track $index) {
+                      <i [class.is-on]="on"></i>
+                    }
+                  </span>
                 </span>
               </div>
               <div class="tour-score">{{ match.winsA }} : {{ match.winsB }}</div>
@@ -405,11 +445,14 @@ const PAUSE_MS = 900;
                 [style.--side]="colorOf(match.b)"
                 [class.is-lead]="match.winsB > match.winsA"
               >
-                <span class="tour-name">{{ nameOf(match.b) }}</span>
-                <span class="tour-pips">
-                  @for (on of pips(match, 'b'); track $index) {
-                    <i [class.is-on]="on"></i>
-                  }
+                <span class="tour-disc">{{ initialOf(match.b) }}</span>
+                <span class="tour-info">
+                  <span class="tour-name">{{ nameOf(match.b) }}</span>
+                  <span class="tour-pips">
+                    @for (on of pips(match, 'b'); track $index) {
+                      <i [class.is-on]="on"></i>
+                    }
+                  </span>
                 </span>
               </div>
             </div>
@@ -700,6 +743,11 @@ export class SpinlyTournamentCardComponent implements OnInit {
   /** The color of the champion of the tournament. */
   private pickChampionColor(): string {
     return this.colorOf(this.view().bracket.champion);
+  }
+
+  /** The first letter of the name of a participant (for the disc of its side). */
+  protected initialOf(id: string | null): string {
+    return this.nameOf(id).trim().charAt(0).toUpperCase() || '?';
   }
 
   /** The name of a participant by id. */

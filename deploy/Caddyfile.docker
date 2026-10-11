@@ -17,6 +17,12 @@
 		max_size 14MB
 	}
 
+	# ! Extra CSP for the web (it adds to the one in index.html: both apply and the stricter wins). index.html allows WebSockets to
+	#   ANY server (wss:) and to localhost; this header allows them only to this domain, so a script injected by mistake
+	#   could not send data anywhere else. The API sends its own CSP, so it is left out here.
+	@web not path /api/* /ws
+	header @web +Content-Security-Policy "connect-src 'self' wss://{$DOMAIN}; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+
 	# ! The API AND the WebSocket must go to the backend (3000), or sign-in fails with "JSON.parse: unexpected character".
 	#   Everything else is the web app.
 	@backend path /api/* /ws

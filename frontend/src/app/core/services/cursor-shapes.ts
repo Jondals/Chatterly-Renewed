@@ -4,7 +4,7 @@
  * (Themed, Solid, Soft, Sleek, Halo, Pixel, Classic), drawn as small SVGs in the accent color, the hot spots
  * where each one points, and the helpers that turn them into CSS cursor values or SVG text for the overlay.
  */
-import { STATE_NAMES, arrowHot, arrowSvg, stateSvg } from './cursor-styles';
+import { arrowHot, arrowSvg, stateSvg } from './cursor-styles';
 import type { CustomCursor, CursorMode } from './settings.service';
 
 /** Dark color of the outline that keeps every cursor readable on any background. */

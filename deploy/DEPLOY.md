@@ -82,6 +82,16 @@ Install and start coturn on the machine:
 
 Everything above runs in one Always Free instance (the Arm A1 one has, today, 2 OCPU and 12 GB in total, enough for the app, Caddy and coturn). Keep it healthy: `sudo apt install -y unattended-upgrades`, copy the folder `DATA_DIR` now and then (`rsync` to your computer) and keep an eye on the disk with `df -h`.
 
+## Maximum privacy: relay over TLS, no logs
+
+```bash
+bash deploy/turn-setup.sh --private --tls --no-logs
+```
+
+- `--tls`: the relay answers only over TLS (`turns:`, TCP 5349) with the certificate that Caddy already got for your domain. Whoever watches the network (a mobile operator, a Wi-Fi owner) can no longer read the user names or the control messages of the relay; they still see that someone talks to your server and how much. Open **TCP 5349** (VCN and host) and do **not** open 3478. Open `https://your.domain` once first, so that Caddy has the certificate; run `bash deploy/turn-cert-sync.sh` after every renewal (about every 60 days) or put it in a daily timer.
+- `--no-logs`: the relay writes no log at all, so no address is ever stored.
+- The operator of the relay still sees the addresses while a call lasts (it has to forward the packets). TLS runs over TCP: on lossy networks audio and video may feel slightly more delay than over UDP.
+
 ## Check that a call really uses the relay
 
 With `RELAY_ONLY=1` the app refuses to call when the relay is unavailable, and closes a connection that is found to use a direct path. To see it with your own eyes in a test browser (two accounts, two browsers):

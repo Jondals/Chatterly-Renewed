@@ -95,6 +95,9 @@ const RINGTONE_FILES: Record<string, SoundId> = {
   newyear: 'ringtoneNewyear',
 };
 
+/** The chance that an incoming call rings with the secret joke tone (it is not one of the choices of the settings). */
+const SECRET_RING_CHANCE = 0.0001;
+
 /** General level of the sounds: the files are quiet, so the master volume raises them (and a limiter keeps overlaps clean). */
 const MASTER_BOOST = 6;
 
@@ -309,6 +312,9 @@ export class SoundService {
     if (!this.settings.sounds() || !this.audible) {
       return this.noop;
     }
+    if (Math.random() < SECRET_RING_CHANCE) {
+      return this.startSecretRingtone();
+    }
     return this.startRingtone(this.settings.ringtone());
   }
 
@@ -323,6 +329,13 @@ export class SoundService {
   /** A function that does nothing. */
   private noop(): void {
     return;
+  }
+
+  /** The joke ringtone: a secret that is not offered anywhere and rings once in ten thousand calls. */
+  private startSecretRingtone(): () => void {
+    const repeating: Repeating = { stopped: false, source: null, timer: undefined };
+    void this.repeatFile('ringtoneSecret', repeating);
+    return this.stopRepeating.bind(this, repeating);
   }
 
   /** Starts a ringtone on repeat: a built-in one plays again after its pause, the custom file is looped. */

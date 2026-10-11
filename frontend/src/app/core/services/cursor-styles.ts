@@ -371,9 +371,6 @@ const GEOMETRY: Record<string, Geometry> = {
   crosshair: { lines: [{ d: 'M16 5v8M16 19v8M5 16h8M19 16h8' }], shapes: [], marks: [] },
 };
 
-/** The names of the cursor states that have a drawing. */
-export const STATE_NAMES: string[] = Object.keys(GEOMETRY);
-
 /** The drawing of a cursor state in a family. */
 export function stateSvg(family: string, name: string): string {
   const painter = PAINTERS[family] ?? neon;

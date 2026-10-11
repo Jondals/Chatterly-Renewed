@@ -8,10 +8,6 @@
   cursor: var(--cur-text, text);
 }
 
-.cursor-not-allowed {
-  cursor: var(--cur-forbidden, not-allowed);
-}
-
 .cursor-grab {
   cursor: var(--cur-grab, grab);
 }
@@ -43,14 +39,6 @@
 
 .cursor-crosshair {
   cursor: var(--cur-crosshair, crosshair);
-}
-
-.cursor-ew-resize {
-  cursor: var(--cur-resize-h, ew-resize);
-}
-
-.cursor-ns-resize {
-  cursor: var(--cur-resize-v, ns-resize);
 }
 
 .cursor-overlay {

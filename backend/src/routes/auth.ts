@@ -8,6 +8,7 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 import { getUser, toPublicUser, toSelfUser, profileAudience, type UserRow } from '../models';
+import { refreshServerTag } from '../server-tag';
 import { hashAuthSecret, verifyAuthSecret, needsUpgrade } from '../security/password';
 import { deleteImage, imageFile, ownsImage } from './images';
 import {
@@ -44,6 +45,16 @@ export const NAME_FX = [
   'glitch',
   'flip',
   'sparkle',
+  'jump',
+  'jelly',
+  'drift',
+  'twinkle',
+  'wave',
+  'aurora',
+  'shimmer',
+  'pop',
+  'toon',
+  'ember',
 ] as const;
 export const NAME_FONTS = [
   'default',
@@ -484,6 +495,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
             searchable: { type: 'boolean' },
             avatarImage: { type: ['string', 'null'], pattern: UUID },
             bannerImage: { type: ['string', 'null'], pattern: UUID },
+            // The group whose tag the person shows next to their name (null: none).
+            tagGuild: { type: ['string', 'null'], pattern: UUID },
           },
         },
       },
@@ -549,8 +562,13 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         const old = previous[column];
         if (old && old !== next) orphans.push(old);
       }
+      if ('tagGuild' in body) {
+        sets.push('tag_guild = ?');
+        values.push(body['tagGuild'] ?? null);
+      }
       if (sets.length)
         db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
+      if ('tagGuild' in body) refreshServerTag(db, id);
       orphans.forEach(function (o) {
         return deleteImage(ctx, o);
       });

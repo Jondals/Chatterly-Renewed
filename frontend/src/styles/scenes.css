@@ -5,7 +5,7 @@
   transition-duration: 0.12s !important;
 }
 
-[data-motion='quick'] [class*='anim-'] {
+[data-motion='quick'] [class*='anim-']:not(.bubble-emoji, .stk-live) {
   animation-duration: 0.16s !important;
 }
 

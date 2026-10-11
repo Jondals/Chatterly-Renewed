@@ -20,4 +20,5 @@ secrets.json
 *.pem
 *.key
 deploy/turnserver.generated.conf
+deploy/tls/
 backups/

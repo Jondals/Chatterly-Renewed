@@ -22,6 +22,11 @@ import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { IconComponent } from '../../shared/components/icon.component';
+import {
+  ServerTagComponent,
+  TAG_COLORS,
+  TAG_ICONS,
+} from '../../shared/components/server-tag.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { describeError } from '../../shared/util/errors';
 import { ChannelLabelPipe } from '../../shared/util/channel-label.pipe';
@@ -33,6 +38,7 @@ import { SocialStore } from '../../store/social.store';
   selector: 'app-guild-modals',
   standalone: true,
   imports: [
+    ServerTagComponent,
     NameColorDirective,
     UserFontDirective,
     NameFxDirective,
@@ -193,6 +199,71 @@ import { SocialStore } from '../../store/social.store';
             </section>
           }
 
+          @if (isOwner()) {
+            <section class="panel-flat p-3.5">
+              <div class="mb-1 flex items-center justify-between gap-2">
+                <span class="label">{{ 'Group tag' | t }}</span>
+                <app-server-tag [tag]="{ text: tagText(), color: tagColor(), icon: tagIcon() }" />
+              </div>
+              <p class="mb-2.5 text-xs text-muted">
+                {{
+                  'A short mark of up to four letters or numbers. The members who want it show it next to their name.'
+                    | t
+                }}
+              </p>
+              <div class="flex gap-2">
+                <input
+                  class="input min-w-0 flex-1 uppercase"
+                  maxlength="4"
+                  [value]="tagText()"
+                  [placeholder]="'TAG' | t"
+                  [attr.aria-label]="'Group tag' | t"
+                  (input)="tagText.set($any($event.target).value.replace(/[^A-Za-z0-9]/g, ''))"
+                />
+                <button
+                  class="btn btn-primary"
+                  type="button"
+                  (click)="saveTag()"
+                  [disabled]="!tagChanged()"
+                >
+                  {{ 'Save' | t }}
+                </button>
+              </div>
+              <div class="mt-2.5 flex flex-wrap gap-1.5">
+                @for (color of tagColors; track color) {
+                  <button
+                    type="button"
+                    class="h-6 w-6 rounded-full border-2"
+                    [style.background]="color"
+                    [class]="tagColor() === color ? 'border-white' : 'border-transparent'"
+                    [attr.aria-label]="color"
+                    (click)="tagColor.set(color)"
+                  ></button>
+                }
+              </div>
+              <div class="mt-2.5 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  class="choice-card !min-h-0 px-2 py-1 text-xs"
+                  [class.is-on]="!tagIcon()"
+                  (click)="tagIcon.set('')"
+                >
+                  {{ 'No icon' | t }}
+                </button>
+                @for (icon of tagIcons; track icon) {
+                  <button
+                    type="button"
+                    class="choice-card !min-h-0 px-2 py-1 text-base"
+                    [class.is-on]="tagIcon() === icon"
+                    (click)="tagIcon.set(icon)"
+                  >
+                    {{ icon }}
+                  </button>
+                }
+              </div>
+            </section>
+          }
+
           <section>
             <div class="mb-2 flex items-center justify-between">
               <span class="label">{{ 'Channels' | t }}</span>
@@ -330,6 +401,14 @@ export class GuildModalsComponent {
   protected readonly channelName = signal('');
   protected readonly channelType = signal<'text' | 'voice'>('text');
   protected readonly editName = signal('');
+  protected readonly tagColors = TAG_COLORS;
+  protected readonly tagIcons = TAG_ICONS;
+  /** What is typed for the tag of the group (it starts as the saved tag, see the effect in the constructor). */
+  protected readonly tagText = signal('');
+  protected readonly tagColor = signal(TAG_COLORS[0]!);
+  protected readonly tagIcon = signal('');
+  /** Whether the tag on the screen is not the one that is saved. */
+  protected readonly tagChanged = computed(this.hasTagChanged.bind(this));
 
   protected readonly guild = computed(
     function (this: GuildModalsComponent) {
@@ -357,6 +436,19 @@ export class GuildModalsComponent {
   );
 
   constructor() {
+    // The fields of the tag start from the tag of the group that is open.
+    effect(
+      function (this: GuildModalsComponent) {
+        const g = this.guild();
+        untracked(
+          function (this: GuildModalsComponent) {
+            this.tagText.set(g?.tag?.text ?? '');
+            this.tagColor.set(g?.tag?.color || TAG_COLORS[0]!);
+            this.tagIcon.set(g?.tag?.icon ?? '');
+          }.bind(this),
+        );
+      }.bind(this),
+    );
     // When the "create channel" dialog opens, preselect the type the user asked for.
     effect(
       function (this: GuildModalsComponent) {
@@ -369,6 +461,32 @@ export class GuildModalsComponent {
           );
       }.bind(this),
     );
+  }
+
+  /** Whether what is typed for the tag differs from the saved tag. */
+  private hasTagChanged(): boolean {
+    const saved = this.guild()?.tag;
+    return (
+      this.tagText().toUpperCase() !== (saved?.text ?? '') ||
+      this.tagColor() !== (saved?.color || TAG_COLORS[0]) ||
+      this.tagIcon() !== (saved?.icon ?? '')
+    );
+  }
+
+  /** Saves the tag of the group. */
+  protected async saveTag(): Promise<void> {
+    const g = this.guild();
+    if (!g) return;
+    try {
+      await this.guilds.update(g.id, {
+        tag: this.tagText().toUpperCase(),
+        tagColor: this.tagColor(),
+        tagIcon: this.tagIcon(),
+      });
+      this.toast.success(this.i18n.t('Tag saved'));
+    } catch (e) {
+      this.toast.error(this.i18n.t('Could not save the tag'), describeError(e));
+    }
   }
 
   /** Closes the window to create a group and forgets what was typed. */
@@ -404,8 +522,7 @@ export class GuildModalsComponent {
       const guild = await this.guilds.create(this.name().trim(), '');
       const blob = this.createBlob();
       if (blob) {
-        const id = await this.images.upload('group', blob);
-        await this.guilds.update(guild.id, { iconImage: id });
+        await this.guilds.setIcon(guild.id, blob);
       }
       this.closeCreate();
       this.toast.success(
@@ -473,8 +590,8 @@ export class GuildModalsComponent {
     if (!g) return;
     try {
       const adjuster = await import('../../shared/components/image-adjust.component');
-      const id = await adjuster.pickAndUploadImage(this.images, this.injector, 'group');
-      if (id) await this.guilds.update(g.id, { iconImage: id });
+      const blob = await adjuster.pickAndPrepareImage(this.images, this.injector, 'group');
+      if (blob) await this.guilds.setIcon(g.id, blob);
     } catch (e) {
       this.toast.error(this.i18n.t('Could not upload the image'), describeError(e));
     }

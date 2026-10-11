@@ -4,10 +4,12 @@
  */
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { generateGuildKey, unwrapGuildKey, wrapGuildKey } from '../core/crypto/guild-keys';
+import { openBytes, sealBytes } from '../core/crypto/pairwise';
 import type { ChannelRef, Guild, GuildChannel, User } from '../core/models';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/services/auth.service';
 import { DirectoryService } from '../core/services/directory.service';
+import { ImageService } from '../core/services/image.service';
 import { SocketService, type ServerEvent } from '../core/services/socket.service';
 
 /**
@@ -19,6 +21,7 @@ import { SocketService, type ServerEvent } from '../core/services/socket.service
 export class GuildStore {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly images = inject(ImageService);
   private readonly directory = inject(DirectoryService);
   private readonly socket = inject(SocketService);
 
@@ -42,6 +45,8 @@ export class GuildStore {
 
   /** guildId → keyVersion → key. In memory only. */
   private readonly keys = new Map<string, Map<number, CryptoKey>>();
+  /** The groups whose old icon (not encrypted) this browser is already encrypting. */
+  private readonly encrypting = new Set<string>();
   private queue: Promise<void> = Promise.resolve();
   private started = false;
 
@@ -183,6 +188,9 @@ export class GuildStore {
         }
       }
     }
+    for (const guild of res.guilds) {
+      await this.openIconKey(guild);
+    }
     this.guilds.set(res.guilds);
     this.loaded.set(true);
     const active = this.activeGuildId();
@@ -194,12 +202,69 @@ export class GuildStore {
     ) {
       if (res.guilds[0]) this.setActive(res.guilds[0].id);
     }
+    // An old icon that is not encrypted: its owner encrypts it now.
+    for (const guild of res.guilds) {
+      if (guild.ownerId === me.id && guild.iconImage && !guild.iconKey) {
+        void this.encryptOldIcon(guild);
+      }
+    }
     // Someone left or was removed: replace the key so they can't read what is written next.
     for (const guild of res.guilds) {
       if (guild.needsRotation && guild.ownerId === me.id)
         await this.rotate(guild).catch(function () {
           return undefined;
         });
+    }
+  }
+
+  /** The context a sealed key of an icon is bound to. */
+  private iconContext(guildId: string, version: number, imageId: string): string {
+    return 'group-icon|' + guildId + '|' + version + '|' + imageId;
+  }
+
+  /** Opens the sealed key of the icon of a group and gives it to the pictures (the icon can be shown after this). */
+  private async openIconKey(guild: Guild): Promise<void> {
+    const sealed = guild.iconKey;
+    const key = sealed ? this.keys.get(guild.id)?.get(sealed.keyVersion) : undefined;
+    if (!sealed || !key || !guild.iconImage) return;
+    try {
+      const raw = await openBytes(
+        key,
+        { iv: sealed.iv, ciphertext: sealed.data },
+        this.iconContext(guild.id, sealed.keyVersion, guild.iconImage),
+      );
+      await this.images.learnGroupIcon(guild.iconImage, raw);
+    } catch (error) {
+      console.warn('Could not open the icon of a group', guild.id, error);
+    }
+  }
+
+  /** Puts a new icon on a group (owner only): it is encrypted here, and its key is sealed with the key of the group. */
+  async setIcon(guildId: string, blob: Blob): Promise<void> {
+    const guild = this.guild(guildId)!;
+    const { id, raw } = await this.images.uploadGroupIcon(guildId, blob);
+    const sealed = await sealBytes(
+      await this.keyFor(guildId, guild.keyVersion),
+      raw,
+      this.iconContext(guildId, guild.keyVersion, id),
+    );
+    await this.update(guildId, {
+      iconImage: id,
+      iconKey: { version: guild.keyVersion, iv: sealed.iv, data: sealed.ciphertext },
+    });
+  }
+
+  /** Encrypts the old icon of a group that was made before icons were encrypted (it is downloaded and uploaded again). */
+  private async encryptOldIcon(guild: Guild): Promise<void> {
+    if (this.encrypting.has(guild.id)) return;
+    this.encrypting.add(guild.id);
+    try {
+      const bytes = await this.api.download('/api/images/' + guild.iconImage);
+      await this.setIcon(guild.id, new Blob([bytes]));
+    } catch {
+      /* it is tried again the next time the groups are loaded */
+    } finally {
+      this.encrypting.delete(guild.id);
     }
   }
 
@@ -290,7 +355,15 @@ export class GuildStore {
 
   async update(
     guildId: string,
-    patch: { name?: string; icon?: string; iconImage?: string | null },
+    patch: {
+      name?: string;
+      icon?: string;
+      iconImage?: string | null;
+      iconKey?: { version: number; iv: string; data: string };
+      tag?: string;
+      tagColor?: string;
+      tagIcon?: string;
+    },
   ): Promise<void> {
     await this.api.patch(`/api/guilds/${guildId}`, patch);
     await this.refresh();
@@ -433,7 +506,29 @@ export class GuildStore {
       );
       envelopes.push({ userId: member.userId, ...envelope });
     }
-    await this.api.post(`/api/guilds/${guild.id}/rotate`, { keyVersion: version, envelopes });
+    // the key of the icon is sealed again with the new key of the group
+    let iconKey: { iv: string; data: string } | undefined;
+    if (guild.iconKey && guild.iconImage) {
+      const old = this.keys.get(guild.id)?.get(guild.iconKey.keyVersion);
+      if (old) {
+        const raw = await openBytes(
+          old,
+          { iv: guild.iconKey.iv, ciphertext: guild.iconKey.data },
+          this.iconContext(guild.id, guild.iconKey.keyVersion, guild.iconImage),
+        );
+        const sealed = await sealBytes(
+          key,
+          raw,
+          this.iconContext(guild.id, version, guild.iconImage),
+        );
+        iconKey = { iv: sealed.iv, data: sealed.ciphertext };
+      }
+    }
+    await this.api.post(`/api/guilds/${guild.id}/rotate`, {
+      keyVersion: version,
+      iconKey,
+      envelopes,
+    });
     this.keys.get(guild.id)?.set(version, key);
     // The server will notify members; refresh locally so we pick up the new version right away.
     const res = await this.api.get<{ guilds: Guild[] }>('/api/guilds');

@@ -54,6 +54,41 @@ export class FontService {
     }
   }
 
+  /** The bytes of the font of a kind (null when there is none): a preset keeps them. */
+  async read(kind: CustomFontKind): Promise<ArrayBuffer | null> {
+    const name =
+      kind === 'ui' ? this.settings.customFontName() : this.settings.customNameFontName();
+    if (!name) {
+      return null;
+    }
+    try {
+      return (
+        (await runInStore<ArrayBuffer | undefined>(LOCATION, 'readonly', function get(store) {
+          return store.get(kind);
+        })) ?? null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Puts a font on the app from its bytes (a preset brings them). Throws a readable message when it is not a font. */
+  async set(kind: CustomFontKind, buffer: ArrayBuffer, name: string): Promise<void> {
+    if (buffer.byteLength > MAX_BYTES) {
+      throw new Error('Fonts can be up to 5 MB.');
+    }
+    await this.register(kind, buffer);
+    await runInStore(LOCATION, 'readwrite', function put(store: IDBObjectStore) {
+      return store.put(buffer, kind);
+    });
+    const label = name.slice(0, 30);
+    if (kind === 'ui') {
+      this.settings.customFontName.set(label);
+    } else {
+      this.settings.customNameFontName.set(label);
+    }
+  }
+
   /** Deletes an uploaded font. */
   async remove(kind: CustomFontKind): Promise<void> {
     const face = this.faces.get(kind);

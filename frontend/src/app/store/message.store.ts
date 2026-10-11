@@ -6,6 +6,7 @@ import type { LinkPreview } from '../shared/util/link-preview';
 import { Injectable, inject, signal, type WritableSignal } from '@angular/core';
 import { Router } from '@angular/router';
 import { decryptFile, encryptFile } from '../core/crypto/files';
+import { THUMB_MAX_CHARS, THUMB_PATTERN } from '../core/preset-card';
 import type { ChannelRef, RawMessage, RawReaction } from '../core/models';
 import { ApiError, ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/services/auth.service';
@@ -65,6 +66,32 @@ export interface ViewMessage {
   failed?: boolean;
 }
 
+/** What a message says about a preset it carries: the kind and a short name, nothing else is believed. */
+function cleanPresetMark(
+  raw: unknown,
+): { kind: 'theme' | 'profile'; name: string; thumb?: string } | undefined {
+  const mark = raw as { kind?: unknown; name?: unknown; thumb?: unknown } | undefined;
+  if (
+    !mark ||
+    (mark.kind !== 'theme' && mark.kind !== 'profile') ||
+    typeof mark.name !== 'string'
+  ) {
+    return undefined;
+  }
+  // the picture is shown as an image: only a small WebP of this form is believed
+  const thumb =
+    typeof mark.thumb === 'string' &&
+    mark.thumb.length <= THUMB_MAX_CHARS &&
+    THUMB_PATTERN.test(mark.thumb)
+      ? mark.thumb
+      : undefined;
+  return {
+    kind: mark.kind,
+    name: mark.name.replace(/[\u0000-\u001f]/g, ' ').slice(0, 30),
+    thumb,
+  };
+}
+
 export interface OutgoingFile {
   data: Blob;
   name: string;
@@ -72,11 +99,15 @@ export interface OutgoingFile {
   wave?: number[];
   durationMs?: number;
   sticker?: boolean;
+  /** How an animated sticker moves (0 to 5). */
+  move?: number;
   gif?: boolean;
   /** Offered for the soundboard of the others (audio and video only). */
   soundboard?: boolean;
   pack?: string;
   emoji?: string;
+  /** A preset of the theme or of the profile (the people who get it can import it). */
+  preset?: { kind: 'theme' | 'profile'; name: string; thumb?: string };
 }
 
 export interface ChannelState {
@@ -347,6 +378,8 @@ export class MessageStore {
           kind: attachmentKind(a.mime),
           pack: typeof a.pack === 'string' ? a.pack.slice(0, 20) : undefined,
           emoji: typeof a.emoji === 'string' ? a.emoji.slice(0, 8) : undefined,
+          preset: cleanPresetMark(a.preset),
+          move: Number.isInteger(a.move) ? Math.min(5, Math.max(0, a.move!)) : undefined,
         };
       }),
       spinly: payload?.spinly ? (sanitizeResult(payload.spinly) ?? undefined) : undefined,
@@ -427,10 +460,12 @@ export class MessageStore {
           wave: file.wave,
           durationMs: file.durationMs,
           sticker: file.sticker,
+          move: file.move,
           gif: file.gif,
           soundboard: file.soundboard || undefined,
           pack: file.pack || undefined,
           emoji: file.emoji || undefined,
+          preset: file.preset,
         });
       }
       const payload: MessagePayload = {
@@ -591,6 +626,16 @@ export class MessageStore {
   }
 
   // ---- attachments ---------------------------------------------------------------------------
+
+  /**
+   * Downloads, decrypts and integrity-checks an attachment and gives its bytes as a file (not through an address: the page
+   * is not allowed to fetch a blob: address, and it does not need to).
+   */
+  async attachmentBlob(attachment: ViewAttachment): Promise<Blob> {
+    const cipher = await this.api.download(`/api/files/${attachment.fileId}`);
+    const plain = await decryptFile(cipher, attachment.secret);
+    return new Blob([plain], { type: attachment.mime });
+  }
 
   /** Downloads, decrypts and integrity-checks an attachment; resolves to an object URL. */
   attachmentUrl(attachment: ViewAttachment): Promise<string> {
