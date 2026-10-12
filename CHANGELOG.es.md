@@ -2,6 +2,10 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.31.3
+
+- **App de escritorio: la introducción suena al instante.** El sonido de la introducción necesitaba un clic antes. La app se abre antes de que carguen sus sonidos y el audio se descartaba si no estaba listo; ahora la introducción trae su sonido enseguida y lo reproduce en cuanto está listo, sin clic.
+
 ## 2.31.2
 
 - **App de escritorio: el menú para compartir pantalla se abre con un clic normal.** Qué compartir (una pantalla o una ventana), la calidad y el sonido solo estaban en el clic derecho y nadie los encontraba; ahora al pulsar el botón de la pantalla se abre ese menú (en un navegador sigue empezando al instante, porque pregunta el navegador).

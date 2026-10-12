@@ -5,6 +5,8 @@
  * page underneath may change; the animations themselves live in a component that is loaded only when needed.
  */
 import { Injectable, signal } from '@angular/core';
+import { isDesktopApp } from '../desktop-bridge';
+import { preloadSounds } from '../sound-library';
 
 /** Which animation plays. */
 export type ArrivalKind = 'intro' | 'login' | 'register' | 'logout';
@@ -85,6 +87,10 @@ export class ArrivalService {
       /* no storage: the introduction plays, as it would the first time */
     }
     if (this.wanted() && !seen) {
+      if (isDesktopApp()) {
+        // The desktop app plays the introduction with sound: start fetching it now, before the animation is on screen.
+        void preloadSounds(['authIntro']);
+      }
       void this.play('intro');
       setTimeout(this.dropCover, 6000);
     } else {

@@ -2,6 +2,10 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.31.3
+
+- **Desktop app: the introduction sounds at once.** The sound of the introduction needed a click first. The app opens before its sounds are loaded and the audio was dropped when it was not ready; now the introduction fetches its sound right away and starts it as soon as it is ready, with no click.
+
 ## 2.31.2
 
 - **Desktop app: the menu to share the screen opens on a normal click.** What to share (a screen or a window), the quality and the sound were only on the right click, so nobody found them; now pressing the button of the screen opens that menu (in a browser it still starts at once, because the browser asks).

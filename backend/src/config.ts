@@ -51,7 +51,7 @@ export interface AppConfig {
   logger: boolean;
 }
 
-export const APP_VERSION = '2.31.2';
+export const APP_VERSION = '2.31.3';
 
 /** ! The shortest secret the server accepts from the environment (generated ones are 64 characters). */
 const MIN_SECRET_LENGTH = 32;
