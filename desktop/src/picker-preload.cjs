@@ -111,6 +111,17 @@ function onSources(event, message) {
   document.title = words.window_title;
   const box = document.getElementById('audio');
   if (box) box.checked = Boolean(message && message.audio);
+  // With only one kind of source (only windows, when the menu of the call said "a window") there is nothing to switch.
+  const tabs = document.getElementById('tabs');
+  if (tabs) {
+    const kinds = new Set(
+      view.items.map(function kindOf(item) {
+        return item.type;
+      }),
+    );
+    tabs.hidden = kinds.size < 2 && view.items.length > 0;
+    if (kinds.size === 1) view.tab = Array.from(kinds)[0] === 'window' ? 'window' : 'screen';
+  }
   render();
 }
 

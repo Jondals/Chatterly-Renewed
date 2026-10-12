@@ -2,6 +2,12 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.31.1
+
+- **App de escritorio: compartir pantalla no abre ninguna ventana.** Lo que eliges en el menú de la llamada lo decide: **una pantalla** (en la que está la app) se comparte **al instante**, y solo **una ventana** (o "cualquiera") abre un selector, con solo las ventanas cuando elegiste una ventana.
+- **Un icono redondeado.** El logo de la app (el icono del escritorio, la barra de tareas y la app instalada) tiene las esquinas redondeadas, como el logo de la página, en vez de un cuadrado negro.
+- **La animación de un nombre se repite igual cada vez.** La primera vez que el puntero pasaba por un nombre sus letras se movían una tras otra, pero desde la segunda se movían todas a la vez (se perdía la onda de cada animación). Ahora las letras empiezan de nuevo, con sus propios retardos, cada vez.
+
 ## 2.31.0
 
 - **Cámara: moverla con zoom, borde suave y un fondo más.** En la ventana de la cámara, cuando el zoom pasa del 100%, puedes **arrastrar la vista previa** para mover hacia dónde mira la cámara (se envía a los demás tal como la ves; **Restablecer** la deja como estaba). Un deslizador nuevo, **Borde suave** (sección Fondo), decide lo suave que es la línea entre tú y el fondo. Un fondo nuevo ya hecho, **Caramelo**.

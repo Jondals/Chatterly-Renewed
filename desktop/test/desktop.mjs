@@ -561,14 +561,14 @@ async function runningApp() {
       'the page can tell the app it is about to share a window',
     );
     const [windowsPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await windowsPicker.waitForSelector('#tab-window', { timeout: 10000 });
+    await windowsPicker.waitForSelector('.card', { timeout: 10000 });
     check(
-      await windowsPicker.locator('#tab-window.is-on').isVisible(),
+      (await windowsPicker.locator('#tab-window.is-on').count()) === 1,
       'choosing "a window" opens the picker in the tab of windows',
     );
     check(
-      await windowsPicker.locator('#tab-screen').isVisible(),
-      '... and the screens are one click away in the other tab',
+      !(await windowsPicker.locator('#tabs').isVisible()),
+      '... and it lists only windows, with no tabs to switch',
     );
     check(
       !(await windowsPicker.locator('#audio').isChecked()),
@@ -582,27 +582,20 @@ async function runningApp() {
     );
     check((await chooseSurface('<evil>')) === true, 'anything else is understood as "everything"');
 
-    // The sound box starts as the menu of the call has it, and with only one screen the person is still asked.
+    // "A screen" chosen in the menu of the call is shared at once: no window is opened to ask.
     await page.evaluate(function () {
       return window.chatterlyDesktop.screen.setSurface('monitor', true);
     });
-    const [screenPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await screenPicker.waitForSelector('#tab-screen', { timeout: 10000 });
-    check(
-      await screenPicker.locator('#tab-screen.is-on').isVisible(),
-      'choosing "a screen" opens the picker in the tab of screens, even with one screen',
-    );
-    check(
-      await screenPicker.locator('#audio').isChecked(),
-      'the sound box starts ticked when the menu shares the sound',
-    );
-    await screenPicker.locator('#tab-window').click();
-    check(
-      await screenPicker.locator('#tab-window.is-on').isVisible(),
-      'the tabs switch between screens and windows',
-    );
-    await screenPicker.click('#cancel');
-    await page.waitForTimeout(300);
+    let opened = 0;
+    app.on('window', function counted() {
+      opened++;
+    });
+    await page.click('#share');
+    const direct = await page.evaluate(function () {
+      return window.__share;
+    });
+    check(opened === 0, 'choosing "a screen" opens no picker window');
+    check(direct === 'tracks:1', 'choosing "a screen" shares it at once (' + direct + ')');
   }
 
   // ? Navigation checks come after the others on purpose: a blocked navigation leaves Playwright waiting for it to

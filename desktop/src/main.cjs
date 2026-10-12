@@ -374,6 +374,18 @@ function pickSource(sources, kind, audio) {
   });
 }
 
+/** Of the screens that can be captured, the one the app window is on (the first one when that cannot be told). */
+function nearestScreen(sources) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const display = screen.getDisplayMatching(mainWindow.getBounds());
+    const match = sources.find(function onDisplay(source) {
+      return source.display_id === String(display.id);
+    });
+    if (match) return match;
+  }
+  return sources[0];
+}
+
 async function onDisplayMediaRequest(request, callback) {
   // * The callback can be used once, and it throws if the page went away meanwhile (for example on quit).
   let answered = false;
@@ -397,16 +409,21 @@ async function onDisplayMediaRequest(request, callback) {
     const audio = screenAudio;
     screenSurface = 'any';
     screenAudio = false;
-    // * Both kinds are always offered, in two tabs: the person decides between the whole screen and one window here.
+    const wantsScreen = surface === 'monitor';
     const sources = await desktopCapturer.getSources({
-      types: ['screen', 'window'],
-      thumbnailSize: { width: 320, height: 180 },
+      types: wantsScreen ? ['screen'] : surface === 'window' ? ['window'] : ['screen', 'window'],
+      // * A screen shared at once is never drawn, so it needs no picture.
+      thumbnailSize: wantsScreen ? { width: 0, height: 0 } : { width: 320, height: 180 },
       fetchWindowIcons: false,
     });
-    const picked =
-      sources.length > 0
-        ? await pickSource(sources, surface === 'window' ? 'window' : 'screen', audio)
-        : null;
+    let picked = null;
+    if (wantsScreen && sources.length > 0) {
+      // * "A screen" was chosen in the menu of the call: nothing is left to ask. The screen the app is on is the one shared.
+      picked = { id: nearestScreen(sources).id, audio };
+    } else if (sources.length > 0) {
+      // A window has to be told apart from the others, so only then (or when the menu said "anything") the person picks.
+      picked = await pickSource(sources, surface === 'window' ? 'window' : 'screen', audio);
+    }
     const source = picked
       ? sources.find(function byId(candidate) {
           return candidate.id === picked.id;

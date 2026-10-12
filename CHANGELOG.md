@@ -2,6 +2,12 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.31.1
+
+- **Desktop app: sharing a screen opens no window.** What you choose in the menu of the call decides it: **a screen** (the one the app is on) is shared **at once**, and only **a window** (or "anything") opens a picker, with just the windows when you chose a window.
+- **A rounded icon.** The logo of the app (the icon of the desktop, the taskbar and the installed app) has rounded corners, like the logo of the page, instead of a black square.
+- **The animation of a name repeats the same way every time.** The first time the pointer went over a name its letters moved one after another, but from the second time they all moved together (the wave of each animation was lost). Now the letters start again, with their own delays, every time.
+
 ## 2.31.0
 
 - **Camera: move it when zoomed, soft edge and one more background.** In the window of the camera, once the zoom is above 100% you can **drag the preview** to move where the camera looks (it is sent to the others as you see it; **Reset** puts it back). A new **Soft edge** slider (Background section) sets how soft the line between you and the background is. A new ready-made background, **Candy**.

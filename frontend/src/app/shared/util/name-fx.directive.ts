@@ -288,11 +288,28 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     }
   }
 
-  /** Lets every piece that was left resting go on. */
+  /**
+   * Lets every piece that was left resting go on.
+   * ! The pieces rest at the end of their own turn, so they all stand at the start of it: if they simply went on they would
+   *   move together (the delay of each letter, which made the wave of the name, was used up the first time). So when any
+   *   piece was resting they all start again, with their delays, and the name moves as it did the first time.
+   */
   private resume(): void {
-    for (const piece of Array.from(
-      this.layer?.querySelectorAll<HTMLElement>('.nfx-l, .nfx-halo') ?? [],
-    )) {
+    const pieces = Array.from(this.layer?.querySelectorAll<HTMLElement>('.nfx-l, .nfx-halo') ?? []);
+    const rested = pieces.some(function isResting(piece) {
+      return piece.style.animationPlayState === 'paused';
+    });
+    if (rested) {
+      for (const piece of pieces) {
+        piece.style.animation = 'none';
+      }
+      // reading the size makes the browser see the "none" before the animation comes back
+      void this.layer?.offsetWidth;
+    }
+    for (const piece of pieces) {
+      if (rested) {
+        piece.style.animation = '';
+      }
       piece.style.animationPlayState = '';
     }
   }
