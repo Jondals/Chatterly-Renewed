@@ -1,6 +1,6 @@
 /**
  * src/app/core/ringtones.ts
- * The call ringtones: the default ones (classic, the old one, chime, Christmas, Halloween, New Year and Arcade, audio files in
+ * The call ringtones: the default ones (Chatterly Renewed, the classic one, chime, Christmas, Halloween, New Year and Arcade, audio files in
  * public/sounds/ringtones), the automatic choice that follows the season, and the storage of the person's own sounds (a
  * ringtone and a click) on this device.
  */
@@ -30,13 +30,13 @@ export interface RingtoneInfo {
 /** The default ringtones. Christmas and New Year use traditional tunes (public domain); the others are original. */
 export const MELODIES: Record<Exclude<RingtoneId, 'custom' | 'auto'>, RingtoneInfo> = {
   classic: {
-    label: 'Classic',
+    label: 'Chatterly Renewed',
     icon: 'phone',
     tone: 'bg-sky-500/15 text-sky-300',
     hint: 'A bright electric-piano call and its answer.',
   },
   old: {
-    label: 'The old one',
+    label: 'Classic',
     icon: 'phone',
     tone: 'bg-amber-500/15 text-amber-300',
     hint: 'The ringtone of the first Chatterly.',

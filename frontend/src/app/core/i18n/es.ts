@@ -1177,7 +1177,6 @@ export const ES: Record<string, string> = {
   'Shared secrets come from an ECDH P-256 exchange; contacts are verified with safety numbers (Trust on first use).':
     'Los secretos compartidos salen de un intercambio ECDH P-256; los contactos se verifican con números de seguridad (Trust on first use).',
   'SHA-256': 'SHA-256',
-  'The old one': 'El antiguo',
   'The ringtone of the first Chatterly.': 'El tono del primer Chatterly.',
   'Chime': 'Campanillas',
   'Wind chimes tumbling down and climbing back.':
@@ -1469,8 +1468,8 @@ export const ES: Record<string, string> = {
   'Search an emoji': 'Buscar un emoji',
   'Loading…': 'Cargando…',
   'Clear the link': 'Borrar el enlace',
-  'You choose the screen or the window, and the sound, in the next step.':
-    'Eliges la pantalla o la ventana, y el sonido, en el siguiente paso.',
+  'A screen is shared at once; for a window you pick which one next.':
+    'Una pantalla se comparte al instante; si eliges una ventana, después dices cuál.',
   'Delivered, not read yet': 'Entregado, sin leer todavía',
   'Candy': 'Caramelo',
   'Soft edge': 'Borde suave',

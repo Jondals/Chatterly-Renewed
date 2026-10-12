@@ -2,6 +2,11 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.31.2
+
+- **Desktop app: the menu to share the screen opens on a normal click.** What to share (a screen or a window), the quality and the sound were only on the right click, so nobody found them; now pressing the button of the screen opens that menu (in a browser it still starts at once, because the browser asks).
+- **Ringtones renamed.** The ringtone that was called "Classic" is now **Chatterly Renewed** (the default one), and the one called "The old one" (the ringtone of the first Chatterly) is now **Classic**. Only the names change: whoever had one chosen keeps the same sound.
+
 ## 2.31.1
 
 - **Desktop app: sharing a screen opens no window.** What you choose in the menu of the call decides it: **a screen** (the one the app is on) is shared **at once**, and only **a window** (or "anything") opens a picker, with just the windows when you chose a window.

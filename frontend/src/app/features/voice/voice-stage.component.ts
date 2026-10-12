@@ -537,7 +537,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             <b class="block text-sm">{{ 'Share your screen' | t }}</b>
                             <span class="block text-xs text-muted">{{
                               (desktop
-                                ? 'You choose the screen or the window, and the sound, in the next step.'
+                                ? 'A screen is shared at once; for a window you pick which one next.'
                                 : 'The browser will ask you to confirm what to show.'
                               ) | t
                             }}</span>
@@ -1870,10 +1870,20 @@ export class VoiceStageComponent {
     { id: 'max', label: '1080p · 60', hint: 'Smooth' },
   ];
 
-  /** The button of the screen: stops sharing, or starts it at once (the browser asks once what to show; the options are on the right click). */
+  /**
+   * The button of the screen: stops sharing. To start, in the desktop app it opens the menu (what to share, quality, sound:
+   * nothing else asks for them there); in a browser it starts at once, as the browser asks what to show (the menu is on the
+   * right click).
+   */
   protected screenClick(): void {
     if (this.call.screenOn()) {
       void this.call.toggleScreen();
+      return;
+    }
+    if (this.desktop) {
+      const open = !this.shareOpen();
+      this.closeOthers();
+      this.shareOpen.set(open);
       return;
     }
     this.shareOpen.set(false);

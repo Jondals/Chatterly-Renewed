@@ -2,6 +2,11 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.31.2
+
+- **App de escritorio: el menú para compartir pantalla se abre con un clic normal.** Qué compartir (una pantalla o una ventana), la calidad y el sonido solo estaban en el clic derecho y nadie los encontraba; ahora al pulsar el botón de la pantalla se abre ese menú (en un navegador sigue empezando al instante, porque pregunta el navegador).
+- **Tonos renombrados.** El tono que se llamaba "Clásico" ahora es **Chatterly Renewed** (el de por defecto), y el que se llamaba "El antiguo" (el tono del primer Chatterly) ahora es **Clásico**. Solo cambian los nombres: quien tenía uno elegido conserva el mismo sonido.
+
 ## 2.31.1
 
 - **App de escritorio: compartir pantalla no abre ninguna ventana.** Lo que eliges en el menú de la llamada lo decide: **una pantalla** (en la que está la app) se comparte **al instante**, y solo **una ventana** (o "cualquiera") abre un selector, con solo las ventanas cuando elegiste una ventana.
