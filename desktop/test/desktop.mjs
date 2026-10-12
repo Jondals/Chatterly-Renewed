@@ -117,8 +117,25 @@ function auditSource() {
     'disable-web-security',
   ]) {
     for (const name of Object.keys(text)) {
-      check(!text[name].includes(banned), name + ' does not contain ' + banned);
+      // The list of refused switches in main.cjs names them on purpose; anywhere else they must not appear.
+      const source = text[name].replace(/const FORBIDDEN_SWITCHES = \[[\s\S]*?\];/, '');
+      check(!source.includes(banned), name + ' does not contain ' + banned);
     }
+  }
+  for (const refused of [
+    'remote-debugging-port',
+    'ignore-certificate-errors',
+    'disable-web-security',
+    'no-sandbox',
+    'proxy-server',
+    'host-resolver-rules',
+  ]) {
+    const listStart = main.indexOf('FORBIDDEN_SWITCHES = [');
+    const list = main.slice(listStart, main.indexOf('];', listStart));
+    check(
+      listStart > 0 && list.includes("'" + refused + "'"),
+      'an installed app refuses to start with --' + refused,
+    );
   }
   check(main.includes('devTools: !app.isPackaged'), 'developer tools are off in a packaged app');
   check(
@@ -277,6 +294,8 @@ function appEnv(url) {
   env.CHATTERLY_NO_UPDATE = '1';
   // ? desktop/web (made by pnpm dist) would switch an unpackaged run to bundled mode; these runs test the remote mode.
   env.CHATTERLY_MODE = 'remote';
+  // The windows stay out of sight (far off screen, no focus) so the tests do not get in the way of your work.
+  env.CHATTERLY_TEST_QUIET = '1';
   return env;
 }
 
@@ -990,38 +1009,51 @@ async function packagedApp() {
     'packaged: file:// gets no extra privileges',
   );
 
+  // An installed app refuses to start with switches that open it up (a debugging port, no certificate checks...).
   const debugPort = await freePort();
-  const deadPort = await freePort();
-  const child = spawn(
-    exe,
-    [
-      '--user-data-dir=' + path.join(TMP, 'profile-packaged'),
-      // * Playwright cannot start a build whose --inspect fuse is off (that is the point); plain CDP still can.
-      '--remote-debugging-port=' + debugPort,
-    ],
-    { env: appEnv('https://127.0.0.1:' + deadPort), stdio: 'ignore' },
-  );
+  const profile = path.join(TMP, 'profile-packaged');
+  const refusedSwitches = [
+    '--remote-debugging-port=' + debugPort,
+    '--ignore-certificate-errors',
+    '--disable-web-security',
+    '--proxy-server=127.0.0.1:9',
+    '--no-sandbox',
+    '--host-resolver-rules=MAP * 127.0.0.1',
+  ];
+  for (const flag of refusedSwitches) {
+    const run = spawnSync(exe, ['--user-data-dir=' + profile, flag], {
+      env: appEnv('https://127.0.0.1:9'),
+      timeout: 20000,
+      windowsHide: true,
+    });
+    check(!run.error && run.status === 2, 'packaged: refuses to start with ' + flag.split('=')[0]);
+  }
+  let debugOpen = true;
   try {
-    // The list of pages comes straight from the debugging port (the offline page replaces the failed load).
-    const offlinePage = await waitFor(
-      async function findOfflinePage() {
-        try {
-          const res = await fetch('http://127.0.0.1:' + debugPort + '/json/list');
-          const pages = await res.json();
-          return pages.find(function isOffline(candidate) {
-            return candidate.url === 'app://chatterly/';
-          });
-        } catch (error) {
-          return null;
-        }
+    await fetch('http://127.0.0.1:' + debugPort + '/json/version');
+  } catch (error) {
+    debugOpen = false;
+  }
+  check(!debugOpen, 'packaged: no debugging port was opened');
+
+  // Without those switches it starts from its asar and loads the web app packed inside it.
+  const trace = path.join(TMP, 'packaged-trace.txt');
+  const env = appEnv('https://127.0.0.1:' + (await freePort()));
+  env.CHATTERLY_TRACE = trace;
+  const child = spawn(exe, ['--user-data-dir=' + profile], {
+    env,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  try {
+    await waitFor(
+      function loaded() {
+        return fs.existsSync(trace) && fs.readFileSync(trace, 'utf8').includes('did-finish-load');
       },
-      'the bundled web app of the packaged app',
+      'the packaged app to load its web app',
       30000,
     );
-    check(
-      Boolean(offlinePage),
-      'the packaged app starts from its asar and shows the web app packed inside it (app://chatterly)',
-    );
+    check(true, 'the packaged app starts from its asar and loads the web app packed inside it');
   } finally {
     // ! The whole tree: the packaged app has Chromium helper processes that keep files of the profile open.
     if (process.platform === 'win32') {

@@ -11,6 +11,7 @@ Chatterly-Renewed está hecho para que el servidor no pueda leer los mensajes ni
 - Las claves de los contactos se fijan la primera vez que se ven; las llamadas con una clave cambiada se rechazan hasta revisarlas. Compara el número de seguridad en las conversaciones importantes.
 - Una cuenta que escribe demasiado en una hora (mensajes del tamaño máximo, uno tras otro) se frena, para que una sola cuenta no pueda llenar el disco.
 - Un servidor que sirva JavaScript malicioso puede anular todo esto: las garantías suponen que el código que cargas es el de este repositorio.
+- **La app de Windows (`desktop/`) lleva ese código dentro de su instalador**, así que un servidor no puede cambiarlo. Es una ventana en sandbox sin acceso a Node, se niega a arrancar con interruptores que la debilitan y sigue una versión de Electron (Chromium) con soporte. Sus actualizaciones vienen de las Releases de GitHub de este repositorio y se comprueban con el hash de `latest.yml`; mientras el instalador no esté firmado (o publicado por la Microsoft Store), quien pueda publicar una release en el repositorio puede publicar una actualización, y la persona aún tiene que descargarla y aplicarla. Detalles: [desktop/README.es.md](desktop/README.es.md#seguridad).
 
 ## Cómo avisar
 

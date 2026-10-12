@@ -56,6 +56,53 @@ if (!app.commandLine.hasSwitch('user-data-dir')) {
     path.join(app.getPath('appData'), app.isPackaged ? 'Chatterly' : 'Chatterly-dev'),
   );
 }
+/**
+ * Chromium switches that open the app to someone who can start it: a debugging port, switches that turn off a protection
+ * (certificate checks, the same-origin policy, the sandbox), or that send its traffic somewhere else. An installed app
+ * refuses to start with any of them. The system proxy settings still work: only the explicit switches are refused.
+ * ! Nothing in the installed app registers a protocol or a file type, so a web page cannot start it with arguments; this
+ *   is a second lock for the case that something else on the computer does.
+ */
+const FORBIDDEN_SWITCHES = [
+  'remote-debugging-port',
+  'remote-debugging-pipe',
+  'remote-allow-origins',
+  'inspect',
+  'inspect-brk',
+  'inspect-port',
+  'ignore-certificate-errors',
+  'ignore-certificate-errors-spki-list',
+  'disable-web-security',
+  'allow-running-insecure-content',
+  'disable-site-isolation-trials',
+  'unsafely-treat-insecure-origin-as-secure',
+  'no-sandbox',
+  'disable-gpu-sandbox',
+  'proxy-server',
+  'proxy-pac-url',
+  'proxy-bypass-list',
+  'host-resolver-rules',
+  'host-rules',
+  'load-extension',
+  'disable-extensions-except',
+];
+if (app.isPackaged) {
+  const forbidden = FORBIDDEN_SWITCHES.filter(function isGiven(name) {
+    return app.commandLine.hasSwitch(name);
+  });
+  if (forbidden.length > 0) {
+    console.error('Chatterly refuses to start with: --' + forbidden.join(', --'));
+    app.exit(2);
+  }
+}
+
+/**
+ * Tests only: CHATTERLY_TEST_QUIET=1 keeps every window out of sight (far off screen, not in the taskbar, never taking
+ * the focus), so the tests can run while you work. ! An installed app ignores it.
+ */
+const QUIET = !app.isPackaged && process.env.CHATTERLY_TEST_QUIET === '1';
+const QUIET_WINDOW = QUIET ? { x: -32000, y: -32000, skipTaskbar: true } : {};
+
 // * Every renderer runs in the Chromium sandbox, also the ones created later.
 app.enableSandbox();
 // ! Must happen before the app is ready.
@@ -112,6 +159,10 @@ function openExternal(address) {
 
 function showMainWindow() {
   if (!mainWindow) return;
+  if (QUIET) {
+    mainWindow.showInactive();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -133,6 +184,7 @@ function pickSource(sources) {
   return new Promise(function executor(resolve) {
     let settled = false;
     pickerWindow = new BrowserWindow({
+      ...QUIET_WINDOW,
       parent: mainWindow || undefined,
       modal: Boolean(mainWindow),
       width: 760,
@@ -280,6 +332,7 @@ function onFinishLoad() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
+    ...QUIET_WINDOW,
     width: 1280,
     height: 800,
     minWidth: 360,

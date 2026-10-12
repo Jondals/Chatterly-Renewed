@@ -2,14 +2,21 @@
 # .github/workflows/desktop.yml
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 # * One release for the whole project: you raise the version, commit and push, and that is all. This workflow then builds
-#   the Windows app and publishes it as the GitHub Release "v<version>" (the version in desktop/package.json), which is
-#   also where installed apps look for updates and show them in the notifications of the bell.
-#   If that release already exists (a push that did not raise the version) it does nothing.
-#   deploy.yml updates the server on the same push; the two are independent.
+#   the Windows app and publishes it as the GitHub Release "v<version>" (the version in desktop/package.json), with the
+#   CHANGELOG section of that version as its notes. Installed apps look for updates there and show them in the bell.
+#   If that version already has its release (a push that did not raise it) it does nothing. deploy.yml updates the
+#   server on the same push; the two are independent.
 # * By hand (Actions tab > Run workflow) it builds the Microsoft Store package instead and keeps it as a download.
 #   Secrets for the Store (Settings > Secrets and variables > Actions): STORE_IDENTITY_NAME, STORE_PUBLISHER and
 #   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
 # ! The installer is NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
+#
+# * Security of this file:
+#   - The build (which runs the code of many npm packages) gets NO token. Only the last step, which runs the GitHub CLI
+#     and nothing else, receives GITHUB_TOKEN. The checkout does not leave the token in the folder either.
+#   - Every action is pinned to the exact commit of its release (the tag only says which one), so a moved tag cannot
+#     change what runs. To update one, look up the commit of the new release and change both the hash and the comment.
+#   - It only runs for pushes to this repository's branches, never for pull requests.
 name: Build the desktop app
 
 on:
@@ -31,26 +38,30 @@ jobs:
     permissions:
       contents: write # to create the release and attach the installer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Is this version already released?
         id: version
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           VERSION=$(node -p "require('./desktop/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
+          # Released = the release exists AND it already has latest.yml (a release without it is a failed one: finish it).
+          if gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx 'latest.yml'; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "v$VERSION already has a release: nothing to build."
+            echo "v$VERSION is already released: nothing to build."
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         if: steps.version.outputs.released == 'false'
         with:
           version: 12.9.1
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.version.outputs.released == 'false'
         with:
           node-version: 24
@@ -70,21 +81,37 @@ jobs:
       - name: Check the desktop shell
         if: steps.version.outputs.released == 'false'
         run: pnpm --dir desktop test
-      - name: Build and publish the installer
+      - name: Build the installer (no token here)
         if: steps.version.outputs.released == 'false'
-        run: pnpm --dir desktop release
+        run: pnpm --dir desktop dist
+      - name: Publish the release
+        if: steps.version.outputs.released == 'false'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node desktop/scripts/release-notes.mjs "$VERSION" > release-notes.md
+          # The release (and its tag, on this very commit) is made first; electron-builder is not involved in that.
+          gh release view "v$VERSION" >/dev/null 2>&1 || gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" --title "Chatterly $VERSION" --notes-file release-notes.md
+          gh release upload "v$VERSION" \
+            "desktop/dist/Chatterly-Setup-$VERSION.exe" \
+            "desktop/dist/Chatterly-Setup-$VERSION.exe.blockmap" \
+            desktop/dist/latest.yml --clobber
 
   store:
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 12.9.1
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Install
@@ -102,7 +129,7 @@ jobs:
           STORE_IDENTITY_NAME: ${{ secrets.STORE_IDENTITY_NAME }}
           STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
           STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: chatterly-store-package
           path: desktop/dist/*.appx

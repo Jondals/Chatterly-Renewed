@@ -2,6 +2,15 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.27.0
+
+- **The desktop app moves from Electron 39 to Electron 44, the newest supported version.** Electron ships its own Chromium, and 39 was out of support and had six known high-severity advisories (sandbox rules not inherited by pop-ups and windows opened from a sandboxed page, protocol handlers that allowed cross-origin reads, `webview` enabling Node in workers, and others). Only the build tools' dependency `sprintf-js` (moderate, no fix yet) remains in the audit; it is not part of the app.
+- **An installed desktop app refuses to start with switches that weaken it:** a debugging port, no certificate checks, no same-origin policy, no sandbox, another proxy or host rules. The tests check each one. `CHATTERLY_TRACE` writes only a plain text file at an absolute path.
+- **The desktop release pipeline is fixed and hardened.** Version 2.26.0 never got its installer: the build tried to publish and GitHub answered "Published releases must have a valid tag". Now the workflow creates the release itself (and its tag, on that commit) with the CHANGELOG section as its notes, builds **without any token** (only the last step, the GitHub CLI, has one), finishes a release that was left without `latest.yml`, and every action (also the SSH deploy one, which receives the server key) is pinned to its exact commit. The installer is named `Chatterly-Setup-<version>.exe`, the name `latest.yml` uses. **Installed 2.25 apps will update straight to 2.27.0** (2.26.0 has no desktop release; 2.27.0 has everything it had).
+- **The desktop tests run out of sight:** their windows open far off screen, outside the taskbar and without taking the focus, so they no longer get in the way while you work (`CHATTERLY_TEST_QUIET`, ignored by an installed app).
+- Docs: a Security section in `desktop/README.md` (what protects the app, the Electron policy and the risk that is still open: whoever can publish a release can publish an update until the installer is signed) and a line in `SECURITY.md`.
+- Tests: the desktop test (about 270 checks) now also checks the refused switches in the installed build and that it starts from its asar.
+
 ## 2.26.0
 
 - **Settings > Updates (desktop app only).** The state of the update with its buttons (check, download, restart and update), when it last looked, **how often it looks** (every hour, 6 hours, 12 hours, every day, only when the app starts, or only when you ask) and **whether it tells you** about new versions. With notices off the bell shows nothing about the update, and you can still update from Settings. The choices are kept in the profile folder, and the app only accepts the fixed list of values (anything else sent by the page is refused). Nothing is ever downloaded or installed without you pressing a button.

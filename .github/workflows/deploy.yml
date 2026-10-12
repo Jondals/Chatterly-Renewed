@@ -31,7 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update the server over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # ! This step receives the private key of the server: the action is pinned to the exact commit of v1.0.3, so a moved
+        #   tag cannot change what runs with it. To update it, look up the commit of the new release and change both.
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}

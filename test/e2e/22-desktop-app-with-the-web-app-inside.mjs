@@ -90,6 +90,8 @@ export async function step22(world) {
     CHATTERLY_URL: API,
     CHATTERLY_WEB_DIR: world.webDir,
     CHATTERLY_UPDATE_URL: 'http://127.0.0.1:' + feedPort,
+    // The windows stay out of sight, so the test does not get in the way of your work.
+    CHATTERLY_TEST_QUIET: '1',
   };
   delete env.CHATTERLY_NO_UPDATE;
   // ! Some editors set this, and Electron would then run as plain Node.

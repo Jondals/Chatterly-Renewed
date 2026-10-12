@@ -135,17 +135,32 @@ There is **one release for the whole project**, not one per platform:
 1. Raise the version **everywhere, to the same number**: `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` and `desktop/package.json`. Add the entry in `CHANGELOG.md`.
 2. Commit and push.
 
-That is all. The same push updates the server (`deploy.yml`) and the workflow [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) builds the web app, runs the desktop tests, builds the installer and publishes it as the release `v<version>` with `Chatterly Setup …exe`, `latest.yml` and the blockmap. If that version already has a release (a push that did not raise it), nothing is built. Installed apps find it within hours and show it in the bell.
+That is all. The same push updates the server (`deploy.yml`) and the workflow [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) builds the web app, runs the desktop tests, builds the installer and publishes it as the release `v<version>` with `Chatterly-Setup-<version>.exe`, `latest.yml` and the blockmap; the notes of the release are the section of that version in `CHANGELOG.md`. If that version already has a complete release (a push that did not raise it), nothing is built; a release that was left without `latest.yml` (a failed one) is finished by the next push. Installed apps find it within hours and show it in the bell.
 
 The repository (or at least its Releases) must be **public**, or the apps cannot download updates.
 
-By hand instead of the workflow (needs a GitHub token with write access to the repository):
+By hand instead of the workflow (with the [GitHub CLI](https://cli.github.com), logged in):
 
 ```
-$env:GH_TOKEN = "<token>"
 pnpm build
-pnpm --dir desktop release
+pnpm --dir desktop dist
+node desktop/scripts/release-notes.mjs 2.27.0 > notes.md
+gh release create v2.27.0 --target master --title "Chatterly 2.27.0" --notes-file notes.md
+gh release upload v2.27.0 "desktop/dist/Chatterly-Setup-2.27.0.exe" "desktop/dist/Chatterly-Setup-2.27.0.exe.blockmap" desktop/dist/latest.yml
 ```
+
+## Security
+
+What protects the app, and what is left to know:
+
+- **The code that handles your keys is the code in the installer.** It is not downloaded on each start. The page cannot reach Node or the system, other sites cannot use the update commands, and permissions go to the app only.
+- **Electron is kept on a supported version.** Electron ships its own Chromium, so an old Electron is an old browser with known holes. The project follows the newest stable major (44 now); older majors stop receiving security fixes. Before each release run `pnpm --dir desktop audit`: the only known advisory left is `sprintf-js` (moderate), a build-time dependency of the packaging tools that is not part of the app and has no fix yet.
+- **An installed app refuses to start with switches that open it up** (`--remote-debugging-port`, `--ignore-certificate-errors`, `--disable-web-security`, `--no-sandbox`, `--proxy-server`, `--host-resolver-rules` and similar). Nothing in the app registers a protocol or a file type, so a web page cannot start it with arguments; this is a second lock. `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are turned off in the build itself (fuses).
+- **The release pipeline** builds without any token (only the last step, the GitHub CLI, has one), pins every action to its exact commit, runs only for pushes to this repository, and never leaves the token in the folder.
+
+**What is not covered yet: who can publish an update.** An update is trusted because it comes from this repository's GitHub Releases over https and matches the sha512 in `latest.yml`. Whoever can write releases in the repository (or steals a token that can) could publish an update that every installed app would offer to its owner (who still has to press Download and Restart). The only complete fix is to sign the installer and make the app check the signature (`publisherName`, see _Signing the direct installer_ below), or to ship through the Microsoft Store. Until then: protect the GitHub account with two-factor authentication and a hardware key, keep the number of people who can write to the repository to the minimum, and keep `contents: write` only in the workflow job that needs it.
+
+Report a vulnerability as described in [SECURITY.md](../SECURITY.md).
 
 ## Speed
 

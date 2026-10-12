@@ -135,17 +135,32 @@ Hay **una sola publicación para todo el proyecto**, no una por plataforma:
 1. Sube la versión **en todos los sitios, al mismo número**: `package.json`, `backend/package.json`, `frontend/package.json`, `frontend/src/app/version.ts` y `desktop/package.json`. Añade la entrada en `CHANGELOG.md`.
 2. Haz commit y push.
 
-Ya está. Ese mismo push actualiza el servidor (`deploy.yml`) y el flujo [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) compila la web, pasa las pruebas de escritorio, genera el instalador y lo publica como la release `v<versión>` con `Chatterly Setup …exe`, `latest.yml` y el blockmap. Si esa versión ya tiene release (un push que no la subió), no compila nada. Las apps instaladas la encuentran en unas horas y la muestran en la campana.
+Ya está. Ese mismo push actualiza el servidor (`deploy.yml`) y el flujo [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) compila la web, pasa las pruebas de escritorio, genera el instalador y lo publica como la release `v<versión>` con `Chatterly-Setup-<versión>.exe`, `latest.yml` y el blockmap; las notas de la release son la sección de esa versión en `CHANGELOG.md`. Si esa versión ya tiene su release completa (un push que no la subió), no compila nada; una release que se quedó sin `latest.yml` (una fallida) la termina el siguiente push. Las apps instaladas la encuentran en unas horas y la muestran en la campana.
 
 El repositorio (o al menos sus Releases) debe ser **público**, o las apps no pueden descargar actualizaciones.
 
-A mano en vez del flujo (necesita un token de GitHub con permiso de escritura en el repositorio):
+A mano en vez del flujo (con la [CLI de GitHub](https://cli.github.com), con sesión iniciada):
 
 ```
-$env:GH_TOKEN = "<token>"
 pnpm build
-pnpm --dir desktop release
+pnpm --dir desktop dist
+node desktop/scripts/release-notes.mjs 2.27.0 > notas.md
+gh release create v2.27.0 --target master --title "Chatterly 2.27.0" --notes-file notas.md
+gh release upload v2.27.0 "desktop/dist/Chatterly-Setup-2.27.0.exe" "desktop/dist/Chatterly-Setup-2.27.0.exe.blockmap" desktop/dist/latest.yml
 ```
+
+## Seguridad
+
+Qué protege a la app y qué queda por saber:
+
+- **El código que maneja tus claves es el del instalador.** No se descarga en cada arranque. La página no puede llegar a Node ni al sistema, otras webs no pueden usar los comandos de actualización, y los permisos van solo a la app.
+- **Electron se mantiene en una versión con soporte.** Electron trae su propio Chromium, así que un Electron viejo es un navegador viejo con fallos conocidos. El proyecto sigue la última versión mayor estable (la 44 ahora); las mayores antiguas dejan de recibir arreglos de seguridad. Antes de cada publicación ejecuta `pnpm --dir desktop audit`: el único aviso que queda es `sprintf-js` (moderado), una dependencia de las herramientas de empaquetado, que no forma parte de la app y aún no tiene arreglo.
+- **Una app instalada se niega a arrancar con interruptores que la abren** (`--remote-debugging-port`, `--ignore-certificate-errors`, `--disable-web-security`, `--no-sandbox`, `--proxy-server`, `--host-resolver-rules` y parecidos). Nada de la app registra un protocolo ni un tipo de archivo, así que una web no puede arrancarla con argumentos; es un segundo cerrojo. `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` y `--inspect` se apagan en la propia compilación (fusibles).
+- **El flujo de publicación** compila sin ningún token (solo el último paso, la CLI de GitHub, lo tiene), fija cada acción a su commit exacto, solo se ejecuta con pushes a este repositorio y nunca deja el token en la carpeta.
+
+**Lo que aún no está cubierto: quién puede publicar una actualización.** Una actualización se confía porque viene de las Releases de GitHub de este repositorio por https y coincide con el sha512 de `latest.yml`. Quien pueda escribir releases en el repositorio (o robe un token que pueda) podría publicar una actualización que todas las apps instaladas ofrecerían a su dueño (que aún tiene que pulsar Descargar y Reiniciar). El único arreglo completo es firmar el instalador y que la app compruebe la firma (`publisherName`, mira _Firmar el instalador directo_ más abajo), o publicar por la Microsoft Store. Mientras tanto: protege la cuenta de GitHub con verificación en dos pasos y una llave física, mantén al mínimo las personas que pueden escribir en el repositorio y deja `contents: write` solo en el trabajo del flujo que lo necesita.
+
+Comunica una vulnerabilidad como se explica en [SECURITY.es.md](../SECURITY.es.md).
 
 ## Velocidad
 
