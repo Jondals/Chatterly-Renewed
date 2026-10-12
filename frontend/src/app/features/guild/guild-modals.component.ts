@@ -21,13 +21,10 @@ import { AvatarComponent } from '../../shared/components/avatar.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
-import { EmojiChoiceComponent } from '../../shared/components/emoji-choice.component';
+import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
+import { TopLayerDirective } from '../../shared/util/top-layer.directive';
 import { IconComponent } from '../../shared/components/icon.component';
-import {
-  ServerTagComponent,
-  TAG_COLORS,
-  TAG_ICONS,
-} from '../../shared/components/server-tag.component';
+import { ServerTagComponent, TAG_COLORS } from '../../shared/components/server-tag.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { describeError } from '../../shared/util/errors';
 import { ChannelLabelPipe } from '../../shared/util/channel-label.pipe';
@@ -40,7 +37,8 @@ import { SocialStore } from '../../store/social.store';
   standalone: true,
   imports: [
     ServerTagComponent,
-    EmojiChoiceComponent,
+    ExpressionPickerComponent,
+    TopLayerDirective,
     NameColorDirective,
     UserFontDirective,
     NameFxDirective,
@@ -125,7 +123,6 @@ import { SocialStore } from '../../store/social.store';
                   [appNameColor]="u.profileColor"
                   [appUserFont]="u.nameFont"
                   [nameFx]="u.nameFx"
-                  [fxLive]="true"
                   >{{ u.displayName }}</span
                 ><span class="text-xs">&#64;{{ u.username }}</span></span
               >
@@ -244,8 +241,37 @@ import { SocialStore } from '../../store/social.store';
                   ></button>
                 }
               </div>
-              <div class="mt-2.5">
-                <app-emoji-choice [(value)]="tagIcon" [quick]="tagIcons" />
+              <div class="relative mt-2.5 flex items-center gap-2">
+                <button
+                  #tagEmojiButton
+                  type="button"
+                  class="btn btn-sm gap-1.5"
+                  [class.btn-active]="tagEmojiOpen()"
+                  [attr.aria-expanded]="tagEmojiOpen()"
+                  (mousedown)="$event.stopPropagation()"
+                  (click)="tagEmojiOpen.set(!tagEmojiOpen())"
+                >
+                  @if (tagIcon()) {
+                    <span class="text-base leading-none">{{ tagIcon() }}</span>
+                  } @else {
+                    <app-icon name="smile" [size]="14" />
+                  }
+                  {{ 'Choose an emoji' | t }}
+                </button>
+                @if (tagIcon()) {
+                  <button class="btn btn-sm" type="button" (click)="tagIcon.set('')">
+                    {{ 'No icon' | t }}
+                  </button>
+                }
+                @if (tagEmojiOpen()) {
+                  <div [appTopLayer]="tagEmojiButton">
+                    <app-expression-picker
+                      [tabs]="['emoji']"
+                      (emoji)="chooseTagEmoji($event)"
+                      (closed)="tagEmojiOpen.set(false)"
+                    />
+                  </div>
+                }
               </div>
             </section>
           }
@@ -388,11 +414,17 @@ export class GuildModalsComponent {
   protected readonly channelType = signal<'text' | 'voice'>('text');
   protected readonly editName = signal('');
   protected readonly tagColors = TAG_COLORS;
-  protected readonly tagIcons = TAG_ICONS;
+  protected readonly tagEmojiOpen = signal(false);
   /** What is typed for the tag of the group (it starts as the saved tag, see the effect in the constructor). */
   protected readonly tagText = signal('');
   protected readonly tagColor = signal(TAG_COLORS[0]!);
   protected readonly tagIcon = signal('');
+
+  /** The emoji picked in the picker of the chat becomes the icon of the tag. */
+  protected chooseTagEmoji(emoji: string): void {
+    this.tagIcon.set(emoji);
+    this.tagEmojiOpen.set(false);
+  }
   /** Whether the tag on the screen is not the one that is saved. */
   protected readonly tagChanged = computed(this.hasTagChanged.bind(this));
 

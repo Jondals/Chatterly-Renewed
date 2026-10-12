@@ -464,8 +464,8 @@ export async function step17(world) {
   await a.click('button[aria-expanded]:has-text("Call ringtone")');
   await a.waitForTimeout(600);
   check(
-    (await a.locator('.ring-card:visible').count()) === 6,
-    'the automatic ringtone, four melodies and one of your own',
+    (await a.locator('.ring-card:visible').count()) === 9,
+    'the automatic ringtone, seven melodies and one of your own',
   );
   check(
     (await a.locator('.ring-card:has-text("Automatic")').count()) === 1,

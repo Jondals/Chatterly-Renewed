@@ -9,9 +9,12 @@
  *   between the camera, this worker and the call (which encrypts them like any other video).
  * ? It is a classic worker (not a module) because the engine of MediaPipe loads itself with importScripts.
  *
+ * Where the browser has no insertable streams (Firefox, Safari) the page sends the frames itself as bitmaps and this worker sends
+ * the finished ones back: { type: 'start', mode: 'bitmaps', base, options }, then { type: 'frame', bitmap } -> { type: 'frame', bitmap }.
+ *
  * Messages from the page: { type: 'start', readable, writable, base, options } starts it; { type: 'options', options } changes
  * what it does; { type: 'frames', frames, durations } brings the pictures of an image or animated background; { type: 'stop' }.
- * `options` = { mirror, brightness, contrast, saturation, zoom, background: { type, amount, stops, angle } }.
+ * `options` = { mirror, brightness, contrast, saturation, zoom, panX, panY, edgeSoftness, background: { type, amount, stops, angle } }.
  */
 'use strict';
 
@@ -46,6 +49,8 @@ var state = {
   background: { width: 1, height: 1 },
   reader: null,
   writer: null,
+  /** True when the page sends bitmaps (no insertable streams). */
+  bitmaps: false,
 };
 
 /** Handles what the page says. */
@@ -57,6 +62,8 @@ function onMessage(event) {
     setOptions(message.options);
   } else if (message.type === 'frames') {
     setFrames(message.frames, message.durations);
+  } else if (message.type === 'frame') {
+    processBitmap(message.bitmap);
   } else if (message.type === 'stop') {
     stop();
   }
@@ -101,8 +108,11 @@ function releaseFrames() {
 function start(message) {
   state.base = message.base;
   state.options = message.options;
-  state.reader = message.readable.getReader();
-  state.writer = message.writable.getWriter();
+  state.bitmaps = message.mode === 'bitmaps';
+  if (!state.bitmaps) {
+    state.reader = message.readable.getReader();
+    state.writer = message.writable.getWriter();
+  }
   state.canvas = new OffscreenCanvas(2, 2);
   var gl = state.canvas.getContext('webgl2', {
     alpha: false,
@@ -123,7 +133,9 @@ function start(message) {
   if (needsMask()) {
     createSegmenter();
   }
-  pump();
+  if (!state.bitmaps) {
+    pump();
+  }
 }
 
 // ---- the model ----------------------------------------------------------------------------------------------------
@@ -164,7 +176,11 @@ function openSegmenter(delegate, files) {
 /** The model could not start: the picture goes on without a cutout. */
 function reportSegmenterFailure(error) {
   state.segmenterStarting = false;
-  self.postMessage({ type: 'error', reason: 'model', detail: String(error && error.message ? error.message : error) });
+  self.postMessage({
+    type: 'error',
+    reason: 'model',
+    detail: String(error && error.message ? error.message : error),
+  });
 }
 
 /** Turns the confidence mask of the model into the soft mask the shader uses (smoothed in time). */
@@ -200,7 +216,8 @@ function readMask(result) {
 
 // ---- the graphics -------------------------------------------------------------------------------------------------
 
-var VERTEX = '#version 300 es\n' +
+var VERTEX =
+  '#version 300 es\n' +
   'out vec2 vUv;\n' +
   'void main() {\n' +
   '  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));\n' +
@@ -209,7 +226,8 @@ var VERTEX = '#version 300 es\n' +
   '}\n';
 
 /** A blur in one direction: 9 taps, as wide as `uStep` says. The result keeps the orientation of the picture it reads. */
-var BLUR = '#version 300 es\n' +
+var BLUR =
+  '#version 300 es\n' +
   'precision mediump float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
   'uniform sampler2D uSource; uniform vec2 uStep;\n' +
@@ -223,29 +241,31 @@ var BLUR = '#version 300 es\n' +
   '}\n';
 
 /** The first pass of the blur reads the camera (top row first) and writes it the same way. */
-var COPY = '#version 300 es\n' +
+var COPY =
+  '#version 300 es\n' +
   'precision mediump float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
   'uniform sampler2D uSource;\n' +
   'void main() { outColor = vec4(texture(uSource, vUv).rgb, 1.0); }\n';
 
 /** The final picture: the background behind the person, the person over it, and the adjustments of the camera. */
-var COMPOSE = '#version 300 es\n' +
+var COMPOSE =
+  '#version 300 es\n' +
   'precision highp float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
   'uniform sampler2D uVideo; uniform sampler2D uMask; uniform sampler2D uBlur; uniform sampler2D uBg;\n' +
   'uniform int uMode; uniform float uHasMask;\n' +
-  'uniform float uMirror; uniform float uZoom; uniform vec4 uBgFit;\n' +
+  'uniform float uMirror; uniform float uZoom; uniform vec2 uPan; uniform float uSoft; uniform vec4 uBgFit;\n' +
   'uniform float uBright; uniform float uContrast; uniform float uSat;\n' +
   'void main() {\n' +
   '  vec2 uv = vUv;\n' +
-  '  uv = (uv - 0.5) / uZoom + 0.5;\n' +
+  '  uv = (uv - 0.5) / uZoom + 0.5 + uPan;\n' +
   '  vec2 bgUv = uv;\n' +
   '  if (uMirror > 0.5) { uv.x = 1.0 - uv.x; }\n' +
   '  vec2 img = vec2(uv.x, 1.0 - uv.y);\n' +
   '  vec3 color = texture(uVideo, img).rgb;\n' +
   '  if (uMode != 0 && uHasMask > 0.5) {\n' +
-  '    float m = smoothstep(0.35, 0.65, texture(uMask, img).r);\n' +
+  '    float m = smoothstep(0.5 - uSoft, 0.5 + uSoft, texture(uMask, img).r);\n' +
   '    vec3 back;\n' +
   '    if (uMode == 1) { back = texture(uBlur, img).rgb; }\n' +
   '    else {\n' +
@@ -429,8 +449,8 @@ function paintGradient(context, options, width, height) {
 function render(frame) {
   var gl = state.gl;
   var options = state.options;
-  var width = frame.displayWidth;
-  var height = frame.displayHeight;
+  var width = frame.displayWidth || frame.width;
+  var height = frame.displayHeight || frame.height;
   if (state.canvas.width !== width || state.canvas.height !== height) {
     state.canvas.width = width;
     state.canvas.height = height;
@@ -502,13 +522,56 @@ function render(frame) {
       g.uniform1i(g.getUniformLocation(p, 'uMode'), mode);
       g.uniform1f(g.getUniformLocation(p, 'uHasMask'), hasMask ? 1 : 0);
       g.uniform1f(g.getUniformLocation(p, 'uMirror'), options.mirror ? 1 : 0);
-      g.uniform1f(g.getUniformLocation(p, 'uZoom'), Math.max(1, options.zoom || 1));
+      var zoom = Math.max(1, options.zoom || 1);
+      // the room the zoom leaves on each side is what the pan (-1 to 1) moves through
+      var room = 0.5 - 0.5 / zoom;
+      var panX = Math.max(-1, Math.min(1, options.panX || 0)) * room;
+      var panY = Math.max(-1, Math.min(1, options.panY || 0)) * room;
+      // the width of the soft edge of the person: 0.15 (the original look) at the default of 0.33
+      var soft =
+        0.02 +
+        Math.max(0, Math.min(1, options.edgeSoftness === undefined ? 0.33 : options.edgeSoftness)) *
+          0.39;
+      g.uniform1f(g.getUniformLocation(p, 'uZoom'), zoom);
+      g.uniform2f(g.getUniformLocation(p, 'uPan'), panX, panY);
+      g.uniform1f(g.getUniformLocation(p, 'uSoft'), soft);
       g.uniform4f(g.getUniformLocation(p, 'uBgFit'), fit[0], fit[1], fit[2], fit[3]);
       g.uniform1f(g.getUniformLocation(p, 'uBright'), options.brightness || 0);
-      g.uniform1f(g.getUniformLocation(p, 'uContrast'), options.contrast === undefined ? 1 : options.contrast);
-      g.uniform1f(g.getUniformLocation(p, 'uSat'), options.saturation === undefined ? 1 : options.saturation);
+      g.uniform1f(
+        g.getUniformLocation(p, 'uContrast'),
+        options.contrast === undefined ? 1 : options.contrast,
+      );
+      g.uniform1f(
+        g.getUniformLocation(p, 'uSat'),
+        options.saturation === undefined ? 1 : options.saturation,
+      );
     },
   );
+}
+
+/** A bitmap of the camera that the page sent: the picture is made and the finished one goes back as a bitmap. */
+function processBitmap(bitmap) {
+  if (!state.running) {
+    bitmap.close();
+    return;
+  }
+  var done = null;
+  try {
+    if (needsMask() && state.segmenter && state.frameNumber % SEGMENT_EVERY === 0) {
+      state.segmenter.segmentForVideo(bitmap, performance.now(), readMask);
+    }
+    state.frameNumber++;
+    render(bitmap);
+    done = state.canvas.transferToImageBitmap();
+  } catch (error) {
+    // A frame that fails is skipped; the page asks again with the next one.
+  }
+  bitmap.close();
+  if (done) {
+    self.postMessage({ type: 'frame', bitmap: done }, [done]);
+  } else {
+    self.postMessage({ type: 'frame', bitmap: null });
+  }
 }
 
 // ---- the loop -----------------------------------------------------------------------------------------------------
@@ -546,6 +609,10 @@ async function pump() {
 /** Stops the work and frees everything. */
 function stop() {
   state.running = false;
+  if (state.bitmaps) {
+    finish();
+    return;
+  }
   try {
     state.reader.cancel().catch(ignore);
   } catch (error) {
@@ -562,7 +629,9 @@ function ignore() {
 function finish() {
   state.running = false;
   try {
-    state.writer.close().catch(ignore);
+    if (state.writer) {
+      state.writer.close().catch(ignore);
+    }
   } catch (error) {
     // it had ended already
   }

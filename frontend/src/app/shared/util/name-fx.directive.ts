@@ -1,9 +1,8 @@
 /**
  * src/app/shared/util/name-fx.directive.ts
  * The animation of a name: the person chooses one in their profile and the LETTERS of their name move (they bounce, jump,
- * wave, wobble like jelly...) when the pointer is over the name, and all the time in the chat (`fxLive`) while the name is on
- * the screen.
- * Use: `<span [nameFx]="u.nameFx" [fxLive]="true">{{ u.displayName }}</span>`.
+ * wave, wobble like jelly...) when the pointer is over the name.
+ * Use: `<span [nameFx]="u.nameFx">{{ u.displayName }}</span>`.
  *
  * * How it is made: the text of the name stays where it is (Angular keeps writing it), moved into a wrapper that is hidden but
  * keeps its width; over it goes a layer with one element per letter (styles/chat.css, "nfx-"). Only transform and opacity
@@ -85,14 +84,25 @@ function unwatchVisible(element: Element): void {
   selector: '[nameFx]',
   standalone: true,
   host: {
-    '[class]': 'fxClass()',
+    '[class.nfx]': 'fxClass() !== ""',
+    '[class.nfx-bounce]': 'nameFx() === "bounce"',
+    '[class.nfx-jump]': 'nameFx() === "jump"',
+    '[class.nfx-wave]': 'nameFx() === "wave"',
+    '[class.nfx-jelly]': 'nameFx() === "jelly"',
+    '[class.nfx-pop]': 'nameFx() === "pop"',
+    '[class.nfx-swing]': 'nameFx() === "swing"',
+    '[class.nfx-flip]': 'nameFx() === "flip"',
+    '[class.nfx-glow]': 'nameFx() === "glow"',
+    '[class.nfx-neon]': 'nameFx() === "neon"',
+    '[class.nfx-drift]': 'nameFx() === "drift"',
+    '[class.nfx-twinkle]': 'nameFx() === "twinkle"',
     '(mouseenter)': 'enter()',
     '(mouseleave)': 'leave()',
   },
 })
 export class NameFxDirective implements AfterViewChecked, OnDestroy {
   readonly nameFx = input<string | null | undefined>('none');
-  /** True where the animation plays all the time (the chat); elsewhere only under the pointer. */
+  /** Kept for compatibility with saved templates; names animate on hover throughout the app. */
   readonly fxLive = input(false);
   protected readonly fxClass = computed(this.pickClass.bind(this));
 

@@ -24,6 +24,7 @@ export const PRESET_BACKGROUNDS: PresetBackground[] = [
   { id: 'ocean', name: 'Ocean', stops: ['#021b3a', '#0a5a9c', '#6dd5fa'], angle: 180 },
   { id: 'forest', name: 'Forest', stops: ['#08201a', '#1f6b4a', '#a8e063'], angle: 150 },
   { id: 'night', name: 'Night', stops: ['#05050f', '#171a3a', '#3b2f6b'], angle: 200 },
+  { id: 'candy', name: 'Candy', stops: ['#3a1c71', '#d76d77', '#ffaf7b'], angle: 120 },
 ];
 
 /** Turns the choices of the person into the options of the effects of the camera. */
@@ -62,6 +63,9 @@ export class CallBackgroundService {
       contrast: s.cameraContrast() / 100,
       saturation: s.cameraSaturation() / 100,
       zoom: s.cameraZoom() / 100,
+      panX: s.cameraPanX() / 100,
+      panY: s.cameraPanY() / 100,
+      edgeSoftness: s.cameraEdgeSoftness() / 100,
       background,
     };
   }

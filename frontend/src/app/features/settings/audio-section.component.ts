@@ -214,16 +214,6 @@ import { decibels } from '../../shared/util/audio-level';
         />
       </app-setting-row>
       <app-setting-row
-        title="Mirror my camera"
-        hint="The picture is turned like in a mirror, for you and for everybody who sees you."
-      >
-        <app-toggle
-          [checked]="s.cameraMirror()"
-          (checkedChange)="s.cameraMirror.set($event); call.applyBackground()"
-          [label]="'Mirror my camera' | t"
-        />
-      </app-setting-row>
-      <app-setting-row
         title="Background and adjustments"
         hint="Blur or change what is behind you, and adjust brightness, contrast, color and zoom, with a live preview."
       >
@@ -235,7 +225,7 @@ import { decibels } from '../../shared/util/audio-level';
 
     @if (graphics(); as g) {
       <section class="settings-card">
-        <h2 class="settings-card-title">{{ 'Graphics (desktop app)' | t }}</h2>
+        <h2 class="settings-card-title">{{ 'Graphics' | t }}</h2>
         <app-setting-row
           title="Hardware acceleration"
           hint="Uses the graphics card to draw the app and to make the effects of the camera. Turn it off only if the app flickers or shows glitches."

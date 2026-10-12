@@ -17,6 +17,7 @@ import { SoundService } from '../core/services/sound.service';
 import { ToastService } from '../core/services/toast.service';
 import { replaceShortcodes } from '../shared/util/emoji';
 import { ReceiptService, type MessageStatus } from '../core/services/receipt.service';
+import { makeSeekable } from '../core/seekable-audio';
 import { E2eeService, type AttachmentPayload, type MessagePayload } from './e2ee.service';
 import { RUN_MARK, sanitizeActivity, type SpinlyActivity } from '../features/spinly/spinly-model';
 import { sanitizeResult, type SpinlyResult } from '../features/spinly/spinly-result';
@@ -646,6 +647,10 @@ export class MessageStore {
         const plain = await decryptFile(cipher, attachment.secret);
         // Anything that isn't an allow-listed media type is exposed as an opaque download.
         const type = attachment.kind === 'file' ? 'application/octet-stream' : attachment.mime;
+        if (attachment.kind === 'audio') {
+          // A recording made in the browser cannot be moved around as it is; it is written again so that it can.
+          return URL.createObjectURL(await makeSeekable(plain, type));
+        }
         return URL.createObjectURL(new Blob([plain], { type }));
       }.bind(this)();
       promise.catch(

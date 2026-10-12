@@ -1,4 +1,5 @@
 /* Self-hosted fonts (bundled by the build — nothing is fetched from a CDN). */
+@import '@fontsource-variable/open-sans';
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/outfit';
 @import '@fontsource-variable/space-grotesk';

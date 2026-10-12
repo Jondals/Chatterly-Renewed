@@ -201,6 +201,10 @@
   --accent-2: #f472b6;
 }
 
+[data-font='inter'] {
+  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+}
+
 [data-font='outfit'] {
   --font-ui: 'Outfit Variable', 'Inter Variable', system-ui, sans-serif;
 }
@@ -230,7 +234,7 @@
 }
 
 [data-font='system'] {
-  --font-ui: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, Roboto, sans-serif;
 }
 
 /* Backdrop blur over an animated background re-renders every frame and made menus stutter: it is off everywhere. */
@@ -671,13 +675,15 @@ label,
   border: 1.5px solid var(--dim);
 }
 
+/* Arrived on their device but not read yet: a solid green dot, clearly apart from the empty ring and the blue read dot. */
 .status-delivered {
-  background: var(--dim);
+  background: var(--color-emerald);
+  box-shadow: 0 0 5px color-mix(in oklab, var(--color-emerald) 55%, transparent);
 }
 
 .status-read {
-  background: var(--accent);
-  box-shadow: 0 0 6px color-mix(in oklab, var(--accent) 60%, transparent);
+  background: var(--color-sky);
+  box-shadow: 0 0 6px color-mix(in oklab, var(--color-sky) 60%, transparent);
 }
 
 /* The shield button of a conversation whose safety number was verified: it lights up in the accent color. */

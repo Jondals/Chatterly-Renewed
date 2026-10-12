@@ -37,7 +37,7 @@ sound you add is louder than the others, lower its `trim` in `sound-library.ts` 
 
 ## `ringtones/` — the default ringtones (they repeat while a call rings)
 
-`classic.ogg`, `christmas.ogg`, `halloween.ogg` and `newyear.ogg`. The pause between repetitions is `gap` in
+`classic.wav`, `old.ogg` (the ringtone of the first Chatterly), `chime.wav`, `christmas.wav`, `halloween.ogg`, `newyear.wav` and `arcade.wav`. The pause between repetitions is `gap` in
 `sound-library.ts`. The person can also upload their own ringtone in Settings > Sounds & notifications.
 
 `secret.ogg` is a joke tone that cannot be chosen anywhere: an incoming call rings with it once in ten thousand (`SECRET_RING_CHANCE` in `sound.service.ts`).

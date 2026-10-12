@@ -8,9 +8,11 @@ import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -43,6 +45,8 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
 
 /** A message younger than this (in milliseconds) counts as just arrived. */
 const EMOJI_FRESH_MS = 6000;
+/** Seconds of rest between the end of the show of a lone emoji and the next one. */
+const EMOJI_REST_MS = 5000;
 
 @Component({
   selector: 'app-message-item',
@@ -98,7 +102,6 @@ const EMOJI_FRESH_MS = 6000;
               [appNameColor]="sender()?.profileColor ?? ''"
               [fallback]="mine() ? 'var(--accent)' : 'var(--fg)'"
               [nameFx]="sender()?.nameFx"
-              [fxLive]="true"
               (click)="openProfile()"
             >
               {{ sender()?.displayName ?? auth.user()?.displayName ?? '…' }}
@@ -109,6 +112,18 @@ const EMOJI_FRESH_MS = 6000;
               <app-status-mark [status]="store.statusOf(m)" />
             }
           </div>
+        }
+
+        @if (
+          compact() &&
+          mine() &&
+          settings.showMessageStatus() &&
+          !m.pending &&
+          !m.failed &&
+          m.verified
+        ) {
+          <!-- the messages that follow another one of yours have no header, so their mark sits at the corner -->
+          <app-status-mark class="absolute right-3 top-2.5" [status]="store.statusOf(m)" />
         }
 
         @if (replied(); as r) {
@@ -419,12 +434,61 @@ export class MessageItemComponent {
     if (!this.singleEmoji() || !this.bigEmoji()) {
       return;
     }
-    const element = event.currentTarget as HTMLElement;
+    this.playEmoji(event.currentTarget as HTMLElement);
+  }
+
+  /** Starts the show of a lone emoji from the beginning. Returns how long it lasts, in milliseconds. */
+  private playEmoji(element: HTMLElement): number {
     element.classList.remove('emo-play');
     // Reading the size makes the browser notice the class is gone, so adding it again starts the animation again.
     void element.offsetWidth;
     element.classList.add('emo-play');
+    const style = getComputedStyle(element);
+    const seconds = parseFloat(style.getPropertyValue('--emo-dur')) || 1.8;
+    const times = parseFloat(style.getPropertyValue('--emo-count')) || 1;
+    return 500 + seconds * times * 1000;
   }
+
+  /** The timer of the next show of this lone emoji. */
+  private emojiTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Waits, plays the show if the emoji is on the screen, and waits again: a rest of 5 seconds between shows. */
+  private scheduleEmojiShow(wait: number): void {
+    clearTimeout(this.emojiTimer);
+    this.emojiTimer = setTimeout(
+      function show(this: MessageItemComponent): void {
+        const element =
+          this.host.nativeElement.querySelector<HTMLElement>('.bubble-emoji.is-single');
+        if (!element || !this.singleEmoji() || !this.bigEmoji()) {
+          return;
+        }
+        const box = element.getBoundingClientRect();
+        const onScreen =
+          !document.hidden && box.bottom > 0 && box.top < window.innerHeight && box.width > 0;
+        const still = this.settings.animations() === 'off';
+        const lasts = onScreen && !still ? this.playEmoji(element) : 0;
+        this.scheduleEmojiShow(lasts + EMOJI_REST_MS);
+      }.bind(this),
+      wait,
+    );
+  }
+
+  private readonly emojiShows = effect(
+    function (this: MessageItemComponent): void {
+      const lone = this.singleEmoji() && this.bigEmoji() && !this.message().pending;
+      if (lone) {
+        // the first show comes after it settles in and rests
+        this.scheduleEmojiShow(EMOJI_REST_MS);
+      } else {
+        clearTimeout(this.emojiTimer);
+      }
+    }.bind(this),
+  );
+  private readonly stopEmojiShows = inject(DestroyRef).onDestroy(
+    function (this: MessageItemComponent): void {
+      clearTimeout(this.emojiTimer);
+    }.bind(this),
+  );
   protected readonly segments = computed(
     function (this: MessageItemComponent) {
       return parseRichText(this.message().text.trim());

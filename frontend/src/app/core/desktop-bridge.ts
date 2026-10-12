@@ -51,7 +51,8 @@ export type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
 
 /** The screen sharing hint. */
 export interface DesktopScreen {
-  setSurface(surface: ShareSurface): Promise<boolean>;
+  /** Says what is about to be shared and whether the picker starts with the sound ticked. */
+  setSurface(surface: ShareSurface, audio?: boolean): Promise<boolean>;
 }
 
 /** The bar at the top of the window, when the app draws its own (Windows). */

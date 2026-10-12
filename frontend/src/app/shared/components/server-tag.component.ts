@@ -6,26 +6,6 @@
 import { Component, computed, input } from '@angular/core';
 import type { ServerTag } from '../../core/models';
 
-/** The icons the owner of a group chooses from (the server accepts only these). */
-export const TAG_ICONS = [
-  '💎',
-  '🔥',
-  '⚡',
-  '🌙',
-  '⭐',
-  '🛡️',
-  '👑',
-  '🎮',
-  '🎵',
-  '🌸',
-  '🐺',
-  '🐉',
-  '🍀',
-  '☠️',
-  '🚀',
-  '🎯',
-];
-
 /** The colors offered for a tag. */
 export const TAG_COLORS = [
   '#7c8cff',

@@ -1,6 +1,6 @@
 /**
  * src/app/features/chat/status-mark.component.ts
- * A tiny dot next to the time of your messages: an empty ring when sent, a soft dot when delivered and an accent
+ * A tiny dot next to the time of your messages: an empty ring when sent, a green dot when delivered and a blue
  * dot when read. It says nothing unless you hover it (then the tooltip names the state), so it never distracts.
  */
 import { Component, computed, input } from '@angular/core';
@@ -36,6 +36,6 @@ export class StatusMarkComponent {
     if (status === 'read') {
       return 'Read';
     }
-    return status === 'delivered' ? 'Delivered' : 'Sent';
+    return status === 'delivered' ? 'Delivered, not read yet' : 'Sent';
   }
 }

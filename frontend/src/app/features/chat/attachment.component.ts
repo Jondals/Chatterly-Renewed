@@ -184,7 +184,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
         }
         @case ('audio') {
           <div
-            class="mt-2 grid w-80 max-w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5 rounded-ui border border-white/8 bg-black/30 p-2.5"
+            class="mt-2 grid w-80 max-w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5 rounded-ui border border-white/8 bg-black/30 p-2.5 pt-4"
           >
             <button
               class="btn btn-icon btn-primary col-start-1 row-start-1 shrink-0 !rounded-ui"
@@ -197,7 +197,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
             </button>
             <div class="contents">
               <div
-                class="wave relative col-start-2 row-start-1 flex h-8 touch-none select-none items-center gap-[2px]"
+                class="wave relative col-start-2 row-start-1 flex h-9 touch-none select-none items-center gap-[2px]"
                 role="slider"
                 tabindex="0"
                 [attr.aria-label]="'Position' | t"
@@ -208,6 +208,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
                 (pointermove)="seekMove($event)"
                 (pointerup)="seekEnd($event)"
                 (pointercancel)="seekEnd($event)"
+                (click)="seekClick($event)"
                 (keydown.arrowLeft)="seekBy(-5)"
                 (keydown.arrowRight)="seekBy(5)"
               >
@@ -348,6 +349,7 @@ export class AttachmentComponent implements OnDestroy {
   private readonly duration = signal(0);
   private frame = 0;
   private scrubbing = false;
+  private seekPointerId: number | null = null;
 
   protected readonly size = computed(
     function (this: AttachmentComponent) {
@@ -501,33 +503,59 @@ export class AttachmentComponent implements OnDestroy {
 
   /** The press on the wave jumps there and keeps following the pointer until it is released. */
   protected seekStart(event: PointerEvent): void {
+    if (event.button !== 0 || this.scrubbing) return;
+    event.preventDefault();
+    event.stopPropagation();
     this.scrubbing = true;
+    this.seekPointerId = event.pointerId;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    this.seekTo(event);
+    this.seekTo(event.clientX, event.currentTarget as HTMLElement);
   }
 
   /** The pointer moves along the wave while it is pressed. */
   protected seekMove(event: PointerEvent): void {
-    if (this.scrubbing) this.seekTo(event);
+    if (this.scrubbing && event.pointerId === this.seekPointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.seekTo(event.clientX, event.currentTarget as HTMLElement);
+    }
   }
 
   /** The pointer is released. */
   protected seekEnd(event: PointerEvent): void {
-    if (!this.scrubbing) return;
-    this.seekTo(event);
+    if (!this.scrubbing || event.pointerId !== this.seekPointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.seekTo(event.clientX, event.currentTarget as HTMLElement);
     this.scrubbing = false;
+    this.seekPointerId = null;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
   }
 
+  /** A click also seeks directly; this keeps tap-to-seek working when the pointer does not produce a drag. */
+  protected seekClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.seekTo(event.clientX, event.currentTarget as HTMLElement);
+  }
+
   /** Puts the sound where the pointer is on the wave. */
-  private seekTo(event: PointerEvent): void {
+  private seekTo(clientX: number, wave: HTMLElement): void {
     const el = this.audioEl()?.nativeElement;
-    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const box = wave.getBoundingClientRect();
     if (!el || box.width === 0) return;
-    const share = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+    const share = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
     this.progress.set(share);
     const total = this.length(el);
-    if (total > 0) el.currentTime = share * total;
+    if (total > 0) {
+      const target = Math.min(total, share * total);
+      try {
+        el.currentTime = target;
+      } catch {
+        // Some media formats reject precise seeks; try the browser's keyframe seek instead.
+        el.fastSeek?.(target);
+      }
+    }
   }
 
   /** The arrow keys move the sound some seconds back or forward. */

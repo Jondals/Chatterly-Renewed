@@ -150,6 +150,10 @@ interface Link {
   receiveQueue: Promise<void>;
   senders: { camera?: RTCRtpSender[]; screen?: RTCRtpSender[] };
   audioIn?: AudioChain;
+  /** The id of the stream that carries the voice of the person (any other audio stream of theirs is a shared screen). */
+  voiceStreamId?: string;
+  /** The sound of the screen the person shares, with its own volume. */
+  screenAudioIn?: ScreenAudioChain;
   lastBytes: { in: number; out: number; at: number };
   lost: number;
   received: number;
@@ -161,6 +165,12 @@ interface Link {
   protectedReceivers: WeakSet<RTCRtpReceiver>;
   /** This connection may only use the relay: a candidate that is not relayed is never sent to the other person. */
   relayRequired: boolean;
+}
+
+interface ScreenAudioChain {
+  element: HTMLAudioElement;
+  source: MediaStreamAudioSourceNode;
+  gain: GainNode;
 }
 
 interface AudioChain {
@@ -233,6 +243,8 @@ export class CallService {
   readonly screenOn = signal(false);
   readonly localCamera = signal<MediaStream | null>(null);
   readonly localScreen = signal<MediaStream | null>(null);
+  /** The people whose shared screen has sound (user id to true), so the stage can offer a volume for it. */
+  readonly screenSound = signal<Record<string, boolean>>({});
 
   /** 0..1 voice levels per user id, refreshed ~12 times a second. */
   readonly levels = signal<Record<string, number>>({});
@@ -321,8 +333,11 @@ export class CallService {
         const deaf = this.deafened();
         // The volumes of the people are read here so the chains follow them when somebody moves a slider.
         this.settings.peerVolumes();
-        for (const link of this.links.values())
+        this.settings.screenVolumes();
+        for (const link of this.links.values()) {
           this.configureChain(link, spatial, angles[link.userId] ?? 0, deaf);
+          this.configureScreenChain(link, deaf);
+        }
       }.bind(this),
     );
     effect(
@@ -952,13 +967,35 @@ export class CallService {
       video.displaySurface = choice.surface;
     }
     try {
-      // In the desktop app what the person chose in the menu (a screen or a window) decides what its picker offers.
-      await desktopBridge()
-        ?.screen?.setSurface(choice.surface)
-        .catch(function ignore(): void {
-          return undefined;
+      // In the desktop app the picker has the screens and the windows in tabs (what the person chose in the menu is the
+      // tab it opens in) and a box for the sound that starts as the menu has it.
+      const bridge = desktopBridge();
+      await bridge?.screen?.setSurface(choice.surface, choice.audio).catch(function ignore(): void {
+        return undefined;
+      });
+      // ! restrictOwnAudio keeps the sound of this app (the voices of the call) out of the sound that is shared, so the
+      //   others do not hear themselves back; the desktop app asks for the audio always and the picker decides.
+      const audio: MediaTrackConstraints & {
+        restrictOwnAudio?: boolean;
+        suppressLocalAudioPlayback?: boolean;
+      } = {
+        restrictOwnAudio: true,
+        suppressLocalAudioPlayback: true,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      };
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video,
+        audio: bridge ? audio : choice.audio ? audio : false,
+      });
+      // What was really shared is what the menu offers next time.
+      const sound = stream.getAudioTracks().length > 0;
+      if (bridge && sound !== choice.audio) {
+        this.settings.screenShare.update(function remember(current) {
+          return { ...current, audio: sound };
         });
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: choice.audio });
+      }
       this.localScreen.set(stream);
       this.screenOn.set(true);
       stream.getVideoTracks()[0]?.addEventListener(
@@ -1552,8 +1589,14 @@ export class CallService {
         );
       }
       if (track.kind === 'audio') {
-        this.attachAudio(link, stream);
-        this.updatePeer(userId, { audio: stream });
+        if (this.isScreenAudio(link, stream)) {
+          // The sound of a shared screen is not a voice: it has its own volume and never replaces the voice of the person.
+          this.attachScreenAudio(link, stream, track);
+        } else {
+          link.voiceStreamId = stream.id;
+          this.attachAudio(link, stream);
+          this.updatePeer(userId, { audio: stream });
+        }
       } else if (stream.id === link.screenStreamId) {
         this.updatePeer(userId, { screen: stream });
       } else {
@@ -1643,6 +1686,7 @@ export class CallService {
     link.pc.ontrack = null;
     link.pc.close();
     this.destroyChain(link);
+    this.destroyScreenChain(link);
     this.worker?.postMessage({ type: 'drop', peerId: userId });
     this.peers.update(function (p) {
       const { [userId]: _gone, ...rest } = p;
@@ -1986,6 +2030,82 @@ export class CallService {
     }
     chain.spatial = spatial;
     chain.gain.gain.value = deafened ? 0 : this.volumeOf(link.userId);
+  }
+
+  /** Whether an audio stream that just arrived belongs to a shared screen (not to the voice of the person). */
+  private isScreenAudio(link: Link, stream: MediaStream): boolean {
+    if (stream.id === link.screenStreamId) {
+      return true;
+    }
+    return link.voiceStreamId !== undefined && stream.id !== link.voiceStreamId;
+  }
+
+  /** Plays the sound of the screen a person shares, through its own volume. */
+  private attachScreenAudio(link: Link, stream: MediaStream, track: MediaStreamTrack): void {
+    this.destroyScreenChain(link);
+    const ctx = this.sound.context;
+    // Chromium only delivers remote WebRTC audio to WebAudio if the stream is also attached to an element.
+    const element = new Audio();
+    element.srcObject = stream;
+    element.muted = true;
+    void element.play().catch(function () {
+      return undefined;
+    });
+    const source = ctx.createMediaStreamSource(stream);
+    const gain = ctx.createGain();
+    source.connect(gain).connect(ctx.destination);
+    link.screenAudioIn = { element, source, gain };
+    this.configureScreenChain(link, this.deafened());
+    this.screenSound.update(function add(now) {
+      return { ...now, [link.userId]: true };
+    });
+    track.addEventListener(
+      'ended',
+      function gone(this: CallService) {
+        if (link.screenAudioIn?.source.mediaStream === stream) {
+          this.destroyScreenChain(link);
+        }
+      }.bind(this),
+    );
+  }
+
+  /** Sets the volume of the sound of the screen of a person (zero while the person is deafened). */
+  private configureScreenChain(link: Link, deafened: boolean): void {
+    const chain = link.screenAudioIn;
+    if (chain) {
+      chain.gain.gain.value = deafened ? 0 : this.screenVolumeOf(link.userId);
+    }
+  }
+
+  /** The volume of the shared screen of a person as a gain (1 is the normal level, 2 is double). */
+  private screenVolumeOf(userId: string): number {
+    const percent = this.settings.screenVolumes()[userId] ?? 100;
+    return Math.max(0, Math.min(200, percent)) / 100;
+  }
+
+  /** Sets how loud the shared screen of a person is for this device, from 0 to 200 percent (remembered for the next calls). */
+  setScreenVolume(userId: string, percent: number): void {
+    const value = Math.max(0, Math.min(200, Math.round(percent)));
+    const volumes = { ...this.settings.screenVolumes() };
+    if (value === 100) delete volumes[userId];
+    else volumes[userId] = value;
+    this.settings.screenVolumes.set(volumes);
+    const link = this.links.get(userId);
+    if (link?.screenAudioIn && !this.deafened()) link.screenAudioIn.gain.gain.value = value / 100;
+  }
+
+  /** Disconnects and removes the sound of the screen of a person. */
+  private destroyScreenChain(link: Link): void {
+    const chain = link.screenAudioIn;
+    if (!chain) return;
+    chain.source.disconnect();
+    chain.gain.disconnect();
+    chain.element.srcObject = null;
+    link.screenAudioIn = undefined;
+    this.screenSound.update(function drop(now) {
+      const { [link.userId]: _gone, ...rest } = now;
+      return rest;
+    });
   }
 
   /** The volume of a person as the gain of the audio chain (1 is the normal level, 2 is double). */

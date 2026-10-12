@@ -14,6 +14,7 @@
  */
 import type { ImageSegmenter, ImageSegmenterResult } from '@mediapipe/tasks-vision';
 
+import { decodeGif } from '../gif-decode';
 import type { CameraFx, CameraFxOptions } from './camera-fx';
 
 /** Where the engine and the model are (inside the app, so the strict security policy of the page is kept). */
@@ -123,8 +124,44 @@ export async function decodeBackground(
       // The animation cannot be decoded here: its first picture is used.
     }
   }
+  if (blob.type === 'image/gif' && decoderType === undefined) {
+    // No ImageDecoder here (Firefox): the frames of the GIF are read by the app itself, so it keeps moving.
+    try {
+      const gif = decodeGif(new Uint8Array(await blob.arrayBuffer()), MAX_FRAMES);
+      if (gif && gif.frames.length > 1) {
+        return await bitmapsOfGif(gif);
+      }
+    } catch {
+      // The GIF cannot be read: its first picture is used.
+    }
+  }
   const first = await createImageBitmap(blob, fitSize(await sizeOf(blob)));
   return { frames: [first], durations: [1000] };
+}
+
+/** Turns the frames of a GIF into bitmaps, small enough to keep them all in memory. */
+async function bitmapsOfGif(gif: {
+  width: number;
+  height: number;
+  frames: { image: ImageData; delay: number }[];
+}): Promise<{ frames: ImageBitmap[]; durations: number[] }> {
+  const side = Math.min(1, MAX_BACKGROUND_SIDE / Math.max(gif.width, gif.height));
+  const fit = Math.min(
+    side,
+    Math.sqrt(MAX_FRAME_BYTES / (gif.frames.length * 4 * gif.width * gif.height)),
+  );
+  const size = {
+    resizeWidth: Math.max(1, Math.round(gif.width * fit)),
+    resizeHeight: Math.max(1, Math.round(gif.height * fit)),
+    resizeQuality: 'high' as const,
+  };
+  const frames: ImageBitmap[] = [];
+  const durations: number[] = [];
+  for (const frame of gif.frames) {
+    frames.push(await createImageBitmap(frame.image, size));
+    durations.push(frame.delay);
+  }
+  return { frames, durations };
 }
 
 /** The size of a picture. */

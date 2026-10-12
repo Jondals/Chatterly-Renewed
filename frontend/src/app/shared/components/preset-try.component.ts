@@ -76,7 +76,6 @@ import { RichTextComponent } from './rich-text.component';
               [appNameColor]="text('profileColor')"
               [appUserFont]="text('nameFont')"
               [nameFx]="text('nameFx')"
-              [fxLive]="true"
               fallback="var(--fg)"
             >
               {{ preset.name }}

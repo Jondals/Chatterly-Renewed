@@ -57,6 +57,8 @@ let webDir = null;
 let appOrigin = '';
 /** What the person chose to share in the menu of the call: any, monitor (a screen) or window. Asked for before each capture. */
 let screenSurface = 'any';
+/** Whether the sound box of the picker starts ticked (set with the surface, from the menu of the call). */
+let screenAudio = false;
 let mainWindow = null;
 let pickerWindow = null;
 let retryTimer = null;
@@ -247,12 +249,14 @@ function onTitlebarColors(event, colors) {
  * ! Only the main page of the app may say what it is about to share, and only one of the known words. (A page that
  *   lies can only make the picker show screens instead of windows: it never gets a capture without the picker.)
  */
-function onScreenSurface(event, surface) {
+function onScreenSurface(event, surface, audio) {
   if (!isMainPage(event)) return false;
   // "A tab" is a browser idea: here it means a window. Anything that is not on the list means "ask for everything".
   if (surface === 'monitor' || surface === 'window') screenSurface = surface;
   else if (surface === 'browser') screenSurface = 'window';
   else screenSurface = 'any';
+  // Whether the sound box of the picker starts ticked (anything that is not a plain true means no).
+  screenAudio = audio === true;
   return true;
 }
 
@@ -292,8 +296,11 @@ function onGraphicsRestart(event) {
   return true;
 }
 
-/** Shows the list of screens and windows and resolves with the chosen source id, or null if cancelled. */
-function pickSource(sources, kind) {
+/**
+ * Shows the screens and the windows (in two tabs) and resolves with { id, audio }: the source chosen and whether the sound
+ * box was ticked. Resolves with null if cancelled. `kind` is the tab to start in and `audio` the start state of the box.
+ */
+function pickSource(sources, kind, audio) {
   return new Promise(function executor(resolve) {
     let settled = false;
     pickerWindow = new BrowserWindow({
@@ -319,22 +326,22 @@ function pickSource(sources, kind) {
     });
     const picker = pickerWindow;
 
-    function finish(sourceId) {
+    function finish(answer) {
       if (settled) return;
       settled = true;
       ipcMain.removeListener('picker:choose', onChoose);
       ipcMain.removeListener('picker:cancel', onCancel);
       if (!picker.isDestroyed()) picker.close();
       pickerWindow = null;
-      resolve(sourceId);
+      resolve(answer);
     }
-    function onChoose(event, sourceId) {
+    function onChoose(event, sourceId, withAudio) {
       // ! Only the picker window may answer, and only with an id it was given.
       if (event.sender !== picker.webContents) return;
       const known = sources.some(function isKnown(source) {
         return source.id === sourceId;
       });
-      finish(known ? sourceId : null);
+      finish(known ? { id: sourceId, audio: withAudio === true } : null);
     }
     function onCancel(event) {
       if (event.sender === picker.webContents) finish(null);
@@ -344,9 +351,19 @@ function pickSource(sources, kind) {
     }
     function onLoaded() {
       const list = sources.map(function toItem(source) {
-        return { id: source.id, name: source.name, thumb: source.thumbnail.toDataURL() };
+        return {
+          id: source.id,
+          name: source.name,
+          type: source.id.startsWith('screen:') ? 'screen' : 'window',
+          thumb: source.thumbnail.toDataURL(),
+        };
       });
-      picker.webContents.send('picker:sources', { kind, language: pickerLanguage(), items: list });
+      picker.webContents.send('picker:sources', {
+        kind,
+        audio,
+        language: pickerLanguage(),
+        items: list,
+      });
     }
 
     ipcMain.on('picker:choose', onChoose);
@@ -377,30 +394,35 @@ async function onDisplayMediaRequest(request, callback) {
     // * What the person chose in the menu of the call decides what is offered; with one screen and "a screen" chosen
     //   there is nothing left to ask, so it is shared at once.
     const surface = screenSurface;
+    const audio = screenAudio;
     screenSurface = 'any';
+    screenAudio = false;
+    // * Both kinds are always offered, in two tabs: the person decides between the whole screen and one window here.
     const sources = await desktopCapturer.getSources({
-      types:
-        surface === 'monitor'
-          ? ['screen']
-          : surface === 'window'
-            ? ['window']
-            : ['screen', 'window'],
+      types: ['screen', 'window'],
       thumbnailSize: { width: 320, height: 180 },
       fetchWindowIcons: false,
     });
-    const kind = surface === 'monitor' ? 'screen' : surface === 'window' ? 'window' : 'any';
-    const chosen =
-      surface === 'monitor' && sources.length === 1
-        ? sources[0].id
-        : sources.length > 0
-          ? await pickSource(sources, kind)
-          : null;
-    const source = sources.find(function byId(candidate) {
-      return candidate.id === chosen;
-    });
-    // ? System audio is not shared: on Windows it would also capture the voices of the call and echo them to everyone.
-    // TODO: share the audio of a single window once Electron can capture it without the call itself.
-    answer(source ? { video: source } : {});
+    const picked =
+      sources.length > 0
+        ? await pickSource(sources, surface === 'window' ? 'window' : 'screen', audio)
+        : null;
+    const source = picked
+      ? sources.find(function byId(candidate) {
+          return candidate.id === picked.id;
+        })
+      : null;
+    if (!source) {
+      answer({});
+      return;
+    }
+    // ? The sound is the sound of the computer (Windows cannot give the sound of one window alone). It is given only
+    //   when the page asked for audio.
+    answer(
+      picked.audio && request.audioRequested
+        ? { video: source, audio: 'loopback' }
+        : { video: source },
+    );
   } catch (error) {
     answer({});
   }
@@ -456,6 +478,67 @@ function onDomReady() {
 
 function onFinishLoad() {
   trace('did-finish-load');
+  traceSharpness();
+}
+
+/**
+ * Diagnostic for a blurry window (only with CHATTERLY_TRACE, otherwise it does nothing): screen scale, window placement,
+ * page zoom, actual font settings and loaded font faces. It does not change the graphics or rendering settings.
+ */
+function traceSharpness() {
+  if (!process.env.CHATTERLY_TRACE || !mainWindow || mainWindow.isDestroyed()) return;
+  const contents = mainWindow.webContents;
+  const bounds = mainWindow.getBounds();
+  const here = screen.getDisplayMatching(bounds);
+  trace(
+    'sharp-displays ' +
+      screen
+        .getAllDisplays()
+        .map(function describe(display) {
+          return (
+            display.id +
+            ':' +
+            display.scaleFactor +
+            'x@' +
+            display.size.width +
+            'x' +
+            display.size.height
+          );
+        })
+        .join(' '),
+  );
+  trace(
+    'sharp-window dip=' +
+      bounds.x +
+      ',' +
+      bounds.y +
+      '+' +
+      bounds.width +
+      'x' +
+      bounds.height +
+      ' px=' +
+      bounds.x * here.scaleFactor +
+      ',' +
+      bounds.y * here.scaleFactor +
+      '+' +
+      bounds.width * here.scaleFactor +
+      'x' +
+      bounds.height * here.scaleFactor +
+      ' screen=' +
+      here.scaleFactor +
+      'x zoom=' +
+      contents.getZoomFactor(),
+  );
+  contents
+    .executeJavaScript(
+      '(function () { return document.fonts.ready.then(function () { const body = getComputedStyle(document.body); const root = getComputedStyle(document.documentElement); return { ratio: devicePixelRatio, inner: innerWidth + "x" + innerHeight, viewportScale: visualViewport.scale, fontSizePreference: root.getPropertyValue("--font-size"), rootFontSize: root.fontSize, bodyFontSize: body.fontSize, uiFont: body.fontFamily, fontLoad: document.fonts.status, customUiFontLoaded: document.fonts.check("400 14px Chatterly Custom UI"), interRegularLoaded: document.fonts.check("400 14px Inter Variable"), interSemiboldLoaded: document.fonts.check("600 14px Inter Variable") }; }); })()',
+    )
+    .then(function report(page) {
+      trace('sharp-page ' + JSON.stringify(page));
+    })
+    .catch(function ignore() {
+      // The diagnostic must never break the app.
+    });
 }
 
 /** Where the state of the window is kept. */
@@ -599,7 +682,9 @@ async function start() {
   ipcMain.handle('graphics:restart', onGraphicsRestart);
   ses.setPermissionRequestHandler(onPermissionRequest);
   ses.setPermissionCheckHandler(onPermissionCheck);
-  ses.setDisplayMediaRequestHandler(onDisplayMediaRequest, { useSystemPicker: false });
+  ses.setDisplayMediaRequestHandler(onDisplayMediaRequest, {
+    useSystemPicker: false,
+  });
 
   createMenu();
   createWindow();

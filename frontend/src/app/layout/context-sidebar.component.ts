@@ -245,7 +245,6 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                         [appNameColor]="directory.get(id)?.profileColor"
                         [appUserFont]="directory.get(id)?.nameFont"
                         [nameFx]="directory.get(id)?.nameFx"
-                        [fxLive]="true"
                         >{{ directory.get(id)?.displayName }}</span
                       >
                     </div>
@@ -389,7 +388,6 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                         [appNameColor]="u.profileColor"
                         [appUserFont]="u.nameFont"
                         [nameFx]="u.nameFx"
-                        [fxLive]="true"
                       >
                         {{ u.displayName }}
                       </div>
@@ -471,7 +469,6 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                     [appNameColor]="dm.user.profileColor"
                     [appUserFont]="dm.user.nameFont"
                     [nameFx]="dm.user.nameFx"
-                    [fxLive]="true"
                     >{{ dm.user.displayName }}</span
                   >
                   @if (call.rooms()[dm.channelId]?.length) {
@@ -541,7 +538,6 @@ import { fontClassOf } from '../shared/util/user-font.directive';
               [appNameColor]="auth.user()?.profileColor"
               [appUserFont]="auth.user()?.nameFont"
               [nameFx]="auth.user()?.nameFx"
-              [fxLive]="true"
               >{{ auth.user()?.displayName }}</span
             >
             <span class="block truncate text-xs text-muted">{{ statusLabel() | t }}</span>

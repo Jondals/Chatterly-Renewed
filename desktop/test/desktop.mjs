@@ -561,11 +561,18 @@ async function runningApp() {
       'the page can tell the app it is about to share a window',
     );
     const [windowsPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await windowsPicker.waitForSelector('#title', { timeout: 10000 });
-    const windowTitle = await windowsPicker.locator('#title').innerText();
+    await windowsPicker.waitForSelector('#tab-window', { timeout: 10000 });
     check(
-      /window|ventana/i.test(windowTitle) && !/screen or|pantalla o/i.test(windowTitle),
-      'choosing "a window" shows a picker of windows only (' + windowTitle + ')',
+      await windowsPicker.locator('#tab-window.is-on').isVisible(),
+      'choosing "a window" opens the picker in the tab of windows',
+    );
+    check(
+      await windowsPicker.locator('#tab-screen').isVisible(),
+      '... and the screens are one click away in the other tab',
+    );
+    check(
+      !(await windowsPicker.locator('#audio').isChecked()),
+      'the sound box starts empty when the menu does not share the sound',
     );
     await windowsPicker.click('#cancel');
     await page.waitForTimeout(300);
@@ -574,32 +581,28 @@ async function runningApp() {
       '"a tab" (a browser idea) is understood as a window',
     );
     check((await chooseSurface('<evil>')) === true, 'anything else is understood as "everything"');
-    if (screens === 1) {
-      // One screen and "a screen" chosen: nothing is left to ask, it is shared at once.
-      await chooseSurface('monitor');
-      await page.click('#share');
-      await waitFor(
-        async function sharedAtOnce() {
-          return (
-            (await page.evaluate(function () {
-              return window.__share;
-            })) === 'tracks:1' || null
-          );
-        },
-        'the screen to be shared without a picker',
-        8000,
-      ).catch(function noop() {
-        return null;
-      });
-      const direct = await page.evaluate(function () {
-        return window.__share;
-      });
-      check(
-        direct === 'tracks:1',
-        'one screen and "a screen" chosen: it is shared at once, with no picker',
-      );
-      check(app.windows().length === 1, '... and no picker window opened');
-    }
+
+    // The sound box starts as the menu of the call has it, and with only one screen the person is still asked.
+    await page.evaluate(function () {
+      return window.chatterlyDesktop.screen.setSurface('monitor', true);
+    });
+    const [screenPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
+    await screenPicker.waitForSelector('#tab-screen', { timeout: 10000 });
+    check(
+      await screenPicker.locator('#tab-screen.is-on').isVisible(),
+      'choosing "a screen" opens the picker in the tab of screens, even with one screen',
+    );
+    check(
+      await screenPicker.locator('#audio').isChecked(),
+      'the sound box starts ticked when the menu shares the sound',
+    );
+    await screenPicker.locator('#tab-window').click();
+    check(
+      await screenPicker.locator('#tab-window.is-on').isVisible(),
+      'the tabs switch between screens and windows',
+    );
+    await screenPicker.click('#cancel');
+    await page.waitForTimeout(300);
   }
 
   // ? Navigation checks come after the others on purpose: a blocked navigation leaves Playwright waiting for it to

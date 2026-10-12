@@ -537,7 +537,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             <b class="block text-sm">{{ 'Share your screen' | t }}</b>
                             <span class="block text-xs text-muted">{{
                               (desktop
-                                ? 'Pick a screen or a window and it is shared at once.'
+                                ? 'You choose the screen or the window, and the sound, in the next step.'
                                 : 'The browser will ask you to confirm what to show.'
                               ) | t
                             }}</span>
@@ -575,18 +575,16 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             </button>
                           }
                         </div>
-                        @if (!desktop) {
-                          <label
-                            class="mt-3.5 flex cursor-pointer items-center justify-between gap-3"
-                          >
-                            <span class="text-sm">{{ 'Share the sound too' | t }}</span>
-                            <app-toggle
-                              [checked]="settings.screenShare().audio"
-                              (checkedChange)="setShare({ audio: $event })"
-                              [label]="'Share the sound too' | t"
-                            />
-                          </label>
-                        }
+                        <label
+                          class="mt-3.5 flex cursor-pointer items-center justify-between gap-3"
+                        >
+                          <span class="text-sm">{{ 'Share the sound too' | t }}</span>
+                          <app-toggle
+                            [checked]="settings.screenShare().audio"
+                            (checkedChange)="setShare({ audio: $event })"
+                            [label]="'Share the sound too' | t"
+                          />
+                        </label>
                         <button
                           type="button"
                           class="btn btn-primary mt-4 w-full"
@@ -992,16 +990,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             "
                           />
                         </div>
-                        <div class="drawer-row">
-                          <span>{{ 'Mirror my camera' | t }}</span>
-                          <app-toggle
-                            [checked]="settings.cameraMirror()"
-                            (checkedChange)="
-                              settings.cameraMirror.set($event); call.applyBackground()
-                            "
-                            [label]="'Mirror my camera' | t"
-                          />
-                        </div>
                         <button
                           type="button"
                           class="btn btn-sm w-full gap-1.5"
@@ -1403,7 +1391,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
             [appMediaStream]="t.stream"
             autoplay
             playsinline
-            [muted]="t.local"
+            [muted]="t.local || t.kind === 'screen'"
           ></video>
           <div
             class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25"
@@ -1474,7 +1462,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 [appNameColor]="t.user?.profileColor"
                 [appUserFont]="t.user?.nameFont"
                 [nameFx]="t.user?.nameFx"
-                [fxLive]="true"
               >
                 {{ t.user?.displayName }}
               </div>
@@ -1482,6 +1469,43 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 <div class="text-xs text-muted">{{ 'Connecting…' | t }}</div>
               }
             </div>
+            @if (t.kind === 'screen' && !t.local && t.user && hasScreenSound(t.user.id)) {
+              <!-- the volume of this shared screen, only for you: the sound of the screen is not the voice of the person -->
+              <div
+                class="screen-vol flex items-center gap-2 rounded-full bg-black/60 px-2.5 py-1 text-white"
+                (click)="$event.stopPropagation()"
+                (dblclick)="$event.stopPropagation()"
+                (mousedown)="$event.stopPropagation()"
+                (contextmenu)="$event.stopPropagation()"
+              >
+                <button
+                  type="button"
+                  class="grid place-items-center"
+                  [attr.title]="'Stream volume' | t"
+                  [attr.aria-label]="'Stream volume' | t"
+                  (click)="muteScreen(t.user.id)"
+                >
+                  <app-icon
+                    [name]="screenVolume(t.user.id) === 0 ? 'volume-x' : 'volume-2'"
+                    [size]="14"
+                  />
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="200"
+                  step="5"
+                  class="w-24 accent-[var(--accent)]"
+                  [attr.aria-label]="'Stream volume' | t"
+                  [value]="screenVolume(t.user.id)"
+                  (input)="setScreenVolume(t.user.id, +$any($event.target).value)"
+                  (dblclick)="setScreenVolume(t.user.id, 100)"
+                />
+                <b class="w-9 text-right font-mono text-[0.6875rem]"
+                  >{{ screenVolume(t.user.id) }}%</b
+                >
+              </div>
+            }
             @if (!t.muted && t.kind !== 'screen') {
               <span class="flex h-5 items-end gap-[2px]">
                 @for (b of bars; track $index) {
@@ -1524,7 +1548,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   [appNameColor]="p.user?.profileColor"
                   [appUserFont]="p.user?.nameFont"
                   [nameFx]="p.user?.nameFx"
-                  [fxLive]="true"
                 >
                   {{ p.user?.displayName }}
                 </div>
@@ -1798,6 +1821,26 @@ export class VoiceStageComponent {
     this.activitiesOpen.set(open);
   }
 
+  /** Whether the screen a person shares has sound (so it has a volume). */
+  protected hasScreenSound(userId: string): boolean {
+    return !!this.call.screenSound()[userId];
+  }
+
+  /** How loud the shared screen of a person is for you, in percent. */
+  protected screenVolume(userId: string): number {
+    return this.settings.screenVolumes()[userId] ?? 100;
+  }
+
+  /** Changes how loud the shared screen of a person is for you. */
+  protected setScreenVolume(userId: string, percent: number): void {
+    this.call.setScreenVolume(userId, percent);
+  }
+
+  /** The speaker button of the volume: mutes the shared screen, and brings it back to the normal level. */
+  protected muteScreen(userId: string): void {
+    this.call.setScreenVolume(userId, this.screenVolume(userId) === 0 ? 100 : 0);
+  }
+
   /** The menu to start sharing the screen is open. */
   protected readonly shareOpen = signal(false);
   /** True in the desktop app, where the picker is the app's own: "a tab" does not exist and the sound is not shared. */
@@ -2043,7 +2086,7 @@ export class VoiceStageComponent {
       id: tile.id,
       label: tile.user?.displayName ?? '',
       userId: tile.user?.id ?? '',
-      canAdjust: !tile.local && !!tile.user,
+      canAdjust: !tile.local && !!tile.user && tile.kind !== 'screen',
       x: event.clientX,
       y: event.clientY,
     });

@@ -66,10 +66,50 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      #tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .tab {
+        padding: 7px 14px;
+        border: 1px solid #262a3a;
+        border-radius: 8px;
+        background: transparent;
+        color: #9aa3b5;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .tab.is-on {
+        border-color: #7c8cff;
+        background: #14172a;
+        color: #e8eaf2;
+      }
+      .empty {
+        grid-column: 1 / -1;
+        margin: 24px 0;
+        color: #9aa3b5;
+        font-size: 13px;
+        text-align: center;
+      }
       footer {
         display: flex;
-        justify-content: flex-end;
+        align-items: center;
+        justify-content: space-between;
         padding-top: 12px;
+      }
+      .sound {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .sound input {
+        width: 16px;
+        height: 16px;
+        accent-color: #7c8cff;
       }
       #cancel {
         padding: 8px 16px;
@@ -83,8 +123,23 @@
     </style>
   </head>
   <body>
-    <h1 id="title">Choose a screen or a window to share</h1>
+    <h1 id="title">Choose what to share</h1>
+    <div id="tabs" role="tablist">
+      <button id="tab-screen" class="tab is-on" data-tab="screen" role="tab" type="button">
+        Entire screen
+      </button>
+      <button id="tab-window" class="tab" data-tab="window" role="tab" type="button">
+        A window
+      </button>
+    </div>
     <div id="grid"></div>
-    <footer><button id="cancel" type="button">Cancel</button></footer>
+    <footer>
+      <label class="sound"
+        ><input id="audio" type="checkbox" /><span id="audio-label"
+          >Share the sound of the computer</span
+        ></label
+      >
+      <button id="cancel" type="button">Cancel</button>
+    </footer>
   </body>
 </html>

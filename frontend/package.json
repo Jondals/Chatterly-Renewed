@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-frontend",
-  "version": "2.30.0",
+  "version": "2.31.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -23,6 +23,7 @@
     "@fontsource-variable/lora": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource-variable/open-sans": "^5.3.0",
     "@fontsource-variable/outfit": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.3.0",
     "@fontsource/noto-color-emoji": "^5.3.2",

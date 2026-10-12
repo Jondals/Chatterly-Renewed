@@ -1177,6 +1177,18 @@ export const ES: Record<string, string> = {
   'Shared secrets come from an ECDH P-256 exchange; contacts are verified with safety numbers (Trust on first use).':
     'Los secretos compartidos salen de un intercambio ECDH P-256; los contactos se verifican con números de seguridad (Trust on first use).',
   'SHA-256': 'SHA-256',
+  'The old one': 'El antiguo',
+  'The ringtone of the first Chatterly.': 'El tono del primer Chatterly.',
+  'Chime': 'Campanillas',
+  'Wind chimes tumbling down and climbing back.':
+    'Campanillas que caen en cascada y vuelven a subir.',
+  'A bright electric-piano call and its answer.':
+    'Una llamada de piano eléctrico luminosa y su respuesta.',
+  'We Wish You a Merry Christmas, played on bells.':
+    'Feliz Navidad (We Wish You a Merry Christmas), tocada con campanas.',
+  'Auld Lang Syne, played on bells.': 'Auld Lang Syne (despedida del año), tocada con campanas.',
+  'Arcade': 'Arcade',
+  'A cheerful 8-bit chip-tune.': 'Una alegre melodía de 8 bits.',
   'A warm, bouncy loop in a major key.': 'Un bucle cálido y saltarín en tono mayor.',
   'Deck the Halls, with sleigh bells.': 'Deck the Halls, con cascabeles.',
   'A spooky waltz in a minor key.': 'Un vals tenebroso en tono menor.',
@@ -1286,6 +1298,7 @@ export const ES: Record<string, string> = {
     'Una marca corta de hasta cuatro letras o números. Los miembros que quieran la muestran junto a su nombre.',
   'TAG': 'ETIQ',
   'No icon': 'Sin icono',
+  'Choose an emoji': 'Elegir un emoji',
   'Tag saved': 'Etiqueta guardada',
   'Could not save the tag': 'No se pudo guardar la etiqueta',
   'Save how the app looks now (colors, fonts, wallpaper, cursor...) with a name, and bring it back in one press. You can share it in a chat: a friend gets it with one button.':
@@ -1456,8 +1469,13 @@ export const ES: Record<string, string> = {
   'Search an emoji': 'Buscar un emoji',
   'Loading…': 'Cargando…',
   'Clear the link': 'Borrar el enlace',
-  'Pick a screen or a window and it is shared at once.':
-    'Elige una pantalla o una ventana y se comparte al momento.',
+  'You choose the screen or the window, and the sound, in the next step.':
+    'Eliges la pantalla o la ventana, y el sonido, en el siguiente paso.',
+  'Delivered, not read yet': 'Entregado, sin leer todavía',
+  'Candy': 'Caramelo',
+  'Soft edge': 'Borde suave',
+  'Drag the picture to move the camera.': 'Arrastra la imagen para mover la cámara.',
+  'Stream volume': 'Volumen de la transmisión',
   'Show the fonts of other people': 'Mostrar las fuentes de otras personas',
   'Friends can give their name a font file of their own. It comes encrypted and the browser checks it before using it. Turn it off to see every name in the built-in fonts.':
     'Tus amigos pueden dar a su nombre un archivo de fuente propio. Llega cifrado y el navegador lo comprueba antes de usarlo. Desactívalo para ver todos los nombres con las fuentes de la app.',
@@ -1566,8 +1584,8 @@ export const ES: Record<string, string> = {
   'The camera is not available.': 'La cámara no está disponible.',
   'Starting the camera…': 'Iniciando la cámara…',
   'Adjusted': 'Ajustada',
-  'As it is': 'Tal cual',
-  'Graphics (desktop app)': 'Gráficos (app de escritorio)',
+  'Default settings': 'Por defecto',
+  'Graphics': 'Gráficos',
   'Hardware acceleration': 'Aceleración por hardware',
   'Now': 'Ahora',
   'on': 'activada',

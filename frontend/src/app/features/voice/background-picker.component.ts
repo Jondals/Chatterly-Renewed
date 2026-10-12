@@ -70,7 +70,15 @@ const BASIC = [
     >
       <div class="cs-layout">
         <div class="cs-side">
-          <div class="cs-frame">
+          <div
+            class="cs-frame"
+            [class.is-pannable]="zoomed()"
+            [class.is-panning]="panning()"
+            (pointerdown)="panStart($event)"
+            (pointermove)="panMove($event)"
+            (pointerup)="panEnd($event)"
+            (pointercancel)="panEnd($event)"
+          >
             @if (stream(); as live) {
               <video [appMediaStream]="live" muted playsinline class="cs-video"></video>
             } @else {
@@ -82,6 +90,9 @@ const BASIC = [
               </div>
             }
             <span class="cs-live">{{ 'Preview' | t }}</span>
+            @if (zoomed()) {
+              <span class="cs-hint">{{ 'Drag the picture to move the camera.' | t }}</span>
+            }
           </div>
           @if (!supported) {
             <p class="mt-3 rounded-ui bg-amber-400/10 p-3 text-xs text-amber-200">
@@ -164,6 +175,20 @@ const BASIC = [
                   />
                 </label>
               }
+              @if (choice() !== 'none') {
+                <label class="cs-slider anim-fade-in">
+                  <span>{{ 'Soft edge' | t }}</span>
+                  <b>{{ settings.cameraEdgeSoftness() }}%</b>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    [value]="settings.cameraEdgeSoftness()"
+                    (input)="setSoftness(+$any($event.target).value)"
+                    [attr.aria-label]="'Soft edge' | t"
+                  />
+                </label>
+              }
               @if (choice() === 'custom') {
                 <div class="cs-custom anim-fade-in">
                   <p class="mb-2 text-xs text-muted">
@@ -235,7 +260,7 @@ const BASIC = [
 
           <app-fold [startOpen]="true">
             <span foldTitle>{{ 'Image' | t }}</span>
-            <span foldHint>{{ (adjusted() ? 'Adjusted' : 'As it is') | t }}</span>
+            <span foldHint>{{ (adjusted() ? 'Adjusted' : 'Default settings') | t }}</span>
             <div class="cs-section">
               <div class="cs-row">
                 <span>{{ 'Mirror' | t }}</span>
@@ -297,6 +322,25 @@ const BASIC = [
       border-radius: var(--r-lg, 14px);
       background: #000;
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .cs-frame.is-pannable {
+      cursor: grab;
+      touch-action: none;
+    }
+    .cs-frame.is-panning {
+      cursor: grabbing;
+    }
+    .cs-hint {
+      position: absolute;
+      left: 50%;
+      bottom: 0.6rem;
+      transform: translateX(-50%);
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      font-size: 0.6875rem;
+      color: #fff;
+      pointer-events: none;
     }
     .cs-video {
       width: 100%;
@@ -545,6 +589,19 @@ export class BackgroundPickerComponent {
   protected readonly customParts = computed(this.buildCustomParts.bind(this));
   /** Whether any adjustment of the image is not at its place. */
   protected readonly adjusted = computed(this.isAdjusted.bind(this));
+  /** Whether the zoom leaves room to move the camera. */
+  protected readonly zoomed = computed(this.isZoomed.bind(this));
+  /** Whether the preview is being dragged. */
+  protected readonly panning = signal(false);
+  /** Where the drag started: the pointer, the size of the preview and the pan it began with. */
+  private grab: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    panX: number;
+    panY: number;
+  } | null = null;
 
   constructor() {
     void this.vault.refresh();
@@ -738,11 +795,78 @@ export class BackgroundPickerComponent {
     this.apply();
   }
 
+  /** True when the zoom is above 100 percent, so the camera can look elsewhere. */
+  private isZoomed(): boolean {
+    return this.settings.cameraZoom() > 100;
+  }
+
+  /** The soft edge of the person against the background. */
+  protected setSoftness(value: number): void {
+    this.settings.cameraEdgeSoftness.set(value);
+    this.apply();
+  }
+
+  /** The press on the preview starts moving the camera (only when it is zoomed). */
+  protected panStart(event: PointerEvent): void {
+    if (!this.zoomed() || event.button !== 0) {
+      return;
+    }
+    const frame = event.currentTarget as HTMLElement;
+    const box = frame.getBoundingClientRect();
+    frame.setPointerCapture(event.pointerId);
+    this.grab = {
+      x: event.clientX,
+      y: event.clientY,
+      width: Math.max(1, box.width),
+      height: Math.max(1, box.height),
+      panX: this.settings.cameraPanX(),
+      panY: this.settings.cameraPanY(),
+    };
+    this.panning.set(true);
+  }
+
+  /** Dragging moves the picture with the pointer: the camera looks the other way. */
+  protected panMove(event: PointerEvent): void {
+    const grab = this.grab;
+    if (!grab) {
+      return;
+    }
+    const zoom = this.settings.cameraZoom() / 100;
+    // How much of the picture the room of the zoom allows, as a fraction of the frame.
+    const room = 0.5 - 0.5 / zoom;
+    if (room <= 0) {
+      return;
+    }
+    const dx = (event.clientX - grab.x) / grab.width;
+    const dy = (event.clientY - grab.y) / grab.height;
+    const limit = function limit(value: number): number {
+      return Math.round(Math.max(-100, Math.min(100, value)));
+    };
+    this.settings.cameraPanX.set(limit(grab.panX - (dx / zoom / room) * 100));
+    this.settings.cameraPanY.set(limit(grab.panY + (dy / zoom / room) * 100));
+    this.apply();
+  }
+
+  /** Letting go ends the drag. */
+  protected panEnd(event: PointerEvent): void {
+    if (!this.grab) {
+      return;
+    }
+    this.grab = null;
+    this.panning.set(false);
+    const frame = event.currentTarget as HTMLElement;
+    if (frame.hasPointerCapture(event.pointerId)) {
+      frame.releasePointerCapture(event.pointerId);
+    }
+  }
+
   /** Whether the image is not as the camera gives it. */
   private isAdjusted(): boolean {
     const s = this.settings;
     return (
       s.cameraMirror() ||
+      s.cameraPanX() !== 0 ||
+      s.cameraPanY() !== 0 ||
       s.cameraBrightness() !== 0 ||
       s.cameraContrast() !== 100 ||
       s.cameraSaturation() !== 100 ||
@@ -758,6 +882,8 @@ export class BackgroundPickerComponent {
     s.cameraContrast.set(100);
     s.cameraSaturation.set(100);
     s.cameraZoom.set(100);
+    s.cameraPanX.set(0);
+    s.cameraPanY.set(0);
     this.apply();
   }
 

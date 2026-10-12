@@ -94,7 +94,6 @@ const GRADIENTS = [
             [appNameColor]="directory.users().get(r.senderId)?.profileColor"
             [appUserFont]="directory.users().get(r.senderId)?.nameFont"
             [nameFx]="directory.users().get(r.senderId)?.nameFx"
-            [fxLive]="true"
             >{{ directory.users().get(r.senderId)?.displayName }}</b
           >
           <span class="flex-1 truncate text-muted">{{

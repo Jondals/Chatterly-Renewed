@@ -51,10 +51,13 @@ export const SOUNDS = {
   headphonesDeafen: { file: 'call/headphones-deafen.ogg' },
   headphonesUndeafen: { file: 'call/headphones-undeafen.ogg' },
   // ---- default ringtones (ringtones/)
-  ringtoneClassic: { file: 'ringtones/classic.ogg', gap: 0.6 },
-  ringtoneChristmas: { file: 'ringtones/christmas.ogg', gap: 0.8 },
+  ringtoneClassic: { file: 'ringtones/classic.wav', gap: 0.6 },
+  ringtoneOld: { file: 'ringtones/old.ogg', gap: 0.8, trim: 0.1 },
+  ringtoneChime: { file: 'ringtones/chime.wav', gap: 0.8 },
+  ringtoneChristmas: { file: 'ringtones/christmas.wav', gap: 0.8 },
   ringtoneHalloween: { file: 'ringtones/halloween.ogg', gap: 0.9 },
-  ringtoneNewyear: { file: 'ringtones/newyear.ogg', gap: 0.8 },
+  ringtoneNewyear: { file: 'ringtones/newyear.wav', gap: 0.8 },
+  ringtoneArcade: { file: 'ringtones/arcade.wav', gap: 0.8 },
   // the secret one: it cannot be chosen anywhere (see SoundService.ring)
   ringtoneSecret: { file: 'ringtones/secret.ogg', gap: 1 },
   // ---- soundtracks of the animations of arriving (auth/)

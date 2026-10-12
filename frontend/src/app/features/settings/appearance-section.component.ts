@@ -46,6 +46,7 @@ import { ACCENTS, THEMES } from '../../core/theme-data';
 import { PresetsComponent } from './presets.component';
 
 const FONTS: { id: FontId; label: string; css: string }[] = [
+  { id: 'app', label: 'Chatterly', css: "'Open Sans Variable'" },
   { id: 'system', label: 'System', css: 'system-ui' },
   { id: 'inter', label: 'Inter', css: "'Inter Variable'" },
   { id: 'outfit', label: 'Outfit', css: "'Outfit Variable'" },

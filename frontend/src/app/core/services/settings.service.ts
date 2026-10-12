@@ -56,7 +56,16 @@ export const CORNER_STEPS: { name: string; small: number; large: number }[] = [
   { name: 'Bubble', small: 18, large: 26 },
 ];
 export type FontId =
-  'system' | 'inter' | 'outfit' | 'manrope' | 'nunito' | 'space' | 'lora' | 'mono' | 'custom';
+  | 'app'
+  | 'system'
+  | 'inter'
+  | 'outfit'
+  | 'manrope'
+  | 'nunito'
+  | 'space'
+  | 'lora'
+  | 'mono'
+  | 'custom';
 export type BackgroundId =
   | 'aurora'
   | 'waves'
@@ -226,7 +235,7 @@ export class SettingsService {
   readonly customAccent = persisted<string>('pref.customAccent', '#2ef2b0');
   /** Index into CORNER_STEPS (3 is "Soft", the default). */
   readonly cornerStep = persisted<number>('pref.cornerStep', 3);
-  readonly font = persisted<FontId>('pref.font', 'inter');
+  readonly font = persisted<FontId>('pref.font', 'app');
   /** File name of the uploaded interface font (empty when there is none). */
   readonly customFontName = persisted<string>('pref.customFontName', '');
   /** File name of the uploaded display-name font (empty when there is none). */
@@ -309,6 +318,8 @@ export class SettingsService {
   readonly cameraDeviceId = persisted<string>('pref.cameraDevice', 'default');
   /** How loud each person is for this device, in percent (0 to 200; missing means 100). Kept for the next calls. */
   readonly peerVolumes = persisted<Record<string, number>>('pref.peerVolumes', {});
+  /** How loud the shared screen (its sound) of each person is for this device, in percent (0 to 200; missing means 100). */
+  readonly screenVolumes = persisted<Record<string, number>>('pref.screenVolumes', {});
   readonly noiseSuppression = persisted('pref.noiseSuppression', true);
   readonly echoCancellation = persisted('pref.echoCancellation', true);
   readonly autoGain = persisted('pref.autoGain', true);
@@ -338,6 +349,11 @@ export class SettingsService {
   readonly cameraSaturation = persisted('pref.cameraSaturation', 100);
   /** Zoom of the camera, in percent (100 to 200; 100 is none). */
   readonly cameraZoom = persisted('pref.cameraZoom', 100);
+  /** Where the zoomed camera looks, as -100 to 100 percent of the room the zoom leaves (0 is the middle). Set by dragging the preview. */
+  readonly cameraPanX = persisted('pref.cameraPanX', 0);
+  readonly cameraPanY = persisted('pref.cameraPanY', 0);
+  /** How soft the edge of the person is against the background (0 to 100; 33 is the original look). */
+  readonly cameraEdgeSoftness = persisted('pref.cameraEdgeSoftness', 33);
   /** How strong the blur of the background is (2 to 40). */
   readonly callBackgroundBlur = persisted('pref.callBackgroundBlur', 16);
   /** The colors and the angle of the custom background of the camera. */

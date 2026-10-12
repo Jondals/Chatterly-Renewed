@@ -94,9 +94,12 @@ const CLICK_FILES: Record<string, SoundId> = {
 /** Which file each built-in ringtone plays. */
 const RINGTONE_FILES: Record<string, SoundId> = {
   classic: 'ringtoneClassic',
+  old: 'ringtoneOld',
+  chime: 'ringtoneChime',
   christmas: 'ringtoneChristmas',
   halloween: 'ringtoneHalloween',
   newyear: 'ringtoneNewyear',
+  arcade: 'ringtoneArcade',
 };
 
 /** The chance that an incoming call rings with the secret joke tone (it is not one of the choices of the settings). */

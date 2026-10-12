@@ -51,7 +51,8 @@
 
   --r: 8px;
   --r-lg: 12px;
-  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  /* The same bundled font everywhere (web and desktop): a humanist sans close to Segoe UI, so it never depends on the system. */
+  --font-ui: 'Open Sans Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --font-size: 14px;
   --bg-blur: 46px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);

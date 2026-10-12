@@ -111,7 +111,7 @@ export class FontService {
     if (kind === 'ui') {
       this.settings.customFontName.set('');
       if (this.settings.font() === 'custom') {
-        this.settings.font.set('inter');
+        this.settings.font.set('app');
       }
     } else {
       this.settings.customNameFontName.set('');

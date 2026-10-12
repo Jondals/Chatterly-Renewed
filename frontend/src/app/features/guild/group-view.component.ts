@@ -205,7 +205,6 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
                             [appNameColor]="m.user.profileColor"
                             [appUserFont]="m.user.nameFont"
                             [nameFx]="m.user.nameFx"
-                            [fxLive]="true"
                             >{{ m.user.displayName }}
                             <app-server-tag [tag]="m.user.serverTag" />
                             @if (m.role === 'owner') {

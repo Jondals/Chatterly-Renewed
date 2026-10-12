@@ -12,7 +12,7 @@ macOS and Linux use the same code (only the packaging differs; see the end).
 - **Hardened window.** Sandboxed renderer, context isolation, no Node in the page, developer tools off when installed. The page sees only `window.chatterlyDesktop` (`isDesktop`, `platform`) and `window.CHATTERLY_API`.
 - **Links never leave the app.** Other sites open in your default browser; pop-ups are denied.
 - **Permissions.** Camera, microphone, notifications and screen capture are granted to the app itself only, never to an embedded frame (YouTube and the like).
-- **Screen sharing** follows the share menu of the call: what you choose there (a screen or a window) decides what the app's own picker offers, and with one screen and "a screen" chosen it is shared at once. System audio is not shared on purpose: on Windows it would also capture the voices of the call and echo them to everyone.
+- **Screen sharing** always asks first, in the app's own picker: **Entire screen** and **A window** are two tabs (the share menu of the call decides which one opens), and a box shares **the sound of the computer** too (it starts as the menu has it). Nothing is shared without choosing. The sound is asked with `restrictOwnAudio`, so the voices of the call (the sound of the app itself) are left out and nobody hears themselves back; Windows cannot give the sound of one window alone, so it is the sound of the whole computer.
 - **Closing the window closes the app.** Nothing stays running in the background (there is no tray).
 - **It opens maximized** the first time and stays that way until you restore the window; then it opens as you left it (`window-state.json` in the profile folder).
 - **Sounds play at once**, with no click needed first (the intro, the rings).

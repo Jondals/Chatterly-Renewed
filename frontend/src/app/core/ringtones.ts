@@ -1,13 +1,22 @@
 /**
  * src/app/core/ringtones.ts
- * The call ringtones: the four default ones (classic, Christmas, Halloween and New Year, audio files in
+ * The call ringtones: the default ones (classic, the old one, chime, Christmas, Halloween, New Year and Arcade, audio files in
  * public/sounds/ringtones), the automatic choice that follows the season, and the storage of the person's own sounds (a
  * ringtone and a click) on this device.
  */
 import { packBlobs, runInStore, unpackBlobs, type StoreLocation } from './indexed-db';
 
-/** The ringtone choices: the four defaults and the person's own file. */
-export type RingtoneId = 'auto' | 'classic' | 'christmas' | 'halloween' | 'newyear' | 'custom';
+/** The ringtone choices: the seven defaults and the person's own file. */
+export type RingtoneId =
+  | 'auto'
+  | 'classic'
+  | 'old'
+  | 'chime'
+  | 'christmas'
+  | 'halloween'
+  | 'newyear'
+  | 'arcade'
+  | 'custom';
 
 /** What the settings show of a default ringtone. The sound itself is its file (see sound-library.ts). */
 export interface RingtoneInfo {
@@ -23,26 +32,44 @@ export const MELODIES: Record<Exclude<RingtoneId, 'custom' | 'auto'>, RingtoneIn
   classic: {
     label: 'Classic',
     icon: 'phone',
-    tone: 'bg-accent/15 text-accent',
-    hint: 'A warm, bouncy loop in a major key.',
+    tone: 'bg-sky-500/15 text-sky-300',
+    hint: 'A bright electric-piano call and its answer.',
+  },
+  old: {
+    label: 'The old one',
+    icon: 'phone',
+    tone: 'bg-amber-500/15 text-amber-300',
+    hint: 'The ringtone of the first Chatterly.',
+  },
+  chime: {
+    label: 'Chime',
+    icon: 'bell',
+    tone: 'bg-teal-500/15 text-teal-300',
+    hint: 'Wind chimes tumbling down and climbing back.',
   },
   christmas: {
     label: 'Christmas',
     icon: 'star',
-    tone: 'bg-emerald/15 text-emerald',
-    hint: 'Deck the Halls, with sleigh bells.',
+    tone: 'bg-red-500/15 text-red-300',
+    hint: 'We Wish You a Merry Christmas, played on bells.',
   },
   halloween: {
     label: 'Halloween',
     icon: 'moon',
-    tone: 'bg-amber/15 text-amber',
+    tone: 'bg-orange-500/15 text-orange-300',
     hint: 'A spooky waltz in a minor key.',
   },
   newyear: {
     label: 'New Year',
     icon: 'sparkles',
-    tone: 'bg-violet/15 text-violet',
-    hint: 'Ode to Joy, to celebrate.',
+    tone: 'bg-violet-500/15 text-violet-300',
+    hint: 'Auld Lang Syne, played on bells.',
+  },
+  arcade: {
+    label: 'Arcade',
+    icon: 'zap',
+    tone: 'bg-pink-500/15 text-pink-300',
+    hint: 'A cheerful 8-bit chip-tune.',
   },
 };
 
@@ -50,9 +77,12 @@ export const MELODIES: Record<Exclude<RingtoneId, 'custom' | 'auto'>, RingtoneIn
 export const RINGTONE_IDS: RingtoneId[] = [
   'auto',
   'classic',
+  'old',
+  'chime',
   'christmas',
   'halloween',
   'newyear',
+  'arcade',
   'custom',
 ];
 

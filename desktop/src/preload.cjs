@@ -55,9 +55,12 @@ function restartForGraphics() {
   return ipcRenderer.invoke('graphics:restart');
 }
 
-/** Tells the app what the person chose to share ('monitor', 'window', 'browser' or 'any') just before the capture. */
-function setSurface(surface) {
-  return ipcRenderer.invoke('screen:surface', surface);
+/**
+ * Tells the app what the person chose to share ('monitor', 'window', 'browser' or 'any') just before the capture, and whether
+ * the sound box of the picker starts ticked.
+ */
+function setSurface(surface, audio) {
+  return ipcRenderer.invoke('screen:surface', surface, audio === true);
 }
 
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */

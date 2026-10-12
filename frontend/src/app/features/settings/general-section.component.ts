@@ -451,9 +451,9 @@ export class GeneralSectionComponent {
   /** The colors of the tile of a ringtone (the automatic one wears the colors of today's melody). */
   protected ringtoneTone(id: RingtoneId): string {
     if (id === 'custom') {
-      return 'bg-sky/15 text-sky';
+      return 'bg-accent/15 text-accent';
     }
-    return id === 'auto' ? 'bg-accent/15 text-accent' : MELODIES[id].tone;
+    return MELODIES[id === 'auto' ? seasonalRingtone() : id].tone;
   }
 
   /** The icon of a ringtone (the automatic one shows today's melody). */
