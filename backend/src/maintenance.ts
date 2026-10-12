@@ -61,6 +61,7 @@ export function runMaintenance(ctx: AppContext, now = Date.now()): MaintenanceRe
         WHERE created_at < ?
           AND id NOT IN (SELECT avatar_image FROM users WHERE avatar_image IS NOT NULL)
           AND id NOT IN (SELECT banner_image FROM users WHERE banner_image IS NOT NULL)
+          AND id NOT IN (SELECT name_font_image FROM users WHERE name_font_image IS NOT NULL)
           AND id NOT IN (SELECT icon_image FROM guilds WHERE icon_image IS NOT NULL)`,
     )
     .all(now - IMAGE_GRACE_MS) as { id: string }[];

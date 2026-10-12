@@ -5,6 +5,7 @@
  */
 import { Component, HostListener, Injector, NgZone, effect, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { desktopBridge } from './core/desktop-bridge';
 import { I18nService } from './core/i18n/i18n.service';
 import { ArrivalService } from './core/services/arrival.service';
 import { SettingsService } from './core/services/settings.service';
@@ -12,6 +13,7 @@ import { SettingsSyncService } from './core/services/settings-sync.service';
 import { SoundService } from './core/services/sound.service';
 import { ArrivalComponent } from './shared/components/arrival.component';
 import { MeshBackgroundComponent } from './shared/components/mesh-background.component';
+import { TitlebarComponent } from './shared/components/titlebar.component';
 import { ToastHostComponent } from './shared/components/toast-host.component';
 import { watchFramePerformance } from './shared/util/perf-monitor';
 import { PresetService } from './core/services/preset.service';
@@ -71,9 +73,13 @@ function weightOf(target: HTMLElement): PressWeight {
     ArrivalComponent,
     MeshBackgroundComponent,
     PresetTryComponent,
+    TitlebarComponent,
     ToastHostComponent,
   ],
   template: `
+    @if (desktopBar) {
+      <app-titlebar />
+    }
     @defer (on idle) {
       <app-mesh-background />
     }
@@ -97,6 +103,8 @@ function weightOf(target: HTMLElement): PressWeight {
   `,
 })
 export class AppComponent {
+  /** The desktop app draws its own bar at the top of the window. */
+  protected readonly desktopBar = !!desktopBridge()?.titlebar;
   protected readonly arrival = inject(ArrivalService);
   protected readonly presets = inject(PresetService);
   protected readonly viewer = inject(ViewerService);

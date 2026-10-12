@@ -4,7 +4,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { TMP, shot, step, check, saveAdjusted } from './support.mjs';
+import { ROOT, TMP, shot, step, check, saveAdjusted } from './support.mjs';
 
 /** Settings: profile, appearance, language, stickers, sound, signature. */
 export async function step17(world) {
@@ -60,11 +60,15 @@ export async function step17(world) {
   await a.fill('input[maxlength="80"]', '');
   const avatarChooser = a.waitForEvent('filechooser');
   await a.click('[aria-label="Change picture"]');
+  await a.waitForSelector('.isrc-drop');
+  await a.click('.isrc-drop');
   (await avatarChooser).setFiles(pngPath);
   await saveAdjusted(a);
   await a.waitForSelector('img[src^="blob:"]', { timeout: 15000 });
   const bannerChooser = a.waitForEvent('filechooser');
   await a.click('[aria-label="Change banner"]');
+  await a.waitForSelector('.isrc-drop');
+  await a.click('.isrc-drop');
   (await bannerChooser).setFiles(pngPath);
   await saveAdjusted(a);
   await a.click('button[aria-expanded]:has-text("Name font")');
@@ -169,7 +173,35 @@ export async function step17(world) {
   await a.waitForTimeout(600);
   await shot(a, '04b-efectos');
   await a.click('h2:has-text("About you")');
-  await a.click('label:has-text("Gradient") input');
+  // Colour or gradient is a two-option selector of the web's own style; the colour swatch stays in its place (only dimmed)
+  // so nothing jumps, and the controls of the gradient unfold smoothly.
+  const swatches = await a.locator('app-color-picker').count();
+  await a.locator('app-segmented button[role=radio]:has-text("Gradient")').first().click();
+  await a.waitForSelector(
+    'app-segmented button[role=radio][aria-checked=true]:has-text("Gradient")',
+  );
+  await a.waitForTimeout(600);
+  check(
+    (await a.locator('app-color-picker').count()) === swatches,
+    'turning the gradient on does not remove the colour swatch (nothing jumps)',
+  );
+  await shot(a, '17a-gradient-switch');
+  // The name keeps showing when it goes from a gradient back to a plain colour (its letters must not keep a gradient).
+  const nameRow = a.locator('div.flex:has(> span:text-is("Name color"))').first();
+  await nameRow.locator('button[role=radio]:has-text("Gradient")').click();
+  await a.waitForTimeout(500);
+  await nameRow.locator('button[role=radio]:has-text("Color")').click();
+  await a.waitForTimeout(700);
+  check(
+    await a.evaluate(function () {
+      return [...document.querySelectorAll('.nfx-l')].every(function visible(letter) {
+        return (
+          !letter.closest('.nfx-gradient') && getComputedStyle(letter).color !== 'rgba(0, 0, 0, 0)'
+        );
+      });
+    }),
+    'a name that goes from a gradient back to a plain colour is still visible',
+  );
   await a.click('button:has-text("More options") >> nth=0');
   await a.waitForSelector('text=Angle');
   check(true, 'banner with gradient, angle and where it starts and ends');
@@ -186,6 +218,53 @@ export async function step17(world) {
     true,
     'a friend sees the profile picture: it was encrypted, and its key was sealed for them',
   );
+
+  // A font the person uploads for their name travels like a picture (encrypted, its key sealed for friends): a friend
+  // sees the name in that font.
+  const fontHead = a.locator('button[aria-expanded]:has-text("Name font")');
+  if ((await fontHead.getAttribute('aria-expanded')) !== 'true') await fontHead.click();
+  const fontChooser = a.waitForEvent('filechooser');
+  await a.click('button.choice-card.is-dashed');
+  (await fontChooser).setFiles(
+    path.join(ROOT, 'frontend', 'public', 'fonts', 'TwemojiCountryFlags.woff2'),
+  );
+  await a.waitForSelector('button.choice-card.is-on .font-name-custom', {
+    timeout: 15000,
+  });
+  await a.click('button:has-text("Save changes")');
+  await b.waitForSelector('[class*="font-name-cf-"]', { timeout: 40000 });
+  check(true, 'the name of a friend who uploaded a font carries the class of that font');
+  await b.waitForFunction(
+    function () {
+      return [...document.fonts].some(function loaded(face) {
+        return face.family.replace(/"/g, '').startsWith('CF ') && face.status === 'loaded';
+      });
+    },
+    null,
+    { timeout: 40000 },
+  );
+  check(
+    true,
+    'the font file was opened (decrypted with the key sealed for the friend) and is in use',
+  );
+  // Turning it off makes the friend see the built-in fonts only (the setting is theirs).
+  check(
+    await b.evaluate(function () {
+      return !!document.querySelector('[class*="font-name-cf-"]');
+    }),
+    'a friend who did not turn it off sees the font',
+  );
+  // Back to the serif font so the rest of the test is as it was (the section may have folded after saving).
+  // (the section may still be folding after the save: it is read once it has settled)
+  await a.waitForTimeout(900);
+  if ((await fontHead.getAttribute('aria-expanded')) !== 'true') {
+    await fontHead.click();
+    // The section unfolds over 0.4 s: a press while it is still opening lands on whatever is under it.
+    await a.waitForTimeout(700);
+  }
+  await a.click('button.choice-card:has-text("Serif")');
+  await a.click('button:has-text("Save changes")');
+  await a.waitForTimeout(800);
 
   check(
     (await a.evaluate(function () {

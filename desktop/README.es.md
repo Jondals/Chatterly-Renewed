@@ -12,8 +12,11 @@ macOS y Linux usan el mismo código (solo cambia el empaquetado; mira el final).
 - **Ventana endurecida.** Renderizador en sandbox, aislamiento de contexto, sin Node en la página, herramientas de desarrollo apagadas al instalar. La página solo ve `window.chatterlyDesktop` (`isDesktop`, `platform`) y `window.CHATTERLY_API`.
 - **Los enlaces no sacan la app de su sitio.** Otras webs se abren en tu navegador; las ventanas emergentes se deniegan.
 - **Permisos.** Cámara, micrófono, notificaciones y captura de pantalla se conceden solo a la propia app, nunca a un marco incrustado (YouTube y similares).
-- **Compartir pantalla** tiene su propio selector. El audio del sistema no se comparte a propósito: en Windows capturaría también las voces de la llamada y las devolvería como eco.
+- **Compartir pantalla** sigue el menú de compartir de la llamada: lo que elijas ahí (una pantalla o una ventana) decide lo que ofrece el selector propio de la app, y con una sola pantalla y "una pantalla" elegido se comparte al momento. (Es su propio selector.) El audio del sistema no se comparte a propósito: en Windows capturaría también las voces de la llamada y las devolvería como eco.
 - **Cerrar la ventana cierra la app.** No queda nada en segundo plano (no hay bandeja).
+- **Se abre maximizada** la primera vez y se queda así hasta que restaures la ventana; entonces se abre como la dejaste (`window-state.json` en la carpeta del perfil).
+- **Los sonidos suenan al momento**, sin clic previo (la intro, los tonos de llamada).
+- **Spinly** se muestra dentro de la app. Spinly tiene que permitir el origen `app://chatterly` (en su `frame-ancestors` y en su puente con Chatterly): el proyecto Spinly ya lo hace, pero hay que desplegarlo.
 - **Página sin conexión** (solo en modo remoto): si no llega al servidor muestra una página y reintenta cada 5 segundos.
 - **Se actualiza desde la propia app** (un aviso en la campana; descargas y reinicias cuando quieras; mira [Actualizaciones](#actualizaciones)).
 - **Fusibles de Electron** fijados al compilar: sin `ELECTRON_RUN_AS_NODE`, sin `NODE_OPTIONS`, sin `--inspect`, integridad del asar comprobada, solo carga desde el asar, sin privilegios extra para `file://`.
@@ -122,7 +125,9 @@ La app instalada busca una versión nueva **unos segundos después de arrancar y
 - **Buscar actualizaciones automáticamente**: cada hora, cada 6 horas (por defecto), cada 12 horas, cada día, solo al arrancar o solo cuando tú lo pidas.
 - **Avisarme de las versiones nuevas**: activado muestra el aviso y la tarjeta en la campana; desactivado no muestra nada en la campana (la versión nueva sigue en Ajustes > Actualizaciones).
 
-En la campana, la tarjeta tiene además **Más tarde** (la oculta para esa versión) y un enlace a estos ajustes. Las elecciones se guardan en `update-settings.json` en la carpeta del perfil (`%APPDATA%\Chatterly`). Si no pulsas nada, la app se queda como está.
+Con **Actualizar sola** (apagada por defecto) la versión nueva se descarga en cuanto se encuentra y se instala en silencio al cerrar la app; nunca la reinicia por su cuenta, así que una llamada no se corta.
+
+En la campana, la tarjeta tiene además **Más tarde** (la oculta para esa versión) y un enlace a estos ajustes. Las elecciones se guardan en `update-settings.json` en la carpeta del perfil (`%APPDATA%\Chatterly`). Si no pulsas nada y "Actualizar sola" está apagada, la app se queda como está.
 
 Lee las **Releases de GitHub** del repositorio y comprueba el sha512 de la descarga contra `latest.yml`; un archivo cuyo hash no coincide se rechaza y la tarjeta lo dice. Mientras el instalador no esté firmado no hay comprobación del editor encima de eso, que es el motivo para firmarlo o usar la Store. La versión de la Microsoft Store la actualiza la Store y no muestra tarjeta.
 

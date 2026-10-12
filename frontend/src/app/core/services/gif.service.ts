@@ -22,6 +22,9 @@ export interface GifPage {
   next: string;
 }
 
+/** The most previews downloaded at the same time. */
+const PREVIEWS_AT_ONCE = 4;
+
 /** Guesses the image type from the end of its address. */
 function mimeFromUrl(url: string): string {
   if (/\.webp(\?|$)/i.test(url)) {
@@ -87,15 +90,42 @@ export class GifService {
     return this.api.download('/api/gifs/media?u=' + encodeURIComponent(url));
   }
 
-  /** Blob URL of a small preview (cached). */
+  /** Blob URL of a small preview (cached). Only a few are downloaded at the same time, the rest wait their turn. */
   preview(url: string): Promise<string> {
     let cached = this.previews.get(url);
     if (!cached) {
-      cached = this.fetchBytes(url).then(this.toBlobUrl.bind(this, url));
+      cached = this.turn().then(this.downloadPreview.bind(this, url));
       cached.catch(this.previews.delete.bind(this.previews, url));
       this.previews.set(url, cached);
     }
     return cached;
+  }
+
+  /** How many previews are being downloaded now, and who waits. */
+  private running = 0;
+  private readonly waiting: (() => void)[] = [];
+
+  /** Resolves when there is room for one more download. */
+  private turn(): Promise<void> {
+    if (this.running < PREVIEWS_AT_ONCE) {
+      this.running++;
+      return Promise.resolve();
+    }
+    return new Promise<void>(this.waiting.push.bind(this.waiting));
+  }
+
+  /** Downloads one preview and gives its place to the next that waits. */
+  private async downloadPreview(url: string): Promise<string> {
+    try {
+      return this.toBlobUrl(url, await this.fetchBytes(url));
+    } finally {
+      const next = this.waiting.shift();
+      if (next) {
+        next();
+      } else {
+        this.running--;
+      }
+    }
   }
 
   /** Turns downloaded bytes into a blob URL. */

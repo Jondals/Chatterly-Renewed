@@ -2,9 +2,22 @@
  * src/app/features/settings/audio-section.component.ts
  * Settings - Voice & video: devices, microphone processing, voice improvements, camera and private mode.
  */
-import { Component, DestroyRef, OnDestroy, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  EnvironmentInjector,
+  OnDestroy,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
+import {
+  desktopBridge,
+  type DesktopGraphicsState,
+  type GraphicsBackend,
+} from '../../core/desktop-bridge';
 import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -202,15 +215,67 @@ import { decibels } from '../../shared/util/audio-level';
       </app-setting-row>
       <app-setting-row
         title="Mirror my camera"
-        hint="You see yourself as in a mirror. The others see you as you are."
+        hint="The picture is turned like in a mirror, for you and for everybody who sees you."
       >
         <app-toggle
           [checked]="s.cameraMirror()"
-          (checkedChange)="s.cameraMirror.set($event)"
+          (checkedChange)="s.cameraMirror.set($event); call.applyBackground()"
           [label]="'Mirror my camera' | t"
         />
       </app-setting-row>
+      <app-setting-row
+        title="Background and adjustments"
+        hint="Blur or change what is behind you, and adjust brightness, contrast, color and zoom, with a live preview."
+      >
+        <button type="button" class="btn btn-sm gap-1.5" (click)="openCameraOptions()">
+          <app-icon name="sparkles" [size]="14" /> {{ 'Open' | t }}
+        </button>
+      </app-setting-row>
     </section>
+
+    @if (graphics(); as g) {
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'Graphics (desktop app)' | t }}</h2>
+        <app-setting-row
+          title="Hardware acceleration"
+          hint="Uses the graphics card to draw the app and to make the effects of the camera. Turn it off only if the app flickers or shows glitches."
+        >
+          <app-toggle
+            [checked]="g.hardwareAcceleration"
+            (checkedChange)="setGraphics({ hardwareAcceleration: $event })"
+            [label]="'Hardware acceleration' | t"
+          />
+        </app-setting-row>
+        @if (g.hardwareAcceleration && g.backends.length > 1) {
+          <app-setting-row
+            title="Graphics layer"
+            hint="Automatic picks the best one for your computer. Try another one if you see glitches or the video stutters."
+          >
+            <app-select
+              class="w-56 max-w-full"
+              label="Graphics layer"
+              [options]="graphicsOptions()"
+              [value]="g.backend"
+              (valueChange)="setGraphics({ backend: $any($event) })"
+            />
+          </app-setting-row>
+        }
+        <p class="pb-2 text-xs text-dim">
+          {{ 'Now' | t }}: {{ g.applied.hardwareAcceleration ? ('on' | t) : ('off' | t) }} ·
+          {{ g.compositing }}
+        </p>
+        @if (g.restartRequired) {
+          <div
+            class="anim-fade-up mb-3 flex flex-wrap items-center gap-3 rounded-ui border border-accent/30 bg-accent/10 px-3 py-2.5 text-xs"
+          >
+            <span class="min-w-0 flex-1">{{ 'Restart the app to use the new choice.' | t }}</span>
+            <button type="button" class="btn btn-sm btn-primary" (click)="restartForGraphics()">
+              <app-icon name="refresh" [size]="13" /> {{ 'Restart now' | t }}
+            </button>
+          </div>
+        }
+      </section>
+    }
   `,
 })
 export class AudioSectionComponent implements OnDestroy {
@@ -218,6 +283,64 @@ export class AudioSectionComponent implements OnDestroy {
   protected readonly call = inject(CallService);
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
+  private readonly environment = inject(EnvironmentInjector);
+
+  /** How the graphics card is used (only in the desktop app; null elsewhere). */
+  protected readonly graphics = signal<DesktopGraphicsState | null>(null);
+  protected readonly graphicsOptions = computed(this.buildGraphicsOptions.bind(this));
+
+  /** The names of the graphics layers. */
+  private buildGraphicsOptions(): SelectOption[] {
+    const names: Record<string, string> = {
+      auto: 'Automatic (recommended)',
+      d3d11: 'Direct3D 11',
+      gl: 'OpenGL',
+      vulkan: 'Vulkan',
+      metal: 'Metal',
+    };
+    const offered = this.graphics()?.backends ?? [];
+    return offered.map(
+      function option(this: AudioSectionComponent, id: string): SelectOption {
+        return { value: id, label: id === 'auto' ? this.i18n.t(names[id]!) : names[id]! };
+      }.bind(this),
+    );
+  }
+
+  /** Reads how the graphics are set (it only exists in the desktop app). */
+  private async loadGraphics(): Promise<void> {
+    const bridge = desktopBridge()?.graphics;
+    if (bridge) {
+      this.graphics.set(await bridge.get());
+    }
+  }
+
+  /** Changes the choice of the graphics (it applies after a restart). */
+  protected async setGraphics(
+    change: Partial<{ hardwareAcceleration: boolean; backend: GraphicsBackend }>,
+  ): Promise<void> {
+    const bridge = desktopBridge()?.graphics;
+    const now = this.graphics();
+    if (!bridge || !now) {
+      return;
+    }
+    this.graphics.set(
+      await bridge.set({
+        hardwareAcceleration: change.hardwareAcceleration ?? now.hardwareAcceleration,
+        backend: change.backend ?? now.backend,
+      }),
+    );
+  }
+
+  /** Starts the app again. */
+  protected restartForGraphics(): void {
+    void desktopBridge()?.graphics?.restart();
+  }
+
+  /** Opens the window of the camera (background, mirror and adjustments, with a live preview). */
+  protected async openCameraOptions(): Promise<void> {
+    const picker = await import('../voice/background-picker.component');
+    picker.openBackgroundPicker(this.environment);
+  }
 
   protected readonly voiceModes = VOICE_MODES;
   protected readonly qualityOptions = [
@@ -257,6 +380,7 @@ export class AudioSectionComponent implements OnDestroy {
   /** Lists the devices now and again whenever one is plugged in or taken out. */
   constructor() {
     void this.loadDevices();
+    void this.loadGraphics();
     navigator.mediaDevices?.addEventListener?.('devicechange', this.changeListener);
     inject(DestroyRef).onDestroy(this.stopWatchingDevices.bind(this));
   }

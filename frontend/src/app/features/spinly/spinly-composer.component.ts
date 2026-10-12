@@ -74,6 +74,26 @@ const RULE_PRESETS: {
     rules: { bestOf: 5, finalBestOf: 7, thirdPlace: true },
   },
 ];
+/** Ready-made lists to start from. The texts are in English here and go through the translation when they are used. */
+const WHEEL_STARTERS: { id: string; label: string; icon: string; names: string[] }[] = [
+  { id: 'yesno', label: 'Yes or no', icon: 'check', names: ['Yes', 'No'] },
+  {
+    id: 'dinner',
+    label: 'What to eat',
+    icon: 'smile',
+    names: ['Pizza', 'Sushi', 'Burgers', 'Tacos', 'Pasta', 'Kebab'],
+  },
+  {
+    id: 'games',
+    label: 'Game night',
+    icon: 'grid',
+    names: ['Mario Kart', 'Uno', 'Charades', 'Poker', 'Chess', 'Karaoke'],
+  },
+  { id: 'truth', label: 'Truth or dare', icon: 'zap', names: ['Truth', 'Dare'] },
+  { id: 'dice', label: 'A die', icon: 'shuffle', names: ['1', '2', '3', '4', '5', '6'] },
+];
+/** The sizes offered to start a tournament. */
+const TOURNAMENT_SIZES = [4, 8, 16];
 /** The palette as hex colors, offered in every color picker. */
 const PALETTE_HEX = PALETTE_NAMES.map(function toHex(name) {
   return PALETTE[name];
@@ -313,6 +333,34 @@ interface Entry {
         >
           <div class="contents">
             <div>
+              <div class="mb-3 rounded-ui border border-white/8 bg-black/15 p-2.5">
+                <div class="mb-1.5 flex items-center justify-between gap-2">
+                  <span class="label">{{ 'Start from' | t }}</span>
+                  <button type="button" class="starter-chip !border-dashed" (click)="pasteList()">
+                    <app-icon name="copy" [size]="12" /> {{ 'Paste a list' | t }}
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  @if (kind() === 'wheel') {
+                    @for (starter of wheelStarters; track starter.id) {
+                      <button
+                        type="button"
+                        class="starter-chip"
+                        (click)="useStarter(starter.names)"
+                      >
+                        <app-icon [name]="starter.icon" [size]="12" /> {{ starter.label | t }}
+                      </button>
+                    }
+                  } @else {
+                    @for (size of tournamentSizes; track size) {
+                      <button type="button" class="starter-chip" (click)="useSize(size)">
+                        <app-icon name="users" [size]="12" />
+                        {{ '{n} players' | t: { n: size } }}
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
               <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                 <span class="label"
                   >{{ (kind() === 'wheel' ? 'Options' : 'Participants') | t }}
@@ -409,6 +457,33 @@ interface Entry {
     </app-modal>
   `,
   styles: `
+    .starter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted, rgba(255, 255, 255, 0.65));
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: var(--cur-pointer, pointer);
+      transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
+    }
+    .starter-chip:hover {
+      color: var(--fg, #fff);
+      border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+      background: color-mix(in oklab, var(--accent) 12%, transparent);
+      transform: translateY(-1px);
+    }
+    .starter-chip:active {
+      transform: none;
+    }
     .tp-trophy {
       display: grid;
       width: 3.6rem;
@@ -528,6 +603,8 @@ export class SpinlyComposerComponent implements OnInit {
   private readonly extraTheme = signal<SpinlyTheme | undefined>(undefined);
 
   protected readonly minimum = MIN_OPTIONS;
+  protected readonly wheelStarters = WHEEL_STARTERS;
+  protected readonly tournamentSizes = TOURNAMENT_SIZES;
   protected readonly rulePresets = RULE_PRESETS;
   protected readonly activePreset = computed(this.findActivePreset.bind(this));
   /** The row of the slice being edited. */
@@ -592,6 +669,63 @@ export class SpinlyComposerComponent implements OnInit {
       return theme.segments[index % theme.segments.length];
     }
     return PALETTE_HEX[index % PALETTE_HEX.length];
+  }
+
+  /** Replaces the list with one of the ready-made ones (its words go through the translation). */
+  protected useStarter(names: string[]): void {
+    const translated = names.map(
+      function translate(this: SpinlyComposerComponent, name: string) {
+        return this.i18n.t(name);
+      }.bind(this),
+    );
+    this.fill(translated);
+  }
+
+  /** Starts a tournament with that many players ("Player 1", "Player 2"...). */
+  protected useSize(size: number): void {
+    const word = this.i18n.t('Player');
+    this.fill(
+      Array.from({ length: size }, function name(_, index) {
+        return word + ' ' + (index + 1);
+      }),
+    );
+  }
+
+  /** Takes the list from the clipboard: one entry per line (or separated by commas or semicolons). */
+  protected async pasteList(): Promise<void> {
+    try {
+      const text = await navigator.clipboard.readText();
+      const names = text
+        .split(/[\r\n,;]+/)
+        .map(
+          function clean(this: SpinlyComposerComponent, part: string) {
+            return cleanText(part, this.maxName());
+          }.bind(this),
+        )
+        .filter(Boolean);
+      if (names.length >= MIN_OPTIONS) {
+        this.fill(names);
+      }
+    } catch {
+      // The clipboard could not be read: the person types the list.
+    }
+  }
+
+  /** Puts a list of names in the rows, with the colors that belong to their places (what does not fit is left out). */
+  private fill(names: string[]): void {
+    const kept = names.slice(0, this.limit()).map(
+      function toName(this: SpinlyComposerComponent, name: string) {
+        return name.slice(0, this.maxName());
+      }.bind(this),
+    );
+    this.entries.set(
+      kept.map(
+        function toRow(this: SpinlyComposerComponent, name: string, index: number) {
+          return this.row(name, index);
+        }.bind(this),
+      ),
+    );
+    this.selected.set(null);
   }
 
   /** A row with a default name ("Option 1"). */

@@ -1,6 +1,6 @@
 /**
  * src/routes/images.ts
- * Upload and download of profile pictures, banners and group icons.
+ * Upload and download of profile pictures, banners, group icons and the font file of a name.
  *
  * * Every picture is END-TO-END ENCRYPTED: the browser encrypts it with a random key and the server stores only ciphertext.
  * The key of a profile picture or banner is sealed once for each person who may see it (table image_keys) with the pair
@@ -15,10 +15,12 @@ import type { AppContext } from '../context';
 import { callerId } from '../validation';
 import { canSeeProfile, profileAudience } from '../models';
 
-export const IMAGE_KINDS = ['avatar', 'banner', 'group'] as const;
+export const IMAGE_KINDS = ['avatar', 'banner', 'group', 'font'] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 
 const MAX_IMAGES_PER_USER = 30;
+/** The most a font file (encrypted) may weigh: it is opened by every friend, so it is kept small. */
+const MAX_FONT_BYTES = 1536 * 1024;
 /** An AES-GCM picture is its 12-byte nonce, the bytes and the 16-byte tag. */
 const MIN_ENCRYPTED_BYTES = 12 + 16 + 8;
 /** Most people one picture can be sealed for in one request. */
@@ -87,7 +89,8 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
       if (
         !Buffer.isBuffer(body) ||
         body.length < MIN_ENCRYPTED_BYTES ||
-        body.length > config.maxImageBytes
+        body.length > config.maxImageBytes ||
+        (kind === 'font' && body.length > MAX_FONT_BYTES)
       ) {
         return reply.code(400).send({ error: 'invalid_image' });
       }

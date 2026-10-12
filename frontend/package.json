@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-frontend",
-  "version": "2.27.0",
+  "version": "2.30.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -12,12 +12,12 @@
   "private": true,
   "packageManager": "pnpm@11.2.2",
   "dependencies": {
-    "@angular/common": "^21.2.25",
-    "@angular/compiler": "^21.2.25",
-    "@angular/core": "^21.2.25",
-    "@angular/forms": "^21.2.25",
-    "@angular/platform-browser": "^21.2.25",
-    "@angular/router": "^21.2.25",
+    "@angular/common": "^22.2.2",
+    "@angular/compiler": "^22.2.2",
+    "@angular/core": "^22.2.2",
+    "@angular/forms": "^22.2.2",
+    "@angular/platform-browser": "^22.2.2",
+    "@angular/router": "^22.2.2",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/lora": "^5.3.0",
@@ -27,19 +27,21 @@
     "@fontsource-variable/space-grotesk": "^5.3.0",
     "@fontsource/noto-color-emoji": "^5.3.2",
     "@fontsource/pacifico": "^5.3.0",
+    "@fontsource/righteous": "^5.3.0",
+    "@mediapipe/tasks-vision": "^1.1.0",
     "emojibase-data": "^17.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.26",
-    "@angular/cli": "^21.2.26",
-    "@angular/compiler-cli": "^21.2.25",
+    "@angular/build": "^22.2.2",
+    "@angular/cli": "^22.2.2",
+    "@angular/compiler-cli": "^22.2.2",
     "@tailwindcss/postcss": "^4.2.2",
     "postcss": "^8.5.29",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
-    "typescript": "~5.9.2"
+    "typescript": "~6.0.3"
   },
   "description": "Chatterly-Renewed web client (Angular): E2EE chat, guilds and P2P WebRTC calls."
 }

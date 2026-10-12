@@ -25,6 +25,7 @@ import {
   type ImageKind,
   type ImageService,
 } from '../../core/services/image.service';
+import { chooseImageSource, sourceToBlob } from './image-source.component';
 import { ModalComponent } from './modal.component';
 
 /** The biggest animated picture kept as it is (the server accepts up to 8 MB). */
@@ -375,16 +376,24 @@ export async function prepareImage(
 }
 
 /**
- * Lets the person pick a picture and adjust it (the first part of the path of a new picture, banner or icon).
+ * Lets the person choose where the picture comes from (a file of theirs or a GIF) and adjust it (the first part of the
+ * path of a new picture, banner or icon).
  * @returns The picture, or null when the person cancels.
  */
 export async function pickAndPrepareImage(
-  images: ImageService,
+  _images: ImageService,
   injector: EnvironmentInjector,
   kind: ImageKind,
 ): Promise<Blob | null> {
-  const file = await images.pickFile();
-  return file ? prepareImage(injector, file, IMAGE_PRESETS[kind]) : null;
+  const choice = await chooseImageSource(injector, {
+    title: kind === 'banner' ? 'Choose a banner' : 'Choose a picture',
+    subtitle: 'Upload your own file or pick a GIF.',
+  });
+  if (!choice) {
+    return null;
+  }
+  const file = await sourceToBlob(injector, choice);
+  return prepareImage(injector, file, IMAGE_PRESETS[kind]);
 }
 
 /**

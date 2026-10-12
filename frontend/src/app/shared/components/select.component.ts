@@ -153,8 +153,7 @@ export class SelectComponent {
   /** Moves the list to the top layer, above dialogs and menus. */
   private show(): void {
     const node = this.panel()?.nativeElement as
-      | (HTMLElement & { showPopover?: () => void })
-      | undefined;
+      (HTMLElement & { showPopover?: () => void }) | undefined;
     try {
       node?.showPopover?.();
     } catch {

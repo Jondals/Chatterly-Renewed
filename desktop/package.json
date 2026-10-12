@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-desktop",
-  "version": "2.27.0",
+  "version": "2.30.0",
   "productName": "Chatterly",
   "description": "Chatterly-Renewed desktop shell (Electron): the same end-to-end encrypted web app in a hardened window.",
   "main": "src/main.cjs",
@@ -15,9 +15,9 @@
     "dist:store": "node scripts/dist-store.mjs"
   },
   "devDependencies": {
-    "@electron/fuses": "^1.8.0",
+    "@electron/fuses": "^2.1.3",
     "electron": "^44.7.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "app.chatterly.renewed",
@@ -41,7 +41,8 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "artifactName": "Chatterly-Setup-${version}.${ext}"
+      "artifactName": "Chatterly-Setup-${version}.${ext}",
+      "differentialPackage": false
     },
     "electronFuses": {
       "runAsNode": false,

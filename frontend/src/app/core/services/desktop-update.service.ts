@@ -10,59 +10,13 @@
  */
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { I18nService } from '../i18n/i18n.service';
+import {
+  desktopBridge,
+  type DesktopUpdateSettings,
+  type DesktopUpdates,
+  type DesktopUpdateState,
+} from '../desktop-bridge';
 import { ToastService } from './toast.service';
-
-/** 'unavailable': this build does not update itself (a browser, the Store version). 'none': already the latest. */
-export type DesktopUpdateStatus =
-  | 'unavailable'
-  | 'idle'
-  | 'checking'
-  | 'none'
-  | 'available'
-  | 'downloading'
-  | 'ready'
-  | 'error';
-
-/** How often the app looks for a new version: every hour/6/12/24 hours, only when it starts, or only when asked. */
-export type UpdateInterval = '1h' | '6h' | '12h' | '24h' | 'start' | 'never';
-
-/** The two choices of the person. */
-export interface DesktopUpdateSettings {
-  interval: UpdateInterval;
-  notify: boolean;
-}
-
-/** What the desktop shell tells the page about the update. */
-export interface DesktopUpdateState {
-  status: DesktopUpdateStatus;
-  version: string;
-  /** Download progress, 0 to 100. */
-  percent: number;
-  /** Bytes downloaded, bytes in all and bytes per second (0 when unknown). */
-  transferred: number;
-  total: number;
-  bytesPerSecond: number;
-  error: string;
-  /** When the last check ended (milliseconds), or 0 if there has not been one. */
-  lastCheck: number;
-  settings: DesktopUpdateSettings;
-}
-
-/** The commands the desktop shell exposes (see desktop/src/preload.cjs). */
-interface DesktopUpdates {
-  getState(): Promise<DesktopUpdateState | null>;
-  check(): Promise<DesktopUpdateState>;
-  download(): Promise<DesktopUpdateState>;
-  install(): Promise<DesktopUpdateState>;
-  setSettings(settings: Partial<DesktopUpdateSettings>): Promise<DesktopUpdateState>;
-  onState(callback: (state: DesktopUpdateState) => void): () => void;
-}
-
-declare global {
-  interface Window {
-    chatterlyDesktop?: { isDesktop: boolean; platform: string; updates?: DesktopUpdates };
-  }
-}
 
 const INITIAL: DesktopUpdateState = {
   status: 'unavailable',
@@ -73,14 +27,20 @@ const INITIAL: DesktopUpdateState = {
   bytesPerSecond: 0,
   error: '',
   lastCheck: 0,
-  settings: { interval: '6h', notify: true },
+  settings: { interval: '6h', notify: true, auto: false },
 };
+
+export type {
+  DesktopUpdateSettings,
+  DesktopUpdateState,
+  DesktopUpdateStatus,
+  UpdateInterval,
+} from '../desktop-bridge';
 
 /** The update of the desktop app: its state and the things the person can do. */
 @Injectable({ providedIn: 'root' })
 export class DesktopUpdateService {
-  private readonly bridge: DesktopUpdates | undefined =
-    typeof window === 'undefined' ? undefined : window.chatterlyDesktop?.updates;
+  private readonly bridge: DesktopUpdates | undefined = desktopBridge()?.updates;
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
   private announced = '';

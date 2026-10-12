@@ -55,6 +55,7 @@ const ICONS: Record<string, string> = {
     '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
   'volume-x': '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6m0-6 6 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
   spin: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>',
   wheel:
     '<circle cx="12" cy="13" r="8.5"/><circle cx="12" cy="13" r="1.6"/><path d="M12 4.5v7M12 14.6v6.9M3.5 13h7M13.6 13h6.9M6 7l5 5M13 14l5 5M18 7l-5 5M11 14l-5 5"/><path d="M12 1.5v3"/>',

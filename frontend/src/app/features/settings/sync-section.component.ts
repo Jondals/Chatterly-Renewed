@@ -7,6 +7,8 @@ import { Component, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { SettingsSyncService, type SyncMode } from '../../core/services/settings-sync.service';
+import { ToastService } from '../../core/services/toast.service';
+import { VaultService } from '../../core/services/vault.service';
 import { IconComponent } from '../../shared/components/icon.component';
 
 /** The settings of the account. */
@@ -71,6 +73,65 @@ import { IconComponent } from '../../shared/components/icon.component';
             | t
         }}
       </p>
+    </section>
+
+    <section class="settings-card">
+      <h2 class="settings-card-title">{{ 'Your library (camera backgrounds)' | t }}</h2>
+      <p class="pb-3 text-xs text-muted">
+        {{
+          'The pictures and GIFs you add for your camera. In your account they are encrypted on this device before they are sent, with a key only your identity has: the server only keeps something it cannot read, and neither the server nor anybody else can open them.'
+            | t
+        }}
+      </p>
+      <div class="grid gap-2 pb-3 sm:grid-cols-2">
+        @for (place of places; track place.id) {
+          <button
+            type="button"
+            class="choice-card !items-start text-left"
+            [class.is-on]="vault.inAccount() === place.account"
+            (click)="setPlace(place.account)"
+          >
+            <span class="flex items-center gap-2 text-sm font-semibold">
+              <app-icon [name]="place.icon" [size]="15" /> {{ place.label | t }}
+            </span>
+            <span class="text-xs font-normal text-muted">{{ place.hint | t }}</span>
+          </button>
+        }
+      </div>
+      <div class="space-y-3 pb-3">
+        <div>
+          <div class="mb-1 flex justify-between text-xs text-muted">
+            <span>{{ 'In your account' | t }}</span>
+            <span class="font-mono">{{ usedText() }}</span>
+          </div>
+          <div class="h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              class="h-full rounded-full bg-accent transition-[width] duration-500"
+              [style.width.%]="usedPercent()"
+            ></div>
+          </div>
+        </div>
+        @if (deviceCount() > 0 && vault.inAccount()) {
+          <div
+            class="flex flex-wrap items-center gap-2 rounded-ui bg-white/[.04] px-3 py-2 text-xs text-muted"
+          >
+            <span class="min-w-0 flex-1">{{
+              'Some backgrounds are only on this device.' | t
+            }}</span>
+            <button type="button" class="btn btn-sm" (click)="moveToAccount()">
+              {{ 'Move them to my account' | t }}
+            </button>
+          </div>
+        }
+        <button
+          type="button"
+          class="btn btn-sm btn-soft-danger gap-1.5"
+          [disabled]="accountCount() === 0"
+          (click)="removeAll()"
+        >
+          <app-icon name="trash" [size]="13" /> {{ 'Remove everything from my account' | t }}
+        </button>
+      </div>
     </section>
 
     @if (sync.mode() === 'account') {
@@ -142,6 +203,30 @@ import { IconComponent } from '../../shared/components/icon.component';
 })
 export class SyncSectionComponent {
   protected readonly sync = inject(SettingsSyncService);
+  protected readonly vault = inject(VaultService);
+  private readonly toast = inject(ToastService);
+  protected readonly places: {
+    id: string;
+    account: boolean;
+    label: string;
+    hint: string;
+    icon: string;
+  }[] = [
+    {
+      id: 'account',
+      account: true,
+      label: 'Keep it in my account',
+      hint: 'Encrypted, and on every device you sign in on.',
+      icon: 'lock',
+    },
+    {
+      id: 'device',
+      account: false,
+      label: 'Only this device',
+      hint: 'Nothing is sent: what you add stays here.',
+      icon: 'monitor',
+    },
+  ];
   private readonly dialog = inject(DialogService);
   private readonly i18n = inject(I18nService);
   protected readonly modes: { id: SyncMode; label: string; hint: string; icon: string }[] = [
@@ -158,6 +243,70 @@ export class SyncSectionComponent {
       icon: 'monitor',
     },
   ];
+
+  /** How many items are only on this device. */
+  protected deviceCount(): number {
+    return this.vault.items().filter(function onDevice(item) {
+      return item.where === 'device';
+    }).length;
+  }
+
+  /** How many items are in the account. */
+  protected accountCount(): number {
+    return this.vault.items().length - this.deviceCount();
+  }
+
+  /** What the account uses, in words. */
+  protected usedText(): string {
+    const limits = this.vault.limits();
+    const mb = function megabytes(bytes: number): string {
+      return (bytes / (1024 * 1024)).toFixed(1);
+    };
+    return (
+      mb(this.vault.used()) +
+      ' / ' +
+      mb(limits.totalBytes) +
+      ' MB · ' +
+      this.accountCount() +
+      ' / ' +
+      limits.items
+    );
+  }
+
+  /** What the account uses, as a share of what it allows. */
+  protected usedPercent(): number {
+    return Math.min(100, (this.vault.used() / this.vault.limits().totalBytes) * 100);
+  }
+
+  /** Chooses where the next pictures of the library are kept. */
+  protected setPlace(account: boolean): void {
+    this.vault.inAccount.set(account);
+  }
+
+  /** Moves what is only on this device to the account. */
+  protected async moveToAccount(): Promise<void> {
+    const moved = await this.vault.moveDeviceToAccount();
+    this.toast.success(this.i18n.t('Moved to your account'), String(moved));
+  }
+
+  /** Asks and removes everything of the library from the account. */
+  protected async removeAll(): Promise<void> {
+    const sure = await this.dialog.confirm(
+      this.i18n.t('Remove everything from my account'),
+      this.i18n.t(
+        'Every picture and GIF of your library that is in your account will be deleted. This cannot be undone.',
+      ),
+      { confirmLabel: this.i18n.t('Remove'), danger: true },
+    );
+    if (!sure) {
+      return;
+    }
+    try {
+      await this.vault.removeAllFromAccount();
+    } catch {
+      this.toast.error(this.i18n.t('Could not remove it'), this.i18n.t('Try again.'));
+    }
+  }
 
   /** Chooses whether this device follows the account. */
   protected setMode(mode: SyncMode): void {

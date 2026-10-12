@@ -31,11 +31,18 @@ import { BannerComponent } from '../../shared/components/banner.component';
 import { CollapseComponent } from '../../shared/components/collapse.component';
 import { ColorPickerComponent } from '../../shared/components/color-picker.component';
 import { IconComponent } from '../../shared/components/icon.component';
-import { QUICK_GRADIENTS } from '../../shared/util/rich-text';
+import {
+  colorOpen,
+  GRADIENT_CLOSE,
+  gradientOpen,
+  QUICK_GRADIENTS,
+} from '../../shared/util/rich-text';
 import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
 import { ProfileCardComponent } from '../../shared/components/profile-card.component';
 import { sortedStops, type GradientParts } from '../../shared/util/gradient';
 import { GradientControlsComponent } from '../../shared/components/gradient-controls.component';
+import { SegmentedComponent } from '../../shared/components/controls.component';
+import { RevealComponent } from '../../shared/components/reveal.component';
 import { encodeBanner, parseBanner, type BannerColor } from '../../shared/util/banner';
 import {
   encodeNameColor,
@@ -89,6 +96,8 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
     PresetsComponent,
     ServerTagPickerComponent,
     GradientControlsComponent,
+    SegmentedComponent,
+    RevealComponent,
     UserFontDirective,
     NameFxDirective,
     AvatarComponent,
@@ -111,6 +120,7 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
           <div class="overflow-hidden rounded-ui-lg border border-white/8">
             <div
               class="group relative h-28 cursor-pointer"
+              (pointerenter)="warmUp()"
               (click)="uploadBanner()"
               role="button"
               tabindex="0"
@@ -129,6 +139,7 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
               <button
                 type="button"
                 class="group relative -mt-10 rounded-full ring-4 ring-ink-850"
+                (pointerenter)="warmUp()"
                 (click)="uploadAvatar()"
                 [attr.aria-label]="'Change picture' | t"
               >
@@ -157,23 +168,24 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
             <div class="mt-3 rounded-ui-lg border border-white/8 bg-black/10 p-3">
               <div class="flex flex-wrap items-center gap-3">
                 <span class="text-xs font-semibold text-muted">{{ 'Banner color' | t }}</span>
-                @if (!bannerState()?.gradient) {
+                <span
+                  class="inline-flex transition-opacity duration-300"
+                  [class.opacity-40]="bannerState()?.gradient"
+                  [class.pointer-events-none]="bannerState()?.gradient"
+                  [attr.inert]="bannerState()?.gradient ? '' : null"
+                >
                   <app-color-picker
                     [value]="bannerState()?.from ?? ''"
                     [size]="26"
                     label="Banner color"
                     (valueChange)="setBanner({ from: $event })"
                   />
-                }
-                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
-                  <input
-                    type="checkbox"
-                    class="accent-[var(--accent)]"
-                    [checked]="!!bannerState()?.gradient"
-                    (change)="toggleGradient($any($event.target).checked)"
-                  />
-                  {{ 'Gradient' | t }}
-                </label>
+                </span>
+                <app-segmented
+                  [options]="colorModes"
+                  [value]="bannerState()?.gradient ? 'gradient' : 'solid'"
+                  (valueChange)="toggleGradient($event === 'gradient')"
+                />
                 <span class="flex-1"></span>
                 @if (draft().bannerColor) {
                   <button
@@ -185,13 +197,13 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                   </button>
                 }
               </div>
-              @if (bannerState(); as b) {
-                @if (b.gradient) {
-                  <div class="mt-3">
+              <app-reveal [open]="!!bannerState()?.gradient">
+                @if (bannerState(); as b) {
+                  <div class="pt-3">
                     <app-gradient-controls [parts]="b" (changed)="setBanner($event)" />
                   </div>
                 }
-              }
+              </app-reveal>
             </div>
           }
         </section>
@@ -306,23 +318,24 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
               </div>
               <div class="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4">
                 <span class="w-32 text-sm font-medium">{{ 'Name color' | t }}</span>
-                @if (!nameState()?.gradient) {
+                <span
+                  class="inline-flex transition-opacity duration-300"
+                  [class.opacity-40]="nameState()?.gradient"
+                  [class.pointer-events-none]="nameState()?.gradient"
+                  [attr.inert]="nameState()?.gradient ? '' : null"
+                >
                   <app-color-picker
                     [value]="nameState()?.from ?? '#ffffff'"
                     [size]="34"
                     label="Name color"
                     (valueChange)="setName({ from: $event })"
                   />
-                }
-                <label class="flex cursor-pointer items-center gap-2 text-sm text-muted"
-                  ><input
-                    type="checkbox"
-                    class="accent-[var(--accent)]"
-                    [checked]="!!nameState()?.gradient"
-                    (change)="setName({ gradient: $any($event.target).checked })"
-                  />
-                  {{ 'Gradient' | t }}</label
-                >
+                </span>
+                <app-segmented
+                  [options]="colorModes"
+                  [value]="nameState()?.gradient ? 'gradient' : 'solid'"
+                  (valueChange)="setName({ gradient: $event === 'gradient' })"
+                />
                 <span class="flex-1"></span>
                 @if (draft().profileColor) {
                   <button
@@ -334,13 +347,13 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                   </button>
                 }
               </div>
-              @if (nameState(); as n) {
-                @if (n.gradient) {
+              <app-reveal [open]="!!nameState()?.gradient">
+                @if (nameState(); as n) {
                   <div class="px-4 py-3.5">
                     <app-gradient-controls [parts]="n" (changed)="setName($event)" />
                   </div>
                 }
-              }
+              </app-reveal>
               <div>
                 <app-collapse title="Name animation" [summary]="currentNameFx()">
                   <p class="mb-3 text-xs text-muted">
@@ -562,11 +575,11 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                     <div class="grid grid-cols-8 gap-2">
                       @for (c of bioPalette; track c) {
                         <button
-                          class="h-6 w-6 rounded-full ring-1 ring-white/20 transition-transform hover:scale-125"
+                          class="h-6 w-6 dot rounded-full ring-1 ring-white/20 hover:scale-110"
                           [style.background]="c"
                           type="button"
                           (mousedown)="$event.preventDefault()"
-                          (click)="wrapBio('[c=' + c + ']', '[/c]'); bioPanel.set(null)"
+                          (click)="applyBioColor(c)"
                           [attr.aria-label]="c"
                         ></button>
                       }
@@ -586,7 +599,7 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                         type="button"
                         class="btn btn-sm btn-primary"
                         (mousedown)="$event.preventDefault()"
-                        (click)="wrapBio('[c=' + bioA() + ']', '[/c]'); bioPanel.set(null)"
+                        (click)="applyBioColor(bioA())"
                       >
                         {{ 'Apply' | t }}
                       </button>
@@ -599,13 +612,11 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                   >
                     @for (g of quickGradients; track g.name) {
                       <button
-                        class="h-5 w-8 rounded-full ring-1 ring-white/20 transition-transform hover:scale-110"
+                        class="h-5 w-8 dot rounded-full ring-1 ring-white/20 hover:scale-105"
                         [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
                         type="button"
                         (mousedown)="$event.preventDefault()"
-                        (click)="
-                          wrapBio('[g=' + g.colors.join(',') + ']', '[/g]'); bioPanel.set(null)
-                        "
+                        (click)="applyBioQuick(g.colors)"
                         [attr.title]="g.name | t"
                         [attr.aria-label]="g.name | t"
                       ></button>
@@ -704,6 +715,11 @@ export class ProfileSectionComponent {
   private readonly kept = inject(ProfileDraftStore);
 
   protected readonly fonts = FONTS;
+  /** The two ways to colour something: one plain colour or a gradient. */
+  protected readonly colorModes = [
+    { id: 'solid', label: 'Color' },
+    { id: 'gradient', label: 'Gradient' },
+  ];
   protected readonly nameEffects = NAME_FX;
   /** The label of the animation of the name that is chosen. */
   protected readonly currentNameFx = computed(this.findNameFx.bind(this));
@@ -762,7 +778,18 @@ export class ProfileSectionComponent {
     const colors = sortedStops(this.bioGradient().stops).map(function colour(stop) {
       return stop.color;
     });
-    this.wrapBio('[g=' + colors.join(',') + ']', '[/g]');
+    this.applyBioQuick(colors);
+  }
+
+  /** Wraps the selected text with a gradient of these colors and closes the panel. */
+  protected applyBioQuick(colors: string[]): void {
+    this.wrapBio(gradientOpen(colors, this.i18n.lang()), GRADIENT_CLOSE);
+    this.bioPanel.set(null);
+  }
+
+  /** Wraps the selected text with a color and closes the panel. */
+  protected applyBioColor(hex: string): void {
+    this.wrapBio(colorOpen(hex, this.i18n.lang()), '[/c]');
     this.bioPanel.set(null);
   }
   protected readonly statusEmojiOpen = signal(false);
@@ -816,7 +843,10 @@ export class ProfileSectionComponent {
       pronouns: user?.pronouns ?? '',
       statusText: user?.statusText ?? '',
       bio: user?.bio ?? '',
-      nameFont: user?.nameFont ?? 'default',
+      // A font that friends see is "custom:<id>" for them; for the form it is just the own custom font.
+      nameFont: (user?.nameFont ?? 'default').startsWith('custom:')
+        ? 'custom'
+        : (user?.nameFont ?? 'default'),
       nameFx: user?.nameFx ?? 'none',
       profileColor: user?.profileColor ?? '',
       bannerColor: user?.bannerColor ?? '',
@@ -914,6 +944,10 @@ export class ProfileSectionComponent {
     if (this.draft().nameFont === 'custom') {
       this.patch({ nameFont: 'default' });
     }
+    // The encrypted copy that friends opened goes too.
+    await this.send({ nameFontImage: null }).catch(function ignore(): void {
+      return undefined;
+    });
   }
 
   /** A copy of the user with another effect, to preview it. */
@@ -1155,6 +1189,11 @@ export class ProfileSectionComponent {
     }
   }
 
+  /** The pointer is over the picture or the banner: the code of the window that opens is brought in now, so it opens at once. */
+  protected warmUp(): void {
+    void import('../../shared/components/image-adjust.component');
+  }
+
   /** Chooses the profile picture. */
   protected async uploadAvatar(): Promise<void> {
     await this.upload('avatar', 'avatarImage');
@@ -1169,6 +1208,9 @@ export class ProfileSectionComponent {
     kind: 'avatar' | 'banner',
     field: 'avatarImage' | 'bannerImage',
   ): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
     this.busy.set(true);
     try {
       const adjuster = await import('../../shared/components/image-adjust.component');

@@ -21,6 +21,7 @@ import { AvatarComponent } from '../../shared/components/avatar.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
+import { EmojiChoiceComponent } from '../../shared/components/emoji-choice.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import {
   ServerTagComponent,
@@ -39,6 +40,7 @@ import { SocialStore } from '../../store/social.store';
   standalone: true,
   imports: [
     ServerTagComponent,
+    EmojiChoiceComponent,
     NameColorDirective,
     UserFontDirective,
     NameFxDirective,
@@ -123,6 +125,7 @@ import { SocialStore } from '../../store/social.store';
                   [appNameColor]="u.profileColor"
                   [appUserFont]="u.nameFont"
                   [nameFx]="u.nameFx"
+                  [fxLive]="true"
                   >{{ u.displayName }}</span
                 ><span class="text-xs">&#64;{{ u.username }}</span></span
               >
@@ -241,25 +244,8 @@ import { SocialStore } from '../../store/social.store';
                   ></button>
                 }
               </div>
-              <div class="mt-2.5 flex flex-wrap gap-1">
-                <button
-                  type="button"
-                  class="choice-card !min-h-0 px-2 py-1 text-xs"
-                  [class.is-on]="!tagIcon()"
-                  (click)="tagIcon.set('')"
-                >
-                  {{ 'No icon' | t }}
-                </button>
-                @for (icon of tagIcons; track icon) {
-                  <button
-                    type="button"
-                    class="choice-card !min-h-0 px-2 py-1 text-base"
-                    [class.is-on]="tagIcon() === icon"
-                    (click)="tagIcon.set(icon)"
-                  >
-                    {{ icon }}
-                  </button>
-                }
+              <div class="mt-2.5">
+                <app-emoji-choice [(value)]="tagIcon" [quick]="tagIcons" />
               </div>
             </section>
           }
@@ -501,9 +487,14 @@ export class GuildModalsComponent {
 
   /** Chooses the picture of the new group (a moving GIF is kept as it is). */
   protected async pickCreateImage(): Promise<void> {
-    const file = await this.images.pickFile();
-    if (!file) return;
     try {
+      const source = await import('../../shared/components/image-source.component');
+      const choice = await source.chooseImageSource(this.injector, {
+        title: 'Choose a picture',
+        subtitle: 'Upload your own file or pick a GIF.',
+      });
+      if (!choice) return;
+      const file = await source.sourceToBlob(this.injector, choice);
       const adjuster = await import('../../shared/components/image-adjust.component');
       const blob = await adjuster.prepareImage(this.injector, file, IMAGE_PRESETS.group);
       if (!blob) return;

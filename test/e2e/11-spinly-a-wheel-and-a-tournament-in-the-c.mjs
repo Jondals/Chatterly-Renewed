@@ -61,6 +61,19 @@ export async function step11(world) {
   await a.click('[data-tip="More"]');
   await a.click('button.menu-card:has-text("Spinly")');
   await a.waitForSelector('[role=dialog][aria-label="Spinly"]');
+  // The ready-made lists to start from: one press fills the options.
+  await a.click('[role=dialog][aria-label="Spinly"] button.starter-chip:has-text("Yes or no")');
+  await a.waitForFunction(
+    function () {
+      const boxes = [
+        ...document.querySelectorAll('[role=dialog][aria-label="Spinly"] input[data-entry]'),
+      ];
+      return boxes.length === 2 && boxes[0].value === 'Yes' && boxes[1].value === 'No';
+    },
+    null,
+    { timeout: 5000 },
+  );
+  check(true, 'a ready-made list ("Yes or no") fills the options of the wheel with one press');
   await a.click('[role=dialog][aria-label="Spinly"] .fold-head:has-text("presets")');
   await a.click('[role=dialog][aria-label="Spinly"] button:has-text("Friday")');
   await a.waitForFunction(function () {
@@ -112,6 +125,11 @@ export async function step11(world) {
   await a.click('button.menu-card:has-text("Spinly")');
   await a.waitForSelector('[role=dialog][aria-label="Spinly"]');
   await a.click('[role=dialog][aria-label="Spinly"] [role=tab]:has-text("Tournament")');
+  await a.waitForSelector(
+    '[role=dialog][aria-label="Spinly"] button.starter-chip:has-text("8 players")',
+    { timeout: 5000 },
+  );
+  check(true, 'a tournament offers its sizes to start from');
   const rows = a.locator('[role=dialog][aria-label="Spinly"] input[data-entry]');
   await rows.nth(0).fill('Ana');
   await rows.nth(1).fill('Luis');

@@ -3,7 +3,7 @@
  * A small section that opens and closes smoothly (the options of the drawer of a call). The title goes in an element with
  * `foldTitle`, a note at the right of it in one with `foldHint`, and what is inside opens under them.
  */
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, input, signal } from '@angular/core';
 import { IconComponent } from './icon.component';
 
 /** A folded section with a smooth opening. */
@@ -87,7 +87,16 @@ import { IconComponent } from './icon.component';
     }
   `,
 })
-export class FoldComponent {
+export class FoldComponent implements OnInit {
   /** Whether the section is open. */
   readonly open = signal(false);
+  /** True for a section that starts open. */
+  readonly startOpen = input(false);
+
+  /** Opens the section when it asks to start open. */
+  ngOnInit(): void {
+    if (this.startOpen()) {
+      this.open.set(true);
+    }
+  }
 }

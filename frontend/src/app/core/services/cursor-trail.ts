@@ -7,14 +7,7 @@
 
 /** The kinds of trail. */
 export type TrailType =
-  | 'comet'
-  | 'ribbon'
-  | 'glow'
-  | 'ink'
-  | 'rainbow'
-  | 'stardust'
-  | 'bubbles'
-  | 'fire';
+  'comet' | 'ribbon' | 'glow' | 'ink' | 'rainbow' | 'stardust' | 'bubbles' | 'fire';
 
 /** How the trail looks. `color` and `color2` are the accent and the second accent of the theme ("#rrggbb"). */
 export interface TrailConfig {

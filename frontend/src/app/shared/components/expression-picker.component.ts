@@ -22,6 +22,7 @@ import { SettingsService } from '../../core/services/settings.service';
 import { StickerStore, type Sticker, type StickerPack } from '../../core/services/sticker.store';
 import { ToastService } from '../../core/services/toast.service';
 import { loadEmojiData, type EmojiEntry } from '../util/emoji-data';
+import { GifThumbComponent } from './gif-thumb.component';
 import { IconComponent } from './icon.component';
 
 type Tab = 'emoji' | 'gif' | 'sticker';
@@ -47,58 +48,6 @@ const FIRST_CHUNK = 42;
 const MORE_STEP = 35;
 /** How close to the end of the list (pixels) the next rows are drawn. */
 const SCROLL_AHEAD_PX = 320;
-
-@Component({
-  selector: 'app-gif-thumb',
-  standalone: true,
-  template: `
-    <button
-      type="button"
-      class="group relative mb-2 block w-full overflow-hidden rounded-ui bg-white/5"
-      [style.aspect-ratio]="gif().width + '/' + gif().height"
-      (click)="chosen.emit(gif())"
-      [attr.aria-label]="gif().title"
-    >
-      @if (src(); as url) {
-        <img
-          decoding="async"
-          [src]="url"
-          [alt]="gif().title"
-          loading="lazy"
-          class="anim-fade-in h-full w-full object-cover transition duration-300 group-hover:scale-105"
-        />
-      } @else {
-        <div class="shimmer h-full w-full"></div>
-      }
-    </button>
-  `,
-})
-export class GifThumbComponent {
-  readonly gif = input.required<GifResult>();
-  readonly chosen = output<GifResult>();
-  private readonly service = inject(GifService);
-  protected readonly src = signal<string | null>(null);
-
-  constructor() {
-    effect(
-      function (this: GifThumbComponent) {
-        const url = this.gif().preview;
-        untracked(
-          function (this: GifThumbComponent) {
-            return void this.service.preview(url).then(
-              function (this: GifThumbComponent, u: string) {
-                return this.src.set(u);
-              }.bind(this),
-              function () {
-                return undefined;
-              },
-            );
-          }.bind(this),
-        );
-      }.bind(this),
-    );
-  }
-}
 
 /**
  * One panel for everything expressive: our own emoji picker (searchable in your language, skin tones,
@@ -162,7 +111,7 @@ export class GifThumbComponent {
                   @for (c of swatches; track $index) {
                     <button
                       type="button"
-                      class="h-6 w-6 rounded-full ring-offset-2 ring-offset-ink-850 hover:scale-110"
+                      class="h-6 w-6 dot rounded-full ring-offset-1 ring-offset-ink-850 hover:scale-105"
                       [class.ring-2]="settings.skinTone() === $index"
                       [class.ring-accent]="settings.skinTone() === $index"
                       [style.background]="c"

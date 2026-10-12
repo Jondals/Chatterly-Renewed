@@ -22,6 +22,7 @@ import { registerGuildRoutes } from './routes/guilds';
 import { registerMessageRoutes } from './routes/messages';
 import { registerImageRoutes } from './routes/images';
 import { registerSettingsSyncRoutes } from './routes/settings-sync';
+import { registerVaultRoutes } from './routes/vault';
 import { registerGifRoutes } from './routes/gifs';
 import { registerPreviewRoutes } from './routes/preview';
 import { registerSocket } from './ws/socket';
@@ -195,6 +196,7 @@ export async function buildApp(overrides: Partial<AppConfig> = {}) {
   registerMessageRoutes(app, ctx);
   registerImageRoutes(app, ctx);
   registerSettingsSyncRoutes(app, ctx);
+  registerVaultRoutes(app, ctx);
   registerGifRoutes(app, ctx);
   registerPreviewRoutes(app, ctx);
   registerSocket(app, ctx);

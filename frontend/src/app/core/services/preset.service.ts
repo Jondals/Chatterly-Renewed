@@ -186,6 +186,10 @@ export class PresetService {
     for (const field of PROFILE_FIELDS) {
       data[field] = user?.[field] ?? '';
     }
+    // A font that friends see ("custom:<id>") is, in a preset, just the custom font that travels with it.
+    if (typeof data['nameFont'] === 'string' && data['nameFont'].startsWith('custom:')) {
+      data['nameFont'] = 'custom';
+    }
     return data;
   }
 
@@ -254,9 +258,62 @@ export class PresetService {
     return preset;
   }
 
-  /** Keeps a preset of a message in the library. Throws a readable message when there is no room. */
+  /**
+   * What makes a preset the same as another: its kind, its settings (in any order) and the size of each custom piece. The name
+   * and the date do not count: the same look with another name is still a preset the person has.
+   */
+  private fingerprint(preset: Preset): string {
+    const sorted = function sortKeys(value: unknown): unknown {
+      if (Array.isArray(value)) {
+        return value.map(sortKeys);
+      }
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(function byKey([a], [b]) {
+              return a < b ? -1 : a > b ? 1 : 0;
+            })
+            .map(function entry([key, item]) {
+              return [key, sortKeys(item)];
+            }),
+        );
+      }
+      return value;
+    };
+    const pieces = Object.entries(preset.assets)
+      .map(function size([name, blob]) {
+        return name + ':' + (blob?.size ?? 0);
+      })
+      .sort();
+    return preset.kind + '|' + JSON.stringify(sorted(preset.data)) + '|' + pieces.join(',');
+  }
+
+  /** The preset of the library that is the same as this one, if there is one. */
+  private findSame(preset: Preset): Preset | undefined {
+    const wanted = this.fingerprint(preset);
+    return this.presets().find(
+      function same(this: PresetService, item: Preset): boolean {
+        return item.kind === preset.kind && this.fingerprint(item) === wanted;
+      }.bind(this),
+    );
+  }
+
+  /** Whether the preset of a message is one the person already has (they cannot import it again). */
+  async alreadyHave(att: ViewAttachment): Promise<boolean> {
+    await this.load();
+    try {
+      return this.findSame(await this.read(att)) !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Keeps a preset of a message in the library. Throws a readable message when there is no room or it is already there. */
   private async keep(preset: Preset): Promise<void> {
     await this.load();
+    if (this.findSame(preset)) {
+      throw new Error('You already have this preset.');
+    }
     if (this.ofKind(preset.kind).length >= MAX_PRESETS) {
       throw new Error('You have too many presets of this kind. Delete one first.');
     }

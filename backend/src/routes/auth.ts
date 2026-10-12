@@ -11,6 +11,7 @@ import { getUser, toPublicUser, toSelfUser, profileAudience, type UserRow } from
 import { refreshServerTag } from '../server-tag';
 import { hashAuthSecret, verifyAuthSecret, needsUpgrade } from '../security/password';
 import { deleteImage, imageFile, ownsImage } from './images';
+import { vaultFile } from './vault';
 import {
   authSecretField,
   b64Field,
@@ -495,6 +496,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
             searchable: { type: 'boolean' },
             avatarImage: { type: ['string', 'null'], pattern: UUID },
             bannerImage: { type: ['string', 'null'], pattern: UUID },
+            // The font file of the name (an encrypted upload of kind font), shown to others when nameFont is custom.
+            nameFontImage: { type: ['string', 'null'], pattern: UUID },
             // The group whose tag the person shows next to their name (null: none).
             tagGuild: { type: ['string', 'null'], pattern: UUID },
           },
@@ -552,6 +555,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       for (const [key, column, kind] of [
         ['avatarImage', 'avatar_image', 'avatar'],
         ['bannerImage', 'banner_image', 'banner'],
+        ['nameFontImage', 'name_font_image', 'font'],
       ] as const) {
         if (!(key in body)) continue;
         const next = body[key] ?? null;
@@ -775,6 +779,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
           return !keptIcons.includes(image);
         },
       );
+      const vaultItems = column('SELECT id FROM vault_items WHERE owner_id = ?', id);
       db.transaction(function erase() {
         for (const channel of dmChannels)
           db.prepare('DELETE FROM channels WHERE id = ?').run(channel);
@@ -810,6 +815,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
 
       for (const file of files) fs.rm(path.join(config.uploadDir, file), { force: true }, noop);
       for (const image of images) fs.rm(imageFile(ctx, image), { force: true }, noop);
+      for (const item of vaultItems) fs.rm(vaultFile(ctx, item), { force: true }, noop);
       ctx.hub.dropUser(id);
       ctx.hub.sendToMany([...friends, ...dmPeers], { t: 'friends.update' });
       for (const guild of joinedGuilds)

@@ -95,18 +95,23 @@ import { RichTextComponent } from './rich-text.component';
           </div>
         </div>
         <div class="mt-4 flex flex-wrap justify-end gap-2">
-          <button type="button" class="btn" (click)="presets.previewing.set(null)">
+          <button type="button" class="btn btn-outline" (click)="presets.previewing.set(null)">
             {{ 'Close' | t }}
           </button>
           <button
             type="button"
-            class="btn btn-primary"
+            class="btn btn-soft-accent"
             [disabled]="busy()"
             (click)="keepProfile(false)"
           >
             {{ 'Import' | t }}
           </button>
-          <button type="button" class="btn" [disabled]="busy()" (click)="keepProfile(true)">
+          <button
+            type="button"
+            class="btn btn-accent-strong"
+            [disabled]="busy()"
+            (click)="keepProfile(true)"
+          >
             {{ 'Import and use' | t }}
           </button>
         </div>

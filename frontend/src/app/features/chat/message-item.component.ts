@@ -3,6 +3,7 @@
  * One chat message: bubble, reactions, replies, editing, the hover menu and the right-click menu.
  */
 import { NameColorDirective } from '../../shared/util/name-color.directive';
+import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
@@ -40,6 +41,9 @@ import { ContextMenuService, type MenuItem } from '../../core/services/context-m
 import { fontClassOf } from '../../shared/util/user-font.directive';
 import { ServerTagComponent } from '../../shared/components/server-tag.component';
 
+/** A message younger than this (in milliseconds) counts as just arrived. */
+const EMOJI_FRESH_MS = 6000;
+
 @Component({
   selector: 'app-message-item',
   standalone: true,
@@ -51,6 +55,7 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
     SpinlyMessageComponent,
     StatusMarkComponent,
     NameColorDirective,
+    NameFxDirective,
     IconComponent,
     TimestampPipe,
     AttachmentComponent,
@@ -92,6 +97,8 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
               [class]="nameClass()"
               [appNameColor]="sender()?.profileColor ?? ''"
               [fallback]="mine() ? 'var(--accent)' : 'var(--fg)'"
+              [nameFx]="sender()?.nameFx"
+              [fxLive]="true"
               (click)="openProfile()"
             >
               {{ sender()?.displayName ?? auth.user()?.displayName ?? '…' }}
@@ -134,6 +141,8 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
             [class.bubble-in]="bubbles() && !mine()"
             [class.bubble-emoji]="bigEmoji()"
             [class.is-single]="bigEmoji() && singleEmoji()"
+            [class.is-fresh]="bigEmoji() && emojiFresh()"
+            (click)="replayEmoji($event)"
             [class.is-many]="bigEmoji() && emojiCount() > 3 && emojiCount() <= 6"
             [class.is-lots]="bigEmoji() && emojiCount() > 6"
             [attr.data-pop]="bigEmoji() ? emojiPop() : null"
@@ -354,7 +363,7 @@ export class MessageItemComponent {
     }.bind(this),
   );
   /** True when the message is just one to three emoji: they are drawn big, without a bubble. */
-  /** A message that is exactly one emoji (they get the little loop). */
+  /** A message that is exactly one emoji (it gets its own little show). */
   protected readonly singleEmoji = computed(
     function (this: MessageItemComponent) {
       const text = this.message().text.trim();
@@ -379,22 +388,43 @@ export class MessageItemComponent {
       return !message.undecryptable && !message.attachments?.length && isOnlyEmoji(message.text);
     }.bind(this),
   );
-  /** The kind of animation of a lone emoji (a heart beats, a kiss sends a heart, a laugh shakes...). */
+  /** The kind of animation of a lone emoji (a heart beats, a kiss sends a heart, a critter hops, a rocket takes off...). */
   protected readonly emojiMoodOf = computed(
     function (this: MessageItemComponent) {
-      return emojiMood(this.message().text);
+      return emojiMood(this.message().text, this.message().id);
     }.bind(this),
   );
-  /** Which of the entrance animations this emoji message uses: always the same for the same message, but different between messages. */
+  /** Which of the eight entrances this emoji message uses: always the same for the same message, but different between messages. */
   protected readonly emojiPop = computed(
     function (this: MessageItemComponent) {
       let hash = 0;
       for (const char of this.message().id) {
         hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
       }
-      return hash % 3;
+      return hash % 8;
     }.bind(this),
   );
+  /**
+   * True for an emoji that has just arrived (or that this person just sent): it makes its entrance and its little show.
+   * The ones that were already there when the chat was opened only settle in softly, so entering a chat does not set a
+   * dozen emoji spinning at once.
+   */
+  protected readonly emojiFresh = computed(
+    function (this: MessageItemComponent) {
+      return Date.now() - this.message().createdAt < EMOJI_FRESH_MS;
+    }.bind(this),
+  );
+  /** Pressing a lone emoji plays its show again (the same one, with its little particles). */
+  protected replayEmoji(event: Event): void {
+    if (!this.singleEmoji() || !this.bigEmoji()) {
+      return;
+    }
+    const element = event.currentTarget as HTMLElement;
+    element.classList.remove('emo-play');
+    // Reading the size makes the browser notice the class is gone, so adding it again starts the animation again.
+    void element.offsetWidth;
+    element.classList.add('emo-play');
+  }
   protected readonly segments = computed(
     function (this: MessageItemComponent) {
       return parseRichText(this.message().text.trim());

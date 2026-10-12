@@ -60,4 +60,99 @@ export async function step12(world) {
   await a.waitForTimeout(900);
   await shot(a, '07d-emoji');
   check(true, 'a single emoji is drawn big and without a bubble');
+
+  // An emoji that has just arrived makes an entrance and a short show of its kind (a party popper sends confetti)...
+  // (The app switches its light mode on by itself on a weak machine, and then a lone emoji only makes its entrance: the
+  // test looks at the normal mode and at the light mode, whichever the machine is in.)
+  const fresh = await a
+    .locator('.bubble-emoji')
+    .first()
+    .evaluate(function (el) {
+      const root = document.documentElement;
+      const was = root.getAttribute('data-perf');
+      root.removeAttribute('data-perf');
+      const normal = {
+        names: getComputedStyle(el).animationName,
+        count: getComputedStyle(el).animationIterationCount,
+      };
+      root.setAttribute('data-perf', 'low');
+      const light = getComputedStyle(el).animationName;
+      if (was === null) root.removeAttribute('data-perf');
+      else root.setAttribute('data-perf', was);
+      return {
+        cls: el.className,
+        mood: el.getAttribute('data-mood'),
+        normal,
+        light,
+        motion: root.getAttribute('data-motion'),
+        move: getComputedStyle(el).getPropertyValue('--emo-move'),
+      };
+    });
+  check(
+    fresh.cls.includes('is-fresh') && fresh.mood === 'party',
+    'a lone emoji that just arrived is "fresh" and has the mood of its kind (' + fresh.mood + ')',
+  );
+  check(
+    fresh.normal.names === 'emoji-settle' && !/emo-party/.test(fresh.normal.names),
+    'it only settles in when it arrives: its show does not play by itself (' +
+      fresh.normal.names +
+      ')',
+  );
+  // ...and pressing it plays the show of its kind, a few times, and stops
+  await a.locator('.bubble-emoji').first().click();
+  await a.waitForTimeout(150);
+  const pressed = await a
+    .locator('.bubble-emoji')
+    .first()
+    .evaluate(function (el) {
+      const root = document.documentElement;
+      const was = root.getAttribute('data-perf');
+      root.removeAttribute('data-perf');
+      const normal = {
+        names: getComputedStyle(el).animationName,
+        count: getComputedStyle(el).animationIterationCount,
+      };
+      root.setAttribute('data-perf', 'low');
+      const light = getComputedStyle(el).animationName;
+      if (was === null) root.removeAttribute('data-perf');
+      else root.setAttribute('data-perf', was);
+      return { normal, light };
+    });
+  check(
+    /emo-party/.test(pressed.normal.names),
+    'pressing it plays the show of its kind (' + JSON.stringify(pressed) + ')',
+  );
+  check(
+    !/infinite/.test(pressed.normal.count),
+    'the show runs a few times and stops: nothing loops for ever (' + pressed.normal.count + ')',
+  );
+  check(
+    pressed.light.split(',').length === 1 && !/emo-party/.test(pressed.light),
+    'a weak machine (light mode) gets the entrance only (' + pressed.light + ')',
+  );
+  // ...and the same emoji, when the chat is opened again, only settles in: no show, no looping.
+  // (an emoji counts as just arrived for six seconds)
+  await a.waitForTimeout(6500);
+  await a.reload();
+  await a.waitForSelector('.bubble-emoji', { timeout: 20000 });
+  await a.waitForTimeout(500);
+  const old = await a
+    .locator('.bubble-emoji')
+    .first()
+    .evaluate(function (el) {
+      return { cls: el.className, names: getComputedStyle(el).animationName };
+    });
+  check(
+    !old.cls.includes('is-fresh') && old.names === 'emoji-settle',
+    'an emoji that was already in the chat when it was opened only settles in (' + old.names + ')',
+  );
+  // Pressing it plays its show again.
+  await a.locator('.bubble-emoji').first().click();
+  const replay = await a
+    .locator('.bubble-emoji')
+    .first()
+    .evaluate(function (el) {
+      return getComputedStyle(el).animationName;
+    });
+  check(/emo-replay/.test(replay), 'pressing a lone emoji plays its show again (' + replay + ')');
 }

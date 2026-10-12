@@ -5,6 +5,7 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
 import { appConfig } from './app/app.config';
+import { desktopBridge } from './app/core/desktop-bridge';
 import { startFlagSupport } from './app/core/flag-support';
 
 /** Reports a failure to start the application in the console. */
@@ -38,7 +39,20 @@ function markWeakDevice(): void {
   }
 }
 
+/**
+ * The desktop app (Windows) draws its own bar at the top of the window: the page learns its height before the first paint,
+ * so nothing jumps when the bar appears. (In a browser or on a phone this does nothing.)
+ */
+function markDesktopBar(): void {
+  const bar = desktopBridge()?.titlebar;
+  if (bar) {
+    document.documentElement.dataset['titlebar'] = 'custom';
+    document.documentElement.style.setProperty('--titlebar-h', bar.height + 'px');
+  }
+}
+
 markWeakDevice();
+markDesktopBar();
 startFlagSupport();
 if (document.querySelector('app-root[data-snapshot]')) {
   // The picture of the sign-in page that came inside the HTML is painted first, and only then does the app start (and replace it).

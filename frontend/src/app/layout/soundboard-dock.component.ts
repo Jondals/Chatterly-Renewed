@@ -31,8 +31,7 @@ import { IconComponent } from '../shared/components/icon.component';
 
 /** What a tile of the soundboard is: an effect of the app or a sound of the person. */
 type Tile =
-  | { kind: 'effect'; id: SfxId; icon: string; label: string }
-  | { kind: 'own'; clip: CustomSound };
+  { kind: 'effect'; id: SfxId; icon: string; label: string } | { kind: 'own'; clip: CustomSound };
 
 /** A part of the list: the sounds of one category (the first part has no title). */
 interface Part {

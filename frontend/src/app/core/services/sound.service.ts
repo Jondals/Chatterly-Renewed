@@ -23,6 +23,7 @@ import {
   type SoundId,
 } from '../sound-library';
 import { SettingsService } from './settings.service';
+import { isDesktopApp } from '../desktop-bridge';
 
 /** The sounds of the interface and of the calls. */
 export type UiSound =
@@ -41,6 +42,9 @@ export type UiSound =
   | 'error'
   | 'open'
   | 'exit';
+
+/** The sounds that are notifications (they have their own volume, on top of the general one). */
+const NOTIFICATION_SOUNDS = new Set<UiSound>(['message', 'join', 'leave']);
 
 /** The effects of the soundboard that are built in. (Their names travel in the signals of a call, so they never change.) */
 export type SfxId = 'horn' | 'boing' | 'trombone' | 'tada' | 'rimshot' | 'applause';
@@ -123,9 +127,30 @@ export class SoundService {
   private clickLoading = false;
   private readonly clickWatcher = effect(this.watchClickClip.bind(this));
 
-  /** Keeps the master volume equal to the volume setting. */
+  /** True once the person has pressed something in this page (Firefox counts it per page load, not per site). */
+  private gestured = false;
+
+  /** Keeps the master volume equal to the volume setting, and learns when the browser lets sound start. */
   constructor() {
     effect(this.applyVolume.bind(this));
+    if (typeof document !== 'undefined') {
+      for (const type of ['pointerdown', 'keydown', 'touchstart']) {
+        document.addEventListener(type, this.onGesture.bind(this), { capture: true, once: true });
+      }
+    }
+  }
+
+  /** The first press of the person: from here the audio context may start (before it each try writes a warning). */
+  private onGesture(): void {
+    this.gestured = true;
+    if (this.audioContext?.state === 'suspended') {
+      void this.audioContext.resume();
+    }
+  }
+
+  /** True when the browser lets a sound start (a press happened in this page, or the desktop app, which always allows it). */
+  get activated(): boolean {
+    return this.gestured || isDesktopApp();
   }
 
   /** Master gain for the volume setting (0 to 100): a perceptual curve, then boosted. */
@@ -180,7 +205,7 @@ export class SoundService {
       // The files of the interface (about 200 KB, once) start loading now that the person has interacted.
       void loadSounds(this.audioContext, ESSENTIAL_SOUNDS);
     }
-    if (this.audioContext.state === 'suspended') {
+    if (this.audioContext.state === 'suspended' && this.activated) {
       void this.audioContext.resume();
     }
     return this.audioContext;
@@ -204,9 +229,7 @@ export class SoundService {
    * (before that, an audio context may not start and the browser writes a warning for each try).
    */
   private get audible(): boolean {
-    return (
-      this.supported && (!!this.audioContext || (navigator.userActivation?.hasBeenActive ?? true))
-    );
+    return this.supported && (!!this.audioContext || this.activated);
   }
 
   /** Plays one of the sounds of the interface or of the calls (nothing when sounds are off). */
@@ -220,7 +243,13 @@ export class SoundService {
       this.levelScale = 1;
       return;
     }
-    playSound(this.context, this.output, UI_FILES[sound], { gain: this.levelScale });
+    const gain = this.levelScale * (NOTIFICATION_SOUNDS.has(sound) ? this.notificationGain() : 1);
+    playSound(this.context, this.output, UI_FILES[sound], { gain });
+  }
+
+  /** The volume of the notifications as a gain (0 to 1). */
+  private notificationGain(): number {
+    return Math.min(100, Math.max(0, this.settings.notificationVolume())) / 100;
   }
 
   /**
@@ -356,7 +385,9 @@ export class SoundService {
     if (repeating.stopped) {
       return;
     }
-    repeating.source = playSound(this.context, this.output, sound);
+    repeating.source = playSound(this.context, this.output, sound, {
+      gain: this.notificationGain(),
+    });
     const seconds = soundLength(sound) + soundGap(sound);
     repeating.timer = setTimeout(
       this.repeatFile.bind(this, sound, repeating),
@@ -389,7 +420,9 @@ export class SoundService {
       const source = this.context.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
-      source.connect(this.output);
+      const level = this.context.createGain();
+      level.gain.value = this.notificationGain();
+      source.connect(level).connect(this.output);
       source.start();
       repeating.source = source;
     } catch {

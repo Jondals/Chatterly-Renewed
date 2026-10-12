@@ -171,6 +171,7 @@ type Tab = 'online' | 'all' | 'pending';
                             [appNameColor]="u.profileColor"
                             [appUserFont]="u.nameFont"
                             [nameFx]="u.nameFx"
+                            [fxLive]="true"
                           >
                             {{ u.displayName }}
                           </div>
@@ -224,6 +225,7 @@ type Tab = 'online' | 'all' | 'pending';
                             [appNameColor]="u.profileColor"
                             [appUserFont]="u.nameFont"
                             [nameFx]="u.nameFx"
+                            [fxLive]="true"
                           >
                             {{ u.displayName }}
                           </div>
@@ -287,6 +289,7 @@ type Tab = 'online' | 'all' | 'pending';
                           [appNameColor]="u.profileColor"
                           [appUserFont]="u.nameFont"
                           [nameFx]="u.nameFx"
+                          [fxLive]="true"
                         >
                           {{ u.displayName }}
                         </div>
@@ -427,6 +430,7 @@ type Tab = 'online' | 'all' | 'pending';
                 [appNameColor]="u.profileColor"
                 [appUserFont]="u.nameFont"
                 [nameFx]="u.nameFx"
+                [fxLive]="true"
                 >{{ u.displayName }}
                 <span class="text-xs text-muted">&#64;{{ u.username }}</span></span
               >

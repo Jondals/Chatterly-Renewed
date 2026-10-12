@@ -217,8 +217,7 @@ export async function checkDeletion(): Promise<void> {
   const guild = db
     .prepare('SELECT owner_id, needs_rotation, icon_image FROM guilds WHERE id = ?')
     .get(club.id) as
-    | { owner_id: string; needs_rotation: number; icon_image: string | null }
-    | undefined;
+    { owner_id: string; needs_rotation: number; icon_image: string | null } | undefined;
   check(guild !== undefined, 'a group with other members is NOT destroyed when its owner leaves');
   check(guild?.owner_id === bob.id, 'it passes to the member who has been in it the longest');
   check(

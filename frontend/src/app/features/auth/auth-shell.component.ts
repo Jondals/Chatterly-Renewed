@@ -22,7 +22,9 @@ import { APP_NAME, APP_VERSION } from '../../version';
     TranslatePipe,
   ],
   template: `
-    <div class="relative flex h-dvh items-center justify-center overflow-y-auto p-5">
+    <div
+      class="relative flex h-[var(--app-h,100dvh)] items-center justify-center overflow-y-auto p-5"
+    >
       <!-- Own background of the sign-in pages: dark, with a faint glow and an animated particle network -->
       <div class="pointer-events-none fixed inset-0 -z-0 bg-[#030409]" aria-hidden="true">
         <div

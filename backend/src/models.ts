@@ -24,6 +24,7 @@ export interface UserRow {
   pronouns: string;
   avatar_image: string | null;
   banner_image: string | null;
+  name_font_image: string | null;
   banner_color: string;
   profile_color: string;
   name_font: string;
@@ -82,7 +83,12 @@ export function toPublicUser(row: UserRow): PublicUser {
     bannerImage: row.banner_image,
     bannerColor: row.banner_color,
     profileColor: row.profile_color,
-    nameFont: row.name_font,
+    // A font the person uploaded travels as "custom:<id of the encrypted font file>", so every place that draws a name
+    // knows which file to use (a name font with no file, or a built-in one, is just its name).
+    nameFont:
+      row.name_font === 'custom' && row.name_font_image
+        ? 'custom:' + row.name_font_image
+        : row.name_font,
     nameFx: row.name_fx,
     serverTag: parseServerTag(row.server_tag ?? ''),
     avatarColor: row.avatar_color,
@@ -92,9 +98,12 @@ export function toPublicUser(row: UserRow): PublicUser {
 }
 
 /** The user as the person themselves see it: the public profile plus their own privacy choices (nobody else gets those). */
-export function toSelfUser(row: UserRow): PublicUser & { privacy: PrivacyChoices } {
+export function toSelfUser(
+  row: UserRow,
+): PublicUser & { privacy: PrivacyChoices; nameFontImage: string | null } {
   return {
     ...toPublicUser(row),
+    nameFontImage: row.name_font_image,
     privacy: {
       presenceVisibility: row.presence_visibility,
       friendRequests: row.friend_requests,

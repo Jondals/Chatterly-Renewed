@@ -19,6 +19,10 @@ import { IconComponent } from './icon.component';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/** The classic color wheel: every hue around, fading to white in the middle. */
+const WHEEL =
+  'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 62%), conic-gradient(from 0deg, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%))';
+
 /**
  * ? Turns hue, saturation and brightness into #rrggbb (the picker works in HSV because it is how the square and the bar are drawn).
  */
@@ -67,26 +71,18 @@ function hexToHsv(hex: string): [number, number, number] {
   template: `
     <button
       type="button"
-      class="swatch relative block overflow-hidden border border-white/20 hover:scale-105"
+      class="swatch relative block overflow-hidden"
       [class]="shape() === 'round' ? 'rounded-full' : 'rounded-[calc(var(--r)*.6)]'"
+      [style.border]="rainbow() ? '0' : '1px solid rgba(255,255,255,.2)'"
+      [style.box-shadow]="rainbow() ? 'inset 0 0 0 1px rgba(0,0,0,.35)' : null"
       [style.width.px]="size()"
       [style.height.px]="size() * (shape() === 'round' ? 1 : 0.8)"
-      [style.background]="
-        rainbow()
-          ? 'conic-gradient(#ff4d4d, #ffd24d, #4dff88, #4dc3ff, #a066ff, #ff4dd2, #ff4d4d)'
-          : value() || 'transparent'
-      "
+      [style.background]="rainbow() ? WHEEL : value() || 'transparent'"
       [attr.aria-label]="label() | t"
       [attr.title]="label() | t"
       (mousedown)="$event.stopPropagation()"
       (click)="toggle()"
     >
-      @if (rainbow()) {
-        <span
-          class="absolute inset-[28%] rounded-full border-2 border-ink-900"
-          [style.background]="value()"
-        ></span>
-      }
       @if (!value() && !rainbow()) {
         <span
           class="absolute inset-0"
@@ -237,8 +233,9 @@ export class ColorPickerComponent {
   readonly value = input<string>('');
   readonly label = input('Pick a color');
   readonly size = input(28);
-  /** Draws the button as a multicolor wheel with the chosen color as a dot in the middle. */
+  /** Draws the button as a classic color wheel. */
   readonly rainbow = input(false);
+  protected readonly WHEEL = WHEEL;
   readonly shape = input<'round' | 'square'>('square');
   /** When false the value is emitted only once the drag ends (for actions that must not repeat, like wrapping text). */
   readonly live = input(true);
@@ -424,8 +421,7 @@ export class ColorPickerComponent {
   /** Moves the panel to the browser's top layer: no container with transform or overflow can shift or clip it there. */
   private mostrar(cual: 'panel' | 'capa'): void {
     const nodo = (cual === 'panel' ? this.panel() : this.capa())?.nativeElement as
-      | (HTMLElement & { showPopover?: () => void })
-      | undefined;
+      (HTMLElement & { showPopover?: () => void }) | undefined;
     try {
       nodo?.showPopover?.();
     } catch {

@@ -9,6 +9,7 @@ import { SelectComponent, type SelectOption } from '../../shared/components/sele
 import type { AccentId } from '../../core/models';
 import { readCursorFile } from '../../core/cursor-files';
 import { GradientControlsComponent } from '../../shared/components/gradient-controls.component';
+import { RevealComponent } from '../../shared/components/reveal.component';
 import {
   encodeMulti,
   gradientCss,
@@ -111,6 +112,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
     PresetsComponent,
     StepSliderComponent,
     GradientControlsComponent,
+    RevealComponent,
     IconComponent,
     TranslatePipe,
     SegmentedComponent,
@@ -301,7 +303,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
           @for (a of accents; track a.id) {
             <button
               type="button"
-              class="relative h-9 w-9 rounded-full ring-offset-2 ring-offset-ink-850 hover:scale-110"
+              class="relative h-9 w-9 dot rounded-full ring-offset-1 ring-offset-ink-850 hover:scale-105"
               [class.ring-2]="s.accent() === a.id"
               [style.--tw-ring-color]="a.color"
               [style.background]="a.color"
@@ -600,36 +602,39 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <span class="w-28 text-xs text-muted">{{ 'Your messages' | t }}</span>
-              @if (!ownGradient()) {
+              <span
+                class="inline-flex transition-opacity duration-300"
+                [class.opacity-40]="ownGradient()"
+                [class.pointer-events-none]="ownGradient()"
+                [attr.inert]="ownGradient() ? '' : null"
+              >
                 <app-color-picker
                   [value]="s.bubbleOwn() || accentHex()"
                   [size]="30"
                   label="Your messages"
                   (valueChange)="s.bubbleOwn.set($event)"
                 />
-              }
-              <label
-                class="flex items-center gap-1.5 text-xs text-muted"
-                [class.cursor-pointer]="s.bubbleStyle() !== 'neon'"
-                [class.opacity-50]="s.bubbleStyle() === 'neon'"
+              </span>
+              <span
+                class="inline-flex transition-opacity duration-300"
+                [class.opacity-40]="s.bubbleStyle() === 'neon'"
+                [class.pointer-events-none]="s.bubbleStyle() === 'neon'"
                 [attr.title]="
                   s.bubbleStyle() === 'neon' ? ('Neon bubbles use a single color.' | t) : null
                 "
-                ><input
-                  type="checkbox"
-                  class="accent-[var(--accent)]"
-                  [checked]="!!ownGradient() && s.bubbleStyle() !== 'neon'"
-                  [disabled]="s.bubbleStyle() === 'neon'"
-                  (change)="toggleOwnGradient($any($event.target).checked)"
-                />
-                {{ 'Gradient' | t }}</label
               >
+                <app-segmented
+                  [options]="colorModes"
+                  [value]="ownGradient() && s.bubbleStyle() !== 'neon' ? 'gradient' : 'solid'"
+                  (valueChange)="toggleOwnGradient($event === 'gradient')"
+                />
+              </span>
             </div>
-            @if (ownGradient(); as grad) {
-              @if (s.bubbleStyle() !== 'neon') {
+            <app-reveal [open]="!!ownGradient() && s.bubbleStyle() !== 'neon'">
+              @if (ownGradient(); as grad) {
                 <app-gradient-controls [parts]="grad" (changed)="changeOwnGradient($event)" />
               }
-            }
+            </app-reveal>
             <div class="flex flex-wrap items-center gap-3">
               <span class="w-28 text-xs text-muted">{{ 'Their messages' | t }}</span>
               <app-color-picker
@@ -1260,6 +1265,11 @@ export class AppearanceSectionComponent {
   }
 
   /** The gradient of the own bubbles, or null when they are one color. */
+  /** The two ways to colour something: one plain colour or a gradient. */
+  protected readonly colorModes = [
+    { id: 'solid', label: 'Color' },
+    { id: 'gradient', label: 'Gradient' },
+  ];
   protected readonly ownGradient = computed(
     function (this: AppearanceSectionComponent) {
       const grad = parseMulti(this.s.bubbleOwnGrad());

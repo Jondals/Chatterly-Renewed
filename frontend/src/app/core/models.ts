@@ -17,7 +17,9 @@ export type AccentId =
   | 'lime'
   | 'indigo'
   | 'custom';
-export type NameFont = 'default' | 'display' | 'serif' | 'mono' | 'script' | 'custom';
+/** A built-in font, 'custom' (the own uploaded font, on the own device) or "custom:<id>" (an uploaded font that friends see). */
+export type NameFont =
+  'default' | 'display' | 'serif' | 'mono' | 'script' | 'custom' | `custom:${string}`;
 export type AuraId =
   | 'void'
   | 'prism'
@@ -58,6 +60,8 @@ export interface User {
   bannerColor: string;
   profileColor: string;
   nameFont: NameFont;
+  /** The encrypted font file of the own name (only the person themselves get it). */
+  nameFontImage?: string | null;
   /** The animation of the name (see NAME_FX). */
   nameFx?: string;
   /** The tag of a group that the person chose to show (null: none). */

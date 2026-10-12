@@ -25,7 +25,7 @@ export async function step13(world) {
   await b.click('button[aria-label="#ff5d6c"]');
   await b.keyboard.type('x');
   check(
-    (await b.inputValue('textarea[aria-label=Message]')) === '[c=#ff5d6c]x[/c]',
+    (await b.inputValue('textarea[aria-label=Message]')) === '[c=red]x[/c]',
     'with no text selected, the caret stays inside the color to type',
   );
   await b.fill('textarea[aria-label=Message]', '');

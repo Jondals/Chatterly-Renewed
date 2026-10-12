@@ -25,6 +25,8 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
+  '.tflite': 'application/octet-stream',
   '.woff': 'font/woff',
   '.ogg': 'audio/ogg',
   '.png': 'image/png',

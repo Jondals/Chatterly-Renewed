@@ -15,7 +15,7 @@ import {
   toPublicUser,
   toSelfUser,
 } from '../models';
-import { refreshServerTag, showingTagOf, TAG_ICONS } from '../server-tag';
+import { isTagIcon, refreshServerTag, showingTagOf } from '../server-tag';
 import { b64Field, callerId, sealedText, sealedVersion } from '../validation';
 import { deleteImage, ownsImage } from './images';
 
@@ -358,10 +358,10 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
             },
             // With a new icon comes the key that opens it (sealed with the key of the group).
             iconKey: iconKeySchema,
-            // The tag of the group: up to four letters or numbers, a color and one icon of a fixed list.
+            // The tag of the group: up to four letters or numbers, a color and one emoji (any one: checked below).
             tag: { type: 'string', pattern: '^[A-Za-z0-9]{0,4}$' },
             tagColor: { type: 'string', pattern: '^#[0-9a-fA-F]{6}$' },
-            tagIcon: { type: 'string', enum: ['', ...TAG_ICONS] },
+            tagIcon: { type: 'string', maxLength: 32 },
           },
         },
       },
@@ -380,6 +380,9 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         tagColor?: string;
         tagIcon?: string;
       };
+      if (body.tagIcon !== undefined && !isTagIcon(body.tagIcon)) {
+        return reply.code(400).send({ error: 'invalid_tag_icon' });
+      }
       if (body.name && sealedVersion(body.name) !== guild.key_version) {
         return reply.code(409).send({ error: 'stale_key_version', current: guild.key_version });
       }

@@ -158,6 +158,24 @@ const FLAGS: Record<string, string> = {
           </div>
         </app-setting-row>
         <app-setting-row
+          title="Notification volume"
+          hint="The ping of a message, the tones of people joining and leaving, and the ring of a call."
+        >
+          <div class="flex items-center gap-3">
+            <app-icon name="bell" [size]="16" class="text-muted" /><input
+              type="range"
+              min="0"
+              max="100"
+              class="w-44 accent-[var(--accent)]"
+              [value]="s.notificationVolume()"
+              (input)="s.notificationVolume.set(+$any($event.target).value)"
+              (change)="sound.play('message')"
+            /><span class="w-9 text-right font-mono text-xs text-muted"
+              >{{ s.notificationVolume() }}%</span
+            >
+          </div>
+        </app-setting-row>
+        <app-setting-row
           title="Soundboard volume"
           hint="How loud the effects of the soundboard are, for you and for the people in the call."
         >

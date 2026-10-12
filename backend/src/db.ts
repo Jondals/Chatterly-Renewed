@@ -158,7 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_reactions_message ON reactions(message_id);
 CREATE TABLE IF NOT EXISTS images (
   id          TEXT PRIMARY KEY,
   owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  kind        TEXT NOT NULL CHECK (kind IN ('avatar','banner','group')),
+  kind        TEXT NOT NULL CHECK (kind IN ('avatar','banner','group','font')),
   mime        TEXT NOT NULL,
   size        INTEGER NOT NULL,
   created_at  INTEGER NOT NULL
@@ -182,6 +182,19 @@ CREATE TABLE IF NOT EXISTS settings_blobs (
   updated_at  INTEGER NOT NULL
 );
 
+-- The personal library of a person (see routes/vault.ts): every column but the id, the size and the time is ciphertext.
+CREATE TABLE IF NOT EXISTS vault_items (
+  id          TEXT PRIMARY KEY,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  size        INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL,
+  key_iv      TEXT NOT NULL,
+  key_ct      TEXT NOT NULL,
+  meta_iv     TEXT NOT NULL,
+  meta_ct     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vault_owner ON vault_items(owner_id);
+
 CREATE TABLE IF NOT EXISTS files (
   id           TEXT PRIMARY KEY,
   channel_id   TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -196,6 +209,8 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['users', 'pronouns', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'avatar_image', 'TEXT'],
   ['users', 'banner_image', 'TEXT'],
+  // The font file of the name (encrypted like a picture): what lets friends see a font the person uploaded.
+  ['users', 'name_font_image', 'TEXT'],
   ['users', 'banner_color', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'profile_color', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'name_font', "TEXT NOT NULL DEFAULT 'default'"],
@@ -264,6 +279,40 @@ function untieWrappers(db: Database.Database): void {
   db.pragma('foreign_keys = ON');
 }
 
+/**
+ * The table of images only accepted three kinds. A fourth, the font file of a name (encrypted like a picture), needs the rule
+ * to change, and SQLite cannot change a CHECK in place: the table is rebuilt (once) with every row and index it had.
+ */
+function allowFonts(db: Database.Database): void {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'images'")
+    .get() as { sql: string } | undefined;
+  if (!row || row.sql.includes("'font'")) {
+    return;
+  }
+  db.pragma('foreign_keys = OFF');
+  db.transaction(function rebuild() {
+    db.exec(`
+      CREATE TABLE images_new (
+        id          TEXT PRIMARY KEY,
+        owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind        TEXT NOT NULL CHECK (kind IN ('avatar','banner','group','font')),
+        mime        TEXT NOT NULL,
+        size        INTEGER NOT NULL,
+        created_at  INTEGER NOT NULL,
+        encrypted   INTEGER NOT NULL DEFAULT 0,
+        guild_id    TEXT
+      );
+      INSERT INTO images_new (id, owner_id, kind, mime, size, created_at, encrypted, guild_id)
+        SELECT id, owner_id, kind, mime, size, created_at, encrypted, guild_id FROM images;
+      DROP TABLE images;
+      ALTER TABLE images_new RENAME TO images;
+      CREATE INDEX IF NOT EXISTS idx_images_owner ON images(owner_id);
+    `);
+  })();
+  db.pragma('foreign_keys = ON');
+}
+
 /** Adds the columns that older databases do not have, so an update never needs a manual step. */
 function migrate(db: Database.Database): void {
   for (const [table, column, definition] of MIGRATIONS) {
@@ -292,7 +341,7 @@ function migrate(db: Database.Database): void {
 }
 
 /** Version of the schema, kept in `PRAGMA user_version`: it only grows, and a database from the future is refused. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * Opens the database (creating the folder and the tables) with foreign keys on and the journal that allows reading while writing.
@@ -320,6 +369,7 @@ export function openDatabase(dbPath: string): Db {
   db.exec(SCHEMA);
   migrate(db);
   untieWrappers(db);
+  allowFonts(db);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   return db;
 }

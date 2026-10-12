@@ -42,7 +42,15 @@ import {
   videoEmbed,
   type LinkPreview,
 } from '../../shared/util/link-preview';
-import { autoFenceCode, parseRichText, plainText, RAINBOW } from '../../shared/util/rich-text';
+import {
+  autoFenceCode,
+  colorOpen,
+  GRADIENT_CLOSE,
+  gradientOpen,
+  parseRichText,
+  plainText,
+  RAINBOW,
+} from '../../shared/util/rich-text';
 import { ApiService } from '../../core/services/api.service';
 import { UiService } from '../../core/services/ui.service';
 import { MessageStore, type OutgoingFile, type ViewMessage } from '../../store/message.store';
@@ -86,6 +94,7 @@ const GRADIENTS = [
             [appNameColor]="directory.users().get(r.senderId)?.profileColor"
             [appUserFont]="directory.users().get(r.senderId)?.nameFont"
             [nameFx]="directory.users().get(r.senderId)?.nameFx"
+            [fxLive]="true"
             >{{ directory.users().get(r.senderId)?.displayName }}</b
           >
           <span class="flex-1 truncate text-muted">{{
@@ -284,7 +293,7 @@ const GRADIENTS = [
         >
           <button
             class="btn btn-icon btn-sm btn-ghost tip"
-            [attr.data-tip]="'Bold' | t"
+            [attr.data-tip]="('Bold' | t) + ' · Ctrl+B'"
             type="button"
             (mousedown)="$event.preventDefault()"
             (click)="wrap('**', '**')"
@@ -293,7 +302,7 @@ const GRADIENTS = [
           </button>
           <button
             class="btn btn-icon btn-sm btn-ghost tip"
-            [attr.data-tip]="'Italic' | t"
+            [attr.data-tip]="('Italic' | t) + ' · Ctrl+I'"
             type="button"
             (mousedown)="$event.preventDefault()"
             (click)="wrap('_', '_')"
@@ -302,7 +311,7 @@ const GRADIENTS = [
           </button>
           <button
             class="btn btn-icon btn-sm btn-ghost tip"
-            [attr.data-tip]="'Strikethrough' | t"
+            [attr.data-tip]="('Strikethrough' | t) + ' · Ctrl+Shift+X'"
             type="button"
             (mousedown)="$event.preventDefault()"
             (click)="wrap('~~', '~~')"
@@ -321,7 +330,7 @@ const GRADIENTS = [
           <span class="mx-1 h-5 w-px bg-white/10"></span>
           @for (c of colors; track c) {
             <button
-              class="h-5 w-5 rounded-full ring-offset-2 ring-offset-ink-850 hover:scale-125 hover:ring-2"
+              class="h-5 w-5 dot rounded-full ring-offset-1 ring-offset-ink-850 hover:scale-110 hover:ring-1"
               [style.background]="c"
               [style.--tw-ring-color]="c"
               type="button"
@@ -361,7 +370,7 @@ const GRADIENTS = [
           >
             @for (g of gradients; track g.name) {
               <button
-                class="h-5 w-8 rounded-full ring-1 ring-white/20 transition-transform hover:scale-110"
+                class="h-5 w-8 dot rounded-full ring-1 ring-white/20 hover:scale-105"
                 [style.background]="'linear-gradient(90deg,' + g.colors.join(',') + ')'"
                 type="button"
                 (mousedown)="$event.preventDefault()"
@@ -430,13 +439,21 @@ const GRADIENTS = [
             class="hidden"
             (change)="onFiles($any($event.target).files); $any($event.target).value = ''"
           />
+          <input
+            #photo
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            class="hidden"
+            (change)="onFiles($any($event.target).files); $any($event.target).value = ''"
+          />
           <button
             class="btn btn-icon btn-ghost tip"
             [class.btn-active]="toolbar()"
             [attr.data-tip]="'Text style & colors' | t"
             type="button"
             (mousedown)="$event.preventDefault()"
-            (click)="toolbar.set(!toolbar())"
+            (click)="toggleMenu('toolbar')"
           >
             <app-icon name="type" />
           </button>
@@ -459,7 +476,7 @@ const GRADIENTS = [
               [attr.data-tip]="'Emoji, GIFs & stickers' | t"
               type="button"
               (mousedown)="$event.stopPropagation()"
-              (click)="pickerOpen.set(!pickerOpen())"
+              (click)="toggleMenu('picker')"
             >
               <app-icon name="smile" />
             </button>
@@ -483,7 +500,7 @@ const GRADIENTS = [
               [attr.data-tip]="'More' | t"
               type="button"
               (mousedown)="$event.stopPropagation()"
-              (click)="plusOpen.set(!plusOpen())"
+              (click)="toggleMenu('plus')"
             >
               <app-icon name="plus" />
             </button>
@@ -497,43 +514,53 @@ const GRADIENTS = [
                 >
                   {{ 'Add to your message' | t }}
                 </div>
+                <div class="grid grid-cols-3 gap-1.5 px-2.5 pb-1 pt-1.5">
+                  <button
+                    type="button"
+                    class="sb-tile anim-fade-up"
+                    style="--d: 0ms"
+                    (click)="plusOpen.set(false); photo.click()"
+                  >
+                    <span class="menu-icon !h-10 !w-10 bg-sky/15 text-sky"
+                      ><app-icon name="image" [size]="19"
+                    /></span>
+                    <span class="text-[0.6875rem] font-semibold">{{ 'Photo or video' | t }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="sb-tile anim-fade-up"
+                    style="--d: 30ms"
+                    (click)="plusOpen.set(false); file.click()"
+                  >
+                    <span class="menu-icon !h-10 !w-10 bg-violet/15 text-violet"
+                      ><app-icon name="paperclip" [size]="19"
+                    /></span>
+                    <span class="text-[0.6875rem] font-semibold">{{ 'File' | t }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="sb-tile anim-fade-up"
+                    style="--d: 60ms"
+                    (click)="plusOpen.set(false); startRecording()"
+                  >
+                    <span class="menu-icon !h-10 !w-10 bg-coral/15 text-coral"
+                      ><app-icon name="mic" [size]="19"
+                    /></span>
+                    <span class="text-[0.6875rem] font-semibold">{{ 'Voice note' | t }}</span>
+                  </button>
+                </div>
+                <p class="px-4 pb-2 pt-1 text-[0.6875rem] leading-snug text-dim">
+                  {{
+                    'Encrypted before they leave your device. Up to 10 MB each. You can also paste or drop them in the chat.'
+                      | t
+                  }}
+                </p>
+                <div class="mx-3 border-t border-white/6"></div>
                 <div class="p-1.5">
                   <button
                     type="button"
                     class="menu-card anim-fade-up"
-                    style="--d: 0ms"
-                    (click)="plusOpen.set(false); file.click()"
-                  >
-                    <span class="menu-icon bg-sky/15 text-sky"
-                      ><app-icon name="paperclip" [size]="18"
-                    /></span>
-                    <span class="min-w-0 flex-1"
-                      ><b class="block text-sm">{{ 'Attach files' | t }}</b
-                      ><span class="block text-xs text-muted">{{
-                        'Encrypted before they leave your device. Up to 10 MB each' | t
-                      }}</span></span
-                    >
-                  </button>
-                  <button
-                    type="button"
-                    class="menu-card anim-fade-up"
-                    style="--d: 40ms"
-                    (click)="plusOpen.set(false); startRecording()"
-                  >
-                    <span class="menu-icon bg-coral/15 text-coral"
-                      ><app-icon name="mic" [size]="18"
-                    /></span>
-                    <span class="min-w-0 flex-1"
-                      ><b class="block text-sm">{{ 'Voice note' | t }}</b
-                      ><span class="block text-xs text-muted">{{
-                        'Record and send your voice' | t
-                      }}</span></span
-                    >
-                  </button>
-                  <button
-                    type="button"
-                    class="menu-card anim-fade-up"
-                    style="--d: 80ms"
+                    style="--d: 90ms"
                     (click)="plusOpen.set(false); openSpinly()"
                   >
                     <span class="menu-icon !bg-white/5"><app-spinly-logo [size]="28" /></span>
@@ -659,6 +686,23 @@ export class MessageInputComponent implements OnDestroy {
   protected readonly sending = signal(false);
   protected readonly pickerOpen = signal(false);
   protected readonly toolbar = signal(false);
+
+  /** Opens one of the menus of the box (text style, emoji, "+") or closes it; only one is open at a time. */
+  protected toggleMenu(which: 'toolbar' | 'picker' | 'plus'): void {
+    const wasOpen =
+      which === 'toolbar'
+        ? this.toolbar()
+        : which === 'picker'
+          ? this.pickerOpen()
+          : this.plusOpen();
+    this.toolbar.set(false);
+    this.pickerOpen.set(false);
+    this.plusOpen.set(false);
+    if (wasOpen) return;
+    if (which === 'toolbar') this.toolbar.set(true);
+    else if (which === 'picker') this.pickerOpen.set(true);
+    else this.plusOpen.set(true);
+  }
   /** True when the person chose to send what looks like code as plain text. */
   protected readonly codeOff = signal(false);
   /** The text as a code block when it looks like code (null otherwise). */
@@ -782,7 +826,7 @@ export class MessageInputComponent implements OnDestroy {
   }
 
   /**
-   * Keys of the box: Enter sends, Control+Z undoes and Control+Y redoes (the browser cannot undo what the app writes by itself).
+   * Keys of the box: Enter sends, Control+Z undoes and Control+Y redoes (the browser cannot undo what the app writes by itself), Control+B / Control+I / Control+Shift+X make bold, italic and strikethrough.
    */
   protected onKey(event: KeyboardEvent): void {
     // Control+Z undoes and Control+Y (or Control+Shift+Z) redoes, also after formatting or emoji changes.
@@ -796,6 +840,22 @@ export class MessageInputComponent implements OnDestroy {
       if (tecla === 'y' || (tecla === 'z' && event.shiftKey)) {
         event.preventDefault();
         this.redo();
+        return;
+      }
+      // Control+B bold, Control+I italic, Control+Shift+X strikethrough (the same keys as Slack and Discord).
+      if (tecla === 'b' && !event.shiftKey) {
+        event.preventDefault();
+        this.wrap('**', '**');
+        return;
+      }
+      if (tecla === 'i' && !event.shiftKey) {
+        event.preventDefault();
+        this.wrap('_', '_');
+        return;
+      }
+      if (tecla === 'x' && event.shiftKey) {
+        event.preventDefault();
+        this.wrap('~~', '~~');
         return;
       }
     }
@@ -894,7 +954,7 @@ export class MessageInputComponent implements OnDestroy {
 
   /** Puts the chosen color on the selected text. */
   protected color(hex: string): void {
-    this.wrap(`[c=${hex}]`, '[/c]');
+    this.wrap(colorOpen(hex, this.i18n.lang()), '[/c]');
   }
 
   /** The colors of the gradient being made, side by side, for the button. */
@@ -922,7 +982,7 @@ export class MessageInputComponent implements OnDestroy {
 
   /** Puts a gradient of colors on the selected text. */
   protected gradient(colors: string[]): void {
-    this.wrap(`[g=${colors.join(',')}]`, '[/g]');
+    this.wrap(gradientOpen(colors, this.i18n.lang()), GRADIENT_CLOSE);
   }
 
   /** Inserts an emoji where the caret is. */

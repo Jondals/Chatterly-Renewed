@@ -3,7 +3,8 @@
  * content can't inject markup: Angular renders each segment with normal, escaped bindings.
  *
  *   **bold**  _italic_  ~~strike~~  `code`  ```fenced```  https://links
- *   [c=#ff5577]coloured[/c]   [g=#ff0066,#00ccff]gradient[/g]   [rainbow]rainbow[/rainbow]
+ *   [c=rojo]coloured[/c]   [c=f06]short hex[/c]   [d=ff0066,00ccff]gradient[/d]   [d=rainbow]rainbow[/d]   [d=sunset]by name[/d]
+ *   The older forms still work: [c=#ff5577]  [g=#ff0066,#00ccff]...[/g]  [rainbow]...[/rainbow]
  */
 export type Segment =
   | { type: 'text'; text: string }
@@ -21,8 +22,80 @@ export const QUICK_GRADIENTS = [
 ];
 
 export const RAINBOW = ['#ff4d4d', '#ffa63d', '#ffe14d', '#4dff88', '#4dc3ff', '#a066ff'];
+
+/** Gradients that can be written by name: [d=rainbow], [d=sunset], [d=ocean]. */
+const NAMED: Record<string, string[]> = {
+  rainbow: RAINBOW,
+  sunset: QUICK_GRADIENTS[0]!.colors,
+  ocean: QUICK_GRADIENTS[1]!.colors,
+};
+
+/** Colors that can be written by name, in English and in Spanish: [c=red] or [c=rojo]. The first three are the ones of the chat. */
+const NAMED_COLORS: { hex: string; en: string; es: string }[] = [
+  { hex: '#ff5d6c', en: 'red', es: 'rojo' },
+  { hex: '#4ade80', en: 'green', es: 'verde' },
+  { hex: '#38bdf8', en: 'blue', es: 'azul' },
+  { hex: '#fde047', en: 'yellow', es: 'amarillo' },
+  { hex: '#fb923c', en: 'orange', es: 'naranja' },
+  { hex: '#f472b6', en: 'pink', es: 'rosa' },
+  { hex: '#a78bfa', en: 'purple', es: 'morado' },
+  { hex: '#22d3ee', en: 'cyan', es: 'cian' },
+  { hex: '#ffffff', en: 'white', es: 'blanco' },
+  { hex: '#000000', en: 'black', es: 'negro' },
+  { hex: '#9ca3af', en: 'gray', es: 'gris' },
+];
+
+/** The language of the names that are written (what the person reads). */
+export type TagLanguage = 'en' | 'es';
+
+/** The color a word names (in either language), or undefined. */
+function colorFromName(word: string): string | undefined {
+  const lower = word.toLowerCase();
+  return NAMED_COLORS.find(function named(color) {
+    return color.en === lower || color.es === lower;
+  })?.hex;
+}
+
+/** A color as short as it can be written: its name when it has one, else its hex without the "#" (three digits when they allow it). */
+function shortColor(color: string, language: TagLanguage): string {
+  const lower = color.toLowerCase();
+  const named = NAMED_COLORS.find(function same(item) {
+    return item.hex === lower;
+  });
+  if (named) return named[language];
+  const hex = lower.replace('#', '');
+  return hex.length === 6 && hex[0] === hex[1] && hex[2] === hex[3] && hex[4] === hex[5]
+    ? hex[0]! + hex[2]! + hex[4]!
+    : hex;
+}
+
+/** The opening tag of a color: [c=red], [c=rojo] or, for a color without a name, [c=f06] / [c=ff5577]. */
+export function colorOpen(hex: string, language: TagLanguage = 'en'): string {
+  return '[c=' + shortColor(hex, language) + ']';
+}
+
+/** The opening tag of a gradient: its name when it has one, else its colors as short as they can be: [d=rojo,0cf]. */
+export function gradientOpen(colors: string[], language: TagLanguage = 'en'): string {
+  const joined = colors.join(',').toLowerCase();
+  for (const [name, list] of Object.entries(NAMED)) {
+    if (list.join(',').toLowerCase() === joined) return '[d=' + name + ']';
+  }
+  return (
+    '[d=' +
+    colors
+      .map(function short(color) {
+        return shortColor(color, language);
+      })
+      .join(',') +
+    ']'
+  );
+}
+
+/** The closing tag of a gradient. */
+export const GRADIENT_CLOSE = '[/d]';
+
 const MAX_DEPTH = 6;
-const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const HEX = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const INLINE =
   /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(~~[^~\n]+~~)|(\*[^*\n]+\*)|((?<![A-Za-z0-9])_[^_\n]+_(?![A-Za-z0-9]))|(https?:\/\/[^\s<>"'[\]]+)/g;
@@ -58,7 +131,7 @@ interface Frame {
   children: Segment[];
 }
 
-const TAG = /\[(c|g)=([#0-9a-fA-F,]{4,60})\]|\[(rainbow)\]|\[\/(c|g|rainbow)\]/g;
+const TAG = /\[(c|g|d)=([#0-9a-zA-Z,]{3,60})\]|\[(rainbow)\]|\[\/(c|g|d|rainbow)\]/g;
 
 /** Colour tags nest with each other and with the inline formatting inside them. */
 function parseColors(input: string): Segment[] {
@@ -82,12 +155,13 @@ function parseColors(input: string): Segment[] {
     last = index + m[0].length;
     if (m[4]) {
       // closing tag: only valid if it matches the innermost open one
-      const kind = m[4] as Frame['kind'];
+      const kind = (m[4] === 'd' ? 'g' : m[4]) as Frame['kind'];
       if (stack.length > 1 && top().kind === kind) close();
       else top().children.push({ type: 'text', text: m[0] });
     } else {
-      const kind = (m[1] ?? m[3]) as Frame['kind'];
-      const colors = kind === 'rainbow' ? RAINBOW : (m[2] ?? '').split(',');
+      const kind = (m[1] === 'd' ? 'g' : (m[1] ?? m[3])) as Frame['kind'];
+      const named = m[1] === 'd' ? NAMED[(m[2] ?? '').toLowerCase()] : undefined;
+      const colors = kind === 'rainbow' ? RAINBOW : (named ?? (m[2] ?? '').split(',').map(toColor));
       const valid =
         colors.every(function (c) {
           return HEX.test(c);
@@ -99,6 +173,14 @@ function parseColors(input: string): Segment[] {
   if (last < input.length) top().children.push(...parseInline(input.slice(last)));
   while (stack.length > 1) close(); // unclosed tags still colour the rest of the message
   return root.children;
+}
+
+/** What an item of a tag means as a color: a name (English or Spanish), or a hex that may come without its "#". */
+function toColor(item: string): string {
+  if (/^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(item)) {
+    return item.startsWith('#') ? item : '#' + item;
+  }
+  return colorFromName(item) ?? item;
 }
 
 /**
@@ -124,7 +206,7 @@ export function parseRichText(input: string): Segment[] {
 
 /** Strips tags for previews / notifications. */
 export function plainText(input: string): string {
-  return input.replace(/\[(?:c|g)=[#0-9a-fA-F,]+\]|\[\/?(?:c|g|rainbow)\]/g, '');
+  return input.replace(/\[(?:c|g|d)=[#0-9a-zA-Z,]+\]|\[\/?(?:c|g|d|rainbow)\]/g, '');
 }
 
 /** Lines that look like code: a statement end, a keyword at the start, an arrow, a brace, a call or indentation. */

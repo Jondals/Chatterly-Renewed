@@ -2,6 +2,7 @@
  * src/app/features/chat/attachment.component.ts
  * Shows an encrypted attachment: it downloads it, decrypts it and checks its integrity before showing it.
  */
+import { DecimalPipe } from '@angular/common';
 import {
   Component,
   ElementRef,
@@ -32,7 +33,23 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
 @Component({
   selector: 'app-attachment',
   standalone: true,
-  imports: [IconComponent, TranslatePipe],
+  imports: [IconComponent, TranslatePipe, DecimalPipe],
+  styles: `
+    .wave {
+      cursor: var(--cur-pointer, pointer);
+    }
+    .wave-head {
+      position: absolute;
+      top: 50%;
+      width: 0.7rem;
+      height: 0.7rem;
+      margin: -0.35rem 0 0 -0.35rem;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+  `,
   template: `
     @if (att().preset; as mark) {
       <div class="mt-2 w-80 max-w-full rounded-ui border border-white/8 bg-black/30 p-2.5">
@@ -59,28 +76,37 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
         <div class="mt-2.5 grid grid-cols-3 gap-1.5">
           <button
             type="button"
-            class="btn btn-sm !px-1.5 !text-xs"
+            class="btn btn-sm btn-outline !px-1.5 !text-xs"
             [disabled]="adding()"
             (click)="tryPreset()"
           >
             {{ 'Try' | t }}
           </button>
-          <button
-            type="button"
-            class="btn btn-sm btn-primary !px-1.5 !text-xs"
-            [disabled]="adding()"
-            (click)="importPreset(false)"
-          >
-            {{ 'Import' | t }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-sm !px-1.5 !text-xs"
-            [disabled]="adding()"
-            (click)="importPreset(true)"
-          >
-            {{ 'Import and use' | t }}
-          </button>
+          @if (ownsPreset()) {
+            <span
+              class="col-span-2 flex items-center justify-center gap-1.5 rounded-ui bg-white/5 px-2 text-xs font-semibold text-muted"
+            >
+              <app-icon name="check" [size]="13" class="text-accent" />
+              {{ 'You already have it' | t }}
+            </span>
+          } @else {
+            <button
+              type="button"
+              class="btn btn-sm btn-soft-accent !px-1.5 !text-xs"
+              [disabled]="adding()"
+              (click)="importPreset(false)"
+            >
+              {{ 'Import' | t }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-accent-strong !px-1.5 !text-xs"
+              [disabled]="adding()"
+              (click)="importPreset(true)"
+            >
+              {{ 'Import and use' | t }}
+            </button>
+          }
         </div>
       </div>
     } @else {
@@ -158,10 +184,10 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
         }
         @case ('audio') {
           <div
-            class="mt-2 flex w-80 max-w-full items-center gap-3 rounded-ui border border-white/8 bg-black/30 p-2.5"
+            class="mt-2 grid w-80 max-w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5 rounded-ui border border-white/8 bg-black/30 p-2.5"
           >
             <button
-              class="btn btn-icon btn-primary shrink-0 !rounded-full"
+              class="btn btn-icon btn-primary col-start-1 row-start-1 shrink-0 !rounded-ui"
               type="button"
               (click)="toggleAudio()"
               [disabled]="!url()"
@@ -169,11 +195,25 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
             >
               <app-icon [name]="playing() ? 'pause' : 'play'" [size]="16" />
             </button>
-            <div class="min-w-0 flex-1">
-              <div class="flex h-8 items-center gap-[2px]">
+            <div class="contents">
+              <div
+                class="wave relative col-start-2 row-start-1 flex h-8 touch-none select-none items-center gap-[2px]"
+                role="slider"
+                tabindex="0"
+                [attr.aria-label]="'Position' | t"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="progress() * 100 | number: '1.0-0'"
+                (pointerdown)="seekStart($event)"
+                (pointermove)="seekMove($event)"
+                (pointerup)="seekEnd($event)"
+                (pointercancel)="seekEnd($event)"
+                (keydown.arrowLeft)="seekBy(-5)"
+                (keydown.arrowRight)="seekBy(5)"
+              >
                 @for (bar of bars(); track $index) {
                   <span
-                    class="min-w-0 flex-1 rounded-full transition-colors"
+                    class="min-w-0 flex-1 rounded-full"
                     [style.height.%]="bar"
                     [style.background]="
                       $index / bars().length <= progress()
@@ -182,9 +222,10 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
                     "
                   ></span>
                 }
+                <span class="wave-head" [style.left.%]="progress() * 100"></span>
               </div>
               <div
-                class="mt-0.5 flex items-center justify-between font-mono text-[0.625rem] text-muted"
+                class="col-start-2 row-start-2 flex items-center justify-between font-mono text-[0.625rem] text-muted"
               >
                 <span>{{ elapsed() }}</span
                 ><span>{{ total() }}</span>
@@ -192,7 +233,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
             </div>
             <button
               type="button"
-              class="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-white/6 px-1.5 font-mono text-[0.6875rem] font-semibold text-muted hover:bg-white/12 hover:text-fg"
+              class="col-start-3 row-start-1 flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-white/6 px-1.5 font-mono text-[0.6875rem] font-semibold text-muted hover:bg-white/12 hover:text-fg"
               [class.!text-accent]="rate() !== 1"
               [attr.title]="'Playback speed' | t"
               [attr.aria-label]="'Playback speed' | t"
@@ -202,7 +243,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
             </button>
             @if (att().kind === 'audio' || att().kind === 'video') {
               <button
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/6 text-muted hover:bg-white/12 hover:text-fg"
+                class="col-start-4 row-start-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/6 text-muted hover:bg-white/12 hover:text-fg"
                 type="button"
                 [disabled]="!url() || adding()"
                 [attr.title]="'Add to my soundboard' | t"
@@ -218,7 +259,10 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
                 [src]="src"
                 preload="metadata"
                 (timeupdate)="onTime()"
-                (ended)="playing.set(false); progress.set(0)"
+                (play)="onPlay()"
+                (pause)="onPause()"
+                (ended)="onEnded()"
+                (seeked)="onTime()"
                 (loadedmetadata)="onMeta()"
               ></audio>
             }
@@ -294,12 +338,16 @@ export class AttachmentComponent implements OnDestroy {
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly adding = signal(false);
+  /** True when the preset of this message is one the person already has. */
+  protected readonly ownsPreset = signal(false);
   /** How fast the audio plays (the person chooses it with the button of the speed). */
   protected readonly rate = signal(1);
   protected readonly lightbox = signal(false);
   protected readonly playing = signal(false);
   protected readonly progress = signal(0);
   private readonly duration = signal(0);
+  private frame = 0;
+  private scrubbing = false;
 
   protected readonly size = computed(
     function (this: AttachmentComponent) {
@@ -331,6 +379,7 @@ export class AttachmentComponent implements OnDestroy {
   );
 
   constructor() {
+    effect(this.checkOwned.bind(this));
     // Images and audio load eagerly; plain files wait for the user.
     effect(
       function (this: AttachmentComponent) {
@@ -350,6 +399,21 @@ export class AttachmentComponent implements OnDestroy {
             );
           }.bind(this),
         );
+      }.bind(this),
+    );
+  }
+
+  /** Looks whether the preset of this message is already in the library of the person (and again when the library changes). */
+  private checkOwned(): void {
+    const att = this.att();
+    // Read here so the check runs again when a preset is kept or deleted.
+    this.presets.presets();
+    if (!att.preset) {
+      return;
+    }
+    untracked(
+      function check(this: AttachmentComponent): void {
+        void this.presets.alreadyHave(att).then(this.ownsPreset.set.bind(this.ownsPreset));
       }.bind(this),
     );
   }
@@ -395,11 +459,85 @@ export class AttachmentComponent implements OnDestroy {
     if (el.paused) {
       el.playbackRate = this.rate();
       void el.play();
-      this.playing.set(true);
     } else {
       el.pause();
-      this.playing.set(false);
     }
+  }
+
+  /** The sound started (from the button or from anywhere else): the bar follows it frame by frame. */
+  protected onPlay(): void {
+    this.playing.set(true);
+    cancelAnimationFrame(this.frame);
+    this.frame = requestAnimationFrame(this.follow.bind(this));
+  }
+
+  /** The sound stopped. */
+  protected onPause(): void {
+    this.playing.set(false);
+    cancelAnimationFrame(this.frame);
+  }
+
+  /** The sound reached its end: it goes back to the start, ready to play again. */
+  protected onEnded(): void {
+    this.playing.set(false);
+    cancelAnimationFrame(this.frame);
+    this.progress.set(0);
+  }
+
+  /** The length of the sound, in seconds (what the file says, or what the message said when the file does not know). */
+  private length(el: HTMLAudioElement): number {
+    if (isFinite(el.duration) && el.duration > 0) return el.duration;
+    return (this.att().durationMs ?? 0) / 1000;
+  }
+
+  /** One frame while playing: the bar and the time are where the sound is now. */
+  private follow(): void {
+    const el = this.audioEl()?.nativeElement;
+    if (!el || el.paused) return;
+    const total = this.length(el);
+    if (!this.scrubbing && total > 0) this.progress.set(Math.min(1, el.currentTime / total));
+    this.frame = requestAnimationFrame(this.follow.bind(this));
+  }
+
+  /** The press on the wave jumps there and keeps following the pointer until it is released. */
+  protected seekStart(event: PointerEvent): void {
+    this.scrubbing = true;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    this.seekTo(event);
+  }
+
+  /** The pointer moves along the wave while it is pressed. */
+  protected seekMove(event: PointerEvent): void {
+    if (this.scrubbing) this.seekTo(event);
+  }
+
+  /** The pointer is released. */
+  protected seekEnd(event: PointerEvent): void {
+    if (!this.scrubbing) return;
+    this.seekTo(event);
+    this.scrubbing = false;
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+  }
+
+  /** Puts the sound where the pointer is on the wave. */
+  private seekTo(event: PointerEvent): void {
+    const el = this.audioEl()?.nativeElement;
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    if (!el || box.width === 0) return;
+    const share = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+    this.progress.set(share);
+    const total = this.length(el);
+    if (total > 0) el.currentTime = share * total;
+  }
+
+  /** The arrow keys move the sound some seconds back or forward. */
+  protected seekBy(seconds: number): void {
+    const el = this.audioEl()?.nativeElement;
+    if (!el) return;
+    const total = this.length(el);
+    const target = Math.max(0, el.currentTime + seconds);
+    el.currentTime = total > 0 ? Math.min(total, target) : target;
+    this.onTime();
   }
 
   /** The next speed: 1, 1.25, 1.5, 2, 3, 5 and back to 1. */
@@ -412,16 +550,32 @@ export class AttachmentComponent implements OnDestroy {
     }
   }
 
-  /** The voice note advanced: the bar follows it. */
+  /** The voice note advanced or was moved: the bar follows it. */
   protected onTime(): void {
     const el = this.audioEl()?.nativeElement;
-    if (el?.duration && isFinite(el.duration)) this.progress.set(el.currentTime / el.duration);
+    if (!el || this.scrubbing) return;
+    const total = this.length(el);
+    if (total > 0) this.progress.set(Math.min(1, el.currentTime / total));
   }
 
-  /** The length of the voice note is known. */
+  /**
+   * The length of the voice note is known. A recording made in the browser says its length is infinite until it has been
+   * played to the end, and then it cannot be moved: jumping to the end once makes the browser measure it, and it goes back.
+   */
   protected onMeta(): void {
     const el = this.audioEl()?.nativeElement;
-    if (el && isFinite(el.duration)) this.duration.set(el.duration);
+    if (!el) return;
+    if (isFinite(el.duration)) {
+      this.duration.set(el.duration);
+      return;
+    }
+    const measured = function (this: AttachmentComponent): void {
+      el.removeEventListener('timeupdate', measured);
+      if (isFinite(el.duration)) this.duration.set(el.duration);
+      el.currentTime = 0;
+    }.bind(this);
+    el.addEventListener('timeupdate', measured);
+    el.currentTime = 1e101;
   }
 
   /** Puts the sound of this attachment in the soundboard: the editor opens to cut it, name it and give it an emoji. */
@@ -453,6 +607,7 @@ export class AttachmentComponent implements OnDestroy {
 
   /** Pauses the voice note when the message goes away. */
   ngOnDestroy(): void {
+    cancelAnimationFrame(this.frame);
     this.audioEl()?.nativeElement.pause();
   }
 }

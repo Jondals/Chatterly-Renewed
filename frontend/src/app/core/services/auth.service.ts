@@ -42,6 +42,7 @@ type LoginResponse = AuthResponse & { wrappedKeys: WrappedKeys };
 const LOCAL_DATABASES = [
   'chatterly-renewed-keys',
   'chatterly-renewed-vault',
+  'chatterly-renewed-library',
   'chatterly-renewed-stickers',
   'chatterly-renewed-sounds',
   'chatterly-renewed-fonts',

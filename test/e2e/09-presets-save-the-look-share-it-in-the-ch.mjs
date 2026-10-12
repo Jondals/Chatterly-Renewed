@@ -20,6 +20,15 @@ export async function step09(world) {
   await a.waitForSelector('.settings-overlay', { state: 'detached' });
   // it is shared from the "+" menu of the chat
   await a.click('[data-tip="More"]');
+  // The menu offers photo or video, file and voice note as tiles, and the rest as cards.
+  await a.waitForSelector('button:has-text("Photo or video")');
+  await a.waitForTimeout(500);
+  await shot(a, '09a-plus-menu');
+  check(
+    (await a.locator('button:has-text("File")').count()) >= 1 &&
+      (await a.locator('button:has-text("Voice note")').count()) >= 1,
+    'the + menu has photo or video, file and voice note',
+  );
   await a.click('button.menu-card:has-text("Share a preset")');
   await a.click('[role=dialog] [role=tab]:has-text("Theme of the app")');
   await a.click('[role=dialog] button:has-text("Night")');

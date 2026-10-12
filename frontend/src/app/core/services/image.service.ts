@@ -11,6 +11,8 @@ import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 
 export type ImageKind = 'avatar' | 'banner' | 'group';
+/** What can be sealed and shown to friends: pictures and the font file of a name. */
+export type SharedKind = 'avatar' | 'banner' | 'font';
 
 /** Final size of each kind of picture, in pixels. */
 export const IMAGE_PRESETS: Record<ImageKind, { width: number; height: number }> = {
@@ -107,7 +109,7 @@ export class ImageService {
       return;
     }
     const user = this.auth.user();
-    for (const id of [user?.avatarImage, user?.bannerImage]) {
+    for (const id of [user?.avatarImage, user?.bannerImage, user?.nameFontImage]) {
       // A change of the profile (a status, a name) runs this too: a picture is offered once, then on the timer only.
       if (!id || (!everyone && this.offered.has(id))) {
         continue;
@@ -312,7 +314,7 @@ export class ImageService {
    * Uploads a processed profile picture or banner and returns its id. It is encrypted first, and its key is sealed for
    * everybody who may see it before the id is returned.
    */
-  async upload(kind: 'avatar' | 'banner', blob: Blob): Promise<string> {
+  async upload(kind: SharedKind, blob: Blob): Promise<string> {
     const key = await newPictureKey();
     const bytes = await encryptPicture(new Uint8Array(await blob.arrayBuffer()), key);
     const response = await this.api.upload<{ id: string }>('/api/images?kind=' + kind, bytes);

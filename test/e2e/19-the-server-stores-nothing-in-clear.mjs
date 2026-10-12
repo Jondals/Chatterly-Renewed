@@ -43,4 +43,18 @@ export async function step19(world) {
     }),
     'no picture is stored as a picture: the group icon is ciphertext too',
   );
+  // the library of backgrounds: the picture that was added in the call is on the disk, and it is ciphertext
+  const library = fs.readdirSync(path.join(dataDir, 'uploads', 'vault'));
+  check(
+    library.length === 1,
+    'the picture added to the library is stored (' + library.length + ')',
+  );
+  const vaultHead = fs
+    .readFileSync(path.join(dataDir, 'uploads', 'vault', library[0]))
+    .subarray(0, 4);
+  check(
+    !vaultHead.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) &&
+      vaultHead.toString('latin1') !== 'RIFF',
+    'and it is not stored as a picture: the library is ciphertext',
+  );
 }

@@ -9,13 +9,30 @@ import { createHash } from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BACKEND, ROOT, TMP, children, step, check, run, freePort, waitFor } from './support.mjs';
+import {
+  BACKEND,
+  ROOT,
+  TMP,
+  children,
+  shot,
+  step,
+  check,
+  run,
+  freePort,
+  waitFor,
+} from './support.mjs';
 
 const DESKTOP = path.join(ROOT, 'desktop');
 
 /** The open panel of the bell. ! The pop-up notice has the same title as the card, so look only inside the panel. */
 function bellPanel(page) {
   return page.locator('.panel', { hasText: 'Notifications' });
+}
+
+/** Picks "how often to look for updates" in the drop-down of Settings > Updates. */
+async function chooseInterval(page, label) {
+  await page.getByRole('button', { name: 'Look for updates' }).click();
+  await page.getByRole('option', { name: label }).click();
 }
 
 /** Desktop app (Electron) with the web app inside it: the real build and the real backend, sign-up included. */
@@ -210,6 +227,7 @@ export async function step22(world) {
     await bell.click();
     await page.getByText('A new version is available').first().waitFor({ timeout: 30000 });
     check(true, 'a newer version shows up in the notifications of the bell');
+    await shot(page, '22a-desktop-bell-update');
     check(
       !(await updaterLog()).includes('downloaded'),
       'it was not downloaded without the person asking',
@@ -219,25 +237,29 @@ export async function step22(world) {
     await page.getByRole('button', { name: 'Update settings' }).click();
     await page.getByText('Chatterly 2.99.0 is available').first().waitFor({ timeout: 15000 });
     check(true, 'Settings > Updates opens and says a new version is available');
+    await page.waitForTimeout(500);
+    await shot(page, '22b-desktop-settings-updates');
     check(
       (await updaterState()).settings.interval === '6h',
       'it looks every 6 hours until the person chooses otherwise',
     );
-    await page.getByRole('radio', { name: 'Every hour' }).click();
+    await chooseInterval(page, 'Every hour');
     await waitForState(function hourly(state) {
       return state.settings.interval === '1h';
     });
     check(true, 'choosing "Every hour" reaches the app');
-    await page.getByRole('radio', { name: 'Only when I ask' }).click();
+    await chooseInterval(page, 'Only when I ask');
     await waitForState(function manual(state) {
       return state.settings.interval === 'never';
     });
     check(true, 'choosing "Only when I ask" reaches the app');
-    await page.getByRole('radio', { name: 'Every day' }).click();
+    await chooseInterval(page, 'Every day');
     await waitForState(function daily(state) {
       return state.settings.interval === '24h';
     });
-    const notifySwitch = page.getByRole('switch', { name: 'Tell me about new versions' });
+    const notifySwitch = page.getByRole('switch', {
+      name: 'Tell me about new versions',
+    });
     check(
       (await notifySwitch.getAttribute('aria-checked')) === 'true',
       'notices are on by default',
@@ -257,7 +279,7 @@ export async function step22(world) {
       (await bellPanel(page).getByText('A new version is available').count()) === 0,
       'with notices off, the bell has no card for the update',
     );
-    await bell.click();
+    await page.keyboard.press('Escape');
     await page.goto('app://chatterly/direct(settings:settings/updates)');
     await page.getByText('Chatterly 2.99.0 is available').first().waitFor({ timeout: 15000 });
     check(true, 'with notices off, Settings > Updates still shows the new version');

@@ -109,8 +109,7 @@ export class ContextMenuComponent {
   private place(): void {
     const current = this.menu.state();
     const node = this.box()?.nativeElement as
-      | (HTMLElement & { showPopover?: () => void })
-      | undefined;
+      (HTMLElement & { showPopover?: () => void }) | undefined;
     if (!current || !node) {
       return;
     }

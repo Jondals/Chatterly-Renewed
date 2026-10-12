@@ -10,51 +10,6 @@ import { gradientCss, sortedStops, type GradientParts, type Stop } from '../util
 import { ColorPickerComponent } from './color-picker.component';
 import { IconComponent } from './icon.component';
 
-/** Turns the hue of a #rrggbb color by some degrees (the lightness and the saturation stay). */
-function turnHue(hex: string, degrees: number): string {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const light = (max + min) / 2;
-  const span = max - min;
-  let hue = 0;
-  if (span > 0) {
-    if (max === r) {
-      hue = ((g - b) / span) % 6;
-    } else if (max === g) {
-      hue = (b - r) / span + 2;
-    } else {
-      hue = (r - g) / span + 4;
-    }
-  }
-  const saturation = span === 0 ? 0 : span / (1 - Math.abs(2 * light - 1));
-  const turned = (((hue * 60 + degrees) % 360) + 360) % 360;
-  const chroma = (1 - Math.abs(2 * light - 1)) * saturation;
-  const x = chroma * (1 - Math.abs(((turned / 60) % 2) - 1));
-  const m = light - chroma / 2;
-  const sector = Math.floor(turned / 60) % 6;
-  const parts = [
-    [chroma, x, 0],
-    [x, chroma, 0],
-    [0, chroma, x],
-    [0, x, chroma],
-    [x, 0, chroma],
-    [chroma, 0, x],
-  ][sector]!;
-  return (
-    '#' +
-    parts
-      .map(function channel(value) {
-        return Math.round((value + m) * 255)
-          .toString(16)
-          .padStart(2, '0');
-      })
-      .join('')
-  );
-}
-
 /** Edits the colors and the angle of a gradient and reports every change. */
 @Component({
   selector: 'app-gradient-controls',
@@ -107,28 +62,28 @@ function turnHue(hex: string, degrees: number): string {
           label="Color"
           (valueChange)="setColor($event)"
         />
-        @if (parts().stops.length < 5) {
-          <button
-            type="button"
-            class="btn btn-icon btn-sm"
-            [attr.aria-label]="'Add a color' | t"
-            [attr.title]="'Add a color' | t"
-            (click)="add()"
-          >
-            <app-icon name="plus" [size]="13" />
-          </button>
-        }
-        @if (parts().stops.length > 2) {
-          <button
-            type="button"
-            class="btn btn-icon btn-sm btn-soft-danger"
-            [attr.aria-label]="'Remove this color' | t"
-            [attr.title]="'Remove this color' | t"
-            (click)="remove()"
-          >
-            <app-icon name="trash" [size]="13" />
-          </button>
-        }
+        <button
+          type="button"
+          class="btn btn-icon btn-sm btn-soft-danger gbtn"
+          [class.is-off]="parts().stops.length <= 2"
+          [disabled]="parts().stops.length <= 2"
+          [attr.aria-label]="'Remove this color' | t"
+          [attr.title]="'Remove this color' | t"
+          (click)="remove()"
+        >
+          <app-icon name="minus" [size]="13" />
+        </button>
+        <button
+          type="button"
+          class="btn btn-icon btn-sm gbtn"
+          [class.is-off]="parts().stops.length >= 5"
+          [disabled]="parts().stops.length >= 5"
+          [attr.aria-label]="'Add a color' | t"
+          [attr.title]="'Add a color' | t"
+          (click)="add()"
+        >
+          <app-icon name="plus" [size]="13" />
+        </button>
       }
       @if (!compact()) {
         <div class="gfold" [class.open]="open()" [attr.inert]="open() ? null : ''">
@@ -146,58 +101,28 @@ function turnHue(hex: string, degrees: number): string {
                   <span class="gchip font-mono">{{ current().pos }}%</span>
                 }
                 <span class="flex-1"></span>
-                @if (parts().stops.length < 5) {
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-icon"
-                    [attr.aria-label]="'Add a color' | t"
-                    [attr.title]="'Add a color' | t"
-                    (click)="add()"
-                  >
-                    <app-icon name="plus" [size]="14" />
-                  </button>
-                }
-                @if (parts().stops.length > 2) {
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-icon btn-soft-danger"
-                    [attr.aria-label]="'Remove this color' | t"
-                    [attr.title]="'Remove this color' | t"
-                    (click)="remove()"
-                  >
-                    <app-icon name="trash" [size]="14" />
-                  </button>
-                }
-              </div>
-              <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span class="mr-1">{{ 'Turn the hue' | t }}</span>
                 <button
                   type="button"
-                  class="btn btn-icon btn-sm"
-                  [attr.aria-label]="'Turn the hue back' | t"
-                  [attr.title]="'Turn the hue back' | t"
-                  (click)="turn(-30)"
+                  class="btn btn-sm btn-icon btn-soft-danger gbtn"
+                  [class.is-off]="parts().stops.length <= 2"
+                  [disabled]="parts().stops.length <= 2"
+                  [attr.aria-label]="'Remove this color' | t"
+                  [attr.title]="'Remove this color' | t"
+                  (click)="remove()"
                 >
-                  <app-icon name="refresh" [size]="13" class="-scale-x-100" />
+                  <app-icon name="minus" [size]="14" />
                 </button>
                 <button
                   type="button"
-                  class="btn btn-icon btn-sm"
-                  [attr.aria-label]="'Turn the hue forward' | t"
-                  [attr.title]="'Turn the hue forward' | t"
-                  (click)="turn(30)"
+                  class="btn btn-sm btn-icon gbtn"
+                  [class.is-off]="parts().stops.length >= 5"
+                  [disabled]="parts().stops.length >= 5"
+                  [attr.aria-label]="'Add a color' | t"
+                  [attr.title]="'Add a color' | t"
+                  (click)="add()"
                 >
-                  <app-icon name="refresh" [size]="13" />
+                  <app-icon name="plus" [size]="14" />
                 </button>
-                <label class="ml-1 flex cursor-pointer items-center gap-1.5"
-                  ><input
-                    type="checkbox"
-                    class="accent-[var(--accent)]"
-                    [checked]="together()"
-                    (change)="together.set($any($event.target).checked)"
-                  />
-                  {{ 'All the colors together' | t }}</label
-                >
               </div>
               @if (showAngle()) {
                 <label class="block text-xs text-muted"
@@ -275,6 +200,17 @@ function turnHue(hex: string, degrees: number): string {
       padding-top: 0.85rem;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
+    /* The add and remove buttons keep their place: when one does not apply it is dimmed and cannot be pressed. */
+    .gbtn {
+      transition:
+        opacity 0.3s var(--ease),
+        transform 0.3s var(--ease),
+        background-color 0.2s var(--ease-suave);
+    }
+    .gbtn.is-off {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
     .gchip {
       padding: 0.25rem 0.55rem;
       border-radius: 999px;
@@ -295,8 +231,6 @@ export class GradientControlsComponent {
   readonly changed = output<Partial<GradientParts>>();
   protected readonly open = signal(false);
   protected readonly selected = signal(0);
-  /** Whether turning the hue turns every color (or only the chosen one). */
-  protected readonly together = signal(true);
   private dragging = -1;
 
   /** The gradient as CSS (a straight bar for the preview). */
@@ -356,16 +290,6 @@ export class GradientControlsComponent {
     }
     const stops = [...this.parts().stops, { color, pos: at }];
     this.selected.set(stops.length - 1);
-    this.changed.emit({ stops });
-  }
-
-  /** Turns the hue of every color, or of the chosen one only. */
-  protected turn(degrees: number): void {
-    const chosen = this.selected();
-    const all = this.together();
-    const stops = this.parts().stops.map(function turned(stop, index) {
-      return all || index === chosen ? { ...stop, color: turnHue(stop.color, degrees) } : stop;
-    });
     this.changed.emit({ stops });
   }
 

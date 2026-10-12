@@ -34,11 +34,38 @@ function makeCard(item) {
   return card;
 }
 
-function onSources(event, list) {
+/** The words of the picker. */
+const WORDS = {
+  en: {
+    any: 'Choose a screen or a window to share',
+    screen: 'Choose a screen to share',
+    window: 'Choose a window to share',
+    cancel: 'Cancel',
+    window_title: 'Share your screen',
+  },
+  es: {
+    any: 'Elige una pantalla o una ventana para compartir',
+    screen: 'Elige una pantalla para compartir',
+    window: 'Elige una ventana para compartir',
+    cancel: 'Cancelar',
+    window_title: 'Compartir pantalla',
+  },
+};
+
+function onSources(event, message) {
+  const words = WORDS[message && message.language === 'es' ? 'es' : 'en'];
+  const kind =
+    message && (message.kind === 'screen' || message.kind === 'window') ? message.kind : 'any';
+  const items = message && Array.isArray(message.items) ? message.items : [];
+  const title = document.getElementById('title');
+  if (title) title.textContent = words[kind];
+  const cancel = document.getElementById('cancel');
+  if (cancel) cancel.textContent = words.cancel;
+  document.title = words.window_title;
   const grid = document.getElementById('grid');
   if (!grid) return;
   grid.replaceChildren();
-  list.forEach(function add(item) {
+  items.forEach(function add(item) {
     grid.append(makeCard(item));
   });
 }

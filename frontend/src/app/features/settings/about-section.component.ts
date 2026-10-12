@@ -2,10 +2,9 @@
  * src/app/features/settings/about-section.component.ts
  * Settings - About: the animated signature, the version and a summary of how data is protected.
  */
-import { Component, computed, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { linkCrypto, type TextPart } from '../../core/crypto-docs';
-import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
-import { DesktopUpdateService } from '../../core/services/desktop-update.service';
+import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { UiService } from '../../core/services/ui.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
@@ -154,22 +153,6 @@ import { APP_NAME, APP_VERSION } from '../../version';
             <dt class="text-muted">{{ 'Version' | t }}</dt>
             <dd class="font-mono">v{{ version }}</dd>
           </div>
-          @if (desktopUpdate.supported) {
-            <div class="flex items-center justify-between gap-3">
-              <dt class="text-muted">{{ 'Updates' | t }}</dt>
-              <dd class="flex items-center gap-2">
-                <span class="text-xs text-muted">{{ updateLabel() }}</span>
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  [disabled]="desktopUpdate.state().status === 'checking'"
-                  (click)="desktopUpdate.check()"
-                >
-                  {{ 'Check for updates' | t }}
-                </button>
-              </dd>
-            </div>
-          }
           <div class="flex justify-between gap-3">
             <dt class="text-muted">{{ 'License' | t }}</dt>
             <dd>ISC</dd>
@@ -449,31 +432,6 @@ export class AboutSectionComponent {
   protected readonly letters = 'Jondals'.split('');
   protected readonly appName = APP_NAME;
   protected readonly version = APP_VERSION;
-  protected readonly desktopUpdate = inject(DesktopUpdateService);
-  private readonly i18n = inject(I18nService);
-  /** What the desktop app says about its update, in words. */
-  protected readonly updateLabel = computed(
-    function (this: AboutSectionComponent): string {
-      const state = this.desktopUpdate.state();
-      switch (state.status) {
-        case 'checking':
-          return this.i18n.t('Checking…');
-        case 'none':
-          return this.i18n.t('You have the latest version');
-        case 'available':
-        case 'downloading':
-          return this.i18n.t('Version {v} is available (see the notifications)', {
-            v: state.version,
-          });
-        case 'ready':
-          return this.i18n.t('Ready to restart');
-        case 'error':
-          return this.i18n.t('The check failed');
-        default:
-          return '';
-      }
-    }.bind(this),
-  );
   protected readonly links = [
     { label: 'Source', name: 'GitHub', url: 'https://github.com/Jondals/ChatterlyRenewed' },
     {

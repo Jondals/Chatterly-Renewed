@@ -856,6 +856,33 @@ label,
     background: color-mix(in oklab, var(--accent) 22%, transparent);
     border-color: color-mix(in oklab, var(--accent) 60%, transparent);
   }
+  /* A quiet outline: the same height and weight as the tinted buttons beside it. */
+  .btn-outline {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .btn-outline:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.24);
+  }
+  /* The main choice of a group of tinted buttons: a deeper tint and a soft glow, never a solid block. */
+  .btn-accent-strong {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--accent) 34%, transparent),
+      color-mix(in oklab, var(--accent) 20%, transparent)
+    );
+    border-color: color-mix(in oklab, var(--accent) 62%, transparent);
+    color: var(--accent);
+  }
+  .btn-accent-strong:hover {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--accent) 44%, transparent),
+      color-mix(in oklab, var(--accent) 28%, transparent)
+    );
+    box-shadow: 0 6px 20px -10px var(--accent);
+  }
   .btn-soft-danger {
     background: rgba(239, 68, 68, 0.12);
     color: #fca5a5;
@@ -1234,4 +1261,175 @@ label,
   .ui-range:active::-webkit-slider-thumb {
     transform: scale(1.2);
   }
+}
+
+/* The form of Watch together and Listen together: the sites it accepts light up when the link is one of them, and the
+   field says at once if the link is good or not. */
+.act-source {
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted, rgba(255, 255, 255, 0.55));
+  transition:
+    background-color 0.25s var(--ease-suave),
+    color 0.25s var(--ease-suave),
+    border-color 0.25s var(--ease-suave);
+}
+.act-source.is-hit {
+  color: var(--accent-ink, #000);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.act-link.is-ok {
+  border-color: color-mix(in oklab, #34d399 55%, transparent);
+}
+.act-link.is-bad {
+  border-color: color-mix(in oklab, #fbbf24 55%, transparent);
+}
+
+/* The desktop app (Windows) draws its own bar at the top of the window. The shell makes the window without a frame and
+   Windows draws the buttons (minimize, maximize, close) over the right end of the bar. The page learns the height of the bar
+   from the shell (main.ts sets --titlebar-h and data-titlebar), and then:
+   - the bar is fixed at the top and is the place to drag the window;
+   - the content starts below it (--app-h is what is left of the height of the window);
+   - a full-screen layer ("fixed inset-0": menus, settings, viewers) starts below it too, so nothing hides under the bar. */
+.titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--titlebar-h, 36px);
+  padding-left: 0.85rem;
+  /* The right end belongs to the buttons of Windows (the area of the bar that is ours ends where they start). */
+  padding-right: calc(100vw - env(titlebar-area-width, 100vw));
+  background: var(--ink-950, #06070b);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar-logo {
+  width: 1rem;
+  height: 1rem;
+  pointer-events: none;
+}
+
+.titlebar-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+  pointer-events: none;
+}
+
+html[data-titlebar='custom'] {
+  --app-h: calc(100dvh - var(--titlebar-h));
+}
+
+html[data-titlebar='custom'] body {
+  padding-top: var(--titlebar-h);
+  box-sizing: border-box;
+}
+
+html[data-titlebar='custom'] .fixed.inset-0 {
+  top: var(--titlebar-h);
+}
+
+/* Round color buttons: they grow and gain a ring slowly and smoothly instead of snapping. */
+.dot,
+.swatch {
+  transition:
+    transform 0.34s var(--ease),
+    box-shadow 0.34s var(--ease),
+    filter 0.34s var(--ease);
+  will-change: transform;
+}
+.swatch:hover {
+  transform: scale(1.06);
+}
+.dot:active,
+.swatch:active {
+  transform: scale(0.94);
+  transition-duration: 0.12s;
+}
+
+/* A list of choices with a round mark (the voice mode of the call): the mark fills for the one in use, and only that one shows its note. */
+.radio-list {
+  display: grid;
+  gap: 0.35rem;
+}
+.radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: calc(var(--r) * 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+  font-size: 0.8125rem;
+  cursor: var(--cur-pointer, pointer);
+  transition:
+    background-color 0.25s var(--ease),
+    border-color 0.3s var(--ease);
+}
+.radio-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.radio-row.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.radio-row b {
+  font-weight: 600;
+}
+.radio-row small {
+  display: block;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--muted, #9aa3b5);
+  opacity: 0;
+  transition:
+    max-height 0.4s var(--ease),
+    margin-top 0.3s var(--ease),
+    opacity 0.28s var(--ease);
+}
+.radio-row.is-on small {
+  max-height: 7rem;
+  margin-top: 0.2rem;
+  opacity: 1;
+}
+.radio-dot {
+  position: relative;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  transition: border-color 0.3s var(--ease);
+}
+.radio-dot::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  transform: scale(0);
+  transition: transform 0.32s var(--ease);
+}
+.is-on > .radio-dot {
+  border-color: var(--accent);
+}
+.is-on > .radio-dot::after {
+  transform: scale(1);
 }

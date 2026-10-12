@@ -106,9 +106,17 @@ export async function step14(world) {
   );
   await a.click('.menu-card:has-text("Listen together") button >> nth=0');
   await a.fill('form.act-form input', 'https://example.com/nope');
+  // The form says at once that this is not a link it accepts (not only after pressing the button).
+  await a.waitForSelector('form.act-form >> text=That is not a valid YouTube or Spotify link.', {
+    timeout: 3000,
+  });
+  check(true, 'the link form says at once that the link is not valid');
   await a.click('button:has-text("Play for everyone")');
   await a.waitForSelector('text=That is not a valid YouTube or Spotify link.');
   await a.fill('form.act-form input', 'https://youtu.be/dQw4w9WgXcQ');
+  await a.waitForSelector('form.act-form >> text=YouTube video, ready', { timeout: 3000 });
+  check(true, 'a good link is recognized as it is typed');
+  await shot(a, '14a-listen-form');
   await a.click('button:has-text("Play for everyone")');
   await b.waitForSelector('text=Listening together', { timeout: 15000 });
   check(
@@ -323,6 +331,67 @@ export async function step14(world) {
       'Bob sees the camera of Alice move after turning it off and on (' + pause + ' ms)',
     );
   }
+  // The background of the camera (like Discord): chosen from the arrow of the camera, applied at once to a camera that is
+  // on, while the other person keeps seeing the video move. The pictures of the library are kept (encrypted) in the account.
+  await a.locator('app-device-menu button').nth(2).click();
+  await a.click('app-device-menu [role=menuitem]:has-text("Camera background")');
+  await a.waitForSelector('app-background-picker .cs-tile');
+  const tile = function (name) {
+    return 'app-background-picker .cs-tile:has(.cs-name:text-is("' + name + '"))';
+  };
+  const background = function () {
+    return a.evaluate(function () {
+      return localStorage.getItem('chatterly.pref.callBackground');
+    });
+  };
+  await a.click(tile('Blur'));
+  await a.waitForTimeout(600);
+  check((await background()) === '"blur"', 'choosing a blur is kept as a setting');
+  await movingVideo(b, 'Bob keeps seeing the camera of Alice move with the blur on');
+  // the preview of the window shows the camera that the others get
+  check(
+    await a.evaluate(function () {
+      const video = document.querySelector('app-background-picker video');
+      return !!video && video.videoWidth > 0;
+    }),
+    'the window of the camera has a live preview',
+  );
+  // the mirror reaches the others: it is part of the video that is sent
+  await a.click('app-background-picker .cs-row [role=switch]');
+  await a.waitForTimeout(700);
+  check(
+    (await a.evaluate(function () {
+      return localStorage.getItem('chatterly.pref.cameraMirrorAll');
+    })) === 'true',
+    'the mirror is turned on',
+  );
+  await movingVideo(b, 'Bob keeps seeing the camera of Alice move with the mirror on');
+  await a.click('app-background-picker .cs-row [role=switch]');
+  await a.waitForTimeout(500);
+  await a.click(tile('Aurora'));
+  await a.waitForTimeout(600);
+  check((await background()) === '"preset:aurora"', 'a ready-made background is chosen');
+  await movingVideo(b, 'Bob keeps seeing the camera of Alice move with a ready-made background');
+  await a.click('app-background-picker .fold-head:has-text("Your library")');
+  await a.waitForTimeout(600);
+  const backgroundChooser = a.waitForEvent('filechooser');
+  await a.click('app-background-picker .cs-add');
+  await a.waitForSelector('.isrc-drop');
+  await a.click('.isrc-drop');
+  (await backgroundChooser).setFiles(world.pngPath);
+  await a.waitForSelector('app-background-picker .cs-remove', {
+    state: 'attached',
+    timeout: 20000,
+  });
+  check(
+    ((await background()) ?? '').startsWith('"vault:'),
+    'a picture added to the library is chosen at once',
+  );
+  await movingVideo(b, 'Bob keeps seeing the camera of Alice move with a picture of her library');
+  await shot(a, '14b-camera-background');
+  await a.click(tile('None'));
+  await a.keyboard.press('Escape');
+  await a.waitForSelector('app-background-picker', { state: 'detached', timeout: 5000 });
   // Both cameras at the same time, turned off and on together (the two sides negotiate at once).
   const remoteMoving = function (page, label) {
     return page

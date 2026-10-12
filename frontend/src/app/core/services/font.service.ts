@@ -3,7 +3,7 @@
  * Fonts the person uploads (one for the interface and one for their display name). The files stay on this device
  * (IndexedDB) and are registered with the browser's FontFace API, so nothing is sent anywhere.
  */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { pickFile } from '../file-picker';
 import { runInStore, type StoreLocation } from '../indexed-db';
 import { SettingsService } from './settings.service';
@@ -20,11 +20,18 @@ const FAMILIES: Record<CustomFontKind, string> = Object.fromEntries([
 /** Biggest font file accepted (5 MB): the fonts stay on this device, so the only limit is a sensible one. */
 const MAX_BYTES = 5 * 1024 * 1024;
 
+/** Adds one to a counter. */
+function bump(value: number): number {
+  return value + 1;
+}
+
 /** Keeps and registers the uploaded fonts. */
 @Injectable({ providedIn: 'root' })
 export class FontService {
   private readonly settings = inject(SettingsService);
   private readonly faces = new Map<CustomFontKind, FontFace>();
+  /** Changes each time the font of the name is uploaded, replaced or deleted (so it can be shared with friends again). */
+  readonly nameFontVersion = signal(0);
 
   /** Registers the fonts that were uploaded on a previous visit. */
   constructor() {
@@ -51,6 +58,7 @@ export class FontService {
       this.settings.customFontName.set(name);
     } else {
       this.settings.customNameFontName.set(name);
+      this.nameFontVersion.update(bump);
     }
   }
 
@@ -86,6 +94,7 @@ export class FontService {
       this.settings.customFontName.set(label);
     } else {
       this.settings.customNameFontName.set(label);
+      this.nameFontVersion.update(bump);
     }
   }
 
@@ -106,6 +115,7 @@ export class FontService {
       }
     } else {
       this.settings.customNameFontName.set('');
+      this.nameFontVersion.update(bump);
     }
   }
 

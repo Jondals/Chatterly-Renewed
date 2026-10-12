@@ -2,7 +2,7 @@
  * test/e2e/15-groups-uploaded-icon-and-text-and-voice.mjs
  * Groups, uploaded icon, and text and voice channels.
  */
-import { step, check, saveAdjusted } from './support.mjs';
+import { shot, step, check, saveAdjusted } from './support.mjs';
 
 /** Groups, uploaded icon, and text and voice channels. */
 export async function step15(world) {
@@ -13,6 +13,8 @@ export async function step15(world) {
   await a.fill('input[placeholder="e.g. Game night"]', 'Rust Crew');
   const iconChooser = a.waitForEvent('filechooser');
   await a.click('button[aria-label="Upload an icon"]');
+  await a.waitForSelector('.isrc-drop');
+  await a.click('.isrc-drop');
   (await iconChooser).setFiles(pngPath);
   await saveAdjusted(a);
   await a.waitForSelector('img[src^="blob:"]');
@@ -134,4 +136,24 @@ export async function step15(world) {
     rowsAfter[0].includes('alice'),
     'nobody can be placed above the owner: the owner stays first',
   );
+
+  // The tag of the group takes ANY emoji: the quick list first, and a panel with every emoji (search and categories).
+  await a.click('a[data-tip="Rust Crew"]', { button: 'right' });
+  await a.click('[role=menuitem]:has-text("Group settings")');
+  const tagSection = a.locator('section:has(input[aria-label="Group tag"])');
+  await tagSection.locator('input[aria-label="Group tag"]').fill('rust');
+  await tagSection.locator('button:has-text("Any emoji")').click();
+  await tagSection.locator('input[type=search]').fill('unicorn');
+  await shot(a, '15a-tag-emoji-panel');
+  await tagSection.locator('button[aria-label="unicorn"]').click();
+  await shot(a, '15b-tag-emoji-chosen');
+  check(
+    (await tagSection.locator('.server-tag-icon').innerText()) === '🦄',
+    'any emoji can be the icon of the tag of a group (the unicorn is not in the quick list)',
+  );
+  await tagSection.locator('button:has-text("Save")').click();
+  await tagSection.locator('button:has-text("Save")[disabled]').waitFor({ timeout: 10000 });
+  check(true, 'the tag with that emoji is saved');
+  await a.keyboard.press('Escape');
+  await a.waitForTimeout(400);
 }

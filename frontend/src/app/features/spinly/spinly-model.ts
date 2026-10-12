@@ -89,8 +89,7 @@ export interface TournamentSpec {
 
 /** What is shared: a wheel or a tournament. */
 export type SpinlyActivity =
-  | { kind: 'wheel'; wheel: WheelSpec }
-  | { kind: 'tournament'; tournament: TournamentSpec };
+  { kind: 'wheel'; wheel: WheelSpec } | { kind: 'tournament'; tournament: TournamentSpec };
 
 /** A wheel preset of a linked Spinly account. */
 export interface SpinlyPreset {

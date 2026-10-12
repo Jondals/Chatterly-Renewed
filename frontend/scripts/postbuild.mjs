@@ -275,8 +275,48 @@ function writeSearchFiles() {
   }
 }
 
+/**
+ * The emoji font comes in two formats, woff2 and, as a fallback, woff. Every browser that can run this app reads woff2 (the
+ * format of all the other fonts here, which have no fallback), so the woff files are never asked for: they are left out. That is
+ * half of the weight of the build (about 7 MB), in the container, on the disk and in the installer of the desktop app.
+ */
+function dropLegacyFonts() {
+  const sheet = path.join(DIST, 'lazy-fonts.css');
+  if (!fs.existsSync(sheet)) {
+    return;
+  }
+  const dropped = [];
+  const css = fs
+    .readFileSync(sheet, 'utf8')
+    .replace(/,\s*url\("([^"]+\.woff)"\)\s*format\("woff"\)/g, function remove(match, file) {
+      dropped.push(file);
+      return '';
+    });
+  if (dropped.length === 0) {
+    return;
+  }
+  // ! A file is deleted only when nothing refers to it any more.
+  if (/\.woff["')]/.test(css)) {
+    console.log('A woff file is still referenced: the legacy fonts stay');
+    return;
+  }
+  fs.writeFileSync(sheet, css);
+  let bytes = 0;
+  for (const file of dropped) {
+    const target = path.join(path.dirname(sheet), file);
+    if (fs.existsSync(target)) {
+      bytes += fs.statSync(target).size;
+      fs.rmSync(target);
+    }
+  }
+  console.log(
+    'Legacy woff fonts left out: ' + dropped.length + ' files, ' + Math.round(bytes / 1024) + ' kB',
+  );
+}
+
 /** Builds the final index.html. */
 async function main() {
+  dropLegacyFonts();
   const indexPath = path.join(DIST, 'index.html');
   let html = fs.readFileSync(indexPath, 'utf8');
   if (html.includes('data-snapshot')) {

@@ -137,6 +137,11 @@ function auditSource() {
       'an installed app refuses to start with --' + refused,
     );
   }
+  check(
+    main.includes("appendSwitch('autoplay-policy', 'no-user-gesture-required')"),
+    'sounds play at once (no click needed to start the intro)',
+  );
+  check(main.includes('windowState.save('), 'the window remembers how it was left');
   check(main.includes('devTools: !app.isPackaged'), 'developer tools are off in a packaged app');
   check(
     main.split('shell.openExternal(').length === 2,
@@ -188,6 +193,11 @@ function auditSource() {
     'updates:install',
     'updates:settings',
     'updates:state',
+    'screen:surface',
+    'window:titlebar',
+    'graphics:get',
+    'graphics:set',
+    'graphics:restart',
   ]);
   const usedChannels = [...preload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(function name(m) {
     return m[1];
@@ -225,7 +235,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'picker:cancel,picker:choose,updates:check,updates:download,updates:get,updates:install,updates:settings',
+      'graphics:get,graphics:restart,graphics:set,picker:cancel,picker:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -395,8 +405,11 @@ async function runningApp() {
   check(world.ipc === 'undefined', 'no ipcRenderer in the page');
   check(world.apiAddress === 'undefined', 'remote mode does not inject an API address');
   check(
-    world.api === 'isDesktop,platform,updates',
-    'the page sees only isDesktop, platform and the update commands',
+    world.api ===
+      (process.platform === 'win32'
+        ? 'graphics,isDesktop,platform,screen,titlebar,updates'
+        : 'graphics,isDesktop,platform,screen,updates'),
+    'the page sees only isDesktop, platform, the screen hint, the graphics choice and the update commands',
   );
   check(world.isDesktop === true, 'the page can tell it runs in the desktop app');
   const tampered = await page.evaluate(function () {
@@ -409,9 +422,72 @@ async function runningApp() {
   });
   check(tampered === true, 'the page cannot change the desktop API');
 
+  step('The bar of the window (Windows draws the buttons, the page draws the rest)');
+  const bar = await page.evaluate(async function () {
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:fixed;left:0;top:0;width:1px;height:env(titlebar-area-height, 0px)';
+    document.body.append(probe);
+    const areaHeight = probe.offsetHeight;
+    probe.remove();
+    const titlebar = window.chatterlyDesktop.titlebar;
+    return {
+      has: Boolean(titlebar),
+      height: titlebar ? titlebar.height : 0,
+      areaHeight,
+      good: titlebar
+        ? await titlebar.setColors({ color: '#101820', symbolColor: '#e8eaf2' })
+        : null,
+      bad: titlebar
+        ? [
+            await titlebar.setColors({ color: 'red', symbolColor: '#ffffff' }),
+            await titlebar.setColors({ color: '#12', symbolColor: '#ffffff' }),
+            await titlebar.setColors({
+              color: '#000000',
+              symbolColor: 'url(x)',
+            }),
+            await titlebar.setColors({ color: '#000000' }),
+            await titlebar.setColors(null),
+            await titlebar.setColors('#000000'),
+          ]
+        : [],
+    };
+  });
+  if (process.platform === 'win32') {
+    check(
+      bar.has && bar.height === 36,
+      'on Windows the page is told the height of its own bar (36)',
+    );
+    check(
+      bar.areaHeight === 36,
+      'Windows reserves that area at the top for the page (the buttons sit over its right end)',
+    );
+    check(bar.good === true, 'the page can set the colors of the buttons of Windows');
+    check(
+      bar.bad.every(function refused(value) {
+        return value === false;
+      }),
+      'anything that is not two "#rrggbb" colors is refused',
+    );
+  } else {
+    check(!bar.has, 'outside Windows the window keeps its own frame (no bar of ours)');
+  }
+
+  step('Sounds play without a click');
+  const audioState = await page.evaluate(function () {
+    return new AudioContext().state;
+  });
+  check(
+    audioState === 'running',
+    'an audio context starts running without any click (' + audioState + ')',
+  );
+
   step('Permissions');
   const tracks = await page.evaluate(async function () {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: true,
+    });
     const count = stream.getTracks().length;
     stream.getTracks().forEach(function stop(track) {
       track.stop();
@@ -446,7 +522,9 @@ async function runningApp() {
 
   step('Screen sharing goes through the picker');
   const screens = await app.evaluate(async function (electronModule) {
-    const list = await electronModule.desktopCapturer.getSources({ types: ['screen'] });
+    const list = await electronModule.desktopCapturer.getSources({
+      types: ['screen'],
+    });
     return list.length;
   });
   if (screens === 0) {
@@ -471,6 +549,57 @@ async function runningApp() {
       !String(cancelled).startsWith('tracks'),
       'cancelling gives the page no video (' + cancelled + ')',
     );
+
+    // What the person chose in the menu of the call decides what the picker offers.
+    async function chooseSurface(surface) {
+      return page.evaluate(function (value) {
+        return window.chatterlyDesktop.screen.setSurface(value);
+      }, surface);
+    }
+    check(
+      (await chooseSurface('window')) === true,
+      'the page can tell the app it is about to share a window',
+    );
+    const [windowsPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
+    await windowsPicker.waitForSelector('#title', { timeout: 10000 });
+    const windowTitle = await windowsPicker.locator('#title').innerText();
+    check(
+      /window|ventana/i.test(windowTitle) && !/screen or|pantalla o/i.test(windowTitle),
+      'choosing "a window" shows a picker of windows only (' + windowTitle + ')',
+    );
+    await windowsPicker.click('#cancel');
+    await page.waitForTimeout(300);
+    check(
+      (await chooseSurface('browser')) === true,
+      '"a tab" (a browser idea) is understood as a window',
+    );
+    check((await chooseSurface('<evil>')) === true, 'anything else is understood as "everything"');
+    if (screens === 1) {
+      // One screen and "a screen" chosen: nothing is left to ask, it is shared at once.
+      await chooseSurface('monitor');
+      await page.click('#share');
+      await waitFor(
+        async function sharedAtOnce() {
+          return (
+            (await page.evaluate(function () {
+              return window.__share;
+            })) === 'tracks:1' || null
+          );
+        },
+        'the screen to be shared without a picker',
+        8000,
+      ).catch(function noop() {
+        return null;
+      });
+      const direct = await page.evaluate(function () {
+        return window.__share;
+      });
+      check(
+        direct === 'tracks:1',
+        'one screen and "a screen" chosen: it is shared at once, with no picker',
+      );
+      check(app.windows().length === 1, '... and no picker window opened');
+    }
   }
 
   // ? Navigation checks come after the others on purpose: a blocked navigation leaves Playwright waiting for it to
@@ -563,16 +692,39 @@ async function bundledApp() {
   fs.writeFileSync(
     path.join(webDir, 'index.html'),
     '<!doctype html><meta charset="utf-8">' +
-      '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; connect-src \'self\' wss:">' +
+      '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; connect-src \'self\' wss:; frame-src http://127.0.0.1:*">' +
       '<title>bundle</title><div id="r">no js</div><script src="/main-ABCDEFGH.js"></script>',
   );
   fs.writeFileSync(
     path.join(webDir, 'main-ABCDEFGH.js'),
-    'document.getElementById("r").textContent = "js ran";',
+    'document.getElementById("r").textContent = "js ran";' +
+      // Two frames like the one of Spinly: one that allows app://chatterly to frame it, and one that does not.
+      'window.__hello = [];' +
+      'window.addEventListener("message", function (e) {' +
+      ' if (e.data && e.data.source === "spinly") window.__hello.push(e.origin + " " + e.data.type); });' +
+      '["ok", "blocked"].forEach(function (name) {' +
+      ' const f = document.createElement("iframe");' +
+      ' f.src = window.CHATTERLY_API + "/" + name + "?chatterly=" + encodeURIComponent(location.origin);' +
+      ' document.body.append(f); });',
   );
   // A file next to the web folder that must never be reachable.
   fs.writeFileSync(path.join(TMP, 'secret.txt'), 'TOP-SECRET');
   const api = await listen(function apiHandler(req, res) {
+    const route = new URL(req.url, 'http://x').pathname;
+    if (route === '/ok' || route === '/blocked') {
+      res.setHeader('content-type', 'text/html');
+      res.setHeader(
+        'content-security-policy',
+        route === '/ok'
+          ? "frame-ancestors 'self' app://chatterly"
+          : "frame-ancestors 'self' https://chatterlyrenewed.duckdns.org",
+      );
+      res.end(
+        '<!doctype html><script>parent.postMessage({ source: "spinly", type: "hello" },' +
+          ' new URLSearchParams(location.search).get("chatterly"));</script>',
+      );
+      return;
+    }
     res.end('api');
   });
   const apiOrigin = 'http://127.0.0.1:' + api.port;
@@ -673,6 +825,30 @@ async function bundledApp() {
       '... and is refused (' + name + ': ' + probe[name].status + ')',
     );
   }
+
+  step(
+    'Bundled web app: Spinly-like frames (the desktop origin must be allowed by the site that is framed)',
+  );
+  await waitFor(
+    async function heard() {
+      return page.evaluate(function () {
+        return window.__hello.length > 0;
+      });
+    },
+    'the frame that allows app://chatterly to say hello',
+    10000,
+  );
+  await sleep(1500);
+  const hello = await page.evaluate(function () {
+    return window.__hello;
+  });
+  check(
+    hello.length === 1 && hello[0] === apiOrigin + ' hello',
+    'a site that allows app://chatterly (frame-ancestors) is framed and its message arrives (' +
+      hello.join(' | ') +
+      ')',
+  );
+  check(true, 'a site that does not allow it stays blocked: exactly one hello arrived, not two');
 
   step('Bundled web app: permissions and links');
   await page.reload();
@@ -911,8 +1087,8 @@ async function updatingApp() {
   await prefs.until('available');
   const defaults = (await prefs.state()).settings;
   check(
-    defaults.interval === '6h' && defaults.notify === true,
-    'by default it looks every 6 hours and tells the person',
+    defaults.interval === '6h' && defaults.notify === true && defaults.auto === false,
+    'by default it looks every 6 hours, tells the person and never updates by itself',
   );
   const changed = await prefs.setSettings({ interval: '1h', notify: false });
   check(
@@ -931,6 +1107,8 @@ async function updatingApp() {
     { interval: 5 },
     { interval: '1h', evil: true },
     { notify: 'yes' },
+    { auto: 'yes' },
+    { auto: 1 },
     { toString: 'x' },
     [],
     null,
@@ -967,6 +1145,27 @@ async function updatingApp() {
   check(true, '... but a manual check finds the new version');
   await manual.app.close();
 
+  // "Update by itself" (the person turned it on): the new version is downloaded without pressing anything, and it is
+  // installed when the app closes, never by restarting it.
+  const auto = await open('auto', '2.99.0', sha512, {
+    'update-settings.json': JSON.stringify({
+      interval: '6h',
+      notify: true,
+      auto: true,
+    }),
+  });
+  await auto.until('ready');
+  check(true, 'with "update by itself" a new version is downloaded without pressing anything');
+  check(!(await auto.log()).includes('restarting'), '... and the app is not restarted on its own');
+  await auto.app.close();
+  // Turning it on while a version is waiting starts the download at once.
+  const late = await open('late', '2.99.0', sha512);
+  await late.until('available');
+  await late.setSettings({ auto: true });
+  await late.until('ready');
+  check(true, 'turning "update by itself" on starts the waiting download');
+  await late.app.close();
+
   // A damaged file does not stop the app: the defaults are used.
   const damaged = await open('damaged', '2.99.0', sha512, {
     'update-settings.json': '{ this is not json',
@@ -978,6 +1177,113 @@ async function updatingApp() {
     'a damaged settings file falls back to the defaults',
   );
   await damaged.app.close();
+}
+
+/** The state of the window: maximized the first time and until the person restores it. */
+async function windowStateChecks() {
+  step('The window: maximized the first time, and as the person left it after that');
+  const state = require(path.join(SRC, 'window-state.cjs'));
+  const file = path.join(TMP, 'window-state-unit.json');
+  check(
+    state.load(file).maximized === true && state.load(file).bounds === null,
+    'no file yet: it opens maximized',
+  );
+  state.save(file, {
+    maximized: false,
+    bounds: { x: 100, y: 80, width: 1000, height: 700 },
+  });
+  const back = state.load(file);
+  check(
+    back.maximized === false && back.bounds.width === 1000 && back.bounds.x === 100,
+    'a window that was restored opens restored, where it was',
+  );
+  state.save(file, {
+    maximized: true,
+    bounds: { x: 100, y: 80, width: 1000, height: 700 },
+  });
+  check(state.load(file).maximized === true, 'a window that was maximized opens maximized');
+  fs.writeFileSync(file, '{ not json');
+  check(state.load(file).maximized === true, 'a damaged file means maximized');
+  fs.writeFileSync(
+    file,
+    JSON.stringify({
+      maximized: 'yes',
+      bounds: { x: 'a', y: 1, width: 5, height: 5 },
+      extra: 1,
+    }),
+  );
+  const odd = state.load(file);
+  check(odd.maximized === true && odd.bounds === null, 'values that are not valid are ignored');
+  const areas = [{ x: 0, y: 0, width: 1920, height: 1040 }];
+  check(
+    state.fitBounds({ x: 100, y: 100, width: 800, height: 600 }, areas) !== null,
+    'a window on a screen keeps its place',
+  );
+  check(
+    state.fitBounds({ x: 5000, y: 100, width: 800, height: 600 }, areas) === null,
+    'a window left on a screen that is gone is brought back',
+  );
+  check(
+    state.fitBounds({ x: 1900, y: 1000, width: 800, height: 600 }, areas) === null,
+    'a window that is almost entirely off the screen is brought back',
+  );
+
+  // The running app reads the file: the first start asks for maximized, a restored window starts restored.
+  async function modeOf(files) {
+    const profile = path.join(TMP, 'profile-mode-' + Math.random().toString(36).slice(2));
+    fs.mkdirSync(profile, { recursive: true });
+    for (const [name, content] of Object.entries(files))
+      fs.writeFileSync(path.join(profile, name), content);
+    const trace = path.join(profile, 'trace.txt');
+    const stub = await listen(function handler(req, res) {
+      res.setHeader('content-type', 'text/html');
+      res.end('<!doctype html><title>stub</title>');
+    });
+    const env = appEnv('http://127.0.0.1:' + stub.port);
+    env.CHATTERLY_TRACE = trace;
+    const app = await electron.launch({
+      executablePath: ELECTRON_EXE,
+      args: [DESKTOP, '--user-data-dir=' + profile],
+      cwd: DESKTOP,
+      env,
+      timeout: 30000,
+    });
+    apps.push(app);
+    await app.firstWindow();
+    await waitFor(
+      function written() {
+        return fs.existsSync(trace) && fs.readFileSync(trace, 'utf8').includes('window-mode');
+      },
+      'the window mode in the trace',
+      10000,
+    );
+    const line = fs
+      .readFileSync(trace, 'utf8')
+      .split('\n')
+      .find(function isMode(l) {
+        return l.includes('window-mode');
+      });
+    await app.close();
+    return line;
+  }
+  check(
+    (await modeOf({})).includes('window-mode maximized'),
+    'the very first start asks for a maximized window',
+  );
+  check(
+    (
+      await modeOf({
+        'window-state.json': JSON.stringify({ maximized: false }),
+      })
+    ).includes('window-mode normal'),
+    'a window the person restored starts restored',
+  );
+  check(
+    (await modeOf({ 'window-state.json': JSON.stringify({ maximized: true }) })).includes(
+      'window-mode maximized',
+    ),
+    'a window the person left maximized starts maximized',
+  );
 }
 
 /** The packaged exe (pnpm --dir desktop dist): fuses are really set, and it starts and shows the offline page. */
@@ -1057,7 +1363,9 @@ async function packagedApp() {
   } finally {
     // ! The whole tree: the packaged app has Chromium helper processes that keep files of the profile open.
     if (process.platform === 'win32') {
-      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+      });
     } else {
       child.kill();
     }
@@ -1081,7 +1389,12 @@ async function cleanup() {
     }
   }
   for (const server of servers) server.close();
-  fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  fs.rmSync(TMP, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 300,
+  });
 }
 
 let failed = false;
@@ -1092,6 +1405,7 @@ try {
   await offlineApp();
   await bundledApp();
   await updatingApp();
+  await windowStateChecks();
   await packagedApp();
   console.log('\nAll desktop checks passed.');
 } catch (error) {

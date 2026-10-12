@@ -22,6 +22,16 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "vision_bundle.js",
+                "input": "node_modules/@mediapipe/tasks-vision",
+                "output": "mediapipe"
+              },
+              {
+                "glob": "vision_wasm_internal.{js,wasm}",
+                "input": "node_modules/@mediapipe/tasks-vision/wasm",
+                "output": "mediapipe/wasm"
               }
             ],
             "styles": [
@@ -34,12 +44,12 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "560kB",
+                  "maximumWarning": "640kB",
                   "maximumError": "1MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
+                  "maximumWarning": "9kB",
                   "maximumError": "12kB"
                 }
               ],
@@ -60,6 +70,7 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": { "prebundle": { "exclude": ["emojibase-data"] } },
           "configurations": {
             "production": {
               "buildTarget": "frontend:build:production"

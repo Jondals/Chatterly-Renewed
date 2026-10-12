@@ -84,13 +84,37 @@ export async function step08(world) {
   );
   await popover.fill('#00ff00');
   await b.waitForTimeout(300);
+  await b.keyboard.press('Escape');
+  await b.waitForTimeout(300);
+  // the buttons of the colors: "+" never moves, "-" appears to its right when there is a color to remove; no hue controls
+  const plus = b.locator('app-gradient-controls button[aria-label="Add a color"]');
+  const minus = b.locator('app-gradient-controls button[aria-label="Remove this color"]');
+  const plusAt = (await plus.boundingBox()).x;
+  check((await minus.isDisabled()) === true, 'with two colors there is nothing to remove yet');
+  await plus.click();
+  await b.waitForTimeout(500);
+  check(
+    Math.abs((await plus.boundingBox()).x - plusAt) < 0.5,
+    'the + does not change place when a color is added',
+  );
+  check(
+    (await minus.isEnabled()) && (await minus.boundingBox()).x < plusAt,
+    'the - appears to the left of the +',
+  );
+  check(
+    (await b.locator('app-gradient-controls:has-text("hue")').count()) === 0,
+    'there are no controls to turn the hue',
+  );
+  await minus.click();
+  await b.waitForTimeout(400);
+  check((await minus.isDisabled()) === true, 'the - fades again with two colors');
   await b.click('textarea[aria-label=Message]');
   await b.locator('textarea[aria-label=Message]').selectText();
   await b.click('app-message-input button:has-text("Apply")');
   await b.waitForTimeout(400);
   const valor = await b.inputValue('textarea[aria-label=Message]');
   check(
-    valor.includes('[g=#00ff00,#818cf8]second[/g]'),
+    valor.includes('[d=0f0,818cf8]second[/d]'),
     'el gradient personalizado se aplica al texto seleccionado. Texto: ' + valor,
   );
   await b.fill('textarea[aria-label=Message]', '');

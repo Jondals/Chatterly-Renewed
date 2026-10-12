@@ -6,6 +6,7 @@
 import {
   Component,
   ElementRef,
+  EnvironmentInjector,
   HostListener,
   inject,
   input,
@@ -16,6 +17,7 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import { openBackgroundPicker } from './background-picker.component';
 
 /** One device of the list. */
 interface Device {
@@ -86,7 +88,17 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
             </p>
           }
         } @else {
-          <div class="label px-2.5 pb-1 pt-1.5">{{ 'Camera' | t }}</div>
+          <button
+            type="button"
+            role="menuitem"
+            class="device-item device-bg"
+            (click)="openBackground()"
+          >
+            <app-icon name="image" [size]="15" />
+            <span class="min-w-0 flex-1 truncate">{{ 'Camera background' | t }}</span>
+            <app-icon name="chevron-up" [size]="13" class="rotate-90 text-dim" />
+          </button>
+          <div class="label px-2.5 pb-1 pt-2">{{ 'Camera' | t }}</div>
           @for (device of cameras(); track device.id) {
             <button
               type="button"
@@ -116,6 +128,14 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
       text-align: left;
       font-size: 0.8125rem;
     }
+    .device-bg {
+      margin-bottom: 0.2rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: calc(var(--r) * 0.6) calc(var(--r) * 0.6) 0 0;
+    }
+    .device-item {
+      transition: background-color 0.22s var(--ease-suave);
+    }
     .device-item:hover {
       background: rgba(255, 255, 255, 0.08);
     }
@@ -132,6 +152,7 @@ export class DeviceMenuComponent implements OnDestroy {
   protected readonly settings = inject(SettingsService);
   private readonly call = inject(CallService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(EnvironmentInjector);
 
   protected readonly open = signal(false);
   protected readonly inputs = signal<Device[]>([]);
@@ -213,6 +234,12 @@ export class DeviceMenuComponent implements OnDestroy {
   protected chooseInput(id: string): void {
     this.settings.inputDeviceId.set(id);
     void this.call.changeInputDevice();
+  }
+
+  /** Closes the list and opens the window of the camera backgrounds. */
+  protected openBackground(): void {
+    this.open.set(false);
+    openBackgroundPicker(this.injector);
   }
 
   /** Switches the camera (when it is on, it restarts with the new one). */

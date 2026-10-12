@@ -193,6 +193,10 @@ export function cleanProfileData(raw: unknown): Record<string, unknown> {
       data[field] = value.replace(/\u0000/g, '');
     }
   }
+  // The server only knows the built-in names and "custom": anything else is dropped (a font id of somebody else is no use).
+  if (typeof data['nameFont'] === 'string' && data['nameFont'].startsWith('custom:')) {
+    data['nameFont'] = 'custom';
+  }
   return data;
 }
 

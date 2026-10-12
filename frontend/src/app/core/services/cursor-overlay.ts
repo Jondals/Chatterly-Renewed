@@ -36,19 +36,57 @@ const HOVER_SCALE = 1.14;
 /** Events after which the page may have opened something new in the top layer. */
 const REVIEW_EVENTS: string[] = ['pointerup', 'click', 'keyup', 'transitionend', 'animationend'];
 
-/** Whether the pointer is over the scrollbar of the element it is on (or of one of the elements around it). */
+/** What was found out about an element: whether it scrolls on each axis, and when it was looked at. */
+const scrollMemory = new WeakMap<Element, { x: boolean; y: boolean; at: number }>();
+/** How long what was found out about an element is trusted (ms): the style of an element rarely changes its overflow. */
+const SCROLL_MEMORY_MS = 3000;
+
+/** Whether an element scrolls (or always shows a bar) on one axis. Remembered for a moment: reading a style costs. */
+function scrolls(element: Element, axis: 'x' | 'y'): boolean {
+  const now = performance.now();
+  let known = scrollMemory.get(element);
+  if (!known || now - known.at > SCROLL_MEMORY_MS) {
+    const style = getComputedStyle(element);
+    const bar = function (value: string): boolean {
+      return value === 'auto' || value === 'scroll' || value === 'overlay';
+    };
+    known = { x: bar(style.overflowX), y: bar(style.overflowY), at: now };
+    scrollMemory.set(element, known);
+  }
+  return axis === 'x' ? known.x : known.y;
+}
+
+/**
+ * Whether the pointer is over the scrollbar of the element it is on (or of one of the elements around it).
+ * ! Only elements that really scroll count, and sizes are compared in layout pixels: a button that grows on hover
+ * ! (transform: scale) is wider on screen than in layout and used to look like it had a scrollbar.
+ */
 function overScrollbar(pointer: PointerEvent): boolean {
   let element = pointer.target instanceof Element ? pointer.target : null;
   while (element && element !== document.documentElement) {
     const box = element.getBoundingClientRect();
+    const html = element as HTMLElement;
+    const scale = html.offsetWidth > 0 ? box.width / html.offsetWidth : 1;
     const side =
-      element.clientWidth > 0 ? box.width - element.clientWidth - element.clientLeft * 2 : 0;
-    if (side > 2 && pointer.clientX >= box.right - side - element.clientLeft) {
+      element.clientWidth > 0
+        ? (html.offsetWidth - element.clientWidth - element.clientLeft * 2) * scale
+        : 0;
+    if (
+      side > 2 &&
+      scrolls(element, 'y') &&
+      pointer.clientX >= box.right - side - element.clientLeft
+    ) {
       return true;
     }
     const low =
-      element.clientHeight > 0 ? box.height - element.clientHeight - element.clientTop * 2 : 0;
-    if (low > 2 && pointer.clientY >= box.bottom - low - element.clientTop) {
+      element.clientHeight > 0
+        ? (html.offsetHeight - element.clientHeight - element.clientTop * 2) * scale
+        : 0;
+    if (
+      low > 2 &&
+      scrolls(element, 'x') &&
+      pointer.clientY >= box.bottom - low - element.clientTop
+    ) {
       return true;
     }
     element = element.parentElement;
@@ -75,6 +113,8 @@ export class CursorOverlay {
   private visible = false;
   private nativeMode = false;
   private reviewTimer = 0;
+  /** The last pointer event of this frame, looked at when the frame is painted. */
+  private pending: PointerEvent | null = null;
   private seenLayers = new Set<Element>();
 
   private readonly moveHandler = this.onPointer.bind(this);
@@ -262,6 +302,7 @@ export class CursorOverlay {
     this.nativeMode = native;
     document.documentElement.classList.toggle('cursor-native', native);
     if (native) {
+      this.pending = null;
       this.hide();
     }
   }
@@ -272,17 +313,12 @@ export class CursorOverlay {
     if (pointer.pointerType === 'touch') {
       return;
     }
-    if (overScrollbar(pointer)) {
-      // The browser draws its own arrow over a scrollbar: the themed one steps aside so there are not two.
-      this.setNativeMode(true);
-      return;
-    }
-    if (this.nativeMode) {
-      this.setNativeMode(false);
-    }
+    // ! Only the last position of the frame is kept: a mouse sends hundreds of events a second, and looking at the page for
+    // each one (which elements are around, which cursor they ask for) made every move cost a layout.
     this.x = pointer.clientX;
     this.y = pointer.clientY;
     this.target = pointer.target as Element | null;
+    this.pending = pointer;
     if (!this.frame) {
       this.frame = requestAnimationFrame(this.paint.bind(this));
     }
@@ -320,6 +356,16 @@ export class CursorOverlay {
     const config = this.config;
     if (!node || !inner || !config) {
       return;
+    }
+    const pointer = this.pending;
+    this.pending = null;
+    if (pointer && overScrollbar(pointer)) {
+      // The browser draws its own arrow over a scrollbar: the themed one steps aside so there are not two.
+      this.setNativeMode(true);
+      return;
+    }
+    if (pointer && this.nativeMode) {
+      this.setNativeMode(false);
     }
     if (this.nativeMode) {
       // ! The pointer left (the window edge, a frame of another site): a frame that was already due must not bring the cursor back.

@@ -8,7 +8,7 @@
  */
 import type { Db } from './db';
 
-/** The icons a tag can have (a fixed list: nothing else is accepted from the browser). */
+/** The icons the owner is offered first (any other single emoji is accepted too, see isTagIcon). */
 export const TAG_ICONS = [
   '💎',
   '🔥',
@@ -27,6 +27,21 @@ export const TAG_ICONS = [
   '🚀',
   '🎯',
 ] as const;
+
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+/** One emoji: a flag, a keycap, a pictograph with its skin tone or variation selector, joined with others by ZWJ, or a tag flag. */
+const ONE_EMOJI =
+  /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Extended_Pictographic}[\u{E0020}-\u{E007F}]+)$/u;
+
+/**
+ * True when the value is a valid icon for a tag: nothing (no icon) or exactly ONE emoji, any emoji.
+ * ! This is what keeps text, markup or a long string out of a place that every member sees next to a name.
+ */
+export function isTagIcon(value: string): boolean {
+  if (value === '') return true;
+  if (value.length > 32) return false;
+  return [...GRAPHEMES.segment(value)].length === 1 && ONE_EMOJI.test(value);
+}
 
 /** What the browser gets about the tag of a person. */
 export interface ServerTag {

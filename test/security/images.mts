@@ -385,6 +385,67 @@ export async function checkImages(): Promise<void> {
     'nobody sees the settings of another person',
   );
 
+  step('the font of a name: encrypted like a picture, small, and only the owner can point at it');
+  const fontBytes = randomBytes(4000);
+  const fontUpload = await upload(alice, fontBytes, 'font');
+  check(
+    fontUpload.statusCode === 201,
+    'a font file is uploaded as ciphertext, like a picture (' +
+      fontUpload.statusCode +
+      ' ' +
+      fontUpload.body +
+      ')',
+  );
+  const fontId = fontUpload.json().id;
+  check(
+    fs.readFileSync(path.join(app.ctx.config.uploadDir, 'images', fontId)).equals(fontBytes),
+    'the server keeps the font bytes untouched (it cannot read them)',
+  );
+  check(
+    (await upload(alice, randomBytes(1_600_000), 'font')).statusCode === 400,
+    'a font bigger than 1.5 MB is refused (every friend opens it)',
+  );
+  check(
+    (await call(app, bob, 'PATCH', '/api/me', { nameFontImage: fontId })).statusCode === 400,
+    "somebody else's font file cannot be used as the font of a name",
+  );
+  check(
+    (await call(app, alice, 'PATCH', '/api/me', { nameFontImage: avatarId })).statusCode === 400,
+    'a picture cannot be used as the font file of a name',
+  );
+  const setFont = await call(app, alice, 'PATCH', '/api/me', {
+    nameFont: 'custom',
+    nameFontImage: fontId,
+  });
+  check(setFont.statusCode === 200, 'the owner uses their font file for their name');
+  check(
+    setFont.json().user.nameFontImage === fontId &&
+      setFont.json().user.nameFont === 'custom:' + fontId,
+    'the owner gets the file and the combined name of the font',
+  );
+  await befriend(app, alice, bob).catch(function alreadyFriends() {
+    return undefined;
+  });
+  const alicesView = (await call(app, bob, 'GET', '/api/users/' + alice.id)).json().user;
+  check(
+    alicesView.nameFont === 'custom:' + fontId && alicesView.nameFontImage === undefined,
+    'a friend sees which font file the name uses, but gets no separate field',
+  );
+  check(
+    (await call(app, alice, 'PATCH', '/api/me', { nameFont: 'serif' })).json().user.nameFont ===
+      'serif',
+    'a built-in font goes back to being just its name',
+  );
+  check(
+    (await call(app, bob, 'GET', '/api/users/' + alice.id)).json().user.nameFont === 'serif',
+    'and the friend sees the built-in font',
+  );
+  check(
+    runMaintenance(app.ctx, Date.now() + IMAGE_GRACE_MS + 1000).images >= 0 &&
+      fs.existsSync(path.join(app.ctx.config.uploadDir, 'images', fontId)),
+    'a font file that a profile points to is not cleaned up as abandoned',
+  );
+
   step('maintenance: abandoned uploads and dead sessions');
   const addPicture = function (age: number): string {
     const id = randomUUID();

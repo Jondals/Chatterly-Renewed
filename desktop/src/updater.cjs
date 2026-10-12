@@ -4,9 +4,12 @@
  *
  * * The app looks for a new version when it starts and then as often as the person chose (Settings > Updates), and only
  *   TELLS: the web app shows it in the notifications of the Home bell (if the person wants notices) and in Settings.
- *   The person downloads it (a progress bar), then restarts to apply it. Nothing is downloaded, installed or
+ *   The person downloads it (a progress bar), then restarts to apply it. By default nothing is downloaded, installed or
  *   restarted behind their back, and nothing is installed when the app merely closes.
- * * The choices (how often, notices on or off) are kept in update-settings.json in the profile folder.
+ * * "Update by itself" (off by default, the person turns it on) changes that on purpose: a new version is downloaded as
+ *   soon as it is found, and installed silently when the app is closed. The app is never restarted in the middle of
+ *   something (a call): the person can still press "Restart and update" when they want it sooner.
+ * * The choices (how often, notices on or off, update by itself) are kept in update-settings.json in the profile folder.
  * * Updates come from the GitHub Releases of the repository (one release per version of the whole project, the same
  *   number as the web app). The Microsoft Store version is updated by the Store and never by this file.
  *   CHATTERLY_NO_UPDATE=1 turns it off.
@@ -35,7 +38,7 @@ const INTERVALS = {
   start: 0,
   never: -1,
 };
-const DEFAULT_SETTINGS = { interval: '6h', notify: true };
+const DEFAULT_SETTINGS = { interval: '6h', notify: true, auto: false };
 /** Wait this long after the window opens before the first check. */
 const START_DELAY_MS = 5000;
 const STATE_CHANNEL = 'updates:state';
@@ -97,7 +100,7 @@ function settingsPath() {
 
 /**
  * Turns what came in into valid settings, on top of `base`, or returns null if anything is wrong. ! The page is not
- * trusted: only these two keys, only these values.
+ * trusted: only these three keys, only these values.
  */
 function sanitizeSettings(raw, base) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -109,6 +112,9 @@ function sanitizeSettings(raw, base) {
     } else if (key === 'notify') {
       if (typeof raw.notify !== 'boolean') return null;
       merged.notify = raw.notify;
+    } else if (key === 'auto') {
+      if (typeof raw.auto !== 'boolean') return null;
+      merged.auto = raw.auto;
     } else {
       return null;
     }
@@ -167,12 +173,27 @@ function handleCheck(event) {
   return state;
 }
 
+function startDownload() {
+  setState({
+    status: 'downloading',
+    percent: 0,
+    transferred: 0,
+    bytesPerSecond: 0,
+    error: '',
+  });
+  autoUpdater.downloadUpdate().catch(onError);
+}
+
 function handleDownload(event) {
   if (!isTrustedSender(event) || !ensureUpdater()) return state;
   if (state.status !== 'available' && state.status !== 'error') return state;
-  setState({ status: 'downloading', percent: 0, transferred: 0, bytesPerSecond: 0, error: '' });
-  autoUpdater.downloadUpdate().catch(onError);
+  startDownload();
   return state;
+}
+
+/** With "update by itself" on, a downloaded update is installed (silently) when the app closes. Never in development. */
+function applyInstallOnQuit() {
+  if (autoUpdater) autoUpdater.autoInstallOnAppQuit = state.settings.auto && !devFeed();
 }
 
 function handleInstall(event) {
@@ -198,6 +219,9 @@ function handleSettings(event, patch) {
   saveSettings(next);
   setState({ settings: next });
   schedule();
+  applyInstallOnQuit();
+  // Turning it on while a version is waiting starts the download at once.
+  if (next.auto && autoUpdater && state.status === 'available') startDownload();
   return state;
 }
 
@@ -207,7 +231,11 @@ function onError(error) {
   log('error: ' + describe(error));
   // A failed silent check shows nothing; a failed download or manual check says so.
   if (state.status === 'downloading' || state.status === 'checking') {
-    setState({ status: 'error', error: describe(error), lastCheck: Date.now() });
+    setState({
+      status: 'error',
+      error: describe(error),
+      lastCheck: Date.now(),
+    });
   }
 }
 
@@ -223,6 +251,7 @@ function onAvailable(info) {
     error: '',
     lastCheck: Date.now(),
   });
+  if (state.settings.auto && autoUpdater) startDownload();
 }
 
 function onNone() {
@@ -248,6 +277,7 @@ function onProgress(progress) {
 function onDownloaded(info) {
   log('downloaded ' + info.version);
   setState({ status: 'ready', version: info.version, percent: 100, error: '' });
+  applyInstallOnQuit();
 }
 
 function check() {
@@ -276,7 +306,8 @@ function ensureUpdater() {
     autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.setFeedURL({ provider: 'generic', url: feed });
   }
-  // * The person decides: nothing is downloaded or installed on its own.
+  // * The person decides: nothing is downloaded or installed on its own, unless they turned "update by itself" on (the
+  // * download is then started by onAvailable, and the install on quit by applyInstallOnQuit).
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
@@ -315,4 +346,10 @@ function start(window, isAppAddressFn) {
   timer.unref();
 }
 
-module.exports = { start, enabled, sanitizeSettings, INTERVALS, DEFAULT_SETTINGS };
+module.exports = {
+  start,
+  enabled,
+  sanitizeSettings,
+  INTERVALS,
+  DEFAULT_SETTINGS,
+};

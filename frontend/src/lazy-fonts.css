@@ -1,5 +1,6 @@
-/* Fonts that are not needed for the first paint (the emoji font, the script name font and the serif font). They are
+/* Fonts that are not needed for the first paint (the emoji font, the script, the display and the serif name fonts). They are
    built as a separate stylesheet that the page switches on once it is idle (see AppComponent). */
 @import '@fontsource-variable/lora';
 @import '@fontsource/pacifico/400.css';
+@import '@fontsource/righteous/400.css';
 @import '@fontsource/noto-color-emoji/index.css';

@@ -12,8 +12,11 @@ macOS and Linux use the same code (only the packaging differs; see the end).
 - **Hardened window.** Sandboxed renderer, context isolation, no Node in the page, developer tools off when installed. The page sees only `window.chatterlyDesktop` (`isDesktop`, `platform`) and `window.CHATTERLY_API`.
 - **Links never leave the app.** Other sites open in your default browser; pop-ups are denied.
 - **Permissions.** Camera, microphone, notifications and screen capture are granted to the app itself only, never to an embedded frame (YouTube and the like).
-- **Screen sharing** has its own picker. System audio is not shared on purpose: on Windows it would also capture the voices of the call and echo them to everyone.
+- **Screen sharing** follows the share menu of the call: what you choose there (a screen or a window) decides what the app's own picker offers, and with one screen and "a screen" chosen it is shared at once. System audio is not shared on purpose: on Windows it would also capture the voices of the call and echo them to everyone.
 - **Closing the window closes the app.** Nothing stays running in the background (there is no tray).
+- **It opens maximized** the first time and stays that way until you restore the window; then it opens as you left it (`window-state.json` in the profile folder).
+- **Sounds play at once**, with no click needed first (the intro, the rings).
+- **Spinly** is shown inside the app. Spinly has to allow the origin `app://chatterly` (in its `frame-ancestors` and in its Chatterly bridge): the Spinly project already does, but it must be deployed.
 - **Offline page** (remote mode only): if the server is unreachable it shows a page and retries every 5 seconds.
 - **Updates from inside the app** (a notice in the bell, then you download and restart when you choose; see [Updates](#updates)).
 - **Electron fuses** are set at build time: no `ELECTRON_RUN_AS_NODE`, no `NODE_OPTIONS`, no `--inspect`, asar integrity checked, loads only from the asar, no extra `file://` privileges.
@@ -120,9 +123,10 @@ The installed app looks for a new version **a few seconds after it starts and th
 
 - The state, the version, when it last looked, and the buttons **Check for updates**, **Download** and **Restart and update**.
 - **Look for updates**: every hour, every 6 hours (the default), every 12 hours, every day, only when the app starts, or only when you ask.
+- **Update by itself** (off by default): downloads a new version as soon as it is found and installs it silently when you close the app. It never restarts the app on its own, so a call is never cut.
 - **Tell me about new versions**: on shows the notice and the card in the bell; off shows nothing in the bell (the new version is still in Settings > Updates).
 
-In the bell, the card also has **Later** (hides it for that version) and a link to these settings. The choices are saved in `update-settings.json` in the profile folder (`%APPDATA%\Chatterly`). If you never press anything, the app stays as it is.
+In the bell, the card also has **Later** (hides it for that version) and a link to these settings. The choices are saved in `update-settings.json` in the profile folder (`%APPDATA%\Chatterly`). If you never press anything and "Update by itself" is off, the app stays as it is.
 
 It reads the **GitHub Releases** of the repository and checks the sha512 of the download against `latest.yml`; a file whose hash does not match is refused and the card says so. Until the installer is signed there is no publisher check on top of that, which is the reason to sign it or use the Store. The Microsoft Store version is updated by the Store and shows no card.
 

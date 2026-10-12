@@ -45,8 +45,33 @@ export async function checkServerTags(): Promise<void> {
         tagIcon: '<b>',
       })
     ).statusCode === 400,
-    'the icon of a tag is one of a fixed list',
+    'the icon of a tag is an emoji, not markup',
   );
+  for (const bad of [
+    'ab',
+    '😀😀',
+    'a',
+    '5',
+    '😀a',
+    '<img src=x>',
+    '\u202e',
+    ' ',
+    '😀 ',
+    'x'.repeat(40),
+  ]) {
+    check(
+      (await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { tagIcon: bad })).statusCode ===
+        400,
+      `the icon of a tag is exactly one emoji: ${JSON.stringify(bad).slice(0, 24)} is refused`,
+    );
+  }
+  for (const good of ['🦄', '🇪🇸', '👨‍👩‍👧', '👍🏽', '5️⃣', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '❤️', '🫠']) {
+    check(
+      (await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, { tagIcon: good })).statusCode ===
+        200,
+      `any single emoji is a valid tag icon: ${good}`,
+    );
+  }
   check(
     (
       await call(app, alice, 'PATCH', `/api/guilds/${club.id}`, {

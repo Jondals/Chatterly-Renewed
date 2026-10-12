@@ -2,12 +2,15 @@
  * src/app/features/voice/voice-stage.component.ts
  * Call screen: participant tiles, controls, shared music and statistics.
  */
+import { isDesktopApp } from '../../core/desktop-bridge';
+import { parseMusicLink } from '../../shared/util/music-link';
 import { FoldComponent } from '../../shared/components/fold.component';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   DestroyRef,
   ElementRef,
+  EnvironmentInjector,
   HostListener,
   computed,
   effect,
@@ -37,6 +40,7 @@ import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { PageHeaderComponent } from '../../shared/components/page-header.component';
+import { openBackgroundPicker } from './background-picker.component';
 import { DeviceMenuComponent } from './device-menu.component';
 import { PersonMenuComponent } from './person-menu.component';
 import { SegmentedComponent, ToggleComponent } from '../../shared/components/controls.component';
@@ -532,13 +536,20 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           <div>
                             <b class="block text-sm">{{ 'Share your screen' | t }}</b>
                             <span class="block text-xs text-muted">{{
-                              'The browser will ask you to confirm what to show.' | t
+                              (desktop
+                                ? 'Pick a screen or a window and it is shared at once.'
+                                : 'The browser will ask you to confirm what to show.'
+                              ) | t
                             }}</span>
                           </div>
                         </div>
                         <div class="label mb-1.5">{{ 'What to share' | t }}</div>
-                        <div class="grid grid-cols-3 gap-2">
-                          @for (option of shareSurfaces; track option.id) {
+                        <div
+                          class="grid gap-2"
+                          [class.grid-cols-3]="!desktop"
+                          [class.grid-cols-2]="desktop"
+                        >
+                          @for (option of surfaceChoices; track option.id) {
                             <button
                               type="button"
                               class="sb-tile"
@@ -564,16 +575,18 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             </button>
                           }
                         </div>
-                        <label
-                          class="mt-3.5 flex cursor-pointer items-center justify-between gap-3"
-                        >
-                          <span class="text-sm">{{ 'Share the sound too' | t }}</span>
-                          <app-toggle
-                            [checked]="settings.screenShare().audio"
-                            (checkedChange)="setShare({ audio: $event })"
-                            [label]="'Share the sound too' | t"
-                          />
-                        </label>
+                        @if (!desktop) {
+                          <label
+                            class="mt-3.5 flex cursor-pointer items-center justify-between gap-3"
+                          >
+                            <span class="text-sm">{{ 'Share the sound too' | t }}</span>
+                            <app-toggle
+                              [checked]="settings.screenShare().audio"
+                              (checkedChange)="setShare({ audio: $event })"
+                              [label]="'Share the sound too' | t"
+                            />
+                          </label>
+                        }
                         <button
                           type="button"
                           class="btn btn-primary mt-4 w-full"
@@ -651,9 +664,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                             >
                               <app-icon name="arrow-left" [size]="13" /> {{ 'Activities' | t }}
                             </button>
-                            <div class="mb-3 flex items-center gap-3">
+                            <div class="mb-4 flex items-center gap-3">
                               <span
-                                class="menu-icon !h-11 !w-11"
+                                class="menu-icon !h-12 !w-12"
                                 [class]="
                                   activityForm() === 'video'
                                     ? 'bg-sky/15 text-sky'
@@ -661,7 +674,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                                 "
                                 ><app-icon
                                   [name]="activityForm() === 'video' ? 'play' : 'music'"
-                                  [size]="20"
+                                  [size]="22"
                               /></span>
                               <span class="min-w-0 leading-tight">
                                 <b class="block text-base">{{
@@ -672,14 +685,34 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                                 }}</b>
                                 <span class="block text-xs text-muted">{{
                                   (activityForm() === 'video'
-                                    ? 'YouTube, in sync'
-                                    : 'YouTube or Spotify, in sync'
+                                    ? 'Everybody sees the same video at the same second'
+                                    : 'Everybody hears the same song at the same second'
                                   ) | t
                                 }}</span>
                               </span>
                             </div>
-                            <label class="act-link">
-                              <app-icon name="link" [size]="16" class="shrink-0 text-muted" />
+                            <div class="mb-2 flex flex-wrap items-center gap-1.5">
+                              <span class="act-source" [class.is-hit]="linkKind() === 'youtube'"
+                                >YouTube</span
+                              >
+                              @if (activityForm() === 'music') {
+                                <span class="act-source" [class.is-hit]="linkKind() === 'spotify'"
+                                  >Spotify</span
+                                >
+                              }
+                            </div>
+                            <label
+                              class="act-link"
+                              [class.is-ok]="linkOk()"
+                              [class.is-bad]="linkBad()"
+                            >
+                              <app-icon
+                                [name]="linkOk() ? 'check' : 'link'"
+                                [size]="16"
+                                class="shrink-0"
+                                [class.text-muted]="!linkOk()"
+                                [class.text-emerald]="linkOk()"
+                              />
                               <input
                                 class="min-w-0 flex-1 bg-transparent text-sm outline-none"
                                 [value]="linkText()"
@@ -688,36 +721,67 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                                 "
                                 placeholder="https://youtu.be/…"
                                 [attr.aria-label]="'Link' | t"
+                                autocomplete="off"
+                                spellcheck="false"
                               />
+                              @if (linkText()) {
+                                <button
+                                  type="button"
+                                  class="btn btn-icon btn-sm btn-ghost !h-7 !w-7 shrink-0"
+                                  [attr.aria-label]="'Clear the link' | t"
+                                  (click)="linkText.set(''); linkInvalid.set(false)"
+                                >
+                                  <app-icon name="x" [size]="13" />
+                                </button>
+                              } @else {
+                                <button
+                                  type="button"
+                                  class="btn btn-sm shrink-0"
+                                  (click)="pasteLink()"
+                                >
+                                  <app-icon name="copy" [size]="13" /> {{ 'Paste' | t }}
+                                </button>
+                              }
                             </label>
-                            @if (linkInvalid()) {
-                              <div class="mt-1.5 text-xs text-amber">
-                                {{
+                            <div class="mt-1.5 min-h-[1.1rem] text-xs">
+                              @if (linkOk()) {
+                                <span class="text-emerald">{{ linkSummary() | t }}</span>
+                              } @else if (linkBad() || linkInvalid()) {
+                                <span class="text-amber">
+                                  {{
+                                    (activityForm() === 'video'
+                                      ? 'That is not a valid YouTube link.'
+                                      : 'That is not a valid YouTube or Spotify link.'
+                                    ) | t
+                                  }}
+                                </span>
+                              } @else {
+                                <span class="text-dim">{{
                                   (activityForm() === 'video'
-                                    ? 'That is not a valid YouTube link.'
-                                    : 'That is not a valid YouTube or Spotify link.'
+                                    ? 'Paste the link of a YouTube video.'
+                                    : 'Paste the link of a YouTube or Spotify song, album or list.'
                                   ) | t
-                                }}
-                              </div>
-                            }
-                            <div class="mt-4 flex justify-end gap-2">
+                                }}</span>
+                              }
+                            </div>
+                            <div class="mt-4 flex flex-col gap-2">
+                              <button
+                                type="submit"
+                                class="btn btn-primary w-full"
+                                [disabled]="!linkText()"
+                              >
+                                <app-icon name="play" [size]="15" /> {{ 'Play for everyone' | t }}
+                              </button>
                               @if (call.music()) {
                                 <button
                                   type="button"
-                                  class="btn btn-sm"
+                                  class="btn w-full"
                                   [disabled]="!linkText()"
                                   (click)="queueFromForm()"
                                 >
                                   <app-icon name="list" [size]="14" /> {{ 'Add to queue' | t }}
                                 </button>
                               }
-                              <button
-                                type="submit"
-                                class="btn btn-sm btn-primary"
-                                [disabled]="!linkText()"
-                              >
-                                {{ 'Play for everyone' | t }}
-                              </button>
                             </div>
                           </form>
                         }
@@ -841,13 +905,28 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                         </div>
                         <div class="drawer-block">
                           <span>{{ 'Voice mode' | t }}</span>
-                          <app-segmented
-                            [options]="voiceModeOptions"
-                            [value]="settings.voiceMode()"
-                            (valueChange)="
-                              settings.voiceMode.set($any($event)); call.changeInputDevice()
-                            "
-                          />
+                          <div
+                            class="radio-list"
+                            role="radiogroup"
+                            [attr.aria-label]="'Voice mode' | t"
+                          >
+                            @for (m of voiceModes; track m.id) {
+                              <button
+                                type="button"
+                                role="radio"
+                                class="radio-row"
+                                [class.is-on]="settings.voiceMode() === m.id"
+                                [attr.aria-checked]="settings.voiceMode() === m.id"
+                                (click)="settings.voiceMode.set(m.id); call.changeInputDevice()"
+                              >
+                                <span class="radio-dot"></span>
+                                <span class="min-w-0 flex-1">
+                                  <b>{{ m.label | t }}</b>
+                                  <small>{{ m.hint | t }}</small>
+                                </span>
+                              </button>
+                            }
+                          </div>
                         </div>
                         <div>
                           <div class="mb-1 flex justify-between text-xs text-muted">
@@ -917,10 +996,20 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           <span>{{ 'Mirror my camera' | t }}</span>
                           <app-toggle
                             [checked]="settings.cameraMirror()"
-                            (checkedChange)="settings.cameraMirror.set($event)"
+                            (checkedChange)="
+                              settings.cameraMirror.set($event); call.applyBackground()
+                            "
                             [label]="'Mirror my camera' | t"
                           />
                         </div>
+                        <button
+                          type="button"
+                          class="btn btn-sm w-full gap-1.5"
+                          (click)="openCameraOptions()"
+                        >
+                          <app-icon name="sparkles" [size]="14" />
+                          {{ 'Background and adjustments' | t }}
+                        </button>
                       </div>
                     </app-fold>
                   </div>
@@ -1311,9 +1400,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
             class="absolute inset-0 h-full w-full rounded-[inherit] bg-black"
             [class.object-cover]="t.kind === 'camera' && !focus"
             [class.object-contain]="t.kind === 'screen' || focus"
-            [style.transform]="
-              t.local && t.kind === 'camera' && settings.cameraMirror() ? 'scaleX(-1)' : null
-            "
             [appMediaStream]="t.stream"
             autoplay
             playsinline
@@ -1388,6 +1474,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 [appNameColor]="t.user?.profileColor"
                 [appUserFont]="t.user?.nameFont"
                 [nameFx]="t.user?.nameFx"
+                [fxLive]="true"
               >
                 {{ t.user?.displayName }}
               </div>
@@ -1437,6 +1524,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   [appNameColor]="p.user?.profileColor"
                   [appUserFont]="p.user?.nameFont"
                   [nameFx]="p.user?.nameFx"
+                  [fxLive]="true"
                 >
                   {{ p.user?.displayName }}
                 </div>
@@ -1477,6 +1565,13 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
   `,
 })
 export class VoiceStageComponent {
+  private readonly environment = inject(EnvironmentInjector);
+
+  /** Opens the window of the camera (background, mirror and adjustments, with a live preview). */
+  protected openCameraOptions(): void {
+    openBackgroundPicker(this.environment);
+  }
+
   /** The place under the music card while it is dragged (null when it is not being dragged). */
   protected readonly musicTarget = signal<DockPlace | null>(null);
   protected readonly places: DockPlace[] = ['tl', 'tc', 'tr', 'bl', 'br'];
@@ -1705,6 +1800,8 @@ export class VoiceStageComponent {
 
   /** The menu to start sharing the screen is open. */
   protected readonly shareOpen = signal(false);
+  /** True in the desktop app, where the picker is the app's own: "a tab" does not exist and the sound is not shared. */
+  protected readonly desktop = isDesktopApp();
   protected readonly shareSurfaces: {
     id: 'any' | 'monitor' | 'window' | 'browser';
     label: string;
@@ -1714,6 +1811,12 @@ export class VoiceStageComponent {
     { id: 'window', label: 'A window', icon: 'layout' },
     { id: 'browser', label: 'A tab', icon: 'globe' },
   ];
+  /** What can be shared: a screen or a window (and, in a browser, a tab). */
+  protected readonly surfaceChoices = this.shareSurfaces.filter(
+    function offered(this: VoiceStageComponent, option: { id: string }): boolean {
+      return !(this.desktop && option.id === 'browser');
+    }.bind(this),
+  );
   protected readonly shareQualities: {
     id: 'standard' | 'high' | 'max';
     label: string;
@@ -2305,6 +2408,59 @@ export class VoiceStageComponent {
 
   protected readonly linkText = signal('');
   protected readonly linkInvalid = signal(false);
+  /** The link that is typed, understood (null when it is not a link this activity accepts). */
+  private readonly parsedLink = computed(
+    function (this: VoiceStageComponent) {
+      const link = parseMusicLink(this.linkText());
+      if (!link) {
+        return null;
+      }
+      return this.activityForm() === 'video' && link.kind !== 'youtube' ? null : link;
+    }.bind(this),
+  );
+  /** Which site the typed link is from, once it is understood. */
+  protected readonly linkKind = computed(
+    function (this: VoiceStageComponent) {
+      return this.parsedLink()?.kind ?? null;
+    }.bind(this),
+  );
+  /** The typed link is good. */
+  protected readonly linkOk = computed(
+    function (this: VoiceStageComponent) {
+      return this.parsedLink() !== null;
+    }.bind(this),
+  );
+  /** Something that does not look like a link we accept has been typed (it is said as soon as it is clear, not only on sending). */
+  protected readonly linkBad = computed(
+    function (this: VoiceStageComponent) {
+      const text = this.linkText().trim();
+      return text.length >= 8 && this.parsedLink() === null;
+    }.bind(this),
+  );
+  /** What the good link is, in words ("YouTube video", "Spotify playlist"...). */
+  protected readonly linkSummary = computed(
+    function (this: VoiceStageComponent) {
+      const link = this.parsedLink();
+      if (!link) {
+        return '';
+      }
+      if (link.kind === 'youtube') {
+        return link.type === 'list' ? 'YouTube playlist, ready' : 'YouTube video, ready';
+      }
+      return 'Spotify link, ready';
+    }.bind(this),
+  );
+
+  /** Pastes what is on the clipboard into the link field. */
+  protected async pasteLink(): Promise<void> {
+    try {
+      const text = await navigator.clipboard.readText();
+      this.linkText.set(text.trim());
+      this.linkInvalid.set(false);
+    } catch {
+      // The browser did not allow reading the clipboard: the person pastes with Ctrl+V.
+    }
+  }
   private readonly sanitizer = inject(DomSanitizer);
   private musicFrame: HTMLIFrameElement | null = null;
   private readonly volumeEffect = effect(this.applyMusicVolume.bind(this));
@@ -2891,9 +3047,7 @@ export class VoiceStageComponent {
   );
 
   /** The choices of the drawer of data (the same ones as in the settings of voice and video). */
-  protected readonly voiceModeOptions = VOICE_MODES.map(function option(mode) {
-    return { id: mode.id, label: mode.label };
-  });
+  protected readonly voiceModes = VOICE_MODES;
   protected readonly qualityOptions = [
     { id: '480', label: '480p' },
     { id: '720', label: '720p' },

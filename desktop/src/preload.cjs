@@ -4,8 +4,8 @@
  * to update the app and, when the web app is bundled, the address of the API.
  *
  * ! This file is the whole attack surface between the page and the main process. The page gets NO generic IPC: only
- *   the fixed update commands (only `setSettings` takes an argument, which the main process validates against a fixed
- *   list of values) and one fixed channel to hear the state of the update. Do not add
+ *   the fixed update commands and the screen-share hint (each takes at most one argument, which the main process checks
+ *   against a fixed list of values) and one fixed channel to hear the state of the update. Do not add
  *   channels or Node modules here without a security review. (desktop/test/desktop.mjs checks the list.)
  */
 'use strict';
@@ -44,6 +44,22 @@ function setSettings(settings) {
   return ipcRenderer.invoke('updates:settings', settings);
 }
 
+/** How the graphics card is used: read it, change it (a fixed list of values, checked by the main process) and restart. */
+function getGraphics() {
+  return ipcRenderer.invoke('graphics:get');
+}
+function setGraphics(choice) {
+  return ipcRenderer.invoke('graphics:set', choice);
+}
+function restartForGraphics() {
+  return ipcRenderer.invoke('graphics:restart');
+}
+
+/** Tells the app what the person chose to share ('monitor', 'window', 'browser' or 'any') just before the capture. */
+function setSurface(surface) {
+  return ipcRenderer.invoke('screen:surface', surface);
+}
+
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
 function onState(callback) {
   if (typeof callback !== 'function') return function noop() {};
@@ -56,6 +72,23 @@ function onState(callback) {
   };
 }
 
+/** The height of the bar the app draws at the top of its window (given by the main process; null when there is none). */
+function readTitlebarHeight() {
+  const prefix = '--chatterly-titlebar=';
+  const arg = process.argv.find(function isBarArg(value) {
+    return value.startsWith(prefix);
+  });
+  const height = arg ? Number(arg.slice(prefix.length)) : 0;
+  return Number.isInteger(height) && height >= 20 && height <= 64 ? height : null;
+}
+
+/** Tells the main process the colors of the bar, so the buttons of Windows match the theme. */
+function setTitlebarColors(colors) {
+  return ipcRenderer.invoke('window:titlebar', colors);
+}
+
+const titlebarHeight = readTitlebarHeight();
+
 // * The web app reads window.CHATTERLY_API before it starts (frontend/src/app/core/config.ts).
 const apiOrigin = readApiOrigin();
 if (apiOrigin) contextBridge.exposeInMainWorld('CHATTERLY_API', apiOrigin);
@@ -66,5 +99,10 @@ contextBridge.exposeInMainWorld(
     isDesktop: true,
     platform: process.platform,
     updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
+    screen: Object.freeze({ setSurface }),
+    graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
+    ...(titlebarHeight
+      ? { titlebar: Object.freeze({ height: titlebarHeight, setColors: setTitlebarColors }) }
+      : {}),
   }),
 );

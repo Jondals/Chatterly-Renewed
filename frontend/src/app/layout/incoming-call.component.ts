@@ -46,6 +46,7 @@ import { NameFxDirective } from '../shared/util/name-fx.directive';
               [appNameColor]="caller()?.profileColor"
               [appUserFont]="caller()?.nameFont"
               [nameFx]="caller()?.nameFx"
+              [fxLive]="true"
             >
               {{ caller()?.displayName ?? '…' }}
             </div>

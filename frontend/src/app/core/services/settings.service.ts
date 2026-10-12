@@ -56,15 +56,7 @@ export const CORNER_STEPS: { name: string; small: number; large: number }[] = [
   { name: 'Bubble', small: 18, large: 26 },
 ];
 export type FontId =
-  | 'system'
-  | 'inter'
-  | 'outfit'
-  | 'manrope'
-  | 'nunito'
-  | 'space'
-  | 'lora'
-  | 'mono'
-  | 'custom';
+  'system' | 'inter' | 'outfit' | 'manrope' | 'nunito' | 'space' | 'lora' | 'mono' | 'custom';
 export type BackgroundId =
   | 'aurora'
   | 'waves'
@@ -193,6 +185,8 @@ export class SettingsService {
   readonly messageActions = persisted('pref.messageActions', true);
   /** File name of the click sound the person uploaded (empty when there is none). */
   readonly clickName = persisted('pref.clickName', '');
+  /** Volume (0 to 100) of the notifications: the ping of a message, the tones of people joining and leaving, and the ring of a call. */
+  readonly notificationVolume = persisted('pref.notificationVolume', 100);
   /** Volume (0 to 100) of the soundboard effects of a call, on top of the general volume. */
   readonly callEffectsVolume = persisted('pref.callEffectsVolume', 100);
   /** The categories the person made to sort the sounds of the soundboard. */
@@ -216,6 +210,8 @@ export class SettingsService {
   readonly sendTyping = persisted<boolean>('pref.sendTyping', true);
   /** Show the sent, delivered and read marks under your messages. */
   readonly showMessageStatus = persisted<boolean>('pref.showMessageStatus', true);
+  /** Draw the names of other people in the font they uploaded (a file that comes from them; turn it off to see only built-in fonts). */
+  readonly showSharedFonts = persisted<boolean>('pref.showSharedFonts', true);
 
   // ---- integrations
   /** What Spinly last said about the account: signed in, signed out, or nothing yet (empty). */
@@ -330,8 +326,25 @@ export class SettingsService {
   readonly cameraQuality = persisted<'480' | '720' | '1080'>('pref.cameraQuality', '720');
   /** Pictures per second of the camera. */
   readonly cameraFps = persisted<'15' | '30' | '60'>('pref.cameraFps', '30');
-  /** Whether your own camera is shown mirrored to you (the others always see it as it is). */
-  readonly cameraMirror = persisted('pref.cameraMirror', true);
+  /** What is behind the person in the camera of a call: 'none', 'blur', 'custom', 'preset:<id>' or 'vault:<id>' (a picture of the library). */
+  readonly callBackground = persisted<string>('pref.callBackground', 'none');
+  /** Whether the camera is turned like in a mirror, for you and for everybody who sees it. */
+  readonly cameraMirror = persisted('pref.cameraMirrorAll', false);
+  /** Brightness of the camera, in percent points (-50 to 50; 0 is as it is). */
+  readonly cameraBrightness = persisted('pref.cameraBrightness', 0);
+  /** Contrast of the camera, in percent (50 to 150; 100 is as it is). */
+  readonly cameraContrast = persisted('pref.cameraContrast', 100);
+  /** Color strength of the camera, in percent (0 to 200; 100 is as it is). */
+  readonly cameraSaturation = persisted('pref.cameraSaturation', 100);
+  /** Zoom of the camera, in percent (100 to 200; 100 is none). */
+  readonly cameraZoom = persisted('pref.cameraZoom', 100);
+  /** How strong the blur of the background is (2 to 40). */
+  readonly callBackgroundBlur = persisted('pref.callBackgroundBlur', 16);
+  /** The colors and the angle of the custom background of the camera. */
+  readonly callBackgroundCustom = persisted<{ stops: string[]; angle: number }>(
+    'pref.callBackgroundCustom',
+    { stops: ['#3b2f6b', '#2af5b5'], angle: 135 },
+  );
 
   /** Brings old data up to date and starts applying the preferences to the page. */
   constructor() {

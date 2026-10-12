@@ -26,21 +26,45 @@ const MOODS: [string, RegExp][] = [
   ['party', /^[🎉🥳🎊🎂🍾]/u],
   ['gasp', /^[😮😱😲🤯😳😧]/u],
   ['sleep', /^[😴💤🥱]/u],
-  ['skull', /^[💀☠👻]/u],
+  ['skull', /^[💀☠]/u],
+  ['float', /^[👻👽🎈🛸🫧]/u],
   ['star', /^[⭐🌟✨💫]/u],
   ['cool', /^[😎🕶😏🤨]/u],
   ['angry', /^[😡😠🤬👿]/u],
   ['pray', /^[🙏]/u],
   ['muscle', /^[💪]/u],
+  ['peace', /^[✌🤞🤟🤘🤙👊✊🫡]/u],
+  ['look', /^[👀🙄]/u],
+  ['think', /^[🤔🧐🤨🤷]/u],
+  ['launch', /^[🚀🛩✈🛫]/u],
+  ['drive', /^[🚗🚕🚙🏎🚓🚑🚒🚚🏍🚲🛵🚂🚌]/u],
+  ['sun', /^[☀🌞🌝🌕🌙]/u],
+  ['sway', /^[🌸🌹🌷🌼🌻🌺🍀🌿🌱🍃🍂🍁🌾☁🌧⛈❄☃🌈]/u],
+  ['gift', /^[🎁🧧📦💌]/u],
+  ['coin', /^[💰💸🤑🪙💎]/u],
+  ['dance', /^[🎵🎶🎤🎧🎸🥁🎹🎺🎻💃🕺]/u],
+  ['yum', /^[😋🤤🍕🍔🍟🌭🍿🥓🍩🍪🍫🍦🍰🍎🍓🍒🍉🍌🍇🥑🌮🍣🍜🍺🍻🥂☕🍷]/u],
+  ['critter', /^[🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🦆🦉🐺🦄🐝🦋🐢🐙🐬🐳🦈🐍🐲🐉]/u],
+  ['poop', /^[💩]/u],
 ];
 
-/** Which animation a lone emoji has: its kind ("heart", "kiss"...) or "default" for the common hop. */
-export function emojiMood(text: string): string {
+/** The calm movements a lone emoji with no kind of its own can have: one is picked per message, so they do not all look alike. */
+const GENERIC = ['hop', 'jelly', 'swing', 'wobble'];
+
+/**
+ * Which animation a lone emoji has: its kind ("heart", "kiss", "critter"...) or, when it has none, one of a few general
+ * movements chosen from the seed (the id of the message), so the same emoji does not always move the same way.
+ */
+export function emojiMood(text: string, seed = ''): string {
   const first = text.trim();
   for (const [id, pattern] of MOODS) {
     if (pattern.test(first)) {
       return id;
     }
   }
-  return 'default';
+  let hash = 0;
+  for (const char of seed || first) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return GENERIC[hash % GENERIC.length];
 }

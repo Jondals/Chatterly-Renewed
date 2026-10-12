@@ -49,6 +49,11 @@ const KNOWN = new Set(
 /** The animations that are a light behind the name (a blurred copy of it) and not a movement of the letters. */
 const HALOS = new Set(['glow', 'neon']);
 
+/** How many names may play at the same time on their own (the rest wait for the pointer): a long chat is not a stage. */
+const MAX_LIVE = 30;
+/** How many names are playing on their own now. */
+let liveNow = 0;
+
 /** What to do when a name comes into view or goes out of it. */
 const watchers = new WeakMap<Element, (visible: boolean) => void>();
 /** One observer for every name of the chat. */
@@ -99,6 +104,10 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
   private made = '';
   private stopping = false;
   private watching = false;
+  /** True once the letters are wanted (the pointer came, or the name is on the screen): until then the name is plain text. */
+  private armed = false;
+  /** True while this name counts among the ones that play on their own. */
+  private playing = false;
   /** Tells when the letters change size (a name in a folded section is measured when it opens). */
   private resize: ResizeObserver | null = null;
 
@@ -111,11 +120,30 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     return 'nfx nfx-' + id;
   }
 
-  /** After every check of the view: the letters follow the text of the name. */
+  /**
+   * After every check of the view: the letters follow the text of the name. ! They are only made when they are wanted (the
+   * pointer is over the name, or it is on the screen and plays on its own): a list of names costs nothing until then.
+   */
   ngAfterViewChecked(): void {
     const id = this.nameFx();
     if (!id || id === 'none' || !KNOWN.has(id)) {
       this.unmake();
+      return;
+    }
+    if (!this.armed) {
+      if (this.fxLive() && !this.watching) {
+        this.watching = true;
+        watchVisible(this.host.nativeElement, this.visible.bind(this));
+      }
+      return;
+    }
+    this.refresh();
+  }
+
+  /** Makes the letters again when the name, its animation or its kind of colour changed. */
+  private refresh(): void {
+    const id = this.nameFx();
+    if (!id || id === 'none' || !KNOWN.has(id)) {
       return;
     }
     const node = this.nameNode();
@@ -124,13 +152,20 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
       this.unmake();
       return;
     }
-    if (this.made === id + '|' + text && this.layer?.isConnected) {
+    // ! The kind of colour is part of the key: a name that goes from a gradient to a plain colour (or back) needs its letters
+    // ! made again, or they would keep painting the gradient that is no longer there (and the name would disappear).
+    const kind = this.host.nativeElement.style.getPropertyValue('--name-image') ? 'g' : 'c';
+    if (this.made === id + '|' + text + '|' + kind && this.layer?.isConnected) {
       return;
     }
-    this.make(node, id, text);
+    this.make(node, id, text, kind);
   }
 
   ngOnDestroy(): void {
+    if (this.playing) {
+      this.playing = false;
+      liveNow--;
+    }
     this.resize?.disconnect();
     unwatchVisible(this.host.nativeElement);
   }
@@ -149,7 +184,7 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
   }
 
   /** Builds the layer of letters over the name. */
-  private make(node: Node, id: string, text: string): void {
+  private make(node: Node, id: string, text: string, kind: string): void {
     const host = this.host.nativeElement;
     this.unmake(false);
     const wrapper = document.createElement('span');
@@ -179,7 +214,7 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     wrapper.appendChild(layer);
     this.wrapper = wrapper;
     this.layer = layer;
-    this.made = id + '|' + text;
+    this.made = id + '|' + text + '|' + kind;
     this.paintLetters(letters);
     this.resize?.disconnect();
     if (typeof ResizeObserver !== 'undefined') {
@@ -228,6 +263,10 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
   /** The pointer is over the name: the letters start (or go on, the ones that were resting). */
   protected enter(): void {
     this.stopping = false;
+    if (!this.armed) {
+      this.armed = true;
+      this.refresh();
+    }
     this.host.nativeElement.classList.add('nfx-on');
     this.resume();
   }
@@ -248,9 +287,22 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     }
   }
 
-  /** A name in the chat plays while it is on the screen. */
+  /** A name that plays on its own does it while it is on the screen (up to a number of them at once). */
   private visible(on: boolean): void {
-    this.host.nativeElement.classList.toggle('nfx-on', on);
+    const host = this.host.nativeElement;
+    if (on && !this.playing && liveNow < MAX_LIVE) {
+      this.playing = true;
+      liveNow++;
+      this.armed = true;
+      this.refresh();
+      host.classList.add('nfx-on');
+    } else if (!on && this.playing) {
+      this.playing = false;
+      liveNow--;
+      if (!host.matches(':hover')) {
+        host.classList.remove('nfx-on');
+      }
+    }
   }
 
   /**

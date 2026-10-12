@@ -76,6 +76,7 @@ export function serveStatic(dir, port) {
     '.ico': 'image/x-icon',
     '.woff2': 'font/woff2',
     '.woff': 'font/woff',
+    '.wasm': 'application/wasm',
     '.json': 'application/json',
     '.txt': 'text/plain',
   };

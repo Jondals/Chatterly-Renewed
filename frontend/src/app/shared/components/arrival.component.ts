@@ -754,7 +754,7 @@ export class ArrivalComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     // The sounds (the padlock, the lights, the fireworks) follow the interface sounds, and wait for the first press of the
     // person: before it the browser does not allow any sound.
-    if (this.settings.sounds() && (navigator.userActivation?.hasBeenActive ?? true)) {
+    if (this.settings.sounds() && this.sound.activated) {
       this.silence = playArrivalSounds(this.sound.context, this.sound.output, kind);
     }
     this.fx = startFx(this.canvas().nativeElement, kind === 'logout' ? 'login' : kind);

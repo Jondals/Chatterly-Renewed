@@ -21,6 +21,7 @@ import { checkRelayConfiguration } from './security/relay-configuration.mts';
 import { checkSessions } from './security/sessions.mts';
 import { checkAuthorization } from './security/authorization.mts';
 import { checkImages } from './security/images.mts';
+import { checkVault } from './security/vault.mts';
 import { checkPreview } from './security/preview.mts';
 import { checkDeletion } from './security/deletion.mts';
 import { checkDatabase } from './security/database.mts';
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
     await checkSessions();
     await checkAuthorization();
     await checkImages();
+    await checkVault();
     await checkPreview();
     await checkDeletion();
     await checkFriendRemoval();

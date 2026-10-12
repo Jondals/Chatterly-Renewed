@@ -150,6 +150,16 @@ import { describeError, passwordScore } from '../../shared/util/errors';
           [label]="'Show message marks' | t"
         />
       </app-setting-row>
+      <app-setting-row
+        title="Show the fonts of other people"
+        hint="Friends can give their name a font file of their own. It comes encrypted and the browser checks it before using it. Turn it off to see every name in the built-in fonts."
+      >
+        <app-toggle
+          [checked]="settings.showSharedFonts()"
+          (checkedChange)="settings.showSharedFonts.set($event)"
+          [label]="'Show the fonts of other people' | t"
+        />
+      </app-setting-row>
     </section>
     <section class="mt-6">
       <h2 class="mb-3 text-sm font-semibold">{{ 'How your data is protected' | t }}</h2>

@@ -4,7 +4,7 @@
  * sharing, camera and the music everybody in the call listens to together.
  */
 import { parseMusicLink, type MusicLink } from '../../shared/util/music-link';
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, Injector, computed, effect, inject, signal } from '@angular/core';
 import { toB64 } from '../crypto/bytes';
 import { importEcdhPublic } from '../crypto/identity';
 import { deriveLinkSecrets, securityCode } from '../crypto/media-cipher';
@@ -32,8 +32,11 @@ import { AuthService } from './auth.service';
 import { DirectoryService } from './directory.service';
 import { ApiError, ApiService } from './api.service';
 import { SettingsService } from './settings.service';
+import { CallBackgroundService } from './call-background.service';
+import { canChangeCamera, isNeutral, startCameraFx, type CameraFx } from './camera-fx';
 import { SocketService, type ServerEvent } from './socket.service';
 import { buildVoiceChain } from '../audio-chain';
+import { desktopBridge } from '../desktop-bridge';
 import { SoundService, type SfxId } from './sound.service';
 import { ToastService } from './toast.service';
 
@@ -833,10 +836,72 @@ export class CallService {
   }
 
   /**
+   * Opens the camera and, when the person chose a background (a blur, a color, a picture), gives back the processed video
+   * instead of the raw one. If the background cannot be made (the engine does not load) the plain camera is used.
+   */
+  private async openCamera(): Promise<MediaStream> {
+    const raw = await this.openRawCamera();
+    if (!this.backgrounds.active() || !canChangeCamera()) {
+      return raw;
+    }
+    try {
+      const options = await this.backgrounds.options();
+      const fx = await startCameraFx(raw, options, this.fxProblem.bind(this));
+      if (!fx) {
+        return raw;
+      }
+      this.fxs.set(fx.stream, fx);
+      return fx.stream;
+    } catch {
+      this.toast.error('Background unavailable', 'The camera is shown without it.');
+      return raw;
+    }
+  }
+
+  /** The worker of the effects said it could not do something (no graphics, no model): the person is told once. */
+  private fxProblem(reason: string): void {
+    if (reason === 'model') {
+      this.toast.error('Background unavailable', 'The camera is shown without it.');
+    }
+  }
+
+  /** The camera with effects, by the stream the call sends (to stop the effects with it). */
+  private readonly fxs = new Map<MediaStream, CameraFx>();
+  private readonly injector = inject(Injector);
+  /** The backgrounds are only needed when a camera starts: nothing of them is made when the app opens. */
+  private get backgrounds(): CallBackgroundService {
+    return this.injector.get(CallBackgroundService);
+  }
+
+  /**
+   * The background chosen in the settings changed: a camera that is on follows it at once when only the picture behind
+   * the person changes, and restarts when it has to start or stop the processing.
+   */
+  async applyBackground(): Promise<void> {
+    const stream = this.localCamera();
+    if (!this.cameraOn() || !stream) {
+      return;
+    }
+    const fx = this.fxs.get(stream);
+    const options = await this.backgrounds.options();
+    if (fx) {
+      // Once the effects run they stay on until the camera restarts (a slider coming back to zero does not blink the camera).
+      fx.setOptions(options);
+    } else if (!isNeutral(options)) {
+      await this.changeCamera();
+    }
+  }
+
+  /** Opens the camera for a preview (the window of the camera): the same camera the call would use, with no effects. */
+  openPreviewCamera(): Promise<MediaStream> {
+    return this.openRawCamera();
+  }
+
+  /**
    * Opens the camera the person chose. If that device is gone (unplugged, another computer) the default one is used
    * instead of failing, and the choice goes back to "default".
    */
-  private async openCamera(): Promise<MediaStream> {
+  private async openRawCamera(): Promise<MediaStream> {
     const height = Number(this.settings.cameraQuality());
     const quality = {
       width: { ideal: Math.round((height * 16) / 9) },
@@ -887,6 +952,12 @@ export class CallService {
       video.displaySurface = choice.surface;
     }
     try {
+      // In the desktop app what the person chose in the menu (a screen or a window) decides what its picker offers.
+      await desktopBridge()
+        ?.screen?.setSurface(choice.surface)
+        .catch(function ignore(): void {
+          return undefined;
+        });
       const stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: choice.audio });
       this.localScreen.set(stream);
       this.screenOn.set(true);
@@ -2039,6 +2110,11 @@ export class CallService {
   // ---- cleanup -------------------------------------------------------------------------------
 
   private stopStream(stream: MediaStream | null): void {
+    if (stream && this.fxs.has(stream)) {
+      // The camera with effects: stopping it also stops the raw camera behind it (its light goes off).
+      this.fxs.get(stream)!.stop();
+      this.fxs.delete(stream);
+    }
     stream?.getTracks().forEach(function (t) {
       return t.stop();
     });

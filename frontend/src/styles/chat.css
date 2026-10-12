@@ -78,8 +78,9 @@ button:disabled,
 
 /* profile name fonts (also used in chat) */
 .font-name-display {
-  font-family: 'Outfit Variable', var(--font-ui), sans-serif;
-  letter-spacing: -0.01em;
+  font-family: 'Righteous', 'Outfit Variable', var(--font-ui), sans-serif;
+  letter-spacing: 0.01em;
+  font-weight: 400;
 }
 
 .chan-item[draggable='true'] {
@@ -296,19 +297,27 @@ button:disabled,
   filter: brightness(1.18);
 }
 
-/* A message that is only a few emoji: big, no bubble, and one of six entrances (picked per message). It does not
-   move on hover: the emoji only brightens a little, so it never trembles under the pointer. */
+/* A message that is only a few emoji: big, no bubble.
+   * An emoji that has just arrived makes one of eight entrances (picked per message) and then does a short show of its own
+     kind (see emojiMood() in emoji-only.ts): a heart beats, a kiss sends a kiss, a rocket takes off, a critter hops...
+     The show runs a couple of times and stops: nothing loops for ever.
+   * The ones that were already in the chat when it was opened only settle in softly, so entering a chat does not set a
+     dozen emoji moving at once.
+   * Pressing a lone emoji plays its show again (the class emo-play is added by the component).
+   The emoji does not move on hover (it only brightens), so it never trembles under the pointer. Only transform and
+   opacity change, so it costs almost nothing. */
 .bubble-emoji,
 .bubble-emoji.bubble-in,
 .bubble-emoji.bubble-out {
+  position: relative;
   background: none !important;
   border: 0 !important;
   box-shadow: none !important;
   font-size: 3.2rem !important;
   line-height: 1.15 !important;
   padding: 0.1rem 0.25rem !important;
-  animation: emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  transform-origin: bottom left;
+  animation: emoji-settle 0.4s var(--ease-suave) both;
+  transform-origin: 50% 80%;
   transition: filter 0.25s var(--ease-suave);
 }
 
@@ -320,158 +329,360 @@ button:disabled,
   font-size: 1.9rem !important;
 }
 
-.bubble-emoji[data-pop='1'] {
-  animation-name: emoji-drop;
-}
-
-.bubble-emoji[data-pop='2'] {
-  animation-name: emoji-spin;
-}
-
 .bubble-emoji:hover {
   filter: brightness(1.15) saturate(1.1);
 }
 
-/* After its entrance a lone emoji keeps a little life, like in WhatsApp: a quick hop every few seconds (only
-   transforms, so it costs nothing) and the same hop again when it is pressed. It does not run for reduced motion. */
 .bubble-emoji.is-single {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emoji-idle 6s ease-in-out 2s infinite;
   cursor: var(--cur-pointer, pointer);
 }
 
-.bubble-emoji.is-single:active {
-  animation: emoji-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+/* The eight entrances of an emoji that has just arrived. */
+.bubble-emoji.is-fresh {
+  --emo-enter: emoji-pop;
+  animation: var(--emo-enter) 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.bubble-emoji.is-fresh[data-pop='1'] {
+  --emo-enter: emoji-drop;
+}
+.bubble-emoji.is-fresh[data-pop='2'] {
+  --emo-enter: emoji-spin;
+}
+.bubble-emoji.is-fresh[data-pop='3'] {
+  --emo-enter: emo-in-left;
+}
+.bubble-emoji.is-fresh[data-pop='4'] {
+  --emo-enter: emo-in-right;
+}
+.bubble-emoji.is-fresh[data-pop='5'] {
+  --emo-enter: emo-in-zoom;
+}
+.bubble-emoji.is-fresh[data-pop='6'] {
+  --emo-enter: emo-in-flip;
+}
+.bubble-emoji.is-fresh[data-pop='7'] {
+  --emo-enter: emo-in-jelly;
 }
 
-/* Each kind of lone emoji moves in its own way (like WhatsApp: the heart beats, the kiss sends a kiss, the fire flickers...).
-   The moods come from emojiMood() in emoji-only.ts. Only transform and opacity change. */
+/* The show of a lone emoji: its movement, how long it lasts, how many times it repeats, and the two little things that
+   fly out of it (the pseudo-elements). It starts when the entrance ends and stops on its own. */
 .bubble-emoji.is-single {
-  position: relative;
+  --emo-move: emo-hop;
+  --emo-dur: 1.8s;
+  --emo-count: 2;
 }
+/* An emoji that arrives only settles in softly: its show (and its particles) plays when it is pressed, never by itself. */
+.bubble-emoji.is-fresh,
+.bubble-emoji.is-single.is-fresh {
+  animation: emoji-settle 0.4s var(--ease-suave) both;
+}
+.bubble-emoji.is-single.emo-play {
+  animation:
+    emo-replay 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    var(--emo-move) var(--emo-dur) ease-in-out 0.5s var(--emo-count);
+}
+
+.bubble-emoji.is-single::before,
 .bubble-emoji.is-single::after {
   position: absolute;
   left: 62%;
   top: 8%;
-  font-size: 0.45em;
+  font-size: 0.42em;
   line-height: 1;
   opacity: 0;
   pointer-events: none;
 }
+.bubble-emoji.is-single.emo-play::after {
+  animation: var(--emo-burst, none) var(--emo-dur) ease-out 0.5s var(--emo-count);
+}
+.bubble-emoji.is-single.emo-play::before {
+  animation: var(--emo-burst2, none) var(--emo-dur) ease-out 0.7s var(--emo-count);
+}
+
+/* General movements, for an emoji with no kind of its own (one is picked per message). */
+.bubble-emoji.is-single[data-mood='hop'] {
+  --emo-move: emo-hop;
+}
+.bubble-emoji.is-single[data-mood='jelly'] {
+  --emo-move: emo-jelly;
+  --emo-dur: 1.5s;
+}
+.bubble-emoji.is-single[data-mood='swing'] {
+  --emo-move: emo-swing;
+  --emo-dur: 2.2s;
+  transform-origin: 50% 10%;
+}
+.bubble-emoji.is-single[data-mood='wobble'] {
+  --emo-move: emo-wobble;
+  --emo-dur: 1.6s;
+}
+
+/* The kinds. */
 .bubble-emoji.is-single[data-mood='heart'],
 .bubble-emoji.is-single[data-mood='love'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-heart 1.9s ease-in-out 0.8s infinite;
+  --emo-move: emo-heart;
+  --emo-dur: 1.7s;
+  --emo-count: 3;
+  --emo-burst: emo-float;
+  --emo-burst2: emo-float-l;
 }
+.bubble-emoji.is-single[data-mood='heart']::after,
 .bubble-emoji.is-single[data-mood='love']::after {
   content: '💕';
-  animation: emo-float 2.4s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='heart']::before,
+.bubble-emoji.is-single[data-mood='love']::before {
+  content: '💗';
+  left: 12%;
 }
 .bubble-emoji.is-single[data-mood='kiss'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-kiss 2.6s ease-in-out 0.8s infinite;
+  --emo-move: emo-kiss;
+  --emo-dur: 2.2s;
+  --emo-burst: emo-blow;
 }
 .bubble-emoji.is-single[data-mood='kiss']::after {
   content: '💋';
-  animation: emo-blow 2.6s ease-out 0.8s infinite;
 }
-.bubble-emoji.is-single[data-mood='laugh'],
+.bubble-emoji.is-single[data-mood='laugh'] {
+  --emo-move: emo-laugh;
+  --emo-dur: 1.9s;
+  --emo-count: 3;
+}
 .bubble-emoji.is-single[data-mood='skull'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-laugh 2.4s ease-in-out 0.8s infinite;
+  --emo-move: emo-wobble;
+  --emo-dur: 1.4s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='skull']::after {
+  content: '✨';
 }
 .bubble-emoji.is-single[data-mood='cry'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-sob 2.2s ease-in-out 0.8s infinite;
+  --emo-move: emo-sob;
+  --emo-dur: 2s;
+  --emo-count: 3;
+  --emo-burst: emo-drop;
+  --emo-burst2: emo-drop;
 }
 .bubble-emoji.is-single[data-mood='cry']::after {
   content: '💧';
-  left: 30%;
+  left: 24%;
   top: 55%;
-  animation: emo-drop 1.6s ease-in 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='cry']::before {
+  content: '💧';
+  left: 66%;
+  top: 55%;
 }
 .bubble-emoji.is-single[data-mood='fire'] {
+  --emo-move: emo-fire;
+  --emo-dur: 0.8s;
+  --emo-count: 5;
   transform-origin: 50% 90%;
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-fire 0.9s ease-in-out 0.8s infinite;
 }
 .bubble-emoji.is-single[data-mood='thumb'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-thumb 2.4s ease-in-out 0.8s infinite;
+  --emo-move: emo-thumb;
+  --emo-dur: 1.8s;
 }
 .bubble-emoji.is-single[data-mood='clap'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-clap 1.4s ease-in-out 0.8s infinite;
+  --emo-move: emo-clap;
+  --emo-dur: 1.1s;
+  --emo-count: 3;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='clap']::after {
+  content: '✨';
 }
 .bubble-emoji.is-single[data-mood='wave'] {
+  --emo-move: emo-wave;
+  --emo-dur: 1.7s;
   transform-origin: 70% 85%;
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-wave 2s ease-in-out 0.8s infinite;
 }
 .bubble-emoji.is-single[data-mood='party'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-party 2.2s ease-in-out 0.8s infinite;
+  --emo-move: emo-party;
+  --emo-dur: 1.8s;
+  --emo-count: 3;
+  --emo-burst: emo-float;
+  --emo-burst2: emo-float-l;
 }
 .bubble-emoji.is-single[data-mood='party']::after {
   content: '🎊';
-  animation: emo-float 2.2s ease-out 0.8s infinite;
+}
+.bubble-emoji.is-single[data-mood='party']::before {
+  content: '🎉';
+  left: 8%;
 }
 .bubble-emoji.is-single[data-mood='gasp'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-gasp 2.8s ease-in-out 0.8s infinite;
+  --emo-move: emo-gasp;
+  --emo-dur: 2s;
 }
 .bubble-emoji.is-single[data-mood='sleep'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-breathe 3.4s ease-in-out 0.8s infinite;
+  --emo-move: emo-breathe;
+  --emo-dur: 3s;
+  --emo-burst: emo-float;
 }
 .bubble-emoji.is-single[data-mood='sleep']::after {
   content: '💤';
-  animation: emo-float 2.8s ease-out 0.8s infinite;
 }
 .bubble-emoji.is-single[data-mood='star'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-spin 4s ease-in-out 0.8s infinite;
+  --emo-move: emo-spin-slow;
+  --emo-dur: 2.4s;
+  --emo-burst: emo-twinkle;
+  --emo-burst2: emo-twinkle;
+}
+.bubble-emoji.is-single[data-mood='star']::after {
+  content: '✨';
+  left: 78%;
+  top: 4%;
+}
+.bubble-emoji.is-single[data-mood='star']::before {
+  content: '✨';
+  left: 6%;
+  top: 40%;
 }
 .bubble-emoji.is-single[data-mood='cool'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-cool 3s ease-in-out 0.8s infinite;
+  --emo-move: emo-cool;
+  --emo-dur: 2.2s;
 }
 .bubble-emoji.is-single[data-mood='angry'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-rage 1.2s ease-in-out 0.8s infinite;
+  --emo-move: emo-rage;
+  --emo-dur: 0.9s;
+  --emo-count: 3;
 }
 .bubble-emoji.is-single[data-mood='pray'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-pray 2.4s ease-in-out 0.8s infinite;
+  --emo-move: emo-pray;
+  --emo-dur: 2s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='pray']::after {
+  content: '✨';
 }
 .bubble-emoji.is-single[data-mood='muscle'] {
-  animation:
-    emoji-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    emo-flex 1.8s ease-in-out 0.8s infinite;
+  --emo-move: emo-flex;
+  --emo-dur: 1.5s;
+}
+.bubble-emoji.is-single[data-mood='peace'] {
+  --emo-move: emo-wiggle;
+  --emo-dur: 1.3s;
+  --emo-count: 3;
+}
+.bubble-emoji.is-single[data-mood='look'] {
+  --emo-move: emo-look;
+  --emo-dur: 2.2s;
+}
+.bubble-emoji.is-single[data-mood='think'] {
+  --emo-move: emo-think;
+  --emo-dur: 2.2s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='think']::after {
+  content: '💭';
+}
+.bubble-emoji.is-single[data-mood='float'] {
+  --emo-move: emo-floaty;
+  --emo-dur: 2.6s;
+}
+.bubble-emoji.is-single[data-mood='launch'] {
+  --emo-move: emo-launch;
+  --emo-dur: 1.9s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='launch']::after {
+  content: '💨';
+  left: 6%;
+  top: 60%;
+}
+.bubble-emoji.is-single[data-mood='drive'] {
+  --emo-move: emo-drive;
+  --emo-dur: 2s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='drive']::after {
+  content: '💨';
+  left: -8%;
+  top: 50%;
+}
+.bubble-emoji.is-single[data-mood='sun'] {
+  --emo-move: emo-sun;
+  --emo-dur: 3s;
+  --emo-burst: emo-twinkle;
+}
+.bubble-emoji.is-single[data-mood='sun']::after {
+  content: '✨';
+  left: 74%;
+  top: 2%;
+}
+.bubble-emoji.is-single[data-mood='sway'] {
+  --emo-move: emo-sway;
+  --emo-dur: 2.6s;
+  transform-origin: 50% 95%;
+}
+.bubble-emoji.is-single[data-mood='gift'] {
+  --emo-move: emo-gift;
+  --emo-dur: 1.6s;
+  --emo-burst: emo-float;
+}
+.bubble-emoji.is-single[data-mood='gift']::after {
+  content: '🎉';
+}
+.bubble-emoji.is-single[data-mood='coin'] {
+  --emo-move: emo-coin;
+  --emo-dur: 1.6s;
+  --emo-burst: emo-twinkle;
+}
+.bubble-emoji.is-single[data-mood='coin']::after {
+  content: '✨';
+  left: 76%;
+}
+.bubble-emoji.is-single[data-mood='dance'] {
+  --emo-move: emo-dance;
+  --emo-dur: 1.2s;
+  --emo-count: 4;
+  --emo-burst: emo-float;
+  --emo-burst2: emo-float-l;
+}
+.bubble-emoji.is-single[data-mood='dance']::after {
+  content: '🎵';
+}
+.bubble-emoji.is-single[data-mood='dance']::before {
+  content: '🎶';
+  left: 10%;
+}
+.bubble-emoji.is-single[data-mood='yum'] {
+  --emo-move: emo-bounce;
+  --emo-dur: 1.5s;
+  --emo-count: 3;
+}
+.bubble-emoji.is-single[data-mood='critter'] {
+  --emo-move: emo-critter;
+  --emo-dur: 1.7s;
+  --emo-count: 2;
+}
+.bubble-emoji.is-single[data-mood='poop'] {
+  --emo-move: emo-bounce;
+  --emo-dur: 1.3s;
+  --emo-count: 3;
+}
+
+/* A weak machine (the app switches its light mode on by itself) gets the entrance only: no show, no particles. */
+[data-perf='low'] .bubble-emoji.is-single.is-fresh,
+[data-perf='low'] .bubble-emoji.is-single.emo-play {
+  animation: var(--emo-enter, emoji-pop) 0.5s ease-out both;
+}
+[data-perf='low'] .bubble-emoji.is-single::before,
+[data-perf='low'] .bubble-emoji.is-single::after {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bubble-emoji.is-single::after {
+  .bubble-emoji,
+  .bubble-emoji.is-fresh,
+  .bubble-emoji.is-single.is-fresh,
+  .bubble-emoji.is-single.emo-play {
     animation: none !important;
   }
-  .bubble-emoji.is-single {
-    animation: none;
+  .bubble-emoji.is-single::before,
+  .bubble-emoji.is-single::after {
+    display: none;
   }
 }
 

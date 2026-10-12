@@ -122,9 +122,7 @@ export function startShow(
   canvas.width = Math.round(width * ratio);
   canvas.height = Math.round(height * ratio);
   const context = canvas.getContext('2d') as
-    | CanvasRenderingContext2D
-    | OffscreenCanvasRenderingContext2D
-    | null;
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   const centreX = width / 2;
   const centreY = height / 2 - (mode === 'intro' ? 50 : 20);
   const ringR = mode === 'intro' ? 96 : 62;
@@ -209,9 +207,7 @@ export function startShow(
   for (const hue of HUES) {
     const sprite = hooks.makeCanvas(64);
     const paint = sprite.getContext('2d') as
-      | CanvasRenderingContext2D
-      | OffscreenCanvasRenderingContext2D
-      | null;
+      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (paint) {
       const [red, green, blue] = palette[hue]!;
       const centre = lighten([red, green, blue], 0.55);

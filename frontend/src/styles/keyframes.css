@@ -1220,3 +1220,396 @@
     transform: scale(1.05, 0.96);
   }
 }
+
+/* ── More animations of the lone emoji (see chat.css, "data-mood" and "is-fresh") ───────────────────────────── */
+@keyframes emoji-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes emo-replay {
+  0% {
+    transform: scale(0.7) rotate(-8deg);
+  }
+  55% {
+    transform: scale(1.2) rotate(4deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+/* The other entrances: from the left, from the right, a zoom from close up, a flip and a jelly. */
+@keyframes emo-in-left {
+  0% {
+    transform: translateX(-3.2rem) rotate(-24deg) scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(0.4rem) rotate(5deg) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes emo-in-right {
+  0% {
+    transform: translateX(3.2rem) rotate(24deg) scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-0.4rem) rotate(-5deg) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes emo-in-zoom {
+  0% {
+    transform: scale(2.6);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  55% {
+    transform: scale(0.9);
+    opacity: 1;
+    filter: none;
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes emo-in-flip {
+  0% {
+    transform: perspective(500px) rotateY(-180deg) scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: perspective(500px) rotateY(12deg) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes emo-in-jelly {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.3, 0.7);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8, 1.2);
+  }
+  70% {
+    transform: scale(1.1, 0.92);
+  }
+  100% {
+    transform: none;
+  }
+}
+/* General movements. */
+@keyframes emo-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateY(-0.7rem) scale(1.06);
+  }
+  45% {
+    transform: translateY(0) scale(1.05, 0.93);
+  }
+  60% {
+    transform: translateY(-0.25rem);
+  }
+  75% {
+    transform: none;
+  }
+}
+@keyframes emo-jelly {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  25% {
+    transform: scale(1.18, 0.84);
+  }
+  45% {
+    transform: scale(0.88, 1.14);
+  }
+  65% {
+    transform: scale(1.06, 0.96);
+  }
+  85% {
+    transform: scale(0.98, 1.02);
+  }
+}
+@keyframes emo-swing {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(14deg);
+  }
+  75% {
+    transform: rotate(-14deg);
+  }
+}
+@keyframes emo-wobble {
+  0%,
+  100% {
+    transform: none;
+  }
+  15% {
+    transform: translateX(-0.3rem) rotate(-6deg);
+  }
+  30% {
+    transform: translateX(0.25rem) rotate(5deg);
+  }
+  45% {
+    transform: translateX(-0.18rem) rotate(-3deg);
+  }
+  60% {
+    transform: translateX(0.1rem) rotate(2deg);
+  }
+  75% {
+    transform: none;
+  }
+}
+@keyframes emo-critter {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translateY(-0.55rem) rotate(-8deg);
+  }
+  35% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-0.4rem) rotate(8deg);
+  }
+  65% {
+    transform: translateY(0) rotate(0) scale(1.04, 0.96);
+  }
+}
+@keyframes emo-bounce {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translateY(-0.9rem) scale(0.96, 1.08);
+  }
+  40% {
+    transform: translateY(0) scale(1.12, 0.86);
+  }
+  55% {
+    transform: translateY(-0.3rem) scale(0.98, 1.03);
+  }
+  70% {
+    transform: none;
+  }
+}
+@keyframes emo-dance {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateY(-0.4rem) rotate(-10deg);
+  }
+  50% {
+    transform: translateY(0) rotate(0);
+  }
+  75% {
+    transform: translateY(-0.4rem) rotate(10deg);
+  }
+}
+@keyframes emo-launch {
+  0%,
+  15%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translate(-0.1rem, 0.2rem) scale(0.96);
+  }
+  60% {
+    transform: translate(1.4rem, -1.8rem) scale(1.1);
+    opacity: 0;
+  }
+  61% {
+    transform: translate(-1.4rem, 1.8rem) scale(0.8);
+    opacity: 0;
+  }
+  80% {
+    opacity: 1;
+    transform: translate(0, 0.1rem);
+  }
+}
+@keyframes emo-drive {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: translateX(-0.9rem) rotate(-3deg);
+  }
+  70% {
+    transform: translateX(1.2rem) rotate(2deg);
+  }
+  85% {
+    transform: translateX(0.2rem);
+  }
+}
+@keyframes emo-sun {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    filter: brightness(1.2);
+  }
+}
+@keyframes emo-spin-slow {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.15);
+  }
+}
+@keyframes emo-sway {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(7deg);
+  }
+  70% {
+    transform: rotate(-7deg);
+  }
+}
+@keyframes emo-floaty {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-0.7rem) rotate(3deg);
+  }
+}
+@keyframes emo-look {
+  0%,
+  100% {
+    transform: none;
+  }
+  20%,
+  40% {
+    transform: translateX(-0.5rem);
+  }
+  60%,
+  80% {
+    transform: translateX(0.5rem);
+  }
+}
+@keyframes emo-think {
+  0%,
+  100% {
+    transform: none;
+  }
+  30%,
+  70% {
+    transform: rotate(-12deg) translateY(-0.1rem);
+  }
+}
+@keyframes emo-wiggle {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: rotate(-14deg) scale(1.08);
+  }
+  50% {
+    transform: rotate(10deg) scale(1.08);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+}
+@keyframes emo-gift {
+  0%,
+  100% {
+    transform: none;
+  }
+  15% {
+    transform: rotate(-10deg);
+  }
+  30% {
+    transform: rotate(10deg);
+  }
+  45% {
+    transform: rotate(-6deg) scale(1.05);
+  }
+  60% {
+    transform: scale(1.22);
+  }
+  75% {
+    transform: none;
+  }
+}
+@keyframes emo-coin {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: perspective(400px) rotateY(360deg) translateY(-0.4rem);
+  }
+}
+/* What flies out of an emoji. */
+@keyframes emo-float-l {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.5);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-14px, -38px) scale(1.15) rotate(-14deg);
+  }
+}
+@keyframes emo-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2) rotate(40deg);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(0.6) rotate(80deg);
+  }
+}

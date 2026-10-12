@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-backend",
-  "version": "2.27.0",
+  "version": "2.30.0",
   "description": "Chatterly-Renewed backend: zero-knowledge auth, E2EE message relay and WebRTC signaling.",
   "main": "dist/index.js",
   "private": true,
@@ -19,20 +19,20 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@fastify/cors": "^11.2.0",
-    "@fastify/helmet": "^13.1.1",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/helmet": "^13.1.2",
     "@fastify/jwt": "^10.2.4",
-    "@fastify/rate-limit": "^11.2.0",
-    "@fastify/websocket": "^11.2.0",
-    "better-sqlite3": "^12.8.0",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/websocket": "^11.3.4",
+    "better-sqlite3": "^13.0.3",
     "fastify": "^5.8.4"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.5.0",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.19.2",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.15",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "ws": "^8.22.0"
   },
   "packageManager": "pnpm@11.2.2"

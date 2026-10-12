@@ -17,6 +17,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  screen,
   session,
   shell,
   desktopCapturer,
@@ -26,8 +27,10 @@ const {
 const path = require('node:path');
 const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
+const graphics = require('./graphics.cjs');
 const updater = require('./updater.cjs');
 const { trace } = require('./trace.cjs');
+const windowState = require('./window-state.cjs');
 
 const RETRY_MS = 5000;
 /** Permissions the app itself may use. Anything else (geolocation, midi, usb, ...) is refused. */
@@ -37,13 +40,23 @@ const ALLOWED_PERMISSIONS = new Set([
   'notifications',
   'fullscreen',
   'clipboard-sanitized-write',
+  // Reading the clipboard still needs a click of the person (the Paste button of a link field).
+  'clipboard-read',
 ]);
+
+/** On Windows the app draws its own bar at the top (the page draws it; Windows draws the buttons over it). */
+const CUSTOM_TITLEBAR = process.platform === 'win32';
+const TITLEBAR_HEIGHT = 36;
+const TITLEBAR_COLORS = { color: '#06070b', symbolColor: '#e8eaf2' };
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 let serverUrl;
 /** The folder with the packed web app, or null when the window loads the server (remote mode). */
 let webDir = null;
 /** The origin of the pages of the app: app://chatterly when bundled, the server itself when remote. */
 let appOrigin = '';
+/** What the person chose to share in the menu of the call: any, monitor (a screen) or window. Asked for before each capture. */
+let screenSurface = 'any';
 let mainWindow = null;
 let pickerWindow = null;
 let retryTimer = null;
@@ -103,6 +116,10 @@ if (app.isPackaged) {
 const QUIET = !app.isPackaged && process.env.CHATTERLY_TEST_QUIET === '1';
 const QUIET_WINDOW = QUIET ? { x: -32000, y: -32000, skipTaskbar: true } : {};
 
+// * How the graphics card is used (hardware acceleration and the graphics layer) is the choice of the person in Settings, read now
+//   because Chromium decides it when it starts. It is a fixed list of values: see graphics.cjs.
+const graphicsApplied = graphics.apply(app, process.platform);
+
 // * Every renderer runs in the Chromium sandbox, also the ones created later.
 app.enableSandbox();
 // ! Must happen before the app is ready.
@@ -110,6 +127,8 @@ bundle.registerScheme();
 // * Windows works out which windows are covered by others and slows those down; a call in a window that is behind
 //   another one must not be slowed down (the same switch VS Code uses).
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// * This is an app, not a web page: its sounds (the intro, the rings) play at once, without waiting for a click.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // ? The default user agent says "Electron" and the package name; the web app does not need either.
 app.userAgentFallback = app.userAgentFallback
   .replace(/\sElectron\/\S+/, '')
@@ -179,8 +198,102 @@ function onPermissionCheck(contents, permission, requestingOrigin) {
   return isAppOrigin(requestingOrigin) && ALLOWED_PERMISSIONS.has(permission);
 }
 
+/** The words of the picker, in the language of the system (English when it is not Spanish). */
+function pickerLanguage() {
+  return String(app.getLocale() || 'en').slice(0, 2) === 'es' ? 'es' : 'en';
+}
+
+/** True when the message comes from the main page of the app (not an embedded frame, not another window). */
+function isMainPage(event) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const frame = event.senderFrame;
+  return (
+    event.sender === mainWindow.webContents &&
+    Boolean(frame) &&
+    frame === mainWindow.webContents.mainFrame &&
+    isAppOrigin(frame.url)
+  );
+}
+
+/**
+ * The page tells the colors of its bar so the buttons of Windows match the theme.
+ * ! Only the main page, and only two colors written as "#rrggbb": nothing else reaches the window.
+ */
+function onTitlebarColors(event, colors) {
+  if (!CUSTOM_TITLEBAR || !isMainPage(event)) return false;
+  if (
+    !colors ||
+    typeof colors !== 'object' ||
+    typeof colors.color !== 'string' ||
+    typeof colors.symbolColor !== 'string' ||
+    !HEX_COLOR.test(colors.color) ||
+    !HEX_COLOR.test(colors.symbolColor)
+  ) {
+    return false;
+  }
+  try {
+    mainWindow.setTitleBarOverlay({
+      color: colors.color,
+      symbolColor: colors.symbolColor,
+      height: TITLEBAR_HEIGHT,
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * ! Only the main page of the app may say what it is about to share, and only one of the known words. (A page that
+ *   lies can only make the picker show screens instead of windows: it never gets a capture without the picker.)
+ */
+function onScreenSurface(event, surface) {
+  if (!isMainPage(event)) return false;
+  // "A tab" is a browser idea: here it means a window. Anything that is not on the list means "ask for everything".
+  if (surface === 'monitor' || surface === 'window') screenSurface = surface;
+  else if (surface === 'browser') screenSurface = 'window';
+  else screenSurface = 'any';
+  return true;
+}
+
+/** The graphics choice of the person, what this run uses, the layers that exist here and the state of the graphics card. */
+function graphicsState() {
+  const chosen = graphics.read(app.getPath('userData'), process.platform);
+  const features = app.getGPUFeatureStatus();
+  return {
+    ...chosen,
+    applied: graphicsApplied,
+    backends: graphics.backendsFor(process.platform),
+    restartRequired:
+      chosen.hardwareAcceleration !== graphicsApplied.hardwareAcceleration ||
+      chosen.backend !== graphicsApplied.backend,
+    compositing: String(features.gpu_compositing || 'unknown'),
+    webgl: String(features.webgl2 || 'unknown'),
+  };
+}
+
+/** The page asks how the graphics are set. */
+function onGraphicsGet(event) {
+  return isMainPage(event) ? graphicsState() : null;
+}
+
+/** The page changes the graphics choice (it is checked and kept; it applies when the app starts again). */
+function onGraphicsSet(event, value) {
+  if (!isMainPage(event)) return null;
+  graphics.write(app.getPath('userData'), process.platform, value);
+  return graphicsState();
+}
+
+/** The page asks to start the app again so the graphics choice applies. */
+function onGraphicsRestart(event) {
+  if (!isMainPage(event)) return false;
+  app.relaunch();
+  app.exit(0);
+  return true;
+}
+
 /** Shows the list of screens and windows and resolves with the chosen source id, or null if cancelled. */
-function pickSource(sources) {
+function pickSource(sources, kind) {
   return new Promise(function executor(resolve) {
     let settled = false;
     pickerWindow = new BrowserWindow({
@@ -233,7 +346,7 @@ function pickSource(sources) {
       const list = sources.map(function toItem(source) {
         return { id: source.id, name: source.name, thumb: source.thumbnail.toDataURL() };
       });
-      picker.webContents.send('picker:sources', list);
+      picker.webContents.send('picker:sources', { kind, language: pickerLanguage(), items: list });
     }
 
     ipcMain.on('picker:choose', onChoose);
@@ -261,12 +374,27 @@ async function onDisplayMediaRequest(request, callback) {
     return;
   }
   try {
+    // * What the person chose in the menu of the call decides what is offered; with one screen and "a screen" chosen
+    //   there is nothing left to ask, so it is shared at once.
+    const surface = screenSurface;
+    screenSurface = 'any';
     const sources = await desktopCapturer.getSources({
-      types: ['screen', 'window'],
+      types:
+        surface === 'monitor'
+          ? ['screen']
+          : surface === 'window'
+            ? ['window']
+            : ['screen', 'window'],
       thumbnailSize: { width: 320, height: 180 },
       fetchWindowIcons: false,
     });
-    const chosen = sources.length > 0 ? await pickSource(sources) : null;
+    const kind = surface === 'monitor' ? 'screen' : surface === 'window' ? 'window' : 'any';
+    const chosen =
+      surface === 'monitor' && sources.length === 1
+        ? sources[0].id
+        : sources.length > 0
+          ? await pickSource(sources, kind)
+          : null;
     const source = sources.find(function byId(candidate) {
       return candidate.id === chosen;
     });
@@ -330,17 +458,44 @@ function onFinishLoad() {
   trace('did-finish-load');
 }
 
+/** Where the state of the window is kept. */
+function windowStatePath() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+/** Writes how the window is left (maximized or where it is) when it closes. Tests keep their windows off screen: nothing is saved. */
+function saveWindowState() {
+  if (QUIET || !mainWindow || mainWindow.isDestroyed()) return;
+  windowState.save(windowStatePath(), {
+    maximized: mainWindow.isMaximized(),
+    bounds: mainWindow.getNormalBounds(),
+  });
+}
+
 function createWindow() {
+  const saved = windowState.load(windowStatePath());
+  const workAreas = screen.getAllDisplays().map(function workArea(display) {
+    return display.workArea;
+  });
+  const bounds = windowState.fitBounds(saved.bounds, workAreas);
   mainWindow = new BrowserWindow({
     ...QUIET_WINDOW,
-    width: 1280,
-    height: 800,
+    ...(bounds && !QUIET ? bounds : {}),
+    width: bounds ? bounds.width : 1280,
+    height: bounds ? bounds.height : 800,
     minWidth: 360,
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#06070b',
     title: 'Chatterly',
+    // The bar is drawn by the page; Windows draws minimize, maximize and close over it (and keeps its snap layouts).
+    ...(CUSTOM_TITLEBAR
+      ? {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { ...TITLEBAR_COLORS, height: TITLEBAR_HEIGHT },
+        }
+      : {}),
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -354,11 +509,18 @@ function createWindow() {
       // * Compile and cache the scripts of the app from the first start, not after they prove to be used often.
       v8CacheOptions: 'bypassHeatCheck',
       // * Bundled: the page learns the API address from the preload (window.CHATTERLY_API), nothing else.
-      additionalArguments: webDir ? ['--chatterly-api=' + serverUrl.origin] : [],
+      additionalArguments: [
+        ...(webDir ? ['--chatterly-api=' + serverUrl.origin] : []),
+        ...(CUSTOM_TITLEBAR ? ['--chatterly-titlebar=' + TITLEBAR_HEIGHT] : []),
+      ],
       // * A call must keep its timers and its key rotation while the window is behind other windows or minimized.
       backgroundThrottling: false,
     },
   });
+  // * First start: maximized, and it stays so until the person restores it (then it opens as they left it).
+  trace(saved.maximized ? 'window-mode maximized' : 'window-mode normal');
+  if (saved.maximized && !QUIET) mainWindow.maximize();
+  mainWindow.on('close', saveWindowState);
   mainWindow.once('ready-to-show', onReadyToShow);
   mainWindow.webContents.once('dom-ready', onDomReady);
   mainWindow.webContents.once('did-finish-load', onFinishLoad);
@@ -430,6 +592,11 @@ async function start() {
 
   const ses = session.defaultSession;
   if (webDir) bundle.install(ses, webDir, serverUrl.origin);
+  ipcMain.handle('screen:surface', onScreenSurface);
+  ipcMain.handle('window:titlebar', onTitlebarColors);
+  ipcMain.handle('graphics:get', onGraphicsGet);
+  ipcMain.handle('graphics:set', onGraphicsSet);
+  ipcMain.handle('graphics:restart', onGraphicsRestart);
   ses.setPermissionRequestHandler(onPermissionRequest);
   ses.setPermissionCheckHandler(onPermissionCheck);
   ses.setDisplayMediaRequestHandler(onDisplayMediaRequest, { useSystemPicker: false });

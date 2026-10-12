@@ -52,6 +52,7 @@ import { ServerTagComponent } from './server-tag.component';
             [appNameColor]="u.profileColor"
             [appUserFont]="u.nameFont"
             [nameFx]="u.nameFx"
+            [fxLive]="true"
           >
             {{ u.displayName }}
             <app-server-tag class="ml-1.5" [tag]="u.serverTag" />

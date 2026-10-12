@@ -10,12 +10,9 @@ import {
   type DesktopUpdateStatus,
   type UpdateInterval,
 } from '../../core/services/desktop-update.service';
-import {
-  SegmentedComponent,
-  SettingRowComponent,
-  ToggleComponent,
-} from '../../shared/components/controls.component';
+import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 import { IconComponent } from '../../shared/components/icon.component';
+import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
 import { APP_VERSION } from '../../version';
 
 /** The ways to choose how often to look. */
@@ -32,7 +29,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
 @Component({
   selector: 'app-updates-section',
   standalone: true,
-  imports: [IconComponent, SegmentedComponent, SettingRowComponent, ToggleComponent, TranslatePipe],
+  imports: [IconComponent, SelectComponent, SettingRowComponent, ToggleComponent, TranslatePipe],
   template: `
     <section class="settings-card">
       <div class="flex flex-wrap items-center gap-4">
@@ -104,7 +101,12 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
       }
       @if (status() === 'ready') {
         <p class="mt-3 text-xs text-muted">
-          {{ 'Chatterly will close and open again with the new version.' | t }}
+          {{
+            (update.state().settings.auto
+              ? 'It will be installed when you close Chatterly, or now if you restart.'
+              : 'Chatterly will close and open again with the new version.'
+            ) | t
+          }}
         </p>
       }
     </section>
@@ -113,12 +115,24 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
       <h2 class="settings-card-title">{{ 'Preferences' | t }}</h2>
       <app-setting-row
         title="Look for updates"
-        hint="How often Chatterly checks if there is a new version. It only looks: it never downloads or installs anything by itself."
+        hint="How often Chatterly checks if there is a new version. Unless you turn on Update by itself, it only looks."
       >
-        <app-segmented
-          [options]="intervals"
+        <app-select
+          class="w-56 max-w-full"
+          label="Look for updates"
+          [options]="intervalOptions()"
           [value]="update.state().settings.interval"
           (valueChange)="setInterval($event)"
+        />
+      </app-setting-row>
+      <app-setting-row
+        title="Update by itself"
+        hint="Downloads a new version as soon as it appears and installs it when you close Chatterly. It never restarts the app on its own, so a call is never cut."
+      >
+        <app-toggle
+          [checked]="update.state().settings.auto"
+          (checkedChange)="update.setSettings({ auto: $event })"
+          [label]="'Update by itself' | t"
         />
       </app-setting-row>
       <app-setting-row
@@ -143,7 +157,19 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
 export class UpdatesSectionComponent {
   protected readonly update = inject(DesktopUpdateService);
   private readonly i18n = inject(I18nService);
-  protected readonly intervals = INTERVALS;
+  /** The ways to choose how often to look, in the language of the person. */
+  protected readonly intervalOptions = computed(
+    function (this: UpdatesSectionComponent): SelectOption[] {
+      return INTERVALS.map(
+        function toOption(
+          this: UpdatesSectionComponent,
+          entry: { id: UpdateInterval; label: string },
+        ): SelectOption {
+          return { value: entry.id, label: this.i18n.t(entry.label) };
+        }.bind(this),
+      );
+    }.bind(this),
+  );
   protected readonly version = APP_VERSION;
   protected readonly status = computed(
     function (this: UpdatesSectionComponent): DesktopUpdateStatus {
