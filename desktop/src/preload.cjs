@@ -44,6 +44,11 @@ function setSettings(settings) {
   return ipcRenderer.invoke('updates:settings', settings);
 }
 
+/** Gives the main process the token of the account for the beta channel (null when nobody is signed in). It checks the shape. */
+function setBetaToken(payload) {
+  return ipcRenderer.invoke('updates:beta-token', payload);
+}
+
 /** How the graphics card is used: read it, change it (a fixed list of values, checked by the main process) and restart. */
 function getGraphics() {
   return ipcRenderer.invoke('graphics:get');
@@ -150,7 +155,15 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     isDesktop: true,
     platform: process.platform,
-    updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
+    updates: Object.freeze({
+      getState,
+      check,
+      download,
+      install,
+      setSettings,
+      setBetaToken,
+      onState,
+    }),
     screen: Object.freeze({ setSurface, onPick, choose: choosePick, cancel: cancelPick }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
     overlay: Object.freeze({

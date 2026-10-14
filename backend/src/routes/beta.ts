@@ -20,6 +20,25 @@ interface TesterRow {
   added_at: number;
 }
 
+/** True when the account administers the program: an owner (ADMIN_USERS) or somebody an administrator added. */
+export function isBetaAdmin(ctx: AppContext, userId: string): boolean {
+  const row = ctx.db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
+    { username: string } | undefined;
+  if (row === undefined) return false;
+  return (
+    ctx.config.adminUsers.includes(row.username.toLowerCase()) ||
+    Boolean(ctx.db.prepare('SELECT 1 FROM admins WHERE user_id = ?').get(userId))
+  );
+}
+
+/** True when the account may use the beta channel: a tester, or an administrator (who always can). */
+export function canUseBeta(ctx: AppContext, userId: string): boolean {
+  return (
+    Boolean(ctx.db.prepare('SELECT 1 FROM beta_testers WHERE user_id = ?').get(userId)) ||
+    isBetaAdmin(ctx, userId)
+  );
+}
+
 /** Registers the routes of the beta program. */
 export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void {
   const { db, config } = ctx;

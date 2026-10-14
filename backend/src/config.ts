@@ -43,9 +43,18 @@ export interface AppConfig {
   logger: boolean;
   /** Usernames (lower case) that administer the server from the app: ADMIN_USERS, separated by commas. */
   adminUsers: string[];
+  /** Folder of the beta installers that testers download (see routes/beta-files.ts). */
+  betaDir: string;
+  /** Secret the build uses to upload a beta (BETA_UPLOAD_TOKEN, at least 32 characters); empty = uploading is off. */
+  betaUploadToken: string;
 }
 
 const APP_VERSION = '2.32.0';
+
+/** ! The upload secret of the beta builds: used only when it is long enough, otherwise uploading stays off. */
+function uploadToken(value: string | undefined): string {
+  return value !== undefined && value.length >= 32 ? value : '';
+}
 
 /** ! The shortest secret the server accepts from the environment (generated ones are 64 characters). */
 const MIN_SECRET_LENGTH = 32;
@@ -196,6 +205,8 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     adminUsers: list(process.env['ADMIN_USERS'], []).map(function lower(name) {
       return name.toLowerCase();
     }),
+    betaDir: path.join(dataDir, 'beta'),
+    betaUploadToken: uploadToken(process.env['BETA_UPLOAD_TOKEN']),
   };
   return { ...base, ...overrides };
 }

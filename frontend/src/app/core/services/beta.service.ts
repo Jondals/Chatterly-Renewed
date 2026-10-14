@@ -73,6 +73,11 @@ export class BetaService {
     await this.loadAdmins();
   }
 
+  /** The token the desktop app uses to download the beta versions (testers and administrators; it lasts two hours). */
+  feedToken(): Promise<{ token: string; expiresAt: number }> {
+    return this.api.get<{ token: string; expiresAt: number }>('/api/beta/feed');
+  }
+
   /** Reads the list of administrators (administrators only). */
   async loadAdmins(): Promise<void> {
     const answer = await this.api.get<{ admins: BetaAdmin[] }>('/api/beta/admins');

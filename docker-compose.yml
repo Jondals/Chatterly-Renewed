@@ -19,6 +19,8 @@ services:
       SERVER_SECRET: ${SERVER_SECRET:-}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
       ADMIN_USERS: ${ADMIN_USERS:-Jondals}
+      # The secret the build uses to upload a beta installer (at least 32 characters; empty = uploading is off).
+      BETA_UPLOAD_TOKEN: ${BETA_UPLOAD_TOKEN:-}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
       TURN_TTL_SEC: ${TURN_TTL_SEC:-}

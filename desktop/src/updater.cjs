@@ -13,12 +13,18 @@
  * * Updates come from the GitHub Releases of the repository (one release per version of the whole project, the same
  *   number as the web app). The Microsoft Store version is updated by the Store and never by this file.
  *   CHATTERLY_NO_UPDATE=1 turns it off.
- * ! An update is trusted because of the https connection to GitHub and the sha512 in latest.yml. Until the installer is
- *   signed there is no publisher check on top of that: sign it (or ship through the Store) to get one.
+ * ! An update is trusted because its manifest (latest.yml / beta.yml) carries an Ed25519 signature made in the build and checked
+ *   here with the public keys of update-verify.cjs, and then the sha512 of the installer is checked against that manifest. The
+ *   https connection alone is never enough. There is no Authenticode publisher check on top of that yet (the installer is not
+ *   signed by Windows): sign it, or ship through the Store, to get one.
+ * ! Nothing goes down in version, ever (allowDowngrade is off): an old signed version cannot be replayed to a newer app.
  * ! Only the main page of the app may use the commands (see isTrustedSender); an embedded frame cannot, and the
  *   settings it sends are checked against a fixed list of values.
- * * Beta channel: with the "beta" choice on, the pre-releases of GitHub (built from the beta branch, see the workflow) are
- *   offered too. The page only turns it on for an account the server says is a tester; the channel needs no secret.
+ * * Beta channel: with the "beta" choice on, the app looks in the Chatterly server instead of GitHub (the stable releases stay
+ *   on GitHub and keep working even if the beta server is down). The server hands the installers only to a tester: the page
+ *   asks it for a token of that account (valid two hours, checked again on every download) and gives it to this file with
+ *   "updates:beta-token". The token is sent in a header, never in the address.
+ * * After an update, the installer that was downloaded is deleted (cleanAfterUpdate).
  * * Nothing is sent but the usual request for the release files: no account, no identifier.
  * ? The updater code is loaded a few seconds after the window, so it does not compete with the start of the app.
  * ? Development only: CHATTERLY_UPDATE_URL=<folder with latest.yml> checks and downloads from there and never installs
@@ -26,9 +32,11 @@
  */
 'use strict';
 
-const { app, ipcMain } = require('electron');
+const { app, ipcMain, net } = require('electron');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const verify = require('./update-verify.cjs');
 
 const HOUR = 60 * 60 * 1000;
 /** How often to look: the milliseconds between checks; 0 = only when the app starts, -1 = never by itself. */
@@ -40,10 +48,22 @@ const INTERVALS = {
   start: 0,
   never: -1,
 };
-const DEFAULT_SETTINGS = { interval: '6h', notify: true, auto: false, beta: false };
+const DEFAULT_SETTINGS = {
+  interval: '6h',
+  notify: true,
+  auto: false,
+  beta: false,
+};
 /** Wait this long after the window opens before the first check. */
 const START_DELAY_MS = 5000;
 const STATE_CHANNEL = 'updates:state';
+/** The repository whose releases are the stable channel. */
+const GITHUB = { owner: 'Jondals', repo: 'ChatterlyRenewed' };
+/** The longest manifest or signature the app reads, and how long it waits for one. */
+const MANIFEST_MAX_BYTES = 64 * 1024;
+const MANIFEST_TIMEOUT_MS = 20000;
+/** A beta token that is about to expire is not used: a download takes a while. */
+const TOKEN_MARGIN_MS = 10 * 60 * 1000;
 
 /**
  * What the web app sees. status: 'unavailable' (this build does not update itself), 'idle', 'checking', 'none'
@@ -64,6 +84,16 @@ let autoUpdater = null;
 let mainWindow = null;
 let isAppAddress = null;
 let checkTimer = null;
+/** The address of the server (https only): the beta installers come from it. */
+let serverOrigin = '';
+/** What the page gave for the beta channel: the token of the account and when it stops working. */
+let betaAuth = { token: '', expiresAt: 0 };
+/** The look for a beta was put off for lack of a token: it is done when the page gives one. */
+let betaCheckPending = false;
+/** Where the manifest of the channel in use is (see prepareFeed). */
+let feed = null;
+/** The version whose signature was verified: nothing else is downloaded. */
+let trusted = '';
 
 function devFeed() {
   return !app.isPackaged ? process.env.CHATTERLY_UPDATE_URL || '' : '';
@@ -150,6 +180,60 @@ function saveSettings(settings) {
   }
 }
 
+/** The name of the manifest of a channel on this platform. */
+function manifestName(beta) {
+  return (beta ? 'beta' : 'latest') + (process.platform === 'linux' ? '-linux' : '') + '.yml';
+}
+
+/**
+ * Points electron-updater at the feed of the channel. Returns '' when it is ready, or the reason it cannot look yet.
+ * * Release: the releases of GitHub. Beta: the server, with the token of the account in a header. The channel is set on purpose:
+ *   without it electron-updater would pick it from the version that runs, and a beta would look for beta.yml in GitHub.
+ * ! Never a prerelease from GitHub and never a downgrade.
+ */
+function prepareFeed() {
+  if (!autoUpdater || devFeed()) return '';
+  const beta = state.settings.beta;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.allowDowngrade = false;
+  if (beta) {
+    if (!serverOrigin) return 'The server address is not known';
+    if (!betaAuth.token || betaAuth.expiresAt < Date.now() + TOKEN_MARGIN_MS) {
+      return 'beta-needs-token';
+    }
+    const base = serverOrigin + '/api/beta/dl/';
+    feed = {
+      base,
+      name: manifestName(true),
+      headers: { Authorization: 'Bearer ' + betaAuth.token },
+    };
+    autoUpdater.setFeedURL({ provider: 'generic', url: base, channel: 'beta' });
+    autoUpdater.channel = 'beta';
+    autoUpdater.requestHeaders = feed.headers;
+  } else {
+    feed = { base: '', name: manifestName(false), headers: {} };
+    autoUpdater.setFeedURL({ provider: 'github', owner: GITHUB.owner, repo: GITHUB.repo });
+    autoUpdater.channel = 'latest';
+    autoUpdater.requestHeaders = null;
+  }
+  return '';
+}
+
+/** Looks for a version. A beta look without a token waits for the page to give one. */
+function runCheck() {
+  const problem = prepareFeed();
+  if (problem === 'beta-needs-token') {
+    betaCheckPending = true;
+    onError(new Error('Sign in to Chatterly to look for beta versions'));
+    return;
+  }
+  if (problem) {
+    onError(new Error(problem));
+    return;
+  }
+  autoUpdater.checkForUpdates().catch(onError);
+}
+
 /** (Re)starts the timer for the chosen interval. */
 function schedule() {
   clearInterval(checkTimer);
@@ -180,11 +264,25 @@ function handleCheck(event) {
   if (!isTrustedSender(event) || !ensureUpdater()) return state;
   if (state.status === 'downloading' || state.status === 'ready') return state;
   setState({ status: 'checking', error: '' });
-  autoUpdater.checkForUpdates().catch(onError);
+  runCheck();
   return state;
 }
 
 function startDownload() {
+  // ! Only a version whose signature was verified is downloaded.
+  if (trusted === '' || trusted !== state.version) {
+    setState({ status: 'checking', error: '' });
+    runCheck();
+    return;
+  }
+  const problem = prepareFeed();
+  if (problem) {
+    setState({
+      status: 'error',
+      error: problem === 'beta-needs-token' ? 'Sign in to Chatterly again to download' : problem,
+    });
+    return;
+  }
   setState({
     status: 'downloading',
     percent: 0,
@@ -220,6 +318,31 @@ function handleInstall(event) {
   return state;
 }
 
+/** The page gives the token of the account for the beta channel (or null when nobody is signed in any more). */
+function handleBetaToken(event, payload) {
+  if (!isTrustedSender(event)) return state;
+  if (payload === null) {
+    betaAuth = { token: '', expiresAt: 0 };
+    return state;
+  }
+  const valid =
+    payload &&
+    typeof payload === 'object' &&
+    typeof payload.token === 'string' &&
+    /^[A-Za-z0-9_.-]{20,300}$/.test(payload.token) &&
+    Number.isFinite(payload.expiresAt);
+  if (!valid) {
+    log('refused a beta token from the page');
+    return state;
+  }
+  betaAuth = { token: payload.token, expiresAt: payload.expiresAt };
+  if (betaCheckPending && state.settings.beta) {
+    betaCheckPending = false;
+    check();
+  }
+  return state;
+}
+
 function handleSettings(event, patch) {
   if (!isTrustedSender(event)) return state;
   const next = sanitizeSettings(patch, state.settings);
@@ -227,12 +350,23 @@ function handleSettings(event, patch) {
     log('refused settings from the page');
     return state;
   }
+  const previous = state.settings;
   saveSettings(next);
   setState({ settings: next });
   schedule();
   applyInstallOnQuit();
-  // The beta channel: the pre-releases of GitHub (built from the beta branch) are offered too.
-  if (autoUpdater) autoUpdater.allowPrerelease = next.beta;
+  const changedChannel = next.beta !== previous.beta;
+  trusted = '';
+  // Changing the channel looks again at once, so the person sees what the new channel offers (never in the middle of a download).
+  if (
+    changedChannel &&
+    ensureUpdater() &&
+    state.status !== 'downloading' &&
+    state.status !== 'ready'
+  ) {
+    setState({ status: 'checking', error: '' });
+    runCheck();
+  }
   // Turning it on while a version is waiting starts the download at once.
   if (next.auto && autoUpdater && state.status === 'available') startDownload();
   return state;
@@ -252,8 +386,73 @@ function onError(error) {
   }
 }
 
+/** The text of a small file (a manifest or a signature), or throws. */
+async function fetchSmall(url, headers) {
+  const answer = await net.fetch(url, {
+    headers,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS),
+  });
+  if (!answer.ok)
+    throw new Error('HTTP ' + answer.status + ' for ' + path.basename(new URL(url).pathname));
+  const text = await answer.text();
+  if (text.length > MANIFEST_MAX_BYTES) throw new Error('the manifest is too big');
+  return text;
+}
+
+/** Reads the signed manifest of the version electron-updater found and compares it with what it found. '' = it is the signed one. */
+async function verifyAvailable(info) {
+  if (!feed || !/^[0-9A-Za-z.+-]{1,40}$/.test(String(info.version)))
+    return 'the version is not valid';
+  const base =
+    feed.base ||
+    'https://github.com/' +
+      GITHUB.owner +
+      '/' +
+      GITHUB.repo +
+      '/releases/download/v' +
+      info.version +
+      '/';
+  const found = {
+    version: info.version,
+    sha512: info.sha512 || (info.files && info.files[0] && info.files[0].sha512) || '',
+  };
+  const text = await fetchSmall(base + feed.name, feed.headers);
+  const signature = await fetchSmall(base + feed.name + '.sig', feed.headers);
+  return verify.checkAgainstManifest(found, text, signature);
+}
+
 function onAvailable(info) {
   log('available ' + info.version);
+  if (devFeed()) {
+    accept(info);
+    return;
+  }
+  verifyAvailable(info).then(
+    function done(reason) {
+      if (reason) refuse(reason);
+      else accept(info);
+    },
+    function failed(error) {
+      refuse(describe(error));
+    },
+  );
+}
+
+/** ! The update is not the signed one (or its signature cannot be read): it is never offered. */
+function refuse(reason) {
+  log('refused the update: ' + reason);
+  trusted = '';
+  setState({
+    status: 'error',
+    version: '',
+    error: 'The update could not be verified: ' + reason,
+    lastCheck: Date.now(),
+  });
+}
+
+function accept(info) {
+  trusted = info.version;
   const file = info.files && info.files[0];
   setState({
     status: 'available',
@@ -296,7 +495,7 @@ function onDownloaded(info) {
 function check() {
   // A background check does not change what the page shows unless it finds something.
   if (!autoUpdater || state.status === 'downloading' || state.status === 'ready') return;
-  autoUpdater.checkForUpdates().catch(onError);
+  runCheck();
 }
 
 /** Loads electron-updater the first time it is needed. Returns false if it cannot be used. */
@@ -323,8 +522,7 @@ function ensureUpdater() {
   // * download is then started by onAvailable, and the install on quit by applyInstallOnQuit).
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.allowPrerelease = state.settings.beta;
-  autoUpdater.allowDowngrade = false;
+  prepareFeed();
   autoUpdater.on('error', onError);
   autoUpdater.on('update-available', onAvailable);
   autoUpdater.on('update-not-available', onNone);
@@ -341,16 +539,60 @@ function begin() {
   schedule();
 }
 
+/** The folder where electron-updater keeps what it downloads (the same rule as electron-updater). */
+function updaterCacheDir() {
+  const base =
+    process.platform === 'win32'
+      ? process.env.LOCALAPPDATA
+      : process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+  const name = require('../package.json').name;
+  return base && /^[a-z0-9-]{3,80}$/.test(name) ? path.join(base, name + '-updater') : '';
+}
+
+/**
+ * After an update (the version is not the one of the last run) the installer that was downloaded is deleted: it is 100 MB the
+ * person no longer needs. Only that folder, only when the app is installed.
+ */
+function cleanAfterUpdate() {
+  if (!app.isPackaged) return;
+  const marker = path.join(app.getPath('userData'), 'last-version.txt');
+  let last = '';
+  try {
+    last = fs.readFileSync(marker, 'utf8').trim();
+  } catch (error) {
+    last = '';
+  }
+  if (last !== '' && last !== app.getVersion()) {
+    const folder = updaterCacheDir();
+    if (folder) {
+      try {
+        fs.rmSync(folder, { recursive: true, force: true });
+        log('deleted the downloaded installer');
+      } catch (error) {
+        log('could not delete the downloaded installer: ' + describe(error));
+      }
+    }
+  }
+  try {
+    fs.writeFileSync(marker, app.getVersion());
+  } catch (error) {
+    log('could not save the version: ' + describe(error));
+  }
+}
+
 /** Opens the commands and starts looking for updates. Safe to call when updates are off. */
-function start(window, isAppAddressFn) {
+function start(window, isAppAddressFn, serverOriginValue) {
   mainWindow = window;
   isAppAddress = isAppAddressFn;
+  serverOrigin = /^https:\/\/[^/]+$/.test(serverOriginValue || '') ? serverOriginValue : '';
+  cleanAfterUpdate();
   state = { ...state, settings: loadSettings() };
   ipcMain.handle('updates:get', handleGet);
   ipcMain.handle('updates:check', handleCheck);
   ipcMain.handle('updates:download', handleDownload);
   ipcMain.handle('updates:install', handleInstall);
   ipcMain.handle('updates:settings', handleSettings);
+  ipcMain.handle('updates:beta-token', handleBetaToken);
   if (!enabled()) return;
   // The page can already ask for the state: until the first check it is "idle".
   setState({ status: 'idle' });

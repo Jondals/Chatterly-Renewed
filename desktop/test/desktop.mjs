@@ -188,6 +188,7 @@ function auditSource() {
   const preload = text['preload.cjs'];
   const allowedPageChannels = new Set([
     'updates:get',
+    'updates:beta-token',
     'updates:check',
     'updates:download',
     'updates:install',
@@ -259,7 +260,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -288,6 +289,82 @@ function auditSource() {
 }
 
 // ── 2. Server address rule ───────────────────────────────────────────────────────────────────────────
+
+// ── 1b. Signed updates ───────────────────────────────────────────────────────────────────────────────
+
+function auditSignatures() {
+  step('Updates: the signature is checked before anything is downloaded');
+  const verify = require('../src/update-verify.cjs');
+  const { generateKeyPairSync, sign } = require('node:crypto');
+  const pair = generateKeyPairSync('ed25519');
+  const other = generateKeyPairSync('ed25519');
+  const spki = function (key) {
+    return key.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+  };
+  const manifest = [
+    'version: 2.40.0',
+    'files:',
+    '  - url: Chatterly-2.40.0.exe',
+    '    sha512: AAAA',
+    'path: Chatterly-2.40.0.exe',
+    'sha512: AAAA',
+    '',
+  ].join(String.fromCharCode(10));
+  const good = sign(null, Buffer.from(manifest), pair.privateKey).toString('base64');
+  const keys = [spki(pair)];
+  const found = { version: '2.40.0', sha512: 'AAAA' };
+  check(
+    verify.checkAgainstManifest(found, manifest, good, keys) === '',
+    'a manifest signed with the key is accepted',
+  );
+  check(
+    verify.checkAgainstManifest(found, manifest + ' ', good, keys) !== '',
+    'a manifest changed by one character is refused',
+  );
+  const forged = sign(null, Buffer.from(manifest), other.privateKey).toString('base64');
+  check(
+    verify.checkAgainstManifest(found, manifest, forged, keys) !== '',
+    'a manifest signed by somebody else is refused',
+  );
+  check(
+    verify.checkAgainstManifest(found, manifest, 'not a signature', keys) !== '' &&
+      verify.checkAgainstManifest(found, manifest, '', keys) !== '',
+    'a missing or malformed signature is refused',
+  );
+  check(
+    verify.checkAgainstManifest({ version: '2.40.0', sha512: 'BBBB' }, manifest, good, keys) !== '',
+    'an installer whose hash is not the signed one is refused',
+  );
+  check(
+    verify.checkAgainstManifest({ version: '2.39.0', sha512: 'AAAA' }, manifest, good, keys) !== '',
+    'a version that is not the signed one is refused',
+  );
+  check(
+    verify.checkAgainstManifest(found, manifest, good, [spki(other), spki(pair)]) === '',
+    'with two keys (a rotation) a signature of either one is accepted',
+  );
+  check(
+    verify.checkAgainstManifest(found, manifest, good, ['junk']) !== '',
+    'a broken key verifies nothing',
+  );
+  check(verify.PUBLIC_KEYS.length >= 1, 'the app carries a public key');
+
+  const updater = fs.readFileSync(path.join(SRC, 'updater.cjs'), 'utf8');
+  check(
+    updater.includes('allowDowngrade = false') && !/allowDowngrade = (?!false)/.test(updater),
+    'the updater never allows a downgrade',
+  );
+  check(
+    updater.includes('trusted !== state.version') && updater.includes('verifyAvailable(info)'),
+    'a version is downloaded only after its signature was verified',
+  );
+  check(
+    !updater.includes("'?token") &&
+      !updater.includes('token=') &&
+      updater.includes("Authorization: 'Bearer '"),
+    'the beta token travels in a header, never in the address',
+  );
+}
 
 function auditServerUrl() {
   step('Server address rule');
@@ -1564,6 +1641,7 @@ async function cleanup() {
 let failed = false;
 try {
   auditSource();
+  auditSignatures();
   auditServerUrl();
   await runningApp();
   await offlineApp();

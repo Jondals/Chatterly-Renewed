@@ -680,7 +680,7 @@ async function start() {
 
   createMenu();
   createWindow();
-  updater.start(mainWindow, isAppOrigin);
+  updater.start(mainWindow, isAppOrigin, serverUrl.origin);
   overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET);
 }
 

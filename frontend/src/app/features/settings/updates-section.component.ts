@@ -14,7 +14,7 @@ import {
 import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
-import { APP_LABEL } from '../../version';
+import { APP_LABEL, APP_VERSION } from '../../version';
 
 /** The ways to choose how often to look. */
 const INTERVALS: { id: UpdateInterval; label: string }[] = [
@@ -146,7 +146,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
           [label]="'Tell me about new versions' | t"
         />
       </app-setting-row>
-      @if (beta.canUseBeta() || update.state().settings.beta) {
+      @if (showChannel()) {
         <app-setting-row
           title="Update channel"
           hint="Release is the version everybody gets. Beta also gives you the versions that are still being tried: they can have mistakes, tell the administrator what breaks."
@@ -196,6 +196,19 @@ export class UpdatesSectionComponent {
     }.bind(this),
   );
   protected readonly version = APP_LABEL;
+  /**
+   * The channel choice shows for a tester or administrator, and always for somebody who runs a beta or is on the beta channel:
+   * they must be able to go back to Release even when the server does not answer.
+   */
+  protected readonly showChannel = computed(
+    function (this: UpdatesSectionComponent): boolean {
+      return (
+        this.beta.canUseBeta() ||
+        this.update.state().settings.beta ||
+        APP_VERSION.includes('-beta.')
+      );
+    }.bind(this),
+  );
   protected readonly status = computed(
     function (this: UpdatesSectionComponent): DesktopUpdateStatus {
       return this.update.state().status;

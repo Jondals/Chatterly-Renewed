@@ -45,6 +45,8 @@ export interface DesktopUpdates {
   download(): Promise<DesktopUpdateState>;
   install(): Promise<DesktopUpdateState>;
   setSettings(settings: Partial<DesktopUpdateSettings>): Promise<DesktopUpdateState>;
+  /** The token of the account for the beta channel (null when nobody is signed in): the shell keeps it in memory only. */
+  setBetaToken(payload: { token: string; expiresAt: number } | null): Promise<DesktopUpdateState>;
   onState(callback: (state: DesktopUpdateState) => void): () => void;
 }
 

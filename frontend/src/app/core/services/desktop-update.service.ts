@@ -8,7 +8,7 @@
  * ! The shell gives the page a few fixed commands and one event (desktop/src/preload.cjs). There is no way to choose
  *   a file or an address from here.
  */
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { I18nService } from '../i18n/i18n.service';
 import {
   desktopBridge,
@@ -18,6 +18,9 @@ import {
 } from '../desktop-bridge';
 import { BetaService } from './beta.service';
 import { ToastService } from './toast.service';
+
+/** How often the token of the beta channel is renewed (it lasts two hours). */
+const TOKEN_RENEW_MS = 30 * 60 * 1000;
 
 const INITIAL: DesktopUpdateState = {
   status: 'unavailable',
@@ -46,6 +49,7 @@ export class DesktopUpdateService {
   private readonly i18n = inject(I18nService);
   private readonly betaProgram = inject(BetaService);
   private announced = '';
+  private tokenTimer: ReturnType<typeof setInterval> | null = null;
 
   /** True inside the desktop app (and it can update itself). */
   readonly supported = Boolean(this.bridge);
@@ -82,6 +86,7 @@ export class DesktopUpdateService {
     }
     this.bridge.onState(this.apply.bind(this));
     effect(this.leaveBeta.bind(this));
+    effect(this.syncBetaToken.bind(this));
     this.bridge.getState().then(this.apply.bind(this), this.ignore);
   }
 
@@ -90,6 +95,37 @@ export class DesktopUpdateService {
     if (this.betaProgram.known() && !this.betaProgram.canUseBeta() && this.state().settings.beta) {
       this.setSettings({ beta: false });
     }
+  }
+
+  /**
+   * The beta channel needs the server to know who asks: while the account is a tester and the channel is on, the shell gets a token
+   * of the account (renewed every half hour); otherwise it is told to forget it.
+   */
+  private syncBetaToken(): void {
+    const wanted =
+      this.betaProgram.known() && this.betaProgram.canUseBeta() && this.state().settings.beta;
+    untracked(this.followToken.bind(this, wanted));
+  }
+
+  private followToken(wanted: boolean): void {
+    if (this.tokenTimer !== null) {
+      clearInterval(this.tokenTimer);
+      this.tokenTimer = null;
+    }
+    if (!wanted) {
+      this.bridge?.setBetaToken(null).catch(this.ignore);
+      return;
+    }
+    this.sendToken();
+    this.tokenTimer = setInterval(this.sendToken.bind(this), TOKEN_RENEW_MS);
+  }
+
+  private sendToken(): void {
+    this.betaProgram.feedToken().then(this.giveToken.bind(this), this.ignore);
+  }
+
+  private giveToken(answer: { token: string; expiresAt: number }): void {
+    this.run(this.bridge?.setBetaToken(answer));
   }
 
   /** Looks for a new version now. */
