@@ -18,7 +18,7 @@
 const crypto = require('node:crypto');
 
 /** The public keys that may sign an update (base64 of the SPKI DER of an Ed25519 key). The first one is the current one. */
-const PUBLIC_KEYS = ['MCowBQYDK2VwAyEAdPefxXi9eTZc1iAb8BSYnfT3xnfUoJMkDln5tsHmohI='];
+const PUBLIC_KEYS = ['MCowBQYDK2VwAyEAaDiRsh1FwgzsUrGu0bFzgLCtqrtKy4Bgok+fMnTgaC0='];
 
 /** True when `signature` (base64) is a valid signature of `data` by any of the keys. */
 function verifySignature(data, signature, keys = PUBLIC_KEYS) {
