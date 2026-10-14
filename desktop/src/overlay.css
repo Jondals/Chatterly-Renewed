@@ -118,3 +118,18 @@ body {
   border-bottom: 3px solid #2ef2b0;
   cursor: nwse-resize;
 }
+.toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(6, 7, 11, 0.92);
+  color: #e8eaf2;
+  font-size: 13px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+.toast[hidden] {
+  display: none;
+}

@@ -9,6 +9,8 @@
 const TILE_WIDTHS = { small: 180, medium: 240, large: 320 };
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
+const TOAST_MS = 7000;
+let announced = false;
 
 const panel = document.getElementById('panel');
 const list = document.getElementById('tiles');
@@ -207,8 +209,21 @@ function onKey(event) {
   if (event.key === 'Escape' && config && config.editing) saveLayout(true);
 }
 
+/** Says once, when the overlay appears, which keys open it. */
+function announce() {
+  if (announced || !config.toast) return;
+  announced = true;
+  const toast = document.getElementById('toast');
+  toast.textContent = config.toast;
+  toast.hidden = false;
+  setTimeout(function hide() {
+    toast.hidden = true;
+  }, TOAST_MS);
+}
+
 function onConfig(next) {
   config = next;
+  announce();
   render();
 }
 

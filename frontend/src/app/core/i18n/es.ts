@@ -1630,4 +1630,19 @@ export const ES: Record<string, string> = {
     'Release es la versión que recibe todo el mundo. Beta te da además las versiones que aún se están probando: pueden tener errores, cuéntale al administrador qué falla.',
   'Release': 'Release',
   'Beta': 'Beta',
+  'Choose what to share': 'Elige qué compartir',
+  'Entire screen': 'Pantalla entera',
+  'Nothing to show here.': 'No hay nada que mostrar aquí.',
+  'Share the sound of the computer': 'Compartir el sonido del equipo',
+  'Games': 'Juegos',
+  'When to show it': 'Cuándo mostrarlo',
+  'In every call, or only while one of the games you register below is open. A small notice tells you which keys open it.':
+    'En todas las llamadas, o solo mientras esté abierto uno de los juegos que registres abajo. Un aviso pequeño te dice qué teclas lo abren.',
+  'In every call': 'En todas las llamadas',
+  'Only while one of my games is open': 'Solo mientras haya un juego mío abierto',
+  'No games yet: add the window of a game you play.':
+    'Todavía no hay juegos: añade la ventana de un juego al que juegues.',
+  'Add from the open windows': 'Añadir desde las ventanas abiertas',
+  'No other windows are open.': 'No hay otras ventanas abiertas.',
+  'Or type part of the name of its window': 'O escribe parte del nombre de su ventana',
 };

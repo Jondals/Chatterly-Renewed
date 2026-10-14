@@ -73,6 +73,9 @@ function setOverlay(patch) {
 function setOverlayTiles(tiles) {
   return ipcRenderer.invoke('overlay:tiles', tiles);
 }
+function overlayWindows() {
+  return ipcRenderer.invoke('overlay:windows');
+}
 function signalOverlay(message) {
   return ipcRenderer.invoke('overlay:signal', message);
 }
@@ -86,6 +89,27 @@ function onOverlayEvent(callback) {
   return function stop() {
     ipcRenderer.removeListener('overlay:event', listener);
   };
+}
+
+/**
+ * The menu to choose what to share is drawn by the page: the shell sends the list ('screen:pick') and the page answers with
+ * the id of one of them, or cancels. The shell checks the id against the list it sent.
+ */
+function onPick(callback) {
+  if (typeof callback !== 'function') return function noop() {};
+  function listener(event, request) {
+    callback(request);
+  }
+  ipcRenderer.on('screen:pick', listener);
+  return function stop() {
+    ipcRenderer.removeListener('screen:pick', listener);
+  };
+}
+function choosePick(sourceId, audio) {
+  return ipcRenderer.invoke('screen:choose', sourceId, audio === true);
+}
+function cancelPick() {
+  return ipcRenderer.invoke('screen:cancel');
 }
 
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
@@ -127,13 +151,14 @@ contextBridge.exposeInMainWorld(
     isDesktop: true,
     platform: process.platform,
     updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
-    screen: Object.freeze({ setSurface }),
+    screen: Object.freeze({ setSurface, onPick, choose: choosePick, cancel: cancelPick }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
     overlay: Object.freeze({
       get: getOverlay,
       set: setOverlay,
       setTiles: setOverlayTiles,
       signal: signalOverlay,
+      windows: overlayWindows,
       onEvent: onOverlayEvent,
     }),
     ...(titlebarHeight

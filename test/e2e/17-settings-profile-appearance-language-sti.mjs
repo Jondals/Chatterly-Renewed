@@ -103,6 +103,30 @@ export async function step17(world) {
     }),
     'every name animation has a movement of its own',
   );
+  // a name never stays frozen half way through a movement: when the window loses the focus the letters go back to rest
+  const animatedName = a.locator('.nfx:has(.nfx-l)').first();
+  await animatedName.hover();
+  await a.waitForTimeout(500);
+  await a.evaluate(function () {
+    window.dispatchEvent(new Event('blur'));
+  });
+  check(
+    await animatedName.evaluate(function (host) {
+      const letters = [...host.querySelectorAll('.nfx-l')];
+      return (
+        letters.length >= 3 &&
+        letters.every(function atRest(letter) {
+          const style = getComputedStyle(letter);
+          return style.animationPlayState === 'paused' && style.transform === 'none';
+        })
+      );
+    }),
+    'when the window loses the focus the letters of a name go back to rest, not frozen half way',
+  );
+  await a.evaluate(function () {
+    window.dispatchEvent(new Event('focus'));
+  });
+  await a.mouse.move(5, 5);
   // the banner color is offered when the banner is not a picture
   await a.click('button:has-text("Remove banner")');
   await a.click('button[aria-label="Banner color"]');

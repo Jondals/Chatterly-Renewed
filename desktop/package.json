@@ -13,8 +13,8 @@
     "start": "node scripts/start.mjs",
     "test": "node test/desktop.mjs",
     "web": "node scripts/copy-web.mjs",
-    "dist": "node scripts/copy-web.mjs && electron-builder --win nsis --publish never",
-    "dist:linux": "node scripts/copy-web.mjs && electron-builder --linux AppImage --publish never",
+    "dist": "node scripts/dist.mjs win",
+    "dist:linux": "node scripts/dist.mjs linux",
     "dist:store": "node scripts/dist-store.mjs"
   },
   "devDependencies": {
@@ -49,12 +49,12 @@
       "category": "Network",
       "syncDesktopName": true,
       "maintainer": "Jondals <noreply@github.com>",
-      "artifactName": "Chatterly-${version}.${ext}"
+      "artifactName": "Chatterly-${env.CHATTERLY_LABEL}.${ext}"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "artifactName": "Chatterly-Setup-${version}.${ext}",
+      "artifactName": "Chatterly-${env.CHATTERLY_LABEL}.${ext}",
       "differentialPackage": false
     },
     "electronFuses": {

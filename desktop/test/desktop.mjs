@@ -202,7 +202,11 @@ function auditSource() {
     'overlay:set',
     'overlay:tiles',
     'overlay:signal',
+    'overlay:windows',
     'overlay:event',
+    'screen:pick',
+    'screen:choose',
+    'screen:cancel',
   ]);
   const usedChannels = [...preload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(function name(m) {
     return m[1];
@@ -255,7 +259,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,picker:cancel,picker:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -357,14 +361,24 @@ async function launch(url, userData) {
 function stubPage(foreignOrigin) {
   return (
     '<!doctype html><meta charset="utf-8"><title>stub</title>' +
-    '<button id="share">share</button>' +
+    '<button id="share">share</button><div id="menu"></div>' +
     '<iframe id="f" allow="microphone; camera" src="' +
     foreignOrigin +
     '/frame"></iframe>' +
     '<script>document.getElementById("share").addEventListener("click", function () {' +
     'window.__share = navigator.mediaDevices.getDisplayMedia({ video: true }).then(' +
     'function (s) { return "tracks:" + s.getVideoTracks().length; },' +
-    'function (e) { return e.name; });});</script>'
+    'function (e) { return e.name; });});' +
+    // The app draws the menu to choose what to share; this stub draws the same thing with the same commands.
+    'window.chatterlyDesktop.screen.onPick(function (request) {' +
+    'window.__pick = request; var menu = document.getElementById("menu"); menu.replaceChildren();' +
+    'request.items.forEach(function (item) { var card = document.createElement("button");' +
+    'card.className = "card"; card.textContent = item.name;' +
+    'card.addEventListener("click", function () { window.chatterlyDesktop.screen.choose(item.id, false); menu.replaceChildren(); });' +
+    'menu.append(card); });' +
+    'var cancel = document.createElement("button"); cancel.id = "cancel";' +
+    'cancel.addEventListener("click", function () { window.chatterlyDesktop.screen.cancel(); menu.replaceChildren(); });' +
+    'menu.append(cancel); });</script>'
   );
 }
 
@@ -459,10 +473,13 @@ async function runningApp() {
       opacity: 5,
       x: 9,
       scale: 'big',
+      mode: 'sometimes',
+      games: ['  Elden Ring  ', 'elden ring', 7, '', 'x'.repeat(200)],
       evil: true,
     });
     const refused = await api.setTiles('not a list');
-    return { bad, refused, signal: await api.signal({ offer: 'x', candidate: {} }) };
+    const windows = await api.windows();
+    return { bad, refused, windows, signal: await api.signal({ offer: 'x', candidate: {} }) };
   });
   check(
     overlayRun.bad.settings.hotkey === 'CommandOrControl+Shift+O' &&
@@ -473,6 +490,21 @@ async function runningApp() {
       !('evil' in overlayRun.bad.settings),
     'the overlay keeps only valid values (anything else falls back or is clamped)',
   );
+  check(
+    overlayRun.bad.settings.mode === 'always' &&
+      overlayRun.bad.settings.games.length === 2 &&
+      overlayRun.bad.settings.games[0] === 'Elden Ring' &&
+      overlayRun.bad.settings.games[1].length === 80,
+    'the registered games are short texts without repeats, and the mode is one of the known ones',
+  );
+  check(
+    Array.isArray(overlayRun.windows) &&
+      !overlayRun.windows.includes('Chatterly') &&
+      !overlayRun.windows.some(function isOverlay(name) {
+        return name.startsWith('Chatterly overlay');
+      }),
+    'the list of open windows leaves out the windows of Chatterly itself',
+  );
   check(overlayRun.signal === false, 'a signalling message with an unknown shape is refused');
   const overlayWindows = async function countWindows() {
     return app.evaluate(function count(electronModule) {
@@ -481,12 +513,30 @@ async function runningApp() {
   };
   const beforeOverlay = await overlayWindows();
   await page.evaluate(function turnOn() {
-    return window.chatterlyDesktop.overlay.set({ enabled: true });
+    return window.chatterlyDesktop.overlay.set({ enabled: true, games: [] });
   });
   check(
     (await overlayWindows()) === beforeOverlay,
     'turned on but alone in no call: no overlay window yet',
   );
+  // Waiting for a game: with a call but no registered game open, the overlay stays closed.
+  await page.evaluate(function waitForGame() {
+    return window.chatterlyDesktop.overlay.set({ mode: 'games', games: ['zz-no-such-window-zz'] });
+  });
+  await page.evaluate(function inCall() {
+    return window.chatterlyDesktop.overlay.setTiles([{ id: 'a', name: 'Ann' }]);
+  });
+  await sleep(1200);
+  check(
+    (await overlayWindows()) === beforeOverlay,
+    'set to "only with my games", a call with no registered game open shows no overlay',
+  );
+  await page.evaluate(function emptyAgain() {
+    return window.chatterlyDesktop.overlay.setTiles([]);
+  });
+  await page.evaluate(function everyCall() {
+    return window.chatterlyDesktop.overlay.set({ mode: 'always', games: [] });
+  });
   await page.evaluate(function show() {
     return window.chatterlyDesktop.overlay.setTiles([
       { id: 'a', name: 'Ann', speaking: true, avatar: 'javascript:alert(1)', color: 'red' },
@@ -638,18 +688,23 @@ async function runningApp() {
   if (screens === 0) {
     console.log('  SKIPPED: this machine has no screen to capture');
   } else {
-    const [picker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await picker.waitForSelector('.card', { timeout: 10000 });
-    const cards = await picker.locator('.card').count();
-    check(cards > 0, 'the picker lists ' + cards + ' source(s)');
-    await picker.locator('.card').first().click();
+    let windowsOpened = 0;
+    app.on('window', function counted() {
+      windowsOpened++;
+    });
+    await page.click('#share');
+    await page.waitForSelector('.card', { timeout: 10000 });
+    const cards = await page.locator('.card').count();
+    check(cards > 0, 'the app draws the menu with ' + cards + ' source(s)');
+    check(windowsOpened === 0, 'the menu is part of the app: no extra window opens');
+    await page.locator('.card').first().click();
     const shared = await page.evaluate(function () {
       return window.__share;
     });
     check(shared === 'tracks:1', 'choosing a source gives the page one video track');
-    const [second] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await second.waitForSelector('#cancel', { timeout: 10000 });
-    await second.click('#cancel');
+    await page.click('#share');
+    await page.waitForSelector('#cancel', { timeout: 10000 });
+    await page.click('#cancel');
     const cancelled = await page.evaluate(function () {
       return window.__share;
     });
@@ -668,21 +723,26 @@ async function runningApp() {
       (await chooseSurface('window')) === true,
       'the page can tell the app it is about to share a window',
     );
-    const [windowsPicker] = await Promise.all([app.waitForEvent('window'), page.click('#share')]);
-    await windowsPicker.waitForSelector('.card', { timeout: 10000 });
+    await page.click('#share');
+    await page.waitForSelector('.card', { timeout: 10000 });
+    const windowsMenu = await page.evaluate(function () {
+      return {
+        kind: window.__pick.kind,
+        audio: window.__pick.audio,
+        onlyWindows: window.__pick.items.every(function isWindow(item) {
+          return item.type === 'window';
+        }),
+      };
+    });
     check(
-      (await windowsPicker.locator('#tab-window.is-on').count()) === 1,
-      'choosing "a window" opens the picker in the tab of windows',
+      windowsMenu.kind === 'window' && windowsMenu.onlyWindows,
+      'choosing "a window" asks with the list of windows only',
     );
     check(
-      !(await windowsPicker.locator('#tabs').isVisible()),
-      '... and it lists only windows, with no tabs to switch',
-    );
-    check(
-      !(await windowsPicker.locator('#audio').isChecked()),
+      windowsMenu.audio === false,
       'the sound box starts empty when the menu does not share the sound',
     );
-    await windowsPicker.click('#cancel');
+    await page.click('#cancel');
     await page.waitForTimeout(300);
     check(
       (await chooseSurface('browser')) === true,
@@ -694,15 +754,15 @@ async function runningApp() {
     await page.evaluate(function () {
       return window.chatterlyDesktop.screen.setSurface('monitor', true);
     });
-    let opened = 0;
-    app.on('window', function counted() {
-      opened++;
-    });
+    const cardsBefore = await page.locator('.card').count();
     await page.click('#share');
     const direct = await page.evaluate(function () {
       return window.__share;
     });
-    check(opened === 0, 'choosing "a screen" opens no picker window');
+    check(
+      (await page.locator('.card').count()) === cardsBefore && windowsOpened === 0,
+      'choosing "a screen" asks nothing: no menu and no window',
+    );
     check(direct === 'tracks:1', 'choosing "a screen" shares it at once (' + direct + ')');
   }
 

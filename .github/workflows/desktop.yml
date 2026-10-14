@@ -82,7 +82,7 @@ jobs:
             BASE="${VERSION%%-*}"
             EXISTING=$(gh release view "v$VERSION" --json name --jq .name 2>/dev/null || true)
             if [ -n "$EXISTING" ]; then
-              LABEL="${EXISTING#ChatterlyRenewed v}"
+              LABEL="${EXISTING#Chatterly v}"
             else
               COUNT=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\"))] | length")
               LABEL="$BASE-b$((COUNT + 1))"
@@ -93,12 +93,12 @@ jobs:
           echo "label=$LABEL" >> "$GITHUB_OUTPUT"
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
           # A platform is done when its installer and its update file are already in the release.
-          if echo "$ASSETS" | grep -qx "Chatterly-Setup-$VERSION.exe" && echo "$ASSETS" | grep -qx '\(latest\|beta\).yml'; then
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.exe" && echo "$ASSETS" | grep -qx '\(latest\|beta\).yml'; then
             echo "windows=false" >> "$GITHUB_OUTPUT"
           else
             echo "windows=true" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$ASSETS" | grep -qx "Chatterly-$VERSION.AppImage" && echo "$ASSETS" | grep -qx '\(latest\|beta\)-linux.yml'; then
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.AppImage" && echo "$ASSETS" | grep -qx '\(latest\|beta\)-linux.yml'; then
             echo "linux=false" >> "$GITHUB_OUTPUT"
           else
             echo "linux=true" >> "$GITHUB_OUTPUT"
@@ -107,7 +107,7 @@ jobs:
             NAME="v$LABEL"
             FLAGS=""
             if [ "$BETA" = true ]; then FLAGS="--prerelease"; fi
-            TITLE="ChatterlyRenewed $NAME"
+            TITLE="Chatterly $NAME"
             node desktop/scripts/release-notes.mjs "$VERSION" "$NAME" > release-notes.md
             gh release create "v$VERSION" --draft $FLAGS --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file release-notes.md
@@ -158,6 +158,8 @@ jobs:
         if: needs.prepare.outputs.beta != 'true'
         run: pnpm --dir desktop test
       - name: Build the installer (no token here)
+        env:
+          CHATTERLY_LABEL: ${{ needs.prepare.outputs.label }}
         run: pnpm --dir desktop dist
       - name: Attach the installer to the release
         shell: bash
@@ -165,11 +167,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          LABEL: ${{ needs.prepare.outputs.label }}
         run: |
           # The update file is latest.yml on the stable channel and beta.yml on the beta one.
           YML=desktop/dist/latest.yml
           if [ ! -f "$YML" ]; then YML=desktop/dist/beta.yml; fi
-          gh release upload "v$VERSION" "desktop/dist/Chatterly-Setup-$VERSION.exe" "$YML" --clobber
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.exe" "$YML" --clobber
 
   linux:
     needs: [prepare, web]
@@ -192,16 +195,19 @@ jobs:
           name: web-build
           path: frontend/dist/frontend/browser
       - name: Build the AppImage (no token here)
+        env:
+          CHATTERLY_LABEL: ${{ needs.prepare.outputs.label }}
         run: pnpm --dir desktop dist:linux
       - name: Attach the packages to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          LABEL: ${{ needs.prepare.outputs.label }}
         run: |
           YML=desktop/dist/latest-linux.yml
           if [ ! -f "$YML" ]; then YML=desktop/dist/beta-linux.yml; fi
-          gh release upload "v$VERSION" "desktop/dist/Chatterly-$VERSION.AppImage" "$YML" --clobber
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.AppImage" "$YML" --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.

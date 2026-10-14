@@ -22,6 +22,8 @@ const beta = version.includes('-beta.');
 const base = version.replace(/-.*$/, '');
 /** What people read: v2.32.0 for a release and v2.32.0-b1 for the first beta of it (given by the workflow). */
 const label = process.argv[3] || 'v' + version;
+/** The part that names the files: 2.32.0 or 2.32.0-b1. */
+const fileLabel = label.replace(/^v/, '');
 const repo = process.env.GITHUB_REPOSITORY || 'Jondals/ChatterlyRenewed';
 const changelog = fs.readFileSync(
   path.resolve(import.meta.dirname, '..', '..', 'CHANGELOG.md'),
@@ -72,7 +74,7 @@ const warning = beta
   : [];
 console.log(
   [
-    '## ChatterlyRenewed ' + label,
+    '## Chatterly ' + label,
     '',
     ...warning,
     ...(shown.length ? shown : ['Small improvements and fixes.']),
@@ -83,10 +85,10 @@ console.log(
       blob +
       '/CHANGELOG.es.md)',
     '',
-    'Windows: download `Chatterly-Setup-' +
-      version +
+    'Windows: download `Chatterly-' +
+      fileLabel +
       '.exe`. The installer is not signed yet, so Windows may show its SmartScreen warning.',
     '',
-    'Linux: download `Chatterly-' + version + '.AppImage` (make it executable and run it).',
+    'Linux: download `Chatterly-' + fileLabel + '.AppImage` (make it executable and run it).',
   ].join('\n'),
 );

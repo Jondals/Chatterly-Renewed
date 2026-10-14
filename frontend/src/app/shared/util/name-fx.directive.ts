@@ -8,6 +8,8 @@
  * keeps its width; over it goes a layer with one element per letter (styles/chat.css, "nfx-"). Only transform and opacity
  * move (the graphics chip does it, the page does not draw again), and a name that is off the screen does not move at all.
  * ? When the pointer leaves, the letters finish the movement they are in: the animation stops when the last letter ends it.
+ * ! A name never stays frozen half way through a movement: when the window loses the focus or is hidden, when a name that played on
+ *   its own goes off the screen, or when a letter never ends its turn, the letters are put back at rest (see `rest`).
  */
 import {
   AfterViewChecked,
@@ -79,6 +81,47 @@ function unwatchVisible(element: Element): void {
   observer?.unobserve(element);
 }
 
+/** Every name that has letters now: the window tells them when it loses the focus, is hidden or comes back. */
+const lettered = new Set<NameFxDirective>();
+let windowWatched = false;
+
+/** The window lost the focus or was hidden: every name goes back to rest (nothing is looking at it). */
+function suspendAll(): void {
+  for (const name of lettered) {
+    name.suspend();
+  }
+}
+
+/** The window is back: the names that play on their own (or are under the pointer) start again. */
+function wakeAll(): void {
+  for (const name of lettered) {
+    name.wake();
+  }
+}
+
+/** The page was hidden or shown (another tab, minimized). */
+function onVisibility(): void {
+  if (document.hidden) {
+    suspendAll();
+  } else {
+    wakeAll();
+  }
+}
+
+/** Starts listening to the window once, for every name. */
+function watchWindow(): void {
+  if (windowWatched || typeof window === 'undefined') {
+    return;
+  }
+  windowWatched = true;
+  window.addEventListener('blur', suspendAll);
+  window.addEventListener('focus', wakeAll);
+  document.addEventListener('visibilitychange', onVisibility);
+}
+
+/** How long after the pointer leaves the letters may still be finishing their turn (the longest one is about 6.5 s). */
+const FINISH_MS = 8000;
+
 /** Makes the letters of a name move. */
 @Directive({
   selector: '[nameFx]',
@@ -97,6 +140,7 @@ function unwatchVisible(element: Element): void {
     '[class.nfx-drift]': 'nameFx() === "drift"',
     '[class.nfx-twinkle]': 'nameFx() === "twinkle"',
     '(mouseenter)': 'enter()',
+    '(mouseover)': 'over()',
     '(mouseleave)': 'leave()',
   },
 })
@@ -113,6 +157,10 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
   /** What the letters were made from (so they are made again only when it changes). */
   private made = '';
   private stopping = false;
+  /** True while the letters were put back at rest by `rest` and nobody has started them again. */
+  private resting = false;
+  /** Puts the letters at rest if one never ends its turn after the pointer left. */
+  private finishTimer: ReturnType<typeof setTimeout> | null = null;
   private watching = false;
   /** True once the letters are wanted (the pointer came, or the name is on the screen): until then the name is plain text. */
   private armed = false;
@@ -177,6 +225,8 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
       liveNow--;
     }
     this.resize?.disconnect();
+    lettered.delete(this);
+    this.clearFinishTimer();
     unwatchVisible(this.host.nativeElement);
   }
 
@@ -226,6 +276,8 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     this.layer = layer;
     this.made = id + '|' + text + '|' + kind;
     this.paintLetters(letters);
+    lettered.add(this);
+    watchWindow();
     this.resize?.disconnect();
     if (typeof ResizeObserver !== 'undefined') {
       this.resize = new ResizeObserver(this.paintLetters.bind(this, letters));
@@ -260,6 +312,8 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
       this.wrapper.remove();
     }
     this.resize?.disconnect();
+    lettered.delete(this);
+    this.clearFinishTimer();
     this.wrapper = null;
     this.layer = null;
     this.made = '';
@@ -273,6 +327,7 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
   /** The pointer is over the name: the letters start (or go on, the ones that were resting). */
   protected enter(): void {
     this.stopping = false;
+    this.clearFinishTimer();
     if (!this.armed) {
       this.armed = true;
       this.refresh();
@@ -281,11 +336,67 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
     this.resume();
   }
 
-  /** The pointer left: each letter finishes the turn it is in and rests there. */
+  /** The pointer moved over the name after the letters were put at rest (the window had lost the focus): they start again. */
+  protected over(): void {
+    if (this.resting && this.armed) {
+      this.enter();
+    }
+  }
+
+  /** The pointer left: each letter finishes the turn it is in and rests there (and if one never ends it, all rest after a while). */
   protected leave(): void {
     if (!this.fxLive()) {
       this.stopping = true;
+      this.clearFinishTimer();
+      this.finishTimer = setTimeout(this.restIfAway.bind(this), FINISH_MS);
     }
+  }
+
+  /** The time to finish ran out: if the pointer is not back, every letter goes to rest where it started. */
+  private restIfAway(): void {
+    this.finishTimer = null;
+    if (this.stopping && !this.host.nativeElement.matches(':hover')) {
+      this.rest();
+    }
+  }
+
+  private clearFinishTimer(): void {
+    if (this.finishTimer !== null) {
+      clearTimeout(this.finishTimer);
+      this.finishTimer = null;
+    }
+  }
+
+  /** The window lost the focus or was hidden. */
+  suspend(): void {
+    this.rest();
+  }
+
+  /** The window is back: names that play on their own, or are under the pointer, go on. */
+  wake(): void {
+    if (this.layer && (this.playing || this.host.nativeElement.matches(':hover'))) {
+      this.stopping = false;
+      this.resume();
+    }
+  }
+
+  /**
+   * Puts every letter back at rest, at the start of its movement (no animation, held there). ! This is the only way a letter
+   * is left still other than at the end of its own turn, so a name can never stay half way through a jump or a flicker.
+   */
+  private rest(): void {
+    this.clearFinishTimer();
+    this.stopping = false;
+    for (const piece of this.pieces()) {
+      piece.style.animation = 'none';
+      piece.style.animationPlayState = 'paused';
+    }
+    this.resting = this.layer !== null;
+  }
+
+  /** The letters (and the light) of this name. */
+  private pieces(): HTMLElement[] {
+    return Array.from(this.layer?.querySelectorAll<HTMLElement>('.nfx-l, .nfx-halo') ?? []);
   }
 
   /**
@@ -295,7 +406,8 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
    *   piece was resting they all start again, with their delays, and the name moves as it did the first time.
    */
   private resume(): void {
-    const pieces = Array.from(this.layer?.querySelectorAll<HTMLElement>('.nfx-l, .nfx-halo') ?? []);
+    this.resting = false;
+    const pieces = this.pieces();
     const rested = pieces.some(function isResting(piece) {
       return piece.style.animationPlayState === 'paused';
     });
@@ -323,11 +435,13 @@ export class NameFxDirective implements AfterViewChecked, OnDestroy {
       this.armed = true;
       this.refresh();
       host.classList.add('nfx-on');
+      this.resume();
     } else if (!on && this.playing) {
       this.playing = false;
       liveNow--;
       if (!host.matches(':hover')) {
         host.classList.remove('nfx-on');
+        this.rest();
       }
     }
   }

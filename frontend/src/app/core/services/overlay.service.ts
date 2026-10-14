@@ -40,6 +40,8 @@ const INITIAL: OverlayState = {
     showNames: true,
     hideFromCapture: true,
     display: 'primary',
+    mode: 'always',
+    games: [],
     x: 0.02,
     y: 0.08,
     scale: 1,
@@ -92,6 +94,30 @@ export class OverlayService {
     if (this.bridge) {
       this.bridge.set(patch).then(this.apply.bind(this), this.ignore);
     }
+  }
+
+  /** The names of the windows that are open now. */
+  async openWindows(): Promise<string[]> {
+    try {
+      return (await this.bridge?.windows()) ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Registers a game (the name of its window, or part of it). */
+  addGame(name: string): void {
+    const games = this.state().settings.games;
+    this.set({ games: [...games, name.trim()] });
+  }
+
+  /** Stops using the overlay with a game. */
+  removeGame(name: string): void {
+    this.set({
+      games: this.state().settings.games.filter(function keep(game) {
+        return game !== name;
+      }),
+    });
   }
 
   // ── What the page tells the shell ──────────────────────────────────────────────────────────────

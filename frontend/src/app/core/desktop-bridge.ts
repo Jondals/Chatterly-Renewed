@@ -51,10 +51,33 @@ export interface DesktopUpdates {
 /** What to offer when sharing the screen. */
 type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
 
+/** One screen or window the app can share. */
+export interface ScreenPickItem {
+  id: string;
+  name: string;
+  type: 'screen' | 'window';
+  /** A small picture as a data address. */
+  thumb: string;
+}
+
+/** The question of the shell when the person starts sharing: what can be shared and what to show first. */
+export interface ScreenPickRequest {
+  kind: 'screen' | 'window';
+  /** Whether the box to share the sound of the computer starts ticked. */
+  audio: boolean;
+  items: ScreenPickItem[];
+}
+
 /** The screen sharing hint. */
-interface DesktopScreen {
+export interface DesktopScreen {
   /** Says what is about to be shared and whether the picker starts with the sound ticked. */
   setSurface(surface: ShareSurface, audio?: boolean): Promise<boolean>;
+  /** Calls `callback` each time the shell asks what to share (the page draws the menu). Returns the function that stops listening. */
+  onPick(callback: (request: ScreenPickRequest) => void): () => void;
+  /** Shares one of the sources the shell sent, with or without the sound of the computer. */
+  choose(sourceId: string, audio: boolean): Promise<boolean>;
+  /** Closes the menu without sharing. */
+  cancel(): Promise<boolean>;
 }
 
 /** The bar at the top of the window, when the app draws its own (Windows). */
@@ -111,6 +134,10 @@ export interface OverlaySettings {
   hideFromCapture: boolean;
   /** The screen it covers: the main one, or the one the app window is on. */
   display: 'primary' | 'app';
+  /** When it shows: in every call, or only while one of the registered games is open. */
+  mode: 'always' | 'games';
+  /** The names of the registered games (the overlay opens when an open window has one of them in its name). */
+  games: string[];
   x: number;
   y: number;
   scale: number;
@@ -160,6 +187,8 @@ export interface DesktopOverlay {
   set(patch: Partial<OverlaySettings>): Promise<OverlayState | null>;
   setTiles(tiles: OverlayTile[]): Promise<boolean>;
   signal(message: OverlaySignal): Promise<boolean>;
+  /** The names of the windows that are open now (to register a game from the list). */
+  windows(): Promise<string[]>;
   onEvent(callback: (event: OverlayEvent) => void): () => void;
 }
 

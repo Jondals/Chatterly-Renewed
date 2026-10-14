@@ -20,6 +20,7 @@ import { PresetService } from './core/services/preset.service';
 import { PresetTryComponent } from './shared/components/preset-try.component';
 import { ViewerService } from './core/services/viewer.service';
 import { ImageViewerComponent } from './shared/components/image-viewer.component';
+import { ScreenPickerComponent } from './layout/screen-picker.component';
 
 /** Things that make a press feel like a press: tiny sounds under controls. */
 const PRESSABLE =
@@ -73,6 +74,7 @@ function weightOf(target: HTMLElement): PressWeight {
     ArrivalComponent,
     MeshBackgroundComponent,
     PresetTryComponent,
+    ScreenPickerComponent,
     TitlebarComponent,
     ToastHostComponent,
   ],
@@ -85,6 +87,9 @@ function weightOf(target: HTMLElement): PressWeight {
     }
     <router-outlet />
     <app-toast-host />
+    @if (desktop) {
+      <app-screen-picker />
+    }
     @if (viewer.open()) {
       @defer (on immediate) {
         <app-image-viewer />
@@ -105,6 +110,8 @@ function weightOf(target: HTMLElement): PressWeight {
 export class AppComponent {
   /** The desktop app draws its own bar at the top of the window. */
   protected readonly desktopBar = !!desktopBridge()?.titlebar;
+  /** True inside the desktop app: it draws the menu to choose what to share. */
+  protected readonly desktop = !!desktopBridge()?.screen;
   protected readonly arrival = inject(ArrivalService);
   protected readonly presets = inject(PresetService);
   protected readonly viewer = inject(ViewerService);

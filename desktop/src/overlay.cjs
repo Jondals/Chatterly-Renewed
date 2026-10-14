@@ -10,6 +10,10 @@
  * * The video: a MediaStream cannot be handed to another window, so the page of the app and the overlay talk through a
  *   WebRTC connection that never leaves the computer (no STUN, no TURN, no network). This file only RELAYS its signalling
  *   messages between the two windows; the frames are already decrypted in the page, travel inside the computer and stop there.
+ * * Which games: the person can register the windows (games) that should use it. While the overlay is set to "only with my
+ *   games", it opens when a window whose name contains one of the registered names is open (the list of open windows is read
+ *   every few seconds, without pictures: Electron cannot tell which window has the focus), and a small notice in the overlay
+ *   says which keys open it.
  * * Editing: a keyboard shortcut (chosen in Settings > Game overlay) lets the mouse reach the window for a moment, so the
  *   panel can be dragged and resized; the focus goes back to the game when it ends.
  * * The choices are kept in overlay.json in the profile folder and are checked on every read and write.
@@ -18,7 +22,14 @@
  */
 'use strict';
 
-const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  globalShortcut,
+  ipcMain,
+  screen,
+} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -32,12 +43,20 @@ const DEFAULTS = {
   showNames: true,
   hideFromCapture: true,
   display: 'primary',
+  mode: 'always',
+  games: [],
   x: 0.02,
   y: 0.08,
   scale: 1,
 };
 const SIZES = ['small', 'medium', 'large'];
 const DISPLAYS = ['primary', 'app'];
+/** When it shows: during every call, or only while one of the registered games is open. */
+const MODES = ['always', 'games'];
+const MAX_GAMES = 30;
+const MAX_GAME_CHARS = 80;
+/** How often the open windows are read while the overlay waits for a game. */
+const WATCH_MS = 4000;
 /** A shortcut is one to three modifiers and a letter, a digit or F1 to F12. */
 const HOTKEY = /^(?:(?:CommandOrControl|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -56,6 +75,8 @@ let editing = false;
 let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
+let gameOpen = false;
+let watchTimer = null;
 
 /** Where the choices are kept. */
 function fileOf() {
@@ -82,11 +103,28 @@ function sanitizeSettings(raw, base) {
   if (typeof wanted.hotkey === 'string' && HOTKEY.test(wanted.hotkey)) next.hotkey = wanted.hotkey;
   if (SIZES.includes(wanted.size)) next.size = wanted.size;
   if (DISPLAYS.includes(wanted.display)) next.display = wanted.display;
+  if (MODES.includes(wanted.mode)) next.mode = wanted.mode;
+  if (Array.isArray(wanted.games)) next.games = cleanGames(wanted.games);
   next.opacity = Math.round(clamp(wanted.opacity, 30, 100, next.opacity));
   next.x = clamp(wanted.x, 0, 1, next.x);
   next.y = clamp(wanted.y, 0, 1, next.y);
   next.scale = clamp(wanted.scale, 0.5, 3, next.scale);
   return next;
+}
+
+/** The names of the registered games: short texts, no repeats (the case does not matter), at most MAX_GAMES. */
+function cleanGames(list) {
+  const names = [];
+  const seen = new Set();
+  for (const item of list) {
+    if (typeof item !== 'string') continue;
+    const name = item.trim().slice(0, MAX_GAME_CHARS);
+    if (name === '' || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    names.push(name);
+    if (names.length === MAX_GAMES) break;
+  }
+  return names;
 }
 
 /** Reads the choices of the person (the defaults when there is none or the file is damaged). */
@@ -180,9 +218,13 @@ function targetDisplay() {
 /** The choices the overlay window needs to draw. */
 function viewConfig() {
   const spanish = String(app.getLocale() || 'en').slice(0, 2) === 'es';
+  const keys = settings.hotkey.replace('CommandOrControl', 'Ctrl');
   return {
     ...settings,
     editing,
+    toast: spanish
+      ? 'Overlay de Chatterly activo · pulsa ' + keys + ' para abrirlo'
+      : 'Chatterly overlay is on · press ' + keys + ' to open it',
     hint: spanish
       ? 'Arrastra para mover · esquina para el tamaño · Esc para terminar'
       : 'Drag to move · corner to resize · Esc to finish',
@@ -261,9 +303,63 @@ function closeWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close();
 }
 
-/** Opens or closes the window to match: it exists while the overlay is on and there are people to show. */
+/** Names of the windows that are open now (without the ones of Chatterly itself). */
+async function openWindowNames() {
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 0, height: 0 },
+    fetchWindowIcons: false,
+  });
+  const names = [];
+  for (const source of sources) {
+    const name = String(source.name || '').trim();
+    if (name === '' || name === 'Chatterly' || name.startsWith('Chatterly overlay')) continue;
+    if (!names.includes(name)) names.push(name.slice(0, 120));
+  }
+  return names.slice(0, 100);
+}
+
+/** True when a registered game has a window open. */
+function anyGameIn(names) {
+  return names.some(function isGame(name) {
+    return settings.games.some(function matches(game) {
+      return name.toLowerCase().includes(game.toLowerCase());
+    });
+  });
+}
+
+/** Looks at the open windows and opens or closes the overlay if a registered game appeared or went away. */
+async function watchGames() {
+  let open = false;
+  try {
+    open = anyGameIn(await openWindowNames());
+  } catch (error) {
+    open = false;
+  }
+  if (open !== gameOpen) {
+    gameOpen = open;
+    sync();
+  }
+}
+
+/** Reads the open windows now and then, but only while the overlay waits for a game during a call. */
+function updateWatch() {
+  const needed = settings.enabled && settings.mode === 'games' && tiles.length > 0;
+  if (needed && !watchTimer) {
+    watchTimer = setInterval(watchGames, WATCH_MS);
+    void watchGames();
+  } else if (!needed && watchTimer) {
+    clearInterval(watchTimer);
+    watchTimer = null;
+    gameOpen = false;
+  }
+}
+
+/** Opens or closes the window to match: it exists while the overlay is on, there are people to show and (if it waits for a game) one is open. */
 function sync() {
-  if (settings.enabled && tiles.length > 0) openWindow();
+  updateWatch();
+  const wanted = settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen);
+  if (wanted) openWindow();
   else closeWindow();
   registerHotkey();
 }
@@ -321,6 +417,16 @@ function isMainPage(event) {
 /** True when the message comes from the overlay window itself. */
 function isOverlay(event) {
   return Boolean(overlayWindow) && event.sender === overlayWindow.webContents;
+}
+
+/** The page asks which windows are open (to register a game from the list). */
+async function handleWindows(event) {
+  if (!isMainPage(event)) return [];
+  try {
+    return await openWindowNames();
+  } catch (error) {
+    return [];
+  }
 }
 
 function handleGet(event) {
@@ -393,6 +499,7 @@ function start(window, isAppAddressFn, userDataPath, quietMode) {
   ipcMain.handle('overlay:get', handleGet);
   ipcMain.handle('overlay:set', handleSet);
   ipcMain.handle('overlay:tiles', handleTiles);
+  ipcMain.handle('overlay:windows', handleWindows);
   ipcMain.handle('overlay:signal', handleSignalToOverlay);
   ipcMain.on('overlay:signal-out', handleSignalToPage);
   ipcMain.on('overlay:layout', handleLayout);
@@ -402,6 +509,7 @@ function start(window, isAppAddressFn, userDataPath, quietMode) {
 
 /** Leaves nothing registered on the system when the app closes. */
 function stop() {
+  clearInterval(watchTimer);
   globalShortcut.unregisterAll();
   closeWindow();
 }

@@ -8,6 +8,7 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import type { OverlaySettings, OverlaySize } from '../../core/desktop-bridge';
 import { OverlayService } from '../../core/services/overlay.service';
 import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
+import { IconComponent } from '../../shared/components/icon.component';
 import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
 
 const SIZES: { id: OverlaySize; label: string }[] = [
@@ -28,7 +29,7 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 @Component({
   selector: 'app-overlay-section',
   standalone: true,
-  imports: [SelectComponent, SettingRowComponent, ToggleComponent, TranslatePipe],
+  imports: [IconComponent, SelectComponent, SettingRowComponent, ToggleComponent, TranslatePipe],
   template: `
     <section class="settings-card">
       <app-setting-row
@@ -47,6 +48,73 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
             | t
         }}
       </p>
+    </section>
+
+    <section class="settings-card mt-4">
+      <h2 class="settings-card-title">{{ 'Games' | t }}</h2>
+      <app-setting-row
+        title="When to show it"
+        hint="In every call, or only while one of the games you register below is open. A small notice tells you which keys open it."
+      >
+        <app-select
+          class="w-72 max-w-full"
+          label="When to show it"
+          [options]="modeOptions()"
+          [value]="settings().mode"
+          (valueChange)="overlay.set({ mode: $event === 'games' ? 'games' : 'always' })"
+        />
+      </app-setting-row>
+      @for (game of settings().games; track game) {
+        <div class="mt-2 flex items-center gap-3">
+          <span class="min-w-0 flex-1 truncate text-sm">{{ game }}</span>
+          <button
+            type="button"
+            class="btn btn-icon btn-sm btn-ghost"
+            [attr.aria-label]="'Remove' | t"
+            (click)="overlay.removeGame(game)"
+          >
+            <app-icon name="x" [size]="16" />
+          </button>
+        </div>
+      } @empty {
+        <p class="mt-2 text-xs text-dim">
+          {{ 'No games yet: add the window of a game you play.' | t }}
+        </p>
+      }
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" class="btn btn-sm" (click)="loadWindows()">
+          <app-icon name="monitor" [size]="14" /> {{ 'Add from the open windows' | t }}
+        </button>
+      </div>
+      @if (windows() !== null) {
+        <div class="mt-3 max-h-56 overflow-y-auto rounded-ui border border-white/10 p-1">
+          @for (name of windows(); track name) {
+            <button
+              type="button"
+              class="block w-full truncate rounded-ui px-2 py-1.5 text-left text-sm hover:bg-white/10"
+              (click)="addFromList(name)"
+            >
+              {{ name }}
+            </button>
+          } @empty {
+            <p class="p-2 text-xs text-dim">{{ 'No other windows are open.' | t }}</p>
+          }
+        </div>
+      }
+      <form class="mt-3 flex flex-wrap gap-2" (submit)="addTyped($event)">
+        <input
+          class="input min-w-0 flex-1"
+          type="text"
+          maxlength="80"
+          autocomplete="off"
+          [placeholder]="'Or type part of the name of its window' | t"
+          [value]="typed()"
+          (input)="typed.set($any($event.target).value)"
+        />
+        <button type="submit" class="btn btn-sm" [disabled]="!typed().trim()">
+          {{ 'Add' | t }}
+        </button>
+      </form>
     </section>
 
     <section class="settings-card mt-4">
@@ -162,6 +230,12 @@ export class OverlaySectionComponent {
   protected readonly overlay = inject(OverlayService);
   private readonly i18n = inject(I18nService);
 
+  /** The windows that are open, once the person asked to see them (null until then). */
+  protected readonly windows = signal<string[] | null>(null);
+  /** The name of a game being typed. */
+  protected readonly typed = signal('');
+  protected readonly modeOptions = computed(this.buildModes.bind(this));
+
   /** True while the button waits for the keys of a new shortcut. */
   protected readonly listening = signal(false);
   protected readonly settings = computed(this.readSettings.bind(this));
@@ -171,6 +245,42 @@ export class OverlaySectionComponent {
 
   /** The shortcut as the person reads it ("Ctrl+Shift+O"). */
   protected readonly shortcutLabel = computed(this.readLabel.bind(this));
+
+  private buildModes(): SelectOption[] {
+    return [
+      { value: 'always', label: this.i18n.t('In every call') },
+      { value: 'games', label: this.i18n.t('Only while one of my games is open') },
+    ];
+  }
+
+  /** Reads the windows that are open now. */
+  protected async loadWindows(): Promise<void> {
+    const known = this.settings().games.map(function lower(game) {
+      return game.toLowerCase();
+    });
+    const names = await this.overlay.openWindows();
+    this.windows.set(
+      names.filter(function isNew(name) {
+        return !known.includes(name.toLowerCase());
+      }),
+    );
+  }
+
+  /** Registers the window chosen from the list. */
+  protected addFromList(name: string): void {
+    this.overlay.addGame(name);
+    this.windows.set(null);
+  }
+
+  /** Registers the name that was typed. */
+  protected addTyped(event: Event): void {
+    event.preventDefault();
+    const name = this.typed().trim();
+    if (name) {
+      this.overlay.addGame(name);
+      this.typed.set('');
+    }
+  }
 
   private readSettings(): OverlaySettings {
     return this.overlay.state().settings;
