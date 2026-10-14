@@ -83,7 +83,7 @@ jobs:
             if [ -n "$TAG" ]; then
               VERSION="${TAG#v}"
             else
-              LAST=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\")) | .tagName | sub(\"^.*beta\\.\"; \"\") | tonumber] | max // 0")
+              LAST=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\")) | .tagName | sub(\"^.*beta[.]\"; \"\") | tonumber] | max // 0")
               VERSION="$BASE-beta.$((LAST + 1))"
             fi
             LABEL="$BASE-b${VERSION##*.}"
@@ -169,10 +169,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
           LABEL: ${{ needs.prepare.outputs.label }}
+          BETA: ${{ needs.prepare.outputs.beta }}
         run: |
-          # The update file is latest.yml on the stable channel and beta.yml on the beta one.
+          # The update file is latest.yml on the stable channel and beta.yml on the beta one (the installed apps of the beta
+          # look for beta.yml, so a beta build always uploads it under that name, whatever electron-builder called it).
           YML=desktop/dist/latest.yml
           if [ ! -f "$YML" ]; then YML=desktop/dist/beta.yml; fi
+          if [ "$BETA" = true ]; then
+            [ "$YML" = desktop/dist/beta.yml ] || cp "$YML" desktop/dist/beta.yml
+            YML=desktop/dist/beta.yml
+          fi
+          ls -l desktop/dist
+          for FILE in "Chatterly-$LABEL.exe" "$(basename "$YML")"; do
+            gh release delete-asset "v$VERSION" "$FILE" --yes 2>/dev/null || true
+          done
           gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.exe" "$YML" --clobber
 
   linux:
@@ -205,10 +215,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
           LABEL: ${{ needs.prepare.outputs.label }}
+          BETA: ${{ needs.prepare.outputs.beta }}
         run: |
-          # The update file of the channel (latest-linux.yml or beta-linux.yml): whatever electron-builder wrote.
+          # The update file is latest-linux.yml on the stable channel and beta-linux.yml on the beta one (see the Windows job).
+          YML=desktop/dist/latest-linux.yml
+          if [ ! -f "$YML" ]; then YML=desktop/dist/beta-linux.yml; fi
+          if [ "$BETA" = true ]; then
+            [ "$YML" = desktop/dist/beta-linux.yml ] || cp "$YML" desktop/dist/beta-linux.yml
+            YML=desktop/dist/beta-linux.yml
+          fi
           ls -l desktop/dist
-          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.AppImage" desktop/dist/*-linux.yml --clobber
+          for FILE in "Chatterly-$LABEL.AppImage" "$(basename "$YML")"; do
+            gh release delete-asset "v$VERSION" "$FILE" --yes 2>/dev/null || true
+          done
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.AppImage" "$YML" --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.
