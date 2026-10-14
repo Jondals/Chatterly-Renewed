@@ -20,10 +20,11 @@
 
 importScripts('vision_bundle.js');
 
-/** The mask is recalculated one frame of every this many (the person barely moves in 33 ms). */
-var SEGMENT_EVERY = 2;
-/** How much of the previous mask is kept (smooths the edges in time). */
-var MASK_MEMORY = 0.5;
+/**
+ * How much of the previous mask is kept (smooths the edges in time). Kept low: the mask is made for every frame at the first level,
+ * and a high memory made it trail behind a person who moves, which left a halo of the old room around them.
+ */
+var MASK_MEMORY = 0.3;
 /**
  * The model sees a picture of 256 x 256 whatever it is given, so a person who fills a third of the camera gets about 85 pixels of
  * detail across. So the model is given only the part of the picture where the person is (the crop), which gives it two or three
@@ -88,10 +89,10 @@ var state = {
  * computer that is slow, gets a higher level before it lags.
  */
 var LEVELS = [
-  { every: 2, rounds: 3, cheap: false, factor: 4, drop: false },
-  { every: 3, rounds: 2, cheap: false, factor: 4, drop: false },
-  { every: 4, rounds: 2, cheap: true, factor: 8, drop: false },
-  { every: 6, rounds: 1, cheap: true, factor: 8, drop: true },
+  { every: 1, rounds: 3, cheap: false, factor: 4, drop: false },
+  { every: 2, rounds: 2, cheap: false, factor: 4, drop: false },
+  { every: 3, rounds: 2, cheap: true, factor: 8, drop: false },
+  { every: 5, rounds: 1, cheap: true, factor: 8, drop: true },
 ];
 
 /** The level that is used now: the one the speed asks for, and at least the second when the page says the computer is busy. */
@@ -533,7 +534,7 @@ var MATTE =
   '  float edge = 0.07 + t * 0.2;\n' +
   '  float cut;\n' +
   '  if (uCheap > 0.5) { cut = smoothstep(0.5 - edge, 0.5 + edge, maskAt(vUv)); }\n' +
-  '  else { cut = smoothstep(0.55 - edge, 0.55 + edge, refineMask(vUv, texture(uVideo, vUv).rgb)); }\n' +
+  '  else { cut = smoothstep(0.6 - edge, 0.6 + edge, refineMask(vUv, texture(uVideo, vUv).rgb)); }\n' +
   '  float m = cut;\n' +
   '  if (t > 0.03) {\n' +
   '    float feather = smoothstep(0.5 - edge, 0.5 + edge, featherMask(vUv, 0.7 + pow(t, 0.85) * 42.0));\n' +
@@ -812,6 +813,7 @@ function render(frame) {
             Math.min(1, options.edgeSoftness === undefined ? 0.55 : options.edgeSoftness),
           ) *
             0.39;
+        g.uniform1f(g.getUniformLocation(p, 'uSoft'), soft);
         g.uniform1f(g.getUniformLocation(p, 'uCheap'), level.cheap ? 1 : 0);
       },
     );
