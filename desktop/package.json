@@ -2,6 +2,8 @@
   "name": "chatterly-renewed-desktop",
   "version": "2.32.0",
   "productName": "Chatterly",
+  "homepage": "https://github.com/Jondals/ChatterlyRenewed",
+  "desktopName": "chatterly.desktop",
   "description": "Chatterly-Renewed desktop shell (Electron): the same end-to-end encrypted web app in a hardened window.",
   "main": "src/main.cjs",
   "private": true,
@@ -46,6 +48,7 @@
       ],
       "icon": "build/icon.png",
       "category": "Network",
+      "syncDesktopName": true,
       "maintainer": "Jondals <noreply@github.com>",
       "artifactName": "Chatterly-${version}.${ext}"
     },

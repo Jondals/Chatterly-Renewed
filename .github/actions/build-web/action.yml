@@ -1,10 +1,16 @@
 # .github/actions/build-web/action.yml
-# * The steps every app build shares: install the tools and the packages, and build the web app that the desktop apps carry
-#   inside them (frontend/dist). The jobs of .github/workflows/desktop.yml call it with `uses: ./.github/actions/build-web`.
+# * The steps the app builds share. mode "web" (the default) installs everything and builds the web app that the desktop apps
+#   carry inside them (frontend/dist). mode "desktop" only installs the tools and the root and desktop packages (the web app comes ready
+#   from the `web` job), so Windows and Linux do not build it again. Called with `uses: ./.github/actions/build-web`.
 # ! Every action is pinned to the exact commit of its release (the tag only says which one), so a moved tag cannot change
 #   what runs. To update one, look up the commit of the new release and change both the hash and the comment.
 name: Build the web app
-description: Installs pnpm, Node and the packages, and builds the web app.
+description: Installs pnpm, Node and the packages, and builds the web app (or only prepares the desktop build).
+
+inputs:
+  mode:
+    description: "web (install everything and build the web app) or desktop (only the desktop packages)"
+    default: web
 
 runs:
   using: composite
@@ -36,12 +42,16 @@ runs:
       shell: bash
       run: |
         pnpm install --frozen-lockfile
-        pnpm --dir frontend install --frozen-lockfile
+        if [ "${{ inputs.mode }}" = web ]; then
+          pnpm --dir frontend install --frozen-lockfile
+        fi
         pnpm --dir desktop install --frozen-lockfile
     # The web build draws a copy of the sign-in screen with a real browser (frontend/scripts/postbuild.mjs).
     - name: Install the browser the web build needs
+      if: inputs.mode == 'web'
       shell: bash
       run: pnpm exec playwright install --with-deps chromium
     - name: Build the web app
+      if: inputs.mode == 'web'
       shell: bash
       run: pnpm --dir frontend build

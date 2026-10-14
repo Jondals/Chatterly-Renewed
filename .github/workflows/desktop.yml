@@ -95,8 +95,27 @@ jobs:
               --title "Chatterly $VERSION" --notes-file release-notes.md
           fi
 
-  windows:
+  # The web app is built ONCE and both platforms carry that same build (it was built twice before).
+  web:
     needs: prepare
+    if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version of the beta build
+        if: needs.prepare.outputs.beta == 'true'
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+      - uses: ./.github/actions/build-web
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-build
+          path: frontend/dist/frontend/browser
+          retention-days: 1
+
+  windows:
+    needs: [prepare, web]
     if: needs.prepare.outputs.windows == 'true'
     runs-on: windows-latest
     permissions:
@@ -110,7 +129,15 @@ jobs:
         shell: bash
         run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
       - uses: ./.github/actions/build-web
+        with:
+          mode: desktop
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-build
+          path: frontend/dist/frontend/browser
+      # The shell checks take minutes and run on your machine with `pnpm test`: only the stable release waits for them here.
       - name: Check the desktop shell
+        if: needs.prepare.outputs.beta != 'true'
         run: pnpm --dir desktop test
       - name: Build the installer (no token here)
         run: pnpm --dir desktop dist
@@ -122,11 +149,12 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           # The update file is latest.yml on the stable channel and beta.yml on the beta one.
-          YML=$(ls desktop/dist/latest.yml desktop/dist/beta.yml 2>/dev/null | head -n 1)
+          YML=desktop/dist/latest.yml
+          if [ ! -f "$YML" ]; then YML=desktop/dist/beta.yml; fi
           gh release upload "v$VERSION" "desktop/dist/Chatterly-Setup-$VERSION.exe" "$YML" --clobber
 
   linux:
-    needs: prepare
+    needs: [prepare, web]
     if: needs.prepare.outputs.linux == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -139,6 +167,12 @@ jobs:
         if: needs.prepare.outputs.beta == 'true'
         run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
       - uses: ./.github/actions/build-web
+        with:
+          mode: desktop
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-build
+          path: frontend/dist/frontend/browser
       - name: Build the AppImage and the deb (no token here)
         run: pnpm --dir desktop dist:linux
       - name: Attach the packages to the release
@@ -147,12 +181,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          YML=$(ls desktop/dist/latest-linux.yml desktop/dist/beta-linux.yml 2>/dev/null | head -n 1)
+          YML=desktop/dist/latest-linux.yml
+          if [ ! -f "$YML" ]; then YML=desktop/dist/beta-linux.yml; fi
           gh release upload "v$VERSION" "desktop/dist/Chatterly-$VERSION.AppImage" "desktop/dist/Chatterly-$VERSION.deb" "$YML" --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.
-    needs: [prepare, windows, linux]
+    needs: [prepare, web, windows, linux]
     if: ${{ !cancelled() && needs.prepare.result == 'success' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     permissions:
