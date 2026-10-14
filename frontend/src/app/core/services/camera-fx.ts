@@ -32,7 +32,7 @@ export interface CameraFxOptions {
   /** Where the zoomed picture looks, -1 to 1 of the room the zoom leaves on each side (0: the middle). */
   panX: number;
   panY: number;
-  /** 0 to 1: how soft the edge of the person is against the background (0.33: the original look). */
+  /** 0 to 1: how soft the edge of the person is against the background (0.33: the original look, 0.55: the default now). */
   edgeSoftness: number;
   background: BackgroundSetting;
 }

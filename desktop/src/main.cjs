@@ -355,6 +355,17 @@ function nearestScreen(sources) {
   return sources[0];
 }
 
+/**
+ * Windows that are not for sharing and only crowd the list: the overlay of the graphics card, the desktop itself and the system
+ * input window. Matched by their exact title; screens are never filtered.
+ */
+const NOISE_WINDOWS =
+  /^(NVIDIA GeForce Overlay|NVIDIA Overlay|Program Manager|Experiencia de entrada de Windows|Windows Input Experience|Microsoft Text Input Application)$/i;
+
+function isNoise(source) {
+  return source.id.startsWith('window:') && NOISE_WINDOWS.test(source.name.trim());
+}
+
 async function onDisplayMediaRequest(request, callback) {
   // * The callback can be used once, and it throws if the page went away meanwhile (for example on quit).
   let answered = false;
@@ -379,11 +390,14 @@ async function onDisplayMediaRequest(request, callback) {
     screenSurface = 'any';
     screenAudio = false;
     const wantsScreen = surface === 'monitor';
-    const sources = await desktopCapturer.getSources({
+    const found = await desktopCapturer.getSources({
       types: wantsScreen ? ['screen'] : surface === 'window' ? ['window'] : ['screen', 'window'],
       // * A screen shared at once is never drawn, so it needs no picture.
       thumbnailSize: wantsScreen ? { width: 0, height: 0 } : { width: 320, height: 180 },
       fetchWindowIcons: false,
+    });
+    const sources = found.filter(function isWanted(source) {
+      return !isNoise(source);
     });
     let picked = null;
     if (wantsScreen && sources.length > 0) {

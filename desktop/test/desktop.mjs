@@ -351,8 +351,9 @@ function auditSignatures() {
 
   const updater = fs.readFileSync(path.join(SRC, 'updater.cjs'), 'utf8');
   check(
-    updater.includes('allowDowngrade = false') && !/allowDowngrade = (?!false)/.test(updater),
-    'the updater never allows a downgrade',
+    (updater.match(/allowDowngrade = /g) || []).length === 1 &&
+      updater.includes("allowDowngrade = !beta && app.getVersion().includes('-beta.')"),
+    'the updater only downgrades a beta that goes back to the release channel',
   );
   check(
     updater.includes('trusted !== state.version') && updater.includes('verifyAvailable(info)'),

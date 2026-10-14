@@ -24,6 +24,18 @@ importScripts('vision_bundle.js');
 var SEGMENT_EVERY = 2;
 /** How much of the previous mask is kept (smooths the edges in time). */
 var MASK_MEMORY = 0.5;
+/**
+ * The model sees a picture of 256 x 256 whatever it is given, so a person who fills a third of the camera gets about 85 pixels of
+ * detail across. So the model is given only the part of the picture where the person is (the crop), which gives it two or three
+ * times more detail on the edges of the hair, the hands and the shoulders. The whole picture is looked at only now and then, to
+ * find the crop (and to notice somebody who comes in).
+ */
+var DETECT_EVERY = 24;
+/** The longest side, in pixels, of the crop that is given to the model. */
+var CROP_SIDE = 384;
+/** The crop is never smaller than this fraction of the picture, in either direction. */
+var MIN_CROP = 0.34;
+var FULL_RECT = [0, 0, 1, 1];
 
 var state = {
   running: false,
@@ -37,6 +49,15 @@ var state = {
   segmenter: null,
   segmenterStarting: false,
   maskSize: { width: 0, height: 0 },
+  /** Where the mask is, as a rectangle of the picture (x, y, width, height, from 0 to 1): the crop, or all of it. */
+  maskRect: FULL_RECT,
+  /** The crop given to the model ({ x, y, w, h } of the picture), or null while nobody has been found. */
+  roi: null,
+  detectIn: 0,
+  crop: null,
+  cropContext: null,
+  segmentKind: 'detect',
+  stamp: 0,
   maskData: null,
   maskMemory: null,
   haveMask: false,
@@ -183,17 +204,129 @@ function reportSegmenterFailure(error) {
   });
 }
 
-/** Turns the confidence mask of the model into the soft mask the shader uses (smoothed in time). */
-function readMask(result) {
-  var mask = result.confidenceMasks && result.confidenceMasks[0];
-  if (!mask) {
+/** Gives the model a picture and says what the answer is for ('detect': the whole picture; 'roi': the crop). */
+function runSegmenter(source, kind) {
+  state.segmentKind = kind;
+  // the model wants a growing time stamp, and two pictures can be given in the same millisecond
+  state.stamp = Math.max(state.stamp + 1, performance.now());
+  state.segmenter.segmentForVideo(source, state.stamp, readMask);
+}
+
+/** Finds the person in a frame (the crop of it, most of the time) and keeps the mask up to date. */
+function segmentFrame(frame) {
+  var width = frame.displayWidth || frame.width;
+  var height = frame.displayHeight || frame.height;
+  if (!state.roi || state.detectIn <= 0) {
+    state.detectIn = DETECT_EVERY;
+    runSegmenter(frame, 'detect');
+  } else {
+    state.detectIn--;
+  }
+  var roi = state.roi;
+  if (!roi) {
     return;
   }
-  var width = mask.width;
-  var height = mask.height;
-  var values = mask.getAsUint8Array();
-  if (!state.maskData || state.maskSize.width !== width || state.maskSize.height !== height) {
+  var sx = Math.round(roi.x * width);
+  var sy = Math.round(roi.y * height);
+  var sw = Math.max(8, Math.min(width - sx, Math.round(roi.w * width)));
+  var sh = Math.max(8, Math.min(height - sy, Math.round(roi.h * height)));
+  var scale = Math.min(1, CROP_SIDE / Math.max(sw, sh));
+  var cw = Math.max(8, Math.round(sw * scale));
+  var ch = Math.max(8, Math.round(sh * scale));
+  if (!state.crop || state.crop.width !== cw || state.crop.height !== ch) {
+    state.crop = new OffscreenCanvas(cw, ch);
+    state.cropContext = state.crop.getContext('2d');
+  }
+  state.cropContext.drawImage(frame, sx, sy, sw, sh, 0, 0, cw, ch);
+  // what the model answers is for exactly this part of the picture
+  state.cropRect = [sx / width, sy / height, sw / width, sh / height];
+  runSegmenter(state.crop, 'roi');
+}
+
+/** The rectangle (0 to 1, inside the mask) that holds everything the model is sure is the person, or null if there is nobody. */
+function boxOf(values, width, height) {
+  var minX = width;
+  var minY = height;
+  var maxX = -1;
+  var maxY = -1;
+  var count = 0;
+  for (var y = 0; y < height; y++) {
+    var row = y * width;
+    for (var x = 0; x < width; x++) {
+      if (values[row + x] > 128) {
+        count++;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (count < width * height * 0.004) {
+    return null;
+  }
+  return {
+    x: minX / width,
+    y: minY / height,
+    w: (maxX - minX + 1) / width,
+    h: (maxY - minY + 1) / height,
+  };
+}
+
+/** Chooses the crop for a person (box in the coordinates of the picture); it moves only when the person has really moved. */
+function proposeRoi(box) {
+  if (!box) {
+    state.roi = null;
+    return;
+  }
+  var padX = box.w * 0.25 + 0.03;
+  var padY = box.h * 0.2 + 0.03;
+  var x0 = Math.max(0, box.x - padX);
+  var y0 = Math.max(0, box.y - padY * 1.3);
+  var x1 = Math.min(1, box.x + box.w + padX);
+  var y1 = Math.min(1, box.y + box.h + padY);
+  var next = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  if (next.w < MIN_CROP) {
+    next.x = Math.max(0, Math.min(1 - MIN_CROP, next.x + next.w / 2 - MIN_CROP / 2));
+    next.w = MIN_CROP;
+  }
+  if (next.h < MIN_CROP) {
+    next.y = Math.max(0, Math.min(1 - MIN_CROP, next.y + next.h / 2 - MIN_CROP / 2));
+    next.h = MIN_CROP;
+  }
+  var old = state.roi;
+  if (old) {
+    var dx = Math.abs(next.x + next.w / 2 - (old.x + old.w / 2)) / old.w;
+    var dy = Math.abs(next.y + next.h / 2 - (old.y + old.h / 2)) / old.h;
+    var ds = Math.abs(next.w / old.w - 1) + Math.abs(next.h / old.h - 1);
+    // the person touches a side of the crop that is not the edge of the picture: the crop has to grow
+    var touching =
+      (old.x > 0.001 && box.x - old.x < 0.03 * old.w) ||
+      (old.x + old.w < 0.999 && old.x + old.w - (box.x + box.w) < 0.03 * old.w) ||
+      (old.y > 0.001 && box.y - old.y < 0.03 * old.h) ||
+      (old.y + old.h < 0.999 && old.y + old.h - (box.y + box.h) < 0.03 * old.h);
+    if (dx < 0.12 && dy < 0.12 && ds < 0.3 && !touching) {
+      return;
+    }
+  }
+  state.roi = next;
+}
+
+/** True when two rectangles are the same. */
+function sameRect(a, b) {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+}
+
+/** Puts a mask in the texture the shader reads (smoothed in time while it keeps the same place and size). */
+function uploadMask(values, width, height, rect) {
+  if (
+    !state.maskData ||
+    state.maskSize.width !== width ||
+    state.maskSize.height !== height ||
+    !sameRect(state.maskRect, rect)
+  ) {
     state.maskSize = { width: width, height: height };
+    state.maskRect = rect;
     state.maskData = new Uint8Array(width * height);
     state.maskMemory = new Float32Array(width * height);
     state.haveMask = false;
@@ -214,6 +347,39 @@ function readMask(result) {
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RED, gl.UNSIGNED_BYTE, out);
 }
 
+/** The answer of the model: it finds the crop (whole picture) or gives the mask of the person (crop). */
+function readMask(result) {
+  var mask = result.confidenceMasks && result.confidenceMasks[0];
+  if (!mask) {
+    return;
+  }
+  var width = mask.width;
+  var height = mask.height;
+  var values = mask.getAsUint8Array();
+  var box = boxOf(values, width, height);
+  if (state.segmentKind === 'detect') {
+    proposeRoi(box);
+    // while nobody has a crop yet, the mask of the whole picture is the mask
+    if (!state.roi) {
+      uploadMask(values, width, height, FULL_RECT);
+    }
+    return;
+  }
+  uploadMask(values, width, height, state.cropRect);
+  if (box) {
+    var r = state.cropRect;
+    proposeRoi({
+      x: r[0] + box.x * r[2],
+      y: r[1] + box.y * r[3],
+      w: box.w * r[2],
+      h: box.h * r[3],
+    });
+  } else {
+    // nobody in the crop any more: look at the whole picture on the next frame
+    state.detectIn = 0;
+  }
+}
+
 // ---- the graphics -------------------------------------------------------------------------------------------------
 
 var VERTEX =
@@ -225,28 +391,43 @@ var VERTEX =
   '  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);\n' +
   '}\n';
 
-/** A blur in one direction: 9 taps, as wide as `uStep` says. The result keeps the orientation of the picture it reads. */
+/**
+ * A blur in one direction: 9 taps, as wide as `uStep` says. It blurs four channels: the colour (already multiplied by how much
+ * of each pixel is background) and that amount itself, so the result can be divided back (see COPY and COMPOSE).
+ */
 var BLUR =
   '#version 300 es\n' +
   'precision mediump float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
   'uniform sampler2D uSource; uniform vec2 uStep;\n' +
   'void main() {\n' +
-  '  vec3 sum = texture(uSource, vUv).rgb * 0.2270270270;\n' +
-  '  sum += texture(uSource, vUv + uStep * 1.3846153846).rgb * 0.3162162162;\n' +
-  '  sum += texture(uSource, vUv - uStep * 1.3846153846).rgb * 0.3162162162;\n' +
-  '  sum += texture(uSource, vUv + uStep * 3.2307692308).rgb * 0.0702702703;\n' +
-  '  sum += texture(uSource, vUv - uStep * 3.2307692308).rgb * 0.0702702703;\n' +
-  '  outColor = vec4(sum, 1.0);\n' +
+  '  vec4 sum = texture(uSource, vUv) * 0.2270270270;\n' +
+  '  sum += texture(uSource, vUv + uStep * 1.3846153846) * 0.3162162162;\n' +
+  '  sum += texture(uSource, vUv - uStep * 1.3846153846) * 0.3162162162;\n' +
+  '  sum += texture(uSource, vUv + uStep * 3.2307692308) * 0.0702702703;\n' +
+  '  sum += texture(uSource, vUv - uStep * 3.2307692308) * 0.0702702703;\n' +
+  '  outColor = sum;\n' +
   '}\n';
 
-/** The first pass of the blur reads the camera (top row first) and writes it the same way. */
+/**
+ * The first pass of the blur reads the camera (top row first) and writes it the same way, but WITHOUT the person: each pixel counts
+ * as much as it is background. Blurring the person together with the room smeared their dark clothes and hair into a halo around
+ * them; this way only the room is blurred.
+ */
 var COPY =
   '#version 300 es\n' +
   'precision mediump float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
-  'uniform sampler2D uSource;\n' +
-  'void main() { outColor = vec4(texture(uSource, vUv).rgb, 1.0); }\n';
+  'uniform sampler2D uSource; uniform sampler2D uMask; uniform vec4 uMaskRect;\n' +
+  'float maskAt(vec2 p) {\n' +
+  '  vec2 q = (p - uMaskRect.xy) / uMaskRect.zw;\n' +
+  '  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { return 0.0; }\n' +
+  '  return texture(uMask, q).r;\n' +
+  '}\n' +
+  'void main() {\n' +
+  '  float back = 1.0 - smoothstep(0.12, 0.42, maskAt(vUv));\n' +
+  '  outColor = vec4(texture(uSource, vUv).rgb * back, back);\n' +
+  '}\n';
 
 /** The final picture: the background behind the person, the person over it, and the adjustments of the camera. */
 var COMPOSE =
@@ -256,7 +437,44 @@ var COMPOSE =
   'uniform sampler2D uVideo; uniform sampler2D uMask; uniform sampler2D uBlur; uniform sampler2D uBg;\n' +
   'uniform int uMode; uniform float uHasMask;\n' +
   'uniform float uMirror; uniform float uZoom; uniform vec2 uPan; uniform float uSoft; uniform vec4 uBgFit;\n' +
-  'uniform float uBright; uniform float uContrast; uniform float uSat;\n' +
+  'uniform float uBright; uniform float uContrast; uniform float uSat; uniform vec2 uMaskTexel; uniform vec4 uMaskRect;\n' +
+  '// The mask covers only the crop that was given to the model (uMaskRect, in the coordinates of the picture); outside it nobody is there.\n' +
+  'float maskAt(vec2 p) {\n' +
+  '  vec2 q = (p - uMaskRect.xy) / uMaskRect.zw;\n' +
+  '  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { return 0.0; }\n' +
+  '  return texture(uMask, q).r;\n' +
+  '}\n' +
+  '// The mask of the model is small and blurry. Each of its samples counts as much as its pixel looks like this one (a bilateral\n' +
+  '// filter guided by the camera), so the edge of the person snaps to the edge that is really in the picture.\n' +
+  '// The soft edge: the mask averaged over a ring whose radius (in texels of the mask) is given by the slider, so the person fades\n' +
+  '// into the background over a distance that really grows, instead of only changing the curve of the edge.\n' +
+  'float featherMask(vec2 img, float radius) {\n' +
+  '  const vec2 R[8] = vec2[8](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0), vec2(0.7, 0.7), vec2(-0.7, 0.7),\n' +
+  '    vec2(0.7, -0.7), vec2(-0.7, -0.7));\n' +
+  '  float sum = maskAt(img);\n' +
+  '  float weight = 1.0;\n' +
+  '  for (int i = 0; i < 8; i++) {\n' +
+  '    sum += maskAt(img + R[i] * uMaskTexel * radius * 0.34);\n' +
+  '    sum += maskAt(img + R[i] * uMaskTexel * radius * 0.67);\n' +
+  '    sum += maskAt(img + R[i] * uMaskTexel * radius);\n' +
+  '    weight += 3.0;\n' +
+  '  }\n' +
+  '  return sum / weight;\n' +
+  '}\n' +
+  'float refineMask(vec2 img, vec3 center) {\n' +
+  '  const vec2 K[12] = vec2[12](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0), vec2(0.7, 0.7), vec2(-0.7, 0.7),\n' +
+  '    vec2(0.7, -0.7), vec2(-0.7, -0.7), vec2(2.0, 0.0), vec2(-2.0, 0.0), vec2(0.0, 2.0), vec2(0.0, -2.0));\n' +
+  '  float sum = maskAt(img);\n' +
+  '  float weight = 1.0;\n' +
+  '  for (int i = 0; i < 12; i++) {\n' +
+  '    vec2 p = img + K[i] * uMaskTexel * 1.5;\n' +
+  '    vec3 d = texture(uVideo, p).rgb - center;\n' +
+  '    float w = exp(-dot(d, d) * 26.0);\n' +
+  '    sum += maskAt(p) * w;\n' +
+  '    weight += w;\n' +
+  '  }\n' +
+  '  return sum / weight;\n' +
+  '}\n' +
   'void main() {\n' +
   '  vec2 uv = vUv;\n' +
   '  uv = (uv - 0.5) / uZoom + 0.5 + uPan;\n' +
@@ -265,9 +483,16 @@ var COMPOSE =
   '  vec2 img = vec2(uv.x, 1.0 - uv.y);\n' +
   '  vec3 color = texture(uVideo, img).rgb;\n' +
   '  if (uMode != 0 && uHasMask > 0.5) {\n' +
-  '    float m = smoothstep(0.5 - uSoft, 0.5 + uSoft, texture(uMask, img).r);\n' +
+  '    // t is the slider of the soft edge (0 to 1): the cut that follows the picture is crisp, the plain one is soft, and the\n' +
+  '    // slider goes from one to the other.\n' +
+  '    float t = clamp((uSoft - 0.02) / 0.39, 0.0, 1.0);\n' +
+  '    float edge = 0.07 + t * 0.2;\n' +
+  '    float cut = smoothstep(0.55 - edge, 0.55 + edge, refineMask(img, color));\n' +
+  '    // t = 0 is the crisp cut that follows the picture; the more the slider moves, the more the person fades out over a wide ring\n' +
+  '    float feather = smoothstep(0.5 - edge, 0.5 + edge, featherMask(img, 1.0 + t * 22.0));\n' +
+  '    float m = mix(cut, feather, clamp(t * 1.6, 0.0, 1.0));\n' +
   '    vec3 back;\n' +
-  '    if (uMode == 1) { back = texture(uBlur, img).rgb; }\n' +
+  '    if (uMode == 1) { vec4 blurred = texture(uBlur, img); back = blurred.rgb / max(blurred.a, 0.06); }\n' +
   '    else {\n' +
   '      vec2 b = vec2(bgUv.x, 1.0 - bgUv.y);\n' +
   '      b = (b - 0.5) * uBgFit.zw + 0.5 + uBgFit.xy;\n' +
@@ -349,14 +574,24 @@ function allocateMask(width, height) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, null);
 }
 
-/** Makes the small pictures of the blur for the size of the camera. */
-function sizeTargets(width, height) {
+/** Frees a small picture of the blur. */
+function freeTarget(target) {
+  if (target) {
+    state.gl.deleteTexture(target.texture);
+    state.gl.deleteFramebuffer(target.framebuffer);
+  }
+}
+
+/** Makes the small pictures of the blur for the size of the camera, 1/factor of it. */
+function sizeTargets(width, height, factor) {
   var gl = state.gl;
-  var w = Math.max(16, Math.round(width / 4));
-  var h = Math.max(16, Math.round(height / 4));
+  var w = Math.max(16, Math.round(width / factor));
+  var h = Math.max(16, Math.round(height / factor));
   if (state.targets.a && state.targets.a.width === w && state.targets.a.height === h) {
     return;
   }
+  freeTarget(state.targets.a);
+  freeTarget(state.targets.b);
   state.targets.a = makeTarget(gl, w, h);
   state.targets.b = makeTarget(gl, w, h);
 }
@@ -468,16 +703,30 @@ function render(frame) {
     mode = kind === 'blur' ? 1 : 2;
   }
   if (mode === 1) {
-    sizeTargets(width, height);
+    sizeTargets(width, height, 4);
     var a = state.targets.a;
     var b = state.targets.b;
     var spread = Math.max(0.5, options.background.amount / 7);
-    // the camera into the small picture, then three rounds of blur (across, then down), each a little wider than the last
+    // the camera (without the person) into the small picture, then three rounds of blur (across, then down), each a little
+    // wider than the last
     gl.bindFramebuffer(gl.FRAMEBUFFER, a.framebuffer);
     gl.viewport(0, 0, a.width, a.height);
-    draw(state.programs.copy, [state.textures.video], function copyUniforms(g) {
-      sampler(g, state.programs.copy, 'uSource', 0);
-    });
+    draw(
+      state.programs.copy,
+      [state.textures.video, state.textures.mask],
+      function copyUniforms(g) {
+        sampler(g, state.programs.copy, 'uSource', 0);
+        sampler(g, state.programs.copy, 'uMask', 1);
+        var rect = state.maskRect;
+        g.uniform4f(
+          g.getUniformLocation(state.programs.copy, 'uMaskRect'),
+          rect[0],
+          rect[1],
+          rect[2],
+          rect[3],
+        );
+      },
+    );
     var rounds = [0.55, 0.85, 1.25];
     for (var round = 0; round < rounds.length; round++) {
       var step = spread * rounds[round];
@@ -520,6 +769,20 @@ function render(frame) {
       sampler(g, p, 'uBlur', 2);
       sampler(g, p, 'uBg', 3);
       g.uniform1i(g.getUniformLocation(p, 'uMode'), mode);
+      // the size of one texel of the mask in the coordinates of the picture (the mask may cover only the crop)
+      var maskRect = state.maskRect;
+      g.uniform2f(
+        g.getUniformLocation(p, 'uMaskTexel'),
+        maskRect[2] / Math.max(1, state.maskSize.width),
+        maskRect[3] / Math.max(1, state.maskSize.height),
+      );
+      g.uniform4f(
+        g.getUniformLocation(p, 'uMaskRect'),
+        maskRect[0],
+        maskRect[1],
+        maskRect[2],
+        maskRect[3],
+      );
       g.uniform1f(g.getUniformLocation(p, 'uHasMask'), hasMask ? 1 : 0);
       g.uniform1f(g.getUniformLocation(p, 'uMirror'), options.mirror ? 1 : 0);
       var zoom = Math.max(1, options.zoom || 1);
@@ -527,10 +790,10 @@ function render(frame) {
       var room = 0.5 - 0.5 / zoom;
       var panX = Math.max(-1, Math.min(1, options.panX || 0)) * room;
       var panY = Math.max(-1, Math.min(1, options.panY || 0)) * room;
-      // the width of the soft edge of the person: 0.15 (the original look) at the default of 0.33
+      // the width of the soft edge of the person: 0.15 (the original look) at 0.33
       var soft =
         0.02 +
-        Math.max(0, Math.min(1, options.edgeSoftness === undefined ? 0.33 : options.edgeSoftness)) *
+        Math.max(0, Math.min(1, options.edgeSoftness === undefined ? 0.55 : options.edgeSoftness)) *
           0.39;
       g.uniform1f(g.getUniformLocation(p, 'uZoom'), zoom);
       g.uniform2f(g.getUniformLocation(p, 'uPan'), panX, panY);
@@ -558,7 +821,7 @@ function processBitmap(bitmap) {
   var done = null;
   try {
     if (needsMask() && state.segmenter && state.frameNumber % SEGMENT_EVERY === 0) {
-      state.segmenter.segmentForVideo(bitmap, performance.now(), readMask);
+      segmentFrame(bitmap);
     }
     state.frameNumber++;
     render(bitmap);
@@ -591,7 +854,7 @@ async function pump() {
     var frame = step.value;
     try {
       if (needsMask() && state.segmenter && state.frameNumber % SEGMENT_EVERY === 0) {
-        state.segmenter.segmentForVideo(frame, performance.now(), readMask);
+        segmentFrame(frame);
       }
       state.frameNumber++;
       render(frame);

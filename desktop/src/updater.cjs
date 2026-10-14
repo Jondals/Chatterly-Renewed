@@ -17,7 +17,9 @@
  *   here with the public keys of update-verify.cjs, and then the sha512 of the installer is checked against that manifest. The
  *   https connection alone is never enough. There is no Authenticode publisher check on top of that yet (the installer is not
  *   signed by Windows): sign it, or ship through the Store, to get one.
- * ! Nothing goes down in version, ever (allowDowngrade is off): an old signed version cannot be replayed to a newer app.
+ * ! Nothing goes down in version, except one case: a person who runs a BETA and chooses the Release channel gets the latest
+ *   signed release even if its number is lower than their beta (a beta is ahead of the stable one until that one is published).
+ *   Every other app never downgrades, so an old signed version cannot be replayed to it.
  * ! Only the main page of the app may use the commands (see isTrustedSender); an embedded frame cannot, and the
  *   settings it sends are checked against a fixed list of values.
  * * Beta channel: with the "beta" choice on, the app looks in the Chatterly server instead of GitHub (the stable releases stay
@@ -189,13 +191,13 @@ function manifestName(beta) {
  * Points electron-updater at the feed of the channel. Returns '' when it is ready, or the reason it cannot look yet.
  * * Release: the releases of GitHub. Beta: the server, with the token of the account in a header. The channel is set on purpose:
  *   without it electron-updater would pick it from the version that runs, and a beta would look for beta.yml in GitHub.
- * ! Never a prerelease from GitHub and never a downgrade.
+ * ! Never a prerelease from GitHub. A downgrade only for a beta that goes back to Release (see the header).
  */
 function prepareFeed() {
   if (!autoUpdater || devFeed()) return '';
   const beta = state.settings.beta;
   autoUpdater.allowPrerelease = false;
-  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowDowngrade = !beta && app.getVersion().includes('-beta.');
   if (beta) {
     if (!serverOrigin) return 'The server address is not known';
     if (!betaAuth.token || betaAuth.expiresAt < Date.now() + TOKEN_MARGIN_MS) {

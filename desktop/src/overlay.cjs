@@ -256,6 +256,9 @@ function openWindow() {
     hasShadow: false,
     focusable: false,
     skipTaskbar: true,
+    // ! On Windows a "toolbar" window is a tool window: it is NOT in the Alt+Tab list. Without it the overlay appeared there as one
+    //   more "Chatterly" window, and choosing it minimized the game and left the overlay (which is not the game) in front.
+    ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
     alwaysOnTop: true,
     fullscreenable: false,
     resizable: false,
@@ -279,7 +282,14 @@ function openWindow() {
   win.webContents.on('did-finish-load', onOverlayLoaded);
   win.once('ready-to-show', win.showInactive.bind(win));
   win.on('closed', onOverlayClosed);
+  // Never keeps the focus: if something gives it to the overlay (outside the editing mode), it goes straight back to the game.
+  win.on('focus', onOverlayFocus);
   win.loadFile(path.join(__dirname, 'overlay.html'));
+}
+
+/** The overlay got the focus without the person asking for it (editing): hand it back. */
+function onOverlayFocus() {
+  if (!editing && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.blur();
 }
 
 /** The overlay page is ready: give it the choices and the people, and ask the app page to send the video. */
