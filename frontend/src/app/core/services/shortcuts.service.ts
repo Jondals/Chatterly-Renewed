@@ -23,7 +23,7 @@ export const SHORTCUT_ACTIONS: { id: ShortcutAction; label: string; icon: string
 ];
 
 /** The combinations every action has until the person changes it. */
-export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
+const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
   mute: 'Alt+Shift+M',
   deafen: 'Alt+Shift+D',
   camera: 'Alt+Shift+C',

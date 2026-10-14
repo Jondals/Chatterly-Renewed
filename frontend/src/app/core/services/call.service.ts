@@ -907,6 +907,12 @@ export class CallService {
     }
   }
 
+  /** While the screen is shared the effects of the camera take it easier (less work for the model and the blur), and go back after. */
+  private lightenCameraFx(busy: boolean): void {
+    this.backgrounds.busy = busy;
+    void this.applyBackground();
+  }
+
   /** Opens the camera for a preview (the window of the camera): the same camera the call would use, with no effects. */
   openPreviewCamera(): Promise<MediaStream> {
     return this.openRawCamera();
@@ -998,6 +1004,7 @@ export class CallService {
       }
       this.localScreen.set(stream);
       this.screenOn.set(true);
+      this.lightenCameraFx(true);
       stream.getVideoTracks()[0]?.addEventListener(
         'ended',
         function (this: CallService) {
@@ -1023,6 +1030,7 @@ export class CallService {
     }
     this.localScreen.set(null);
     this.screenOn.set(false);
+    this.lightenCameraFx(false);
     this.socket.send({ t: 'call.update', screen: false });
   }
 
@@ -1625,6 +1633,7 @@ export class CallService {
 
   /** Sends a camera or screen stream to a person, protected with frame encryption. */
   private addVideo(link: Link, stream: MediaStream, kind: 'camera' | 'screen'): void {
+    const isScreen = kind === 'screen';
     const senders = stream.getTracks().map(
       function (this: CallService, track: MediaStreamTrack) {
         // ? A NEW transceiver each time (addTrack reuses an old one that stopped sending, and then the other person never gets
@@ -1636,10 +1645,32 @@ export class CallService {
         const kind = track.kind === 'video' ? 'video' : 'audio';
         const transceiver = this.protectTrack(link, sender, kind);
         if (kind === 'video' && transceiver) this.preferVp8(transceiver);
+        if (kind === 'video' && isScreen) this.tuneScreenSender(sender, track);
         return sender;
       }.bind(this),
     );
     link.senders[kind] = [...(link.senders[kind] ?? []), ...senders];
+  }
+
+  /**
+   * How the shared screen is sent depends on what is on it, and the browser cannot tell a game from a document. The "max" quality
+   * (60 fps) is for movement: the picture is kept moving and gets less sharp before it lags (maintain-framerate). The others are for
+   * reading: text stays sharp (the frame rate drops first). A ceiling on the bitrate keeps a busy screen from filling the line,
+   * which is what made it lag, since every frame is also encrypted.
+   */
+  private tuneScreenSender(sender: RTCRtpSender, track: MediaStreamTrack): void {
+    const motion = this.settings.screenShare().quality === 'max';
+    track.contentHint = motion ? 'motion' : 'detail';
+    const ceiling = { standard: 2_500_000, high: 5_000_000, max: 8_000_000 };
+    const params = sender.getParameters() as RTCRtpSendParameters & {
+      degradationPreference?: string;
+    };
+    if (!params.encodings?.length) return;
+    params.encodings[0]!.maxBitrate = ceiling[this.settings.screenShare().quality] ?? ceiling.high;
+    params.degradationPreference = motion ? 'maintain-framerate' : 'maintain-resolution';
+    void sender.setParameters(params).catch(function ignore(): void {
+      return undefined;
+    });
   }
 
   /** Stops sending the camera or screen video to a person. */

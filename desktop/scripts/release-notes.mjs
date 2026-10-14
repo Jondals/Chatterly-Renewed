@@ -4,6 +4,8 @@
  * link to the full changelog. Used by .github/workflows/desktop.yml.
  *
  *   node desktop/scripts/release-notes.mjs 2.30.0
+ *   node desktop/scripts/release-notes.mjs 2.32.0-beta.5 v2.32.0-b1   (a build of the beta branch: the points of 2.32.0, a
+ *                                                                     warning, and the name people read for it)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,10 +14,16 @@ import path from 'node:path';
 const MAX_POINTS = 10;
 
 const version = process.argv[2];
-if (!/^\d+\.\d+\.\d+$/.test(version || '')) {
-  console.error('Usage: node release-notes.mjs <major.minor.patch>');
+if (!/^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(version || '')) {
+  console.error('Usage: node release-notes.mjs <major.minor.patch>[-beta.<n>]');
   process.exit(1);
 }
+const beta = version.includes('-beta.');
+const base = version.replace(/-.*$/, '');
+/** What people read: v2.32.0 for a release and v2.32.0-b1 for the first beta of it (given by the workflow). */
+const label = process.argv[3] || 'v' + version;
+/** The part that names the files: 2.32.0 or 2.32.0-b1. */
+const fileLabel = label.replace(/^v/, '');
 const repo = process.env.GITHUB_REPOSITORY || 'Jondals/ChatterlyRenewed';
 const changelog = fs.readFileSync(
   path.resolve(import.meta.dirname, '..', '..', 'CHANGELOG.md'),
@@ -35,7 +43,7 @@ function isFilled(title) {
 
 const lines = changelog.split(/\r?\n/);
 const start = lines.findIndex(function isHeading(line) {
-  return line.trim() === '## ' + version;
+  return line.trim() === '## ' + base;
 });
 let end = lines.length;
 for (let i = start + 1; start >= 0 && i < lines.length; i++) {
@@ -57,21 +65,30 @@ const shown = titles.slice(0, MAX_POINTS).map(function bullet(title) {
 if (titles.length > MAX_POINTS) {
   shown.push('- and ' + (titles.length - MAX_POINTS) + ' more');
 }
-const base = 'https://github.com/' + repo + '/blob/v' + version;
+const blob = 'https://github.com/' + repo + '/blob/v' + version;
+const warning = beta
+  ? [
+      '**Beta version** for the testers of the project: it is still being tried and can have mistakes.',
+      '',
+    ]
+  : [];
 console.log(
   [
-    '## Chatterly ' + version,
+    '## Chatterly ' + label,
     '',
+    ...warning,
     ...(shown.length ? shown : ['Small improvements and fixes.']),
     '',
     'Full details: [Changelog](' +
-      base +
+      blob +
       '/CHANGELOG.md) · [Registro de cambios](' +
-      base +
+      blob +
       '/CHANGELOG.es.md)',
     '',
-    'Windows: download `Chatterly-Setup-' +
-      version +
+    'Windows: download `Chatterly-' +
+      fileLabel +
       '.exe`. The installer is not signed yet, so Windows may show its SmartScreen warning.',
+    '',
+    'Linux: download `Chatterly-' + fileLabel + '.AppImage` (make it executable and run it).',
   ].join('\n'),
 );

@@ -17,12 +17,6 @@ export function isSealedText(text: string): boolean {
   return SEALED.test(text);
 }
 
-/** The version of the group key a sealed text was made with (0 when it is not sealed). */
-export function sealedKeyVersion(text: string): number {
-  const found = SEALED.exec(text);
-  return found ? Number(found[1]) : 0;
-}
-
 /** The context a sealed text is bound to. */
 function context(guildId: string, version: number, field: MetaField, id: string): string {
   return `group-meta|${guildId}|${version}|${field}|${id}`;

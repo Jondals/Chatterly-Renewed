@@ -1,3 +1,5 @@
 /** Single source of truth for the UI; keep in sync with the package.json files. */
 export const APP_NAME = 'Chatterly-Renewed';
-export const APP_VERSION = '2.31.3';
+export const APP_VERSION = '2.32.0';
+/** What people read as the version (a beta build is "2.32.0-b1"; the workflow writes it). */
+export const APP_LABEL = APP_VERSION;

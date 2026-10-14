@@ -182,7 +182,7 @@ const BASIC = [
                   <input
                     type="range"
                     min="0"
-                    max="100"
+                    max="40"
                     [value]="settings.cameraEdgeSoftness()"
                     (input)="setSoftness(+$any($event.target).value)"
                     [attr.aria-label]="'Soft edge' | t"
@@ -550,7 +550,7 @@ const BASIC = [
     }
   `,
 })
-export class BackgroundPickerComponent {
+class BackgroundPickerComponent {
   /** The window was closed. */
   readonly closed = output<void>();
 

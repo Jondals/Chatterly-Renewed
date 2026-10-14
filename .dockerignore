@@ -8,7 +8,6 @@ backend/.env
 .env
 *.log
 test
-deploy/*.md
 data
 *.db
 *.db-wal

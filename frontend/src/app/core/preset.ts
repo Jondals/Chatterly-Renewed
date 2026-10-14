@@ -66,7 +66,7 @@ export const PROFILE_FIELDS = [
 export type AssetName = 'wallpaper' | 'fontUi' | 'fontName' | 'thumb';
 
 /** The most each piece may weigh (bytes). */
-export const ASSET_LIMITS: Record<AssetName, number> = {
+const ASSET_LIMITS: Record<AssetName, number> = {
   wallpaper: 12 * 1024 * 1024,
   fontUi: 5 * 1024 * 1024,
   fontName: 5 * 1024 * 1024,
@@ -99,7 +99,7 @@ export const THUMB_SMALL = { width: 160, height: 100 };
 /** The longest name of a preset. */
 export const PRESET_NAME_MAX = 30;
 /** The mime type of a shared preset. */
-export const PRESET_MIME = 'application/x-chatterly-preset';
+const PRESET_MIME = 'application/x-chatterly-preset';
 
 /** Keeps a name short and free of line breaks. */
 export function cleanName(name: unknown): string {

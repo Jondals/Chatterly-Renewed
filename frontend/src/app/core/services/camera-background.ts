@@ -75,15 +75,6 @@ async function createSegmenter(): Promise<ImageSegmenter> {
   }
 }
 
-/** Whether this browser can run the cutout (it needs WebAssembly and a canvas that can be captured). */
-export function canChangeBackground(): boolean {
-  return (
-    typeof WebAssembly === 'object' &&
-    typeof HTMLCanvasElement !== 'undefined' &&
-    typeof HTMLCanvasElement.prototype.captureStream === 'function'
-  );
-}
-
 /** Smooth step between two edges. */
 function smooth(value: number): number {
   const t = Math.min(1, Math.max(0, (value - EDGE_LOW) / (EDGE_HIGH - EDGE_LOW)));
@@ -371,7 +362,7 @@ export class CameraBackground implements CameraFx {
       if (
         this.segmenter &&
         this.options.background.type !== 'none' &&
-        this.frameNumber % SEGMENT_EVERY === 0
+        this.frameNumber % (this.options.busy ? SEGMENT_EVERY * 2 : SEGMENT_EVERY) === 0
       ) {
         this.segmenter.segmentForVideo(this.video, performance.now(), this.onResult);
       }
@@ -439,7 +430,8 @@ export class CameraBackground implements CameraFx {
     person.clearRect(0, 0, width, height);
     person.drawImage(this.video, 0, 0, width, height);
     person.globalCompositeOperation = 'destination-in';
-    person.filter = 'blur(2px)';
+    // the soft edge slider: from a crisp edge (1 px) to a wide fade (12 px)
+    person.filter = 'blur(' + (1 + this.options.edgeSoftness * 11).toFixed(1) + 'px)';
     person.drawImage(this.maskSmall, 0, 0, width, height);
     person.filter = 'none';
     out.drawImage(this.person, 0, 0);

@@ -353,7 +353,7 @@ export class SettingsService {
   readonly cameraPanX = persisted('pref.cameraPanX', 0);
   readonly cameraPanY = persisted('pref.cameraPanY', 0);
   /** How soft the edge of the person is against the background (0 to 100; 33 is the original look). */
-  readonly cameraEdgeSoftness = persisted('pref.cameraEdgeSoftness', 33);
+  readonly cameraEdgeSoftness = persisted('pref.cameraEdgeSoftness', 55);
   /** How strong the blur of the background is (2 to 40). */
   readonly callBackgroundBlur = persisted('pref.callBackgroundBlur', 16);
   /** The colors and the angle of the custom background of the camera. */

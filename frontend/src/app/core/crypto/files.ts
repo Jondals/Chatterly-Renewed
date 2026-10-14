@@ -12,7 +12,7 @@ export interface FileSecret {
   sha256: string;
 }
 
-export class IntegrityError extends Error {
+class IntegrityError extends Error {
   /** Creates the error with a default message. */
   constructor(message = 'File integrity check failed') {
     super(message);

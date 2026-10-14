@@ -8,26 +8,6 @@
  */
 import type { Db } from './db';
 
-/** The icons the owner is offered first (any other single emoji is accepted too, see isTagIcon). */
-export const TAG_ICONS = [
-  '💎',
-  '🔥',
-  '⚡',
-  '🌙',
-  '⭐',
-  '🛡️',
-  '👑',
-  '🎮',
-  '🎵',
-  '🌸',
-  '🐺',
-  '🐉',
-  '🍀',
-  '☠️',
-  '🚀',
-  '🎯',
-] as const;
-
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 /** One emoji: a flag, a keycap, a pictograph with its skin tone or variation selector, joined with others by ZWJ, or a tag flag. */
 const ONE_EMOJI =

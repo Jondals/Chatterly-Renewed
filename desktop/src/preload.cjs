@@ -44,6 +44,11 @@ function setSettings(settings) {
   return ipcRenderer.invoke('updates:settings', settings);
 }
 
+/** Gives the main process the token of the account for the beta channel (null when nobody is signed in). It checks the shape. */
+function setBetaToken(payload) {
+  return ipcRenderer.invoke('updates:beta-token', payload);
+}
+
 /** How the graphics card is used: read it, change it (a fixed list of values, checked by the main process) and restart. */
 function getGraphics() {
   return ipcRenderer.invoke('graphics:get');
@@ -61,6 +66,55 @@ function restartForGraphics() {
  */
 function setSurface(surface, audio) {
   return ipcRenderer.invoke('screen:surface', surface, audio === true);
+}
+
+/** The in-game overlay: its choices, the people to draw and the signalling of the local video connection. */
+function getOverlay() {
+  return ipcRenderer.invoke('overlay:get');
+}
+function setOverlay(patch) {
+  return ipcRenderer.invoke('overlay:set', patch);
+}
+function setOverlayTiles(tiles) {
+  return ipcRenderer.invoke('overlay:tiles', tiles);
+}
+function overlayWindows() {
+  return ipcRenderer.invoke('overlay:windows');
+}
+function signalOverlay(message) {
+  return ipcRenderer.invoke('overlay:signal', message);
+}
+/** Calls `callback(event)` for what the overlay says: a new state, the window being ready or closed, a signalling message. */
+function onOverlayEvent(callback) {
+  if (typeof callback !== 'function') return function noop() {};
+  function listener(event, message) {
+    callback(message);
+  }
+  ipcRenderer.on('overlay:event', listener);
+  return function stop() {
+    ipcRenderer.removeListener('overlay:event', listener);
+  };
+}
+
+/**
+ * The menu to choose what to share is drawn by the page: the shell sends the list ('screen:pick') and the page answers with
+ * the id of one of them, or cancels. The shell checks the id against the list it sent.
+ */
+function onPick(callback) {
+  if (typeof callback !== 'function') return function noop() {};
+  function listener(event, request) {
+    callback(request);
+  }
+  ipcRenderer.on('screen:pick', listener);
+  return function stop() {
+    ipcRenderer.removeListener('screen:pick', listener);
+  };
+}
+function choosePick(sourceId, audio) {
+  return ipcRenderer.invoke('screen:choose', sourceId, audio === true);
+}
+function cancelPick() {
+  return ipcRenderer.invoke('screen:cancel');
 }
 
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
@@ -101,9 +155,25 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     isDesktop: true,
     platform: process.platform,
-    updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
-    screen: Object.freeze({ setSurface }),
+    updates: Object.freeze({
+      getState,
+      check,
+      download,
+      install,
+      setSettings,
+      setBetaToken,
+      onState,
+    }),
+    screen: Object.freeze({ setSurface, onPick, choose: choosePick, cancel: cancelPick }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
+    overlay: Object.freeze({
+      get: getOverlay,
+      set: setOverlay,
+      setTiles: setOverlayTiles,
+      signal: signalOverlay,
+      windows: overlayWindows,
+      onEvent: onOverlayEvent,
+    }),
     ...(titlebarHeight
       ? { titlebar: Object.freeze({ height: titlebarHeight, setColors: setTitlebarColors }) }
       : {}),

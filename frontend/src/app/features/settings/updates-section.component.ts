@@ -5,6 +5,7 @@
  */
 import { Component, computed, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
+import { BetaService } from '../../core/services/beta.service';
 import {
   DesktopUpdateService,
   type DesktopUpdateStatus,
@@ -13,7 +14,7 @@ import {
 import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
-import { APP_VERSION } from '../../version';
+import { APP_LABEL, APP_VERSION } from '../../version';
 
 /** The ways to choose how often to look. */
 const INTERVALS: { id: UpdateInterval; label: string }[] = [
@@ -145,6 +146,20 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
           [label]="'Tell me about new versions' | t"
         />
       </app-setting-row>
+      @if (showChannel()) {
+        <app-setting-row
+          title="Update channel"
+          hint="Release is the version everybody gets. Beta also gives you the versions that are still being tried: they can have mistakes, tell the administrator what breaks."
+        >
+          <app-select
+            class="w-48 max-w-full"
+            label="Update channel"
+            [options]="channelOptions()"
+            [value]="update.state().settings.beta ? 'beta' : 'release'"
+            (valueChange)="update.setSettings({ beta: $event === 'beta' })"
+          />
+        </app-setting-row>
+      }
     </section>
 
     <p class="mt-4 text-xs text-dim">
@@ -156,6 +171,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
 })
 export class UpdatesSectionComponent {
   protected readonly update = inject(DesktopUpdateService);
+  protected readonly beta = inject(BetaService);
   private readonly i18n = inject(I18nService);
   /** The ways to choose how often to look, in the language of the person. */
   protected readonly intervalOptions = computed(
@@ -170,7 +186,29 @@ export class UpdatesSectionComponent {
       );
     }.bind(this),
   );
-  protected readonly version = APP_VERSION;
+  /** Release or Beta, in the language of the person. */
+  protected readonly channelOptions = computed(
+    function (this: UpdatesSectionComponent): SelectOption[] {
+      return [
+        { value: 'release', label: this.i18n.t('Release') },
+        { value: 'beta', label: this.i18n.t('Beta') },
+      ];
+    }.bind(this),
+  );
+  protected readonly version = APP_LABEL;
+  /**
+   * The channel choice shows for a tester or administrator, and always for somebody who runs a beta or is on the beta channel:
+   * they must be able to go back to Release even when the server does not answer.
+   */
+  protected readonly showChannel = computed(
+    function (this: UpdatesSectionComponent): boolean {
+      return (
+        this.beta.canUseBeta() ||
+        this.update.state().settings.beta ||
+        APP_VERSION.includes('-beta.')
+      );
+    }.bind(this),
+  );
   protected readonly status = computed(
     function (this: UpdatesSectionComponent): DesktopUpdateStatus {
       return this.update.state().status;

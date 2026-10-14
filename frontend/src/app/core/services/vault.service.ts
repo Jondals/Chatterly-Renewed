@@ -50,7 +50,7 @@ export interface VaultLimits {
 }
 
 /** The biggest file kept as it is (the encrypted item may weigh 12 MB). */
-export const VAULT_MAX_FILE_BYTES = 11 * 1024 * 1024;
+const VAULT_MAX_FILE_BYTES = 11 * 1024 * 1024;
 /** The longest side of a still picture that is kept (a bigger one is reduced). */
 const STILL_MAX_SIDE = 1920;
 /** The thumbnail: size in pixels. */
@@ -83,7 +83,7 @@ function aad(id: string, part: 'file' | 'key' | 'meta'): string {
 }
 
 /** True for a GIF or an animated WebP. */
-export async function isAnimatedImage(file: Blob): Promise<boolean> {
+async function isAnimatedImage(file: Blob): Promise<boolean> {
   const head = new Uint8Array(await file.slice(0, 256).arrayBuffer());
   const text = String.fromCharCode(...head);
   if (text.startsWith('GIF8')) {

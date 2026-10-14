@@ -18,6 +18,8 @@ export interface DesktopUpdateSettings {
   interval: UpdateInterval;
   notify: boolean;
   auto: boolean;
+  /** Also offer the beta versions (only for accounts the administrator made testers). */
+  beta: boolean;
 }
 
 /** What the desktop shell tells the page about the update. */
@@ -43,20 +45,45 @@ export interface DesktopUpdates {
   download(): Promise<DesktopUpdateState>;
   install(): Promise<DesktopUpdateState>;
   setSettings(settings: Partial<DesktopUpdateSettings>): Promise<DesktopUpdateState>;
+  /** The token of the account for the beta channel (null when nobody is signed in): the shell keeps it in memory only. */
+  setBetaToken(payload: { token: string; expiresAt: number } | null): Promise<DesktopUpdateState>;
   onState(callback: (state: DesktopUpdateState) => void): () => void;
 }
 
 /** What to offer when sharing the screen. */
-export type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
+type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
+
+/** One screen or window the app can share. */
+export interface ScreenPickItem {
+  id: string;
+  name: string;
+  type: 'screen' | 'window';
+  /** A small picture as a data address. */
+  thumb: string;
+}
+
+/** The question of the shell when the person starts sharing: what can be shared and what to show first. */
+export interface ScreenPickRequest {
+  kind: 'screen' | 'window';
+  /** Whether the box to share the sound of the computer starts ticked. */
+  audio: boolean;
+  items: ScreenPickItem[];
+}
 
 /** The screen sharing hint. */
 export interface DesktopScreen {
   /** Says what is about to be shared and whether the picker starts with the sound ticked. */
   setSurface(surface: ShareSurface, audio?: boolean): Promise<boolean>;
+  /** Calls `callback` each time the shell asks what to share (the page draws the menu). Returns the function that stops listening. */
+  onPick(callback: (request: ScreenPickRequest) => void): () => void;
+  /** Shares one of the sources the shell sent, with or without the sound of the computer. */
+  choose(sourceId: string, audio: boolean): Promise<boolean>;
+  /** Closes the menu without sharing. */
+  cancel(): Promise<boolean>;
 }
 
 /** The bar at the top of the window, when the app draws its own (Windows). */
-export interface DesktopTitlebar {
+interface DesktopTitlebar {
   /** Height of the bar in pixels. */
   height: number;
   /** Colors of the buttons of Windows: the background and the symbols, as "#rrggbb". */
@@ -82,13 +109,89 @@ export interface DesktopGraphicsState {
 }
 
 /** The graphics choice. */
-export interface DesktopGraphics {
+interface DesktopGraphics {
   get(): Promise<DesktopGraphicsState | null>;
   set(choice: {
     hardwareAcceleration: boolean;
     backend: GraphicsBackend;
   }): Promise<DesktopGraphicsState | null>;
   restart(): Promise<boolean>;
+}
+
+/** How big the tiles of the overlay are. */
+export type OverlaySize = 'small' | 'medium' | 'large';
+
+/** The choices about the in-game overlay (kept by the desktop app; the place of the panel is fractions of the screen). */
+export interface OverlaySettings {
+  enabled: boolean;
+  /** The shortcut that lets the panel be moved and resized, as an Electron accelerator ("CommandOrControl+Shift+O"). */
+  hotkey: string;
+  size: OverlaySize;
+  /** 30 to 100. */
+  opacity: number;
+  onlySpeaking: boolean;
+  showSelf: boolean;
+  showNames: boolean;
+  /** Keep the overlay out of screen recordings and shared screens. */
+  hideFromCapture: boolean;
+  /** The screen it covers: the main one, or the one the app window is on. */
+  display: 'primary' | 'app';
+  /** When it shows: in every call, or only while one of the registered games is open. */
+  mode: 'always' | 'games';
+  /** The names of the registered games (the overlay opens when an open window has one of them in its name). */
+  games: string[];
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/** What the desktop app says about the overlay. */
+export interface OverlayState {
+  settings: OverlaySettings;
+  /** The panel can be moved with the mouse right now. */
+  editing: boolean;
+  /** False when another program already has the shortcut. */
+  hotkeyOk: boolean;
+  /** The overlay window is open. */
+  running: boolean;
+}
+
+/** One person to draw in the overlay. */
+export interface OverlayTile {
+  id: string;
+  name: string;
+  /** A small picture as a data address, or empty to draw the initials. */
+  avatar: string;
+  color: string;
+  speaking: boolean;
+  muted: boolean;
+  /** The id of the stream that carries their video over the local connection, or empty when there is none. */
+  streamId: string;
+}
+
+/** A message of the local video connection between the app and the overlay window. */
+export interface OverlaySignal {
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+}
+
+/** What the overlay tells the page. */
+export type OverlayEvent =
+  | { type: 'state'; state: OverlayState }
+  | { type: 'ready' }
+  | { type: 'closed' }
+  | { type: 'signal'; message: OverlaySignal };
+
+/** The in-game overlay. */
+export interface DesktopOverlay {
+  get(): Promise<OverlayState | null>;
+  set(patch: Partial<OverlaySettings>): Promise<OverlayState | null>;
+  setTiles(tiles: OverlayTile[]): Promise<boolean>;
+  signal(message: OverlaySignal): Promise<boolean>;
+  /** The names of the windows that are open now (to register a game from the list). */
+  windows(): Promise<string[]>;
+  onEvent(callback: (event: OverlayEvent) => void): () => void;
 }
 
 /** Everything the desktop app puts on the page. */
@@ -98,6 +201,7 @@ export interface DesktopBridge {
   updates?: DesktopUpdates;
   screen?: DesktopScreen;
   graphics?: DesktopGraphics;
+  overlay?: DesktopOverlay;
   titlebar?: DesktopTitlebar;
 }
 

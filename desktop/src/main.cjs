@@ -28,6 +28,7 @@ const path = require('node:path');
 const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
 const graphics = require('./graphics.cjs');
+const overlay = require('./overlay.cjs');
 const updater = require('./updater.cjs');
 const { trace } = require('./trace.cjs');
 const windowState = require('./window-state.cjs');
@@ -60,7 +61,8 @@ let screenSurface = 'any';
 /** Whether the sound box of the picker starts ticked (set with the surface, from the menu of the call). */
 let screenAudio = false;
 let mainWindow = null;
-let pickerWindow = null;
+/** The screen to share the person is choosing right now: what they may answer with, and how to answer the capture. */
+let pendingPick = null;
 let retryTimer = null;
 
 // * The profile (the keys of the account, settings) lives in %APPDATA%\Chatterly, not under the package name. A copy run
@@ -200,11 +202,6 @@ function onPermissionCheck(contents, permission, requestingOrigin) {
   return isAppOrigin(requestingOrigin) && ALLOWED_PERMISSIONS.has(permission);
 }
 
-/** The words of the picker, in the language of the system (English when it is not Spanish). */
-function pickerLanguage() {
-  return String(app.getLocale() || 'en').slice(0, 2) === 'es' ? 'es' : 'en';
-}
-
 /** True when the message comes from the main page of the app (not an embedded frame, not another window). */
 function isMainPage(event) {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
@@ -296,82 +293,54 @@ function onGraphicsRestart(event) {
   return true;
 }
 
+/** What the page needs to draw one source: its id, its name, whether it is a screen or a window, and a small picture. */
+function pickItem(source) {
+  return {
+    id: source.id,
+    name: source.name,
+    type: source.id.startsWith('screen:') ? 'screen' : 'window',
+    thumb: source.thumbnail.toDataURL(),
+  };
+}
+
 /**
- * Shows the screens and the windows (in two tabs) and resolves with { id, audio }: the source chosen and whether the sound
- * box was ticked. Resolves with null if cancelled. `kind` is the tab to start in and `audio` the start state of the box.
+ * Asks the person, INSIDE the app (the page draws the menu), what to share: the screens and the windows with their pictures.
+ * Resolves with { id, audio } (the source chosen and whether the sound box was ticked) or with null if cancelled. `kind` is the
+ * tab to start in and `audio` the start state of the box.
  */
 function pickSource(sources, kind, audio) {
   return new Promise(function executor(resolve) {
-    let settled = false;
-    pickerWindow = new BrowserWindow({
-      ...QUIET_WINDOW,
-      parent: mainWindow || undefined,
-      modal: Boolean(mainWindow),
-      width: 760,
-      height: 560,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      autoHideMenuBar: true,
-      title: 'Share your screen',
-      backgroundColor: '#06070b',
-      webPreferences: {
-        preload: path.join(__dirname, 'picker-preload.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        webSecurity: true,
-        devTools: !app.isPackaged,
-      },
-    });
-    const picker = pickerWindow;
-
-    function finish(answer) {
-      if (settled) return;
-      settled = true;
-      ipcMain.removeListener('picker:choose', onChoose);
-      ipcMain.removeListener('picker:cancel', onCancel);
-      if (!picker.isDestroyed()) picker.close();
-      pickerWindow = null;
-      resolve(answer);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      resolve(null);
+      return;
     }
-    function onChoose(event, sourceId, withAudio) {
-      // ! Only the picker window may answer, and only with an id it was given.
-      if (event.sender !== picker.webContents) return;
-      const known = sources.some(function isKnown(source) {
-        return source.id === sourceId;
-      });
-      finish(known ? { id: sourceId, audio: withAudio === true } : null);
-    }
-    function onCancel(event) {
-      if (event.sender === picker.webContents) finish(null);
-    }
-    function onClosed() {
-      finish(null);
-    }
-    function onLoaded() {
-      const list = sources.map(function toItem(source) {
-        return {
-          id: source.id,
-          name: source.name,
-          type: source.id.startsWith('screen:') ? 'screen' : 'window',
-          thumb: source.thumbnail.toDataURL(),
-        };
-      });
-      picker.webContents.send('picker:sources', {
-        kind,
-        audio,
-        language: pickerLanguage(),
-        items: list,
-      });
-    }
-
-    ipcMain.on('picker:choose', onChoose);
-    ipcMain.on('picker:cancel', onCancel);
-    picker.on('closed', onClosed);
-    picker.webContents.on('did-finish-load', onLoaded);
-    picker.loadFile(path.join(__dirname, 'picker.html'));
+    // Only one question at a time: a new one cancels the old one.
+    if (pendingPick) pendingPick.resolve(null);
+    pendingPick = { sources, resolve };
+    mainWindow.webContents.send('screen:pick', { kind, audio, items: sources.map(pickItem) });
   });
+}
+
+/** The person chose a source. ! Only the main page may answer, and only with an id it was given. */
+function onPickChoose(event, sourceId, withAudio) {
+  if (!isMainPage(event) || !pendingPick) return false;
+  const pick = pendingPick;
+  const known = pick.sources.some(function isKnown(source) {
+    return source.id === sourceId;
+  });
+  if (!known) return false;
+  pendingPick = null;
+  pick.resolve({ id: sourceId, audio: withAudio === true });
+  return true;
+}
+
+/** The person closed the menu without choosing. */
+function onPickCancel(event) {
+  if (!isMainPage(event) || !pendingPick) return false;
+  const pick = pendingPick;
+  pendingPick = null;
+  pick.resolve(null);
+  return true;
 }
 
 /** Of the screens that can be captured, the one the app window is on (the first one when that cannot be told). */
@@ -384,6 +353,17 @@ function nearestScreen(sources) {
     if (match) return match;
   }
   return sources[0];
+}
+
+/**
+ * Windows that are not for sharing and only crowd the list: the overlay of the graphics card, the desktop itself and the system
+ * input window. Matched by their exact title; screens are never filtered.
+ */
+const NOISE_WINDOWS =
+  /^(NVIDIA GeForce Overlay|NVIDIA Overlay|Program Manager|Experiencia de entrada de Windows|Windows Input Experience|Microsoft Text Input Application)$/i;
+
+function isNoise(source) {
+  return source.id.startsWith('window:') && NOISE_WINDOWS.test(source.name.trim());
 }
 
 async function onDisplayMediaRequest(request, callback) {
@@ -410,11 +390,14 @@ async function onDisplayMediaRequest(request, callback) {
     screenSurface = 'any';
     screenAudio = false;
     const wantsScreen = surface === 'monitor';
-    const sources = await desktopCapturer.getSources({
+    const found = await desktopCapturer.getSources({
       types: wantsScreen ? ['screen'] : surface === 'window' ? ['window'] : ['screen', 'window'],
       // * A screen shared at once is never drawn, so it needs no picture.
       thumbnailSize: wantsScreen ? { width: 0, height: 0 } : { width: 320, height: 180 },
       fetchWindowIcons: false,
+    });
+    const sources = found.filter(function isWanted(source) {
+      return !isNoise(source);
     });
     let picked = null;
     if (wantsScreen && sources.length > 0) {
@@ -670,6 +653,10 @@ function onActivate() {
   else showMainWindow();
 }
 
+function onWillQuit() {
+  overlay.stop();
+}
+
 function onWindowAllClosed() {
   // * Closing the window closes the app: nothing keeps running in the background.
   app.quit();
@@ -693,6 +680,8 @@ async function start() {
   const ses = session.defaultSession;
   if (webDir) bundle.install(ses, webDir, serverUrl.origin);
   ipcMain.handle('screen:surface', onScreenSurface);
+  ipcMain.handle('screen:choose', onPickChoose);
+  ipcMain.handle('screen:cancel', onPickCancel);
   ipcMain.handle('window:titlebar', onTitlebarColors);
   ipcMain.handle('graphics:get', onGraphicsGet);
   ipcMain.handle('graphics:set', onGraphicsSet);
@@ -705,7 +694,8 @@ async function start() {
 
   createMenu();
   createWindow();
-  updater.start(mainWindow, isAppOrigin);
+  updater.start(mainWindow, isAppOrigin, serverUrl.origin);
+  overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -715,5 +705,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on('web-contents-created', onWebContentsCreated);
   app.on('activate', onActivate);
   app.on('window-all-closed', onWindowAllClosed);
+  app.on('will-quit', onWillQuit);
   start();
 }

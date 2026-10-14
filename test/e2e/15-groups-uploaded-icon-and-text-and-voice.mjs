@@ -142,10 +142,10 @@ export async function step15(world) {
   await a.click('[role=menuitem]:has-text("Group settings")');
   const tagSection = a.locator('section:has(input[aria-label="Group tag"])');
   await tagSection.locator('input[aria-label="Group tag"]').fill('rust');
-  await tagSection.locator('button:has-text("Any emoji")').click();
-  await tagSection.locator('input[type=search]').fill('unicorn');
+  await tagSection.locator('button:has-text("Choose an emoji")').click();
+  await a.locator('input[placeholder="Search emoji"]').fill('unicorn');
   await shot(a, '15a-tag-emoji-panel');
-  await tagSection.locator('button[aria-label="unicorn"]').click();
+  await a.locator('button.emoji-cell[data-u="🦄"]').click();
   await shot(a, '15b-tag-emoji-chosen');
   check(
     (await tagSection.locator('.server-tag-icon').innerText()) === '🦄',

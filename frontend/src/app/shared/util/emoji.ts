@@ -8,7 +8,7 @@
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🔥', '🎉', '👀'];
 
 /** :shortcodes: converted to emoji before a message is encrypted. */
-export const SHORTCODES: Record<string, string> = {
+const SHORTCODES: Record<string, string> = {
   smile: '😄',
   grin: '😁',
   joy: '😂',

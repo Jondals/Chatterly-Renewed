@@ -18,7 +18,7 @@ export interface GradientParts {
 }
 
 /** The most colors a gradient can have. */
-export const MAX_STOPS = 5;
+const MAX_STOPS = 5;
 
 const MULTI = /^m:(\d{1,3}):(\d{1,3}):((?:#[0-9a-f]{6}@\d{1,3})(?:,#[0-9a-f]{6}@\d{1,3}){1,4})$/i;
 

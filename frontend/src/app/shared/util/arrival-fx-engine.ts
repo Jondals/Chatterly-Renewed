@@ -70,7 +70,7 @@ interface Spark {
 const HUES = [0, 1, 2, 3, 4, 5];
 
 /** A lighter version of a color (towards white). */
-export function lighten(color: Rgb, amount: number): Rgb {
+function lighten(color: Rgb, amount: number): Rgb {
   return [
     Math.round(color[0] + (255 - color[0]) * amount),
     Math.round(color[1] + (255 - color[1]) * amount),

@@ -28,7 +28,7 @@ function twoDigits(value: number): string {
 }
 
 /** The clock time of a date: "14:05", or "2:05 PM" in 12 hour mode (the AM/PM mark always comes after it). */
-export function formatTime(date: Date): string {
+function formatTime(date: Date): string {
   if (timeFormat === '12') {
     const hour = date.getHours();
     const hour12 = hour % 12 === 0 ? 12 : hour % 12;
@@ -46,7 +46,7 @@ export function formatTime(date: Date): string {
  * @param yesterdayLabel Word for "yesterday" in the current language.
  * @param now Current moment (can be replaced in tests).
  */
-export function formatTimestamp(
+function formatTimestamp(
   value: number | string | Date,
   yesterdayLabel = 'Yesterday',
   now = new Date(),

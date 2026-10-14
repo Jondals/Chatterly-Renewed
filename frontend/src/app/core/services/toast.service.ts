@@ -6,7 +6,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { SettingsService } from './settings.service';
 
-export type ToastKind = 'info' | 'success' | 'error' | 'message' | 'call';
+type ToastKind = 'info' | 'success' | 'error' | 'message' | 'call';
 
 /** One notice on screen. */
 export interface Toast {

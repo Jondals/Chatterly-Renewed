@@ -339,7 +339,10 @@ export class ExpressionPickerComponent {
   private readonly i18n = inject(I18nService);
   private readonly toast = inject(ToastService);
 
-  protected readonly tab = signal<Tab>((sessionStorage.getItem('picker.tab') as Tab) || 'emoji');
+  /** The tab the person used last (kept for the session). */
+  private readonly chosen = signal<Tab>((sessionStorage.getItem('picker.tab') as Tab) || 'emoji');
+  /** The tab on show: the one used last, unless this picker does not offer it (then its first one). */
+  protected readonly tab = computed(this.pickTab.bind(this));
   protected readonly swatches = SKIN_SWATCHES;
   protected readonly skeleton = Array.from({ length: 40 }, function (_, i) {
     return i;
@@ -534,7 +537,7 @@ export class ExpressionPickerComponent {
         const tab = this.tab();
         untracked(
           function (this: ExpressionPickerComponent) {
-            sessionStorage.setItem('picker.tab', tab);
+            sessionStorage.setItem('picker.tab', this.chosen());
             if (tab === 'gif')
               void this.gifs.init().then(
                 function (this: ExpressionPickerComponent) {
@@ -606,9 +609,14 @@ export class ExpressionPickerComponent {
     this.growFrame = 0;
   }
 
+  private pickTab(): Tab {
+    const offered = this.tabs();
+    return offered.includes(this.chosen()) ? this.chosen() : (offered[0] ?? 'emoji');
+  }
+
   /** Changes between emoji, GIFs and stickers. */
   protected setTab(tab: Tab): void {
-    this.tab.set(tab);
+    this.chosen.set(tab);
   }
 
   // ---- emoji

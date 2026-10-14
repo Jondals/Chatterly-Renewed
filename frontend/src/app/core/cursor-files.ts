@@ -75,7 +75,7 @@ function readIconHeader(
 }
 
 /** True when a GIF, WebP or APNG image has more than one frame. */
-export function isAnimatedImage(bytes: Uint8Array, mime: string): boolean {
+function isAnimatedImage(bytes: Uint8Array, mime: string): boolean {
   if (mime === 'image/gif') {
     let frames = 0;
     for (let index = 0; index < bytes.length - 3; index++) {

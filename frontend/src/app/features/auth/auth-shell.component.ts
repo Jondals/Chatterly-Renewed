@@ -8,7 +8,7 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { BackgroundSceneComponent } from '../../shared/components/mesh-background.component';
 import { ParticleNetworkComponent } from '../../shared/components/particle-network.component';
-import { APP_NAME, APP_VERSION } from '../../version';
+import { APP_NAME, APP_LABEL } from '../../version';
 
 /** Shared frame for login/register: brand on the left and the form card on the right. It stays alive while you switch between both forms, so nothing reloads. */
 @Component({
@@ -98,7 +98,7 @@ import { APP_NAME, APP_VERSION } from '../../version';
 })
 export class AuthShellComponent {
   protected readonly appName = APP_NAME;
-  protected readonly version = APP_VERSION;
+  protected readonly version = APP_LABEL;
   protected readonly features = [
     {
       icon: 'lock',

@@ -381,7 +381,6 @@ export async function prepareImage(
  * @returns The picture, or null when the person cancels.
  */
 export async function pickAndPrepareImage(
-  _images: ImageService,
   injector: EnvironmentInjector,
   kind: ImageKind,
 ): Promise<Blob | null> {
@@ -405,6 +404,6 @@ export async function pickAndUploadImage(
   injector: EnvironmentInjector,
   kind: 'avatar' | 'banner',
 ): Promise<string | null> {
-  const blob = await pickAndPrepareImage(images, injector, kind);
+  const blob = await pickAndPrepareImage(injector, kind);
   return blob ? images.upload(kind, blob) : null;
 }

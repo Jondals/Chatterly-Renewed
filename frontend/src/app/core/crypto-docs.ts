@@ -5,13 +5,13 @@
  */
 
 /** One system and its specification. */
-export interface CryptoDoc {
+interface CryptoDoc {
   name: string;
   url: string;
 }
 
 /** The systems; when two names start at the same place the longer one wins ("ECDH P-256" over "ECDH"). */
-export const CRYPTO_DOCS: CryptoDoc[] = [
+const CRYPTO_DOCS: CryptoDoc[] = [
   { name: 'WebRTC Encoded Transform', url: 'https://www.w3.org/TR/webrtc-encoded-transform/' },
   { name: 'Trust on first use', url: 'https://en.wikipedia.org/wiki/Trust_on_first_use' },
   { name: 'Web Crypto API', url: 'https://developer.mozilla.org/docs/Web/API/Web_Crypto_API' },

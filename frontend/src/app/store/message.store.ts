@@ -24,7 +24,7 @@ import { sanitizeResult, type SpinlyResult } from '../features/spinly/spinly-res
 import { GuildStore } from './guild.store';
 import { SocialStore } from './social.store';
 
-export type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
+type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
 
 export interface ViewAttachment extends AttachmentPayload {
   kind: AttachmentKind;
@@ -129,7 +129,7 @@ const INLINE_MIME: Record<AttachmentKind, RegExp | null> = {
 /**
  * The kind of an attachment from its type (image, audio, video or plain file): it decides how the chat draws it.
  */
-export function attachmentKind(mime: string): AttachmentKind {
+function attachmentKind(mime: string): AttachmentKind {
   for (const kind of ['image', 'audio', 'video'] as const) {
     if (INLINE_MIME[kind]!.test(mime)) return kind;
   }
@@ -192,6 +192,9 @@ export class MessageStore {
     this.started = true;
     this.receipts.start();
     document.addEventListener('visibilitychange', this.onVisibilityChange.bind(this));
+    // A window that is visible but not in front (another one has the focus) has not been READ yet: it counts as read when it
+    // gets the focus back.
+    window.addEventListener('focus', this.onVisibilityChange.bind(this));
     this.socket.events$.subscribe(
       function (this: MessageStore, event: ServerEvent) {
         const e = event as unknown as Record<string, unknown>;
@@ -266,10 +269,18 @@ export class MessageStore {
         newest = message.seq;
       }
     }
-    this.receipts.seen(channelId, newest, this.viewing() === channelId && !document.hidden);
+    this.receipts.seen(channelId, newest, this.isReading(channelId));
   }
 
-  /** When the tab becomes visible again, whatever conversation is open counts as read. */
+  /**
+   * True when the person can be reading the conversation: it is open, the window is visible AND it is the one in front. Otherwise the
+   * message only counts as delivered (the green dot of the sender) until the window comes to the front.
+   */
+  private isReading(channelId: string): boolean {
+    return this.viewing() === channelId && !document.hidden && document.hasFocus();
+  }
+
+  /** When the tab becomes visible again, or the window gets the focus, whatever conversation is open counts as read. */
   private onVisibilityChange(): void {
     const channelId = this.viewing();
     if (channelId && !document.hidden) {
@@ -711,12 +722,7 @@ export class MessageStore {
       } else if (!mine) {
         this.afterIncoming(ref, await this.toView(ref, raw));
       }
-      if (!mine)
-        this.receipts.seen(
-          raw.channelId,
-          raw.seq,
-          this.viewing() === raw.channelId && !document.hidden,
-        );
+      if (!mine) this.receipts.seen(raw.channelId, raw.seq, this.isReading(raw.channelId));
     } catch (error) {
       console.warn('Could not process incoming message', error);
     }
@@ -869,18 +875,6 @@ export class MessageStore {
         return rest;
       });
     }, 4100);
-  }
-
-  /** The ids of the people who are typing in a channel right now. */
-  typingUsers(channelId: string): string[] {
-    const now = Date.now();
-    return Object.entries(this.state(channelId).typing())
-      .filter(function ([, until]) {
-        return until > now;
-      })
-      .map(function ([id]) {
-        return id;
-      });
   }
 
   /** The person read the channel: its unread counter goes away. */

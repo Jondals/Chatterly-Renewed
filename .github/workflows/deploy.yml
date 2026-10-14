@@ -28,6 +28,9 @@ concurrency:
 
 jobs:
   deploy:
+    # ! Only the main branch is ever deployed to the server, also when it is started by hand: a beta (or any other branch) never
+    #   reaches production from here. The beta installers go to the server through their own upload route (desktop.yml).
+    if: github.ref_name == 'master' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Update the server over SSH

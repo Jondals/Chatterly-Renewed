@@ -34,6 +34,8 @@ export class CallBackgroundService {
   private readonly vault = inject(VaultService);
   /** The decoded picture of this session (an animation takes memory, so only the last one is kept). */
   private last: { id: string; setting: BackgroundSetting } | null = null;
+  /** The computer is busy (the screen is being shared): the effects of the camera take it easier. */
+  busy = false;
 
   /** True when something other than the plain camera is chosen. */
   active(): boolean {
@@ -66,6 +68,7 @@ export class CallBackgroundService {
       panX: s.cameraPanX() / 100,
       panY: s.cameraPanY() / 100,
       edgeSoftness: s.cameraEdgeSoftness() / 100,
+      busy: this.busy,
       background,
     };
   }
