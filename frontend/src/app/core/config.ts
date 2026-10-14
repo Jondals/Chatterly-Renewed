@@ -8,6 +8,8 @@
 declare global {
   interface Window {
     CHATTERLY_API?: string;
+    /** Set only by native-config.js, a file that the native apps carry inside their package (never sent by a server). */
+    CHATTERLY_NATIVE?: { strictRelay?: boolean };
   }
 }
 
@@ -20,7 +22,13 @@ function defaultApi(): string {
 export const API_BASE: string = (window.CHATTERLY_API ?? defaultApi()).replace(/\/$/, '');
 export const WS_URL: string = API_BASE.replace(/^http/, 'ws') + '/ws';
 
+/**
+ * ! True in the native apps: every call must go through the relay over TLS (`turns:`), whatever the server answers
+ * (see buildPeerConfiguration). Read once, when the app starts: nothing that arrives later can change it.
+ */
+export const STRICT_RELAY: boolean = window.CHATTERLY_NATIVE?.strictRelay === true;
+
 /** Argon-class cost is not available in WebCrypto; PBKDF2 at OWASP's recommended 600k rounds. */
 export const KDF_ITERATIONS = 600_000;
-/** Refuse to log in if a server asks for a cheaper KDF than this (downgrade protection). */
-export const MIN_ACCEPTED_KDF_ITERATIONS = 200_000;
+/** Refuse to log in if a server asks for a cheaper KDF than this (downgrade protection, also enforced in deriveSecrets). */
+export { MIN_KDF_ITERATIONS as MIN_ACCEPTED_KDF_ITERATIONS } from './crypto/kdf';

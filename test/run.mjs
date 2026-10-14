@@ -15,6 +15,10 @@
  *   4. Checks that the server NEVER stores clear text and that the API refuses requests without a session.
  *      Then the desktop app (Electron) with the web app inside it signs up against the real backend. (The checks of the
  *      shell alone are in desktop/test/desktop.mjs: pnpm --dir desktop test, which this test also runs.)
+ *      Then the Android app: its settings, manifest and the web folder of the APK (mobile/test/mobile.mjs); building
+ *      and running the APK need the Android SDK and a device and are reported as OMITIDO.
+ *      Then the Android app: its settings, manifest and the web folder of the APK (mobile/test/mobile.mjs); building
+ *      and running the APK need the Android SDK and a device and are reported as OMITIDO.
  *   5. Deletes everything temporary (servers, database, build, the Angular cache created by the test).
  *
  * Only when it fails does it save screenshots in the temporary folder of the system and print their path.
@@ -44,6 +48,7 @@ import { step19 } from './e2e/19-the-server-stores-nothing-in-clear.mjs';
 import { step20 } from './e2e/20-deleting-the-account.mjs';
 import { step21 } from './e2e/21-api-requests-without-a-session-and-cors.mjs';
 import { step22 } from './e2e/22-desktop-app-with-the-web-app-inside.mjs';
+import { step23 } from './e2e/23-android-app-settings-and-web-inside.mjs';
 
 /** What the steps hand to each other (the people, the addresses and the files they made). */
 const world = {};
@@ -72,6 +77,9 @@ async function main() {
   await step20(world);
   await step21(world);
   await step22(world);
+  await step23(world);
+  // ! Printed only here, after the last step: the words mean that the WHOLE command passed.
+  console.log('\nALL CORRECT');
 }
 
 let failed = false;

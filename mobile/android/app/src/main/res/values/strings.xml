@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  mobile/android/app/src/main/res/values/strings.xml
+  Texts of the native side. ! The notification of a call is generic on purpose: never a name, a group or a channel.
+-->
+<resources>
+    <string name="app_name">Chatterly</string>
+    <string name="title_activity_main">Chatterly</string>
+    <string name="package_name">app.chatterly.renewed</string>
+    <string name="custom_url_scheme">app.chatterly.renewed</string>
+    <string name="call_in_progress">Call in progress</string>
+    <string name="call_channel_name">Calls in progress</string>
+</resources>

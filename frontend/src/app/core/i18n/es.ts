@@ -776,6 +776,10 @@ export const ES: Record<string, string> = {
   'Private call unavailable': 'Llamada privada no disponible',
   'A private call needs the relay server, and it is not available. Your address would be exposed, so the call was not started.':
     'Una llamada privada necesita el servidor de retransmisión y no está disponible. Tu dirección quedaría expuesta, así que la llamada no se inició.',
+  'A private call needs the encrypted relay (turns:) of the server, and it is not available. Your address would be exposed, so the call was not started.':
+    'Una llamada privada necesita la retransmisión cifrada (turns:) del servidor y no está disponible. Tu dirección quedaría expuesta, así que la llamada no se inició.',
+  'End-to-end encrypted media needs RTCRtpScriptTransform (Chrome, Edge and Android WebView 141+, Firefox 117+, Safari 15.4+). Update your browser or the Android System WebView.':
+    'El cifrado de extremo a extremo de la llamada necesita RTCRtpScriptTransform (Chrome, Edge y Android WebView 141+, Firefox 117+, Safari 15.4+). Actualiza el navegador o Android System WebView.',
   'The server asks for private calls but its relay is not working, so the call was not started.':
     'El servidor exige llamadas privadas pero su retransmisión no funciona, así que la llamada no se inició.',
   'The call configuration could not be loaded from the server, so the call was not started.':
@@ -783,6 +787,8 @@ export const ES: Record<string, string> = {
   'The server sent an unusable call configuration.':
     'El servidor envió una configuración de llamada inutilizable.',
   'Call stopped': 'Llamada detenida',
+  'The end-to-end encryption of the media could not be confirmed with a participant, so the connection was closed.':
+    'No se pudo confirmar el cifrado de extremo a extremo del audio y el vídeo con un participante, así que se cerró la conexión.',
   'A connection did not go through the relay, so it was closed to protect your address.':
     'Una conexión no pasó por la retransmisión, así que se cerró para proteger tu dirección.',
   'Call blocked': 'Llamada bloqueada',

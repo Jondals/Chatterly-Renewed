@@ -2,7 +2,14 @@
  * src/routes/auth.ts
  * Registration, zero-knowledge sign in, token renewal and sign out, and profile editing.
  */
-import { createHash, createPublicKey, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import {
+  createHash,
+  createPublicKey,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+  randomUUID,
+} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -106,6 +113,59 @@ const sha256 = function (value: string) {
   return createHash('sha256').update(value).digest('hex');
 };
 
+/**
+ * How long a refresh token that was just rotated may be presented again. A phone can lose the answer of a renewal (the
+ * network drops, the system kills the app before it saves the new token); without this second chance the next try
+ * looked like a stolen token and closed every session of the account.
+ * ! The second chance gives back the SAME next token (see nextRefreshToken), it ends as soon as that next token is used,
+ * and it never applies to a session that is closed, expired or whose next token was already replaced.
+ */
+const REFRESH_GRACE_MS = 10 * 60_000;
+
+/** The retry key that the app sends with each renewal: 32 random bytes in base64url (optional: older apps send none). */
+const RETRY_KEY_SCHEMA = {
+  type: 'string',
+  minLength: 43,
+  maxLength: 43,
+  pattern: '^[A-Za-z0-9_-]{43}$',
+};
+
+/**
+ * ! Whether a spent refresh token may still be presented (the second chance of a renewal whose answer was lost): it was
+ * rotated less than REFRESH_GRACE_MS ago by a request with this same retry key, and the token after it was not used.
+ * Rows written before this second chance existed have no session and no key, so they never qualify.
+ */
+function inGrace(
+  spent: { session_id: string | null; spent_at: number; retry_hash: string | null },
+  retryKey: string | null,
+  now: number,
+): boolean {
+  return (
+    !!spent.session_id &&
+    !!spent.retry_hash &&
+    !!retryKey &&
+    spent.retry_hash === sha256(retryKey) &&
+    spent.spent_at > 0 &&
+    now - spent.spent_at <= REFRESH_GRACE_MS
+  );
+}
+
+/** The key that turns a refresh token into the one that follows it: derived from SERVER_SECRET, used for nothing else. */
+function refreshChainKey(serverSecret: string): Buffer {
+  return Buffer.from(hkdfSync('sha256', serverSecret, '', 'chatterly/refresh-next/v1', 32));
+}
+
+/**
+ * The refresh token that follows `token` in a session. It is computed, not drawn at random, so asking again with the
+ * same old token gives exactly the same answer: a retry never creates a second branch of the session that a copy of the
+ * token could keep alive.
+ */
+function nextRefreshToken(key: Buffer, sessionId: string, token: string): string {
+  return createHmac('sha256', key)
+    .update('refresh-next/v1|' + sessionId + '|' + sha256(token))
+    .digest('base64url');
+}
+
 const SPKI_P256_PREFIX = Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex');
 
 /** Rejects points that are not on the P-256 curve (invalid-curve attacks). */
@@ -185,13 +245,19 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
    * @param userId Owner of the session.
    * @param sessionId Id of the session: a fresh one by default, or the one being renewed.
    * @param renewing True when the session already exists and only its refresh token changes.
+   * @param nextToken The refresh token to give when renewing (see nextRefreshToken); a random one otherwise.
    */
-  function issueTokens(userId: string, sessionId: string = randomUUID(), renewing = false) {
+  function issueTokens(
+    userId: string,
+    sessionId: string = randomUUID(),
+    renewing = false,
+    nextToken?: string,
+  ) {
     const accessToken = app.jwt.sign(
       { sub: userId, sid: sessionId },
       { expiresIn: config.accessTtlSec },
     );
-    const refreshToken = randomBytes(32).toString('base64url');
+    const refreshToken = nextToken ?? randomBytes(32).toString('base64url');
     const now = Date.now();
     const expiresAt = now + config.refreshTtlSec * 1000;
     if (renewing) {
@@ -214,6 +280,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
   }
 
   const userId = callerId;
+  const chainKey = refreshChainKey(config.serverSecret);
 
   // Pre-login: the client needs its salt to stretch the password. Unknown users get a stable
   // fake salt so the endpoint cannot be used to enumerate accounts.
@@ -383,42 +450,109 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
           required: ['refreshToken'],
           properties: {
             refreshToken: { type: 'string', minLength: 20, maxLength: 128 },
+            retryKey: RETRY_KEY_SCHEMA,
           },
         },
       },
     },
     /**
-     * POST /api/auth/refresh: gives a new pair of tokens and cancels the old one (a refresh token works once: reusing it closes every session of the account).
+     * POST /api/auth/refresh: gives a new pair of tokens and cancels the old one. A refresh token works once: reusing it
+     * closes every session of the account, except for the short second chance of a renewal whose answer was lost
+     * (REFRESH_GRACE_MS), which gives back the same next token and never revives a closed session.
+     * ! Everything runs in one synchronous transaction (no await between reading and writing), so two renewals that
+     * arrive at the same time are handled one after the other.
      */
     async function (req, reply) {
-      const { refreshToken } = req.body as { refreshToken: string };
-      const session = db
-        .prepare('SELECT * FROM sessions WHERE token_hash = ?')
-        .get(sha256(refreshToken)) as
-        { id: string; user_id: string; expires_at: number } | undefined;
-      if (!session) {
-        // ! Reusing a token that was already rotated means it was copied: every session of that account is closed.
-        const spent = db
-          .prepare('SELECT user_id FROM spent_tokens WHERE token_hash = ?')
-          .get(sha256(refreshToken)) as { user_id: string } | undefined;
-        if (spent) {
-          db.prepare('DELETE FROM sessions WHERE user_id = ?').run(spent.user_id);
-          ctx.hub.closeSessions(spent.user_id);
-        }
-        return reply.code(401).send({ error: 'invalid_refresh_token' });
-      }
-      if (session.expires_at < Date.now()) {
+      const { refreshToken, retryKey } = req.body as { refreshToken: string; retryKey?: string };
+      const result = renew(refreshToken, retryKey ?? null, Date.now());
+      if (!result) return reply.code(401).send({ error: 'invalid_refresh_token' });
+      return result;
+    },
+  );
+
+  /**
+   * The renewal of a session, or null when the token is refused.
+   *
+   * 1. The token is the current one of a live session: it is rotated (the next token is derived from it, and the hash
+   *    of the retry key of this request is kept) and the token before it loses its second chance, because using this
+   *    one proves that its answer arrived.
+   * 2. The token was rotated less than REFRESH_GRACE_MS ago, by a request with THIS retry key, it was not superseded,
+   *    and its session is still open, not expired, of an account that is not erased, and still holds exactly the token
+   *    that follows it: the same answer is given again (nothing is written).
+   * 3. Any other spent token means a copy: every session of the account is closed (as before this second chance).
+   *
+   * ! The retry key is what keeps reuse detection intact: it is random per request and saved by the app before asking,
+   * so only the device that made the request can ask again. A copy of the token (a backup, another device) has no key
+   * or another one and falls in case 3 at once. Apps of older versions send no key and never get the second chance.
+   */
+  const renew = db.transaction(function renewSession(
+    token: string,
+    retryKey: string | null,
+    now: number,
+  ) {
+    const hash = sha256(token);
+    const session = db.prepare('SELECT * FROM sessions WHERE token_hash = ?').get(hash) as
+      { id: string; user_id: string; expires_at: number } | undefined;
+    if (session) {
+      if (session.expires_at < now) {
         db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
-        return reply.code(401).send({ error: 'invalid_refresh_token' });
+        return null;
       }
       // ! Rotation: a refresh token works exactly once. The session keeps its id, only the refresh token changes.
       db.prepare(
-        'INSERT OR IGNORE INTO spent_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
-      ).run(sha256(refreshToken), session.user_id, session.expires_at);
-      db.prepare('DELETE FROM spent_tokens WHERE expires_at < ?').run(Date.now());
-      return issueTokens(session.user_id, session.id, true);
-    },
-  );
+        'INSERT OR IGNORE INTO spent_tokens (token_hash, user_id, expires_at, session_id, spent_at, retry_hash) VALUES (?, ?, ?, ?, ?, ?)',
+      ).run(
+        hash,
+        session.user_id,
+        session.expires_at,
+        session.id,
+        now,
+        retryKey ? sha256(retryKey) : null,
+      );
+      db.prepare(
+        'UPDATE spent_tokens SET spent_at = 0 WHERE session_id = ? AND token_hash != ?',
+      ).run(session.id, hash);
+      db.prepare('DELETE FROM spent_tokens WHERE expires_at < ?').run(now);
+      return issueTokens(
+        session.user_id,
+        session.id,
+        true,
+        nextRefreshToken(chainKey, session.id, token),
+      );
+    }
+    const spent = db
+      .prepare(
+        'SELECT user_id, session_id, spent_at, retry_hash FROM spent_tokens WHERE token_hash = ?',
+      )
+      .get(hash) as
+      | { user_id: string; session_id: string | null; spent_at: number; retry_hash: string | null }
+      | undefined;
+    if (!spent) return null;
+    if (inGrace(spent, retryKey, now)) {
+      const sessionId = spent.session_id!;
+      const next = nextRefreshToken(chainKey, sessionId, token);
+      const live = db
+        .prepare(
+          `SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
+            WHERE s.id = ? AND s.user_id = ? AND s.token_hash = ? AND s.expires_at > ? AND u.deleted_at IS NULL`,
+        )
+        .get(sessionId, spent.user_id, sha256(next), now);
+      if (live) {
+        return {
+          accessToken: app.jwt.sign(
+            { sub: spent.user_id, sid: sessionId },
+            { expiresIn: config.accessTtlSec },
+          ),
+          refreshToken: next,
+          expiresIn: config.accessTtlSec,
+        };
+      }
+    }
+    // ! Reusing a token that was already rotated means it was copied: every session of that account is closed.
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(spent.user_id);
+    ctx.hub.closeSessions(spent.user_id);
+    return null;
+  });
 
   app.post(
     '/api/auth/logout',
@@ -427,19 +561,41 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         body: {
           type: 'object',
           required: ['refreshToken'],
-          properties: { refreshToken: { type: 'string', maxLength: 128 } },
+          properties: {
+            refreshToken: { type: 'string', maxLength: 128 },
+            retryKey: RETRY_KEY_SCHEMA,
+          },
         },
       },
     },
     /**
      * POST /api/auth/logout: closes the session of a refresh token. Its access token stops working at once and
-     * the connections opened with it are closed.
+     * the connections opened with it are closed. A token that was rotated within the second chance of a renewal also
+     * closes its session, with the retry key of that renewal: the device whose answer was lost still holds only that one.
      */
     async function (req, reply) {
-      const { refreshToken } = req.body as { refreshToken: string };
-      const session = db
+      const { refreshToken, retryKey } = req.body as { refreshToken: string; retryKey?: string };
+      const hash = sha256(refreshToken);
+      let session = db
         .prepare('SELECT id, user_id FROM sessions WHERE token_hash = ?')
-        .get(sha256(refreshToken)) as { id: string; user_id: string } | undefined;
+        .get(hash) as { id: string; user_id: string } | undefined;
+      if (!session) {
+        const spent = db
+          .prepare(
+            'SELECT user_id, session_id, spent_at, retry_hash FROM spent_tokens WHERE token_hash = ?',
+          )
+          .get(hash) as
+          | {
+              user_id: string;
+              session_id: string | null;
+              spent_at: number;
+              retry_hash: string | null;
+            }
+          | undefined;
+        if (spent && inGrace(spent, retryKey ?? null, Date.now())) {
+          session = { id: spent.session_id!, user_id: spent.user_id };
+        }
+      }
       if (session) {
         db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
         ctx.hub.closeSession(session.user_id, session.id);

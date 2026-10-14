@@ -325,7 +325,10 @@ export class SettingsComponent {
     this.ui.openSettings(id);
   }
 
-  /** Signs out: leaves the call, disconnects, clears the stores and goes to the login. */
+  /**
+   * Signs out: leaves the call, disconnects, erases everything of the account on this device and loads the sign-in page
+   * from scratch (a navigation inside the app would keep in memory what was already read: pictures, messages).
+   */
   protected async logout(): Promise<void> {
     await this.call.leave().catch(function () {
       return undefined;
@@ -336,6 +339,6 @@ export class SettingsComponent {
     this.guilds.reset();
     this.messages.reset();
     await this.auth.logout();
-    await this.router.navigateByUrl('/login');
+    window.location.assign('/login');
   }
 }

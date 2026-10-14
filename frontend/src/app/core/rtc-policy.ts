@@ -45,6 +45,11 @@ function isTurnUrl(url: string): boolean {
   return /^turns?:/i.test(url);
 }
 
+/** True for the address of a TURN relay reached over TLS (`turns:`): the only kind the strict policy accepts. */
+function isTlsTurnUrl(url: string): boolean {
+  return /^turns:\S+$/i.test(url);
+}
+
 /**
  * When the credentials of a TURN server stop working, from the coturn scheme (`username = "<expiry seconds>:<user>"`),
  * in milliseconds since 1970. Null when the username does not follow the scheme.
@@ -70,17 +75,23 @@ function isUsableRelay(server: RTCIceServer, now: number): boolean {
  * is no relay with valid credentials the function throws `RelayUnavailableError`: it never lowers the policy to
  * `all`, and never adds a STUN server of its own.
  *
- * @param response The answer of `/api/rtc/config`: the server alone decides whether a relay is required.
+ * ! With `strictRelay` (the native apps, see STRICT_RELAY in config.ts) the server is not asked: the relay is ALWAYS
+ * required and only `turns:` addresses are kept, so a hostile or misconfigured server cannot turn a call into a direct
+ * one (by answering `relayOnly: false`, listing STUN, or offering only `turn:` in clear).
+ *
+ * @param response The answer of `/api/rtc/config`: without `strictRelay` the server decides whether a relay is required.
  * @param now Current time in milliseconds (injectable for tests).
+ * @param strictRelay Require the relay over TLS whatever the server answers.
  */
 export function buildPeerConfiguration(
   response: RtcConfigResponse,
   now = Date.now(),
+  strictRelay = false,
 ): { configuration: RTCConfiguration; relayRequired: boolean } {
   if (!response || !Array.isArray(response.iceServers)) {
     throw new RelayUnavailableError('The server sent an unusable call configuration.');
   }
-  const relayRequired = response.relayOnly === true;
+  const relayRequired = strictRelay || response.relayOnly === true;
   if (!relayRequired) {
     return {
       configuration: {
@@ -91,16 +102,22 @@ export function buildPeerConfiguration(
       relayRequired,
     };
   }
+  const allowed = strictRelay ? isTlsTurnUrl : isTurnUrl;
   const relays = response.iceServers
     .filter(function usable(server) {
       return isUsableRelay(server, now);
     })
-    .map(function onlyTurnUrls(server) {
-      return { ...server, urls: urlsOf(server).filter(isTurnUrl) };
+    .map(function onlyRelayUrls(server) {
+      return { ...server, urls: urlsOf(server).filter(allowed) };
+    })
+    .filter(function hasUrls(server) {
+      return server.urls.length > 0;
     });
   if (!relays.length) {
     throw new RelayUnavailableError(
-      'A private call needs the relay server, and it is not available. Your address would be exposed, so the call was not started.',
+      strictRelay
+        ? 'A private call needs the encrypted relay (turns:) of the server, and it is not available. Your address would be exposed, so the call was not started.'
+        : 'A private call needs the relay server, and it is not available. Your address would be exposed, so the call was not started.',
     );
   }
   return {

@@ -22,6 +22,7 @@ Todo lo que hay que saber de la app y de por qué está hecha así, en un solo s
 16. [Decisiones de diseño y límites conocidos](#16-decisiones-de-diseño-y-límites-conocidos)
 17. [Contribuir y código de conducta](#17-contribuir-y-código-de-conducta)
 18. [Problemas frecuentes](#18-problemas-frecuentes)
+19. [App de Android](#19-app-de-android)
 
 ## 1. La idea en un párrafo
 
@@ -33,6 +34,7 @@ El servidor es una oficina de correos que no puede abrir las cartas. Todo lo pri
 backend/     Fastify 5 + SQLite (better-sqlite3) + WebSocket        la oficina de correos
 frontend/    Angular 22 (signals, standalone) + Tailwind 4           donde viven las claves y se dibuja todo
 desktop/     Electron: la app de Windows y Linux                     la misma web en su propia ventana
+mobile/      Capacitor: la app de Android                            la misma web dentro del APK (apartado 19)
 deploy/      Caddy, coturn, plantilla de .env                        cómo corre en un servidor
 scripts/     servidor de producción (estáticos) y copia de seguridad pequeñas herramientas sin dependencias
 test/        UN solo test: `pnpm test`                               ver "Tests"
@@ -40,7 +42,7 @@ test/        UN solo test: `pnpm test`                               ver "Tests"
 Dockerfile, docker-compose.yml                                       en la raíz: el servidor se construye desde aquí
 ```
 
-Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe igual en `package.json` (raíz, `backend/`, `frontend/`, `desktop/`), `frontend/src/app/version.ts` y `backend/src/config.ts`, más la entrada de `CHANGELOG.md` / `CHANGELOG.es.md` y la insignia del README.
+Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe igual en `package.json` (raíz, `backend/`, `frontend/`, `desktop/`, `mobile/`), `frontend/src/app/version.ts` y `backend/src/config.ts`, más la entrada de `CHANGELOG.md` / `CHANGELOG.es.md` y la insignia del README.
 
 ## 3. Backend
 
@@ -88,6 +90,8 @@ Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe i
 3. **Grupos.** Una clave AES-256-GCM por grupo y versión. Cada miembro la guarda envuelta para su par de claves. Cuando alguien se va, el dueño crea una versión nueva y **vuelve a sellar todo lo que depende de ella** (mensajes nuevos, clave del icono y nombres, en la misma petición).
 4. **Llamadas.** El medio se cifra fotograma a fotograma con claves que se renuevan solas; la señalización va cifrada y firmada.
 5. **Biblioteca personal** (fondos de cámara). Cada archivo tiene su clave AES-GCM aleatoria; esa clave y la descripción se sellan con una clave derivada de la identidad, y el id del elemento forma parte de lo que liga cada cifrado, así el servidor no puede intercambiar partes de dos elementos.
+6. **Coste mínimo de la contraseña.** El número de vueltas de PBKDF2 de una cuenta lo dice el servidor, así que un servidor hostil podría pedir 1 vuelta y recibir un `authSecret` casi gratis de romper. `deriveSecrets` (`core/crypto/kdf.ts`) se niega a derivar con menos de 600 000 vueltas en **cualquier** flujo (inicio de sesión, cambio de contraseña y borrado de cuenta; antes solo lo comprobaba el inicio de sesión). Lo prueba `test/security/kdf.mts`, que además compara el resultado con una implementación independiente (`node:crypto`).
+7. **Sesiones y renovación.** El token de acceso dura 15 minutos y el de renovación se usa **una sola vez**: presentar uno ya usado significa que alguien lo copió y se cierran todas las sesiones de la cuenta. Para que un móvil que pierde la respuesta de una renovación (sin red, la app cerrada por el sistema) no dispare esa alarma, la app guarda antes de pedir una **clave de reintento** aleatoria (`retryKey`) y, durante 10 minutos, presentar otra vez el token viejo **con esa misma clave** devuelve exactamente el mismo token nuevo (se deriva con HMAC del anterior, así no nace una segunda rama de la sesión). Una copia del token sin la clave, o con otra, se trata como robo al instante, igual que antes; la segunda oportunidad termina en cuanto se usa el token nuevo y nunca revive una sesión cerrada, caducada o de una cuenta borrada. Las apps antiguas no mandan clave y siguen con la regla de siempre. Detalle y casos en `backend/src/routes/auth.ts` (`renew`) y `test/security/sessions.mts`.
 
 Todo texto sellado va **ligado a su contexto** (grupo, tipo de texto, id de lo que nombra, versión de clave). Por eso el servidor no puede darle el nombre de un canal a otro ni mover un texto sellado entre grupos.
 
@@ -277,6 +281,7 @@ test/e2e/support.mjs   lo que comparten los pasos (carpeta temporal, puertos, li
 test/security.mts      el lanzador de las comprobaciones de seguridad (sin navegador)
 test/security/         un archivo por tema: sesiones, autorización, imágenes, sockets, borrado, cabeceras, beta...
 desktop/test/desktop.mjs   la carcasa de escritorio (también corre dentro de pnpm test)
+mobile/test/mobile.mjs     la app de Android sin SDK: ajustes, manifiesto, CSP y native-config.js (paso 23 de pnpm test)
 ```
 
 Lo que hace: tipos de backend y frontend + que cada texto esté traducido; ataques al backend real en memoria como lo haría una cuenta hostil; dos Chromium reales (registro, amistad, chat, GIFs, llamada cifrada con vídeo con códigos de seguridad iguales, grupos, ajustes, importar stickers, cursor, sonidos, móvil); que el servidor **nunca** guarda texto en claro y rechaza peticiones sin sesión; y la app de escritorio con la web dentro registrándose contra el backend real. Con `CHATTERLY_SHOTS=<carpeta>` guarda capturas para revisar a ojo; si falla, guarda capturas en la carpeta temporal del sistema e imprime su ruta. Lighthouse: login y registro 100/100/100/100 en móvil y escritorio.
@@ -347,3 +352,61 @@ Código de conducta: sé respetuoso (nada de insultos, acoso ni discriminación)
 | SmartScreen bloquea el instalador | No está firmado: _Más información_, _Ejecutar de todos modos_, o usa la Store |
 | La actualización no llega | La release no es pública, le falta el `.yml` de su canal, su versión no es mayor que la instalada, o la app no está en el canal beta |
 | El overlay no aparece sobre mi juego | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa |
+
+## 19. App de Android
+
+La misma web en una app de Android hecha con **Capacitor 8** (`mobile/`). Estado: **base del proyecto** (fases 2 y 3, en curso). El APK ya se compila (JDK 21 y Android SDK 36 en `D:\Android Studio`, ver más abajo) y se ha abierto en un **emulador** Android 16; todavía **no** en un teléfono real. Lo que no se ha podido comprobar está marcado como tal.
+
+**Qué hace y por qué**
+
+- **La web va dentro del APK.** `scripts/prepare-web.mjs` copia la compilación de `frontend/dist` a `mobile/web` y Capacitor la empaqueta. No hay `server.url`: el código que guarda las claves es el que se instaló, no el que mande un servidor en cada arranque (como en escritorio).
+- **`native-config.js`** (lo escribe ese mismo script, dentro del APK) da a la página la dirección de la API y activa la **política estricta de relay**. Se carga antes que la app y no se puede cambiar después (propiedad congelada).
+- **Relay estricto.** En Android toda llamada va por el relay y **solo por `turns:`** (TLS), diga lo que diga el servidor: un servidor hostil o mal configurado que responda `relayOnly: false`, liste STUN o solo ofrezca `turn:` en claro no consigue una llamada directa, la llamada no empieza (`buildPeerConfiguration(..., strictRelay)` en `core/rtc-policy.ts`). La web y el escritorio siguen como antes (decide el servidor). `test/security/relay-policy.mts` comprueba además que solo dos sitios del código abren conexiones WebRTC (las llamadas, con esta política, y el overlay local de escritorio, sin servidores ICE).
+- **CSP propia, más estricta** que la de la web: la página solo puede conectar con el origen exacto de la API (`https://…` y `wss://…`, sin "cualquier `wss:`" ni localhost), el audio y el vídeo solo de sí misma y de la API, y **ningún marco de terceros**: un reproductor incrustado podría abrir su propio WebRTC y mostrar la dirección, cosa que la política de relay no ve. Los reproductores incrustados de un mensaje no funcionan en Android por ahora (se adaptará la interfaz en la fase 3).
+- **El WebView solo da micrófono y cámara a la propia app** (`SecureWebChromeClient.java`): Capacitor los concedía a cualquier página sin mirar su origen y concedía cualquier otro recurso sin preguntar. La ubicación se deniega siempre.
+- **Manifiesto**: sin copias de seguridad ni transferencia a otro teléfono (`allowBackup="false"` y reglas que excluyen todo; `allowBackup` solo no basta en Android 12+), sin tráfico en claro, solo los certificados del sistema (uno instalado a mano no sirve para interceptar), solo la pantalla principal exportada, y los permisos justos de una llamada (internet, micrófono, cámara, ajustes de audio), pedidos cuando se usan.
+- **FLAG_SECURE** desde el primer fotograma: sin capturas ni grabaciones de pantalla, y la vista de apps recientes muestra una tarjeta en blanco. (Una opción para quitarlo llegará con el puente nativo.)
+- **Sin Google.** La plantilla de Capacitor activaba Firebase sola si aparecía un `google-services.json`; eso se quitó y ahora un archivo así **detiene la compilación**. Tampoco está el plugin de Google en Gradle.
+- **Cadena de suministro.** Capacitor fijado a una versión exacta (8.5.2, publicada hace más de dos semanas; `minimumReleaseAge` de 14 días en `mobile/pnpm-workspace.yaml`); en el APK entran solo `@capacitor/android`, `@capacitor/core` y `tslib`. La descarga de Gradle se comprueba con su SHA-256 oficial y el test comprueba que `gradle-wrapper.jar` es el oficial. `pnpm --dir mobile audit` da un aviso moderado en `uuid` dentro de `@capacitor/cli > xcode` (herramienta de iOS que no corre al compilar Android, ni entra en el APK).
+- **Versión**: la del proyecto (`mobile/package.json`, quinto `package.json` a subir con los demás). El `versionCode` sale de ella: `mayor·1 000 000 + menor·10 000 + parche·100 + nº de beta` (99 en la estable), así una estable siempre está por encima de sus betas.
+- **Sin registros**: `loggingBehavior: "none"`; el WebView solo se puede depurar en una compilación debug (Capacitor sigue a `FLAG_DEBUGGABLE`) y el test comprueba que el APK de release no lo es.
+- **Llamadas con la pantalla apagada.** Desde Android 9 una app en segundo plano no puede usar el micrófono. Al conectar una llamada la página pide al plugin propio `ChatterlyCall` (`CallServicePlugin.java`, solo `start` y `stop`, sin argumentos) un **servicio en primer plano de tipo `microphone`** (`CallForegroundService.java`, no exportado) con una notificación **genérica** ("Llamada en curso": nunca un nombre, grupo ni canal; canal silencioso, visibilidad privada); al colgar se detiene. Solo durante una llamada: ningún tipo de servicio se usa para mantener un socket abierto. Sin el permiso del micrófono el plugin se niega. Al volver la app al frente se renuevan las credenciales TURN si están por caducar y se recuperan las conexiones caídas (`onVisibility` en `call.service.ts`).
+- **Áreas seguras.** Android 15+ dibuja la app bajo las barras del sistema; la maqueta usa `var(--safe-area-inset-*, env(safe-area-inset-*))`: las variables que inyecta Capacitor (correctas también en WebView < 140, donde `env()` vale 0) y `env()` en la web.
+- **Botón atrás.** Retrocede dentro de la app (cierra Ajustes, vuelve del registro...) y solo en la primera pantalla deja a Android mandar la app al fondo (`WebHistoryBack` en `MainActivity.java`; Capacitor sin su plugin App no lo gestiona). Comprobado en el emulador con un toque real: Chromium ignora al ir atrás las entradas del historial creadas sin un gesto de la persona.
+
+**Servidor.** El origen de la app es `https://chatterly.internal` (un nombre reservado que nunca existirá en internet). Para que la app pueda iniciar sesión hay que **añadirlo a `CORS_ORIGINS`** del `.env` del servidor (cambio tuyo; el WebSocket usa la misma lista).
+
+**Trabajar con ella**
+
+```
+pnpm --dir mobile install
+pnpm build                              # la web
+pnpm --dir mobile web                   # mobile/web (CHATTERLY_URL=https://… para otro servidor; solo https)
+pnpm --dir mobile exec cap sync android # copia la web al proyecto Android
+pnpm --dir mobile test                  # las comprobaciones que no necesitan el SDK (también corren en pnpm test)
+```
+
+Compilar el APK necesita **JDK 21** (Gradle 8.14 no corre con el JDK 25 que trae Android Studio) y el **Android SDK** (plataforma 36). En este equipo están en `D:\Android Studio` (Temurin 21, SDK, emulador; nada global: ni PATH ni variables), con tres atajos en `D:\Android Studio\_scripts`: `gradle.cmd assembleRelease`, `sdk.cmd` y `emulator.cmd` (sin ventana). `pnpm --dir mobile test` inspecciona además el **APK de release ya compilado** (manifiesto fusionado con las librerías, que no sea depurable, componentes exportados, permisos, las 5000+ clases del código contra una lista de SDK de Google, analítica, errores y publicidad, y la web que lleva dentro); si el APK es más viejo que el código lo dice (`OMITIDO`) en vez de dar por buena una compilación antigua.
+
+**Medido en el emulador** (Android 16, WebView 134): la app abre en `https://chatterly.internal`, contexto seguro, `native-config.js` cargado con la política estricta, sin errores en la consola ni nada sensible en logcat, y FLAG_SECURE hace que una captura de la pantalla salga negra. Ese WebView **no tiene `RTCRtpScriptTransform`** (llega en la 141): la app **rechaza** las llamadas cifradas con un aviso en vez de hacerlas sin el cifrado de fotogramas. El emulador se cerró solo tres veces al abrir apps (fallo intermitente del propio emulador, no de la app; no reproducible a voluntad).
+
+**Medido en un emulador Android 17 (WebView 145)**: `RTCRtpScriptTransform` y VP8 existen. Con una llamada en bucle dentro de la propia página (sin servidor) por el **worker de cifrado real del APK**: con las claves buenas se negocia VP8 y los fotogramas se cifran y descifran (674/674, 226 de vídeo decodificados); con claves equivocadas se rechazan **todos** (690/690) y ningún fotograma llega al decodificador. Una rareza pendiente de entender: con las claves buenas 11 fotogramas se rechazaron como repetidos (descartarlos es lo seguro; en Chrome de escritorio no pasa). El servicio de llamada: sin permiso de micrófono se niega; con él aparece en primer plano con tipo micrófono (`types=0x80`) y desaparece al colgar.
+
+**Lo que aún no está hecho o no se ha comprobado**
+
+- Compilar, firmar e inspeccionar el APK; abrirlo en un teléfono; una llamada real en el WebView (que tenga `RTCRtpScriptTransform`, que negocie VP8, el bloqueo de pantalla, el cambio de red). MDN da `RTCRtpScriptTransform` en Chrome/WebView **141**; no se fija una versión mínima hasta probarlo en un dispositivo.
+- **Hecho en la fase 3**: una llamada solo se muestra cifrada con pruebas de los dos sentidos (fotogramas propios cifrados y fotogramas ajenos autenticados) y se **cierra** si a los 12 s no las hay (`enforceFrameEncryption`; lo prueba el paso 14 rompiendo a propósito el cifrado de envío de uno de los dos); y **cerrar sesión borra todo** lo de la app en el dispositivo (`core/device-wipe.ts`: todas las bases IndexedDB, `localStorage`, `sessionStorage` y Cache Storage) y recarga la página, como el borrado de cuenta (paso 20). Coste conocido: se borran también las claves fijadas de los contactos (TOFU) y se vuelven a fijar al entrar.
+- Pendiente de la fase 3: repasar la interfaz táctil pantalla a pantalla con sesión iniciada, el botón atrás de Android, y una llamada real entre dos dispositivos. Las dos últimas necesitan que el servidor admita el origen de la app (`https://chatterly.internal` en `CORS_ORIGINS`: ya está en `docker-compose.yml` y llega con el próximo despliegue).
+- **Notificaciones** (fase 4): UnifiedPush con un ntfy propio, con avisos genéricos (nunca remitente, canal ni texto). Sin Google por defecto: con la app cerrada, la llegada de llamadas **no está garantizada** en todos los teléfonos (depende del distribuidor de UnifiedPush y de la batería). FCM, si se hace, será una variante aparte y opcional.
+- **Distribución**: ver "Publicar el APK" más abajo.
+
+**Publicar el APK**
+
+- **Cuándo**: con cada release **estable** (push a `master`), junto al instalador de Windows y el AppImage de Linux: `Chatterly-<v>.apk` y `Chatterly-<v>.apk.sha256`. Las betas no llevan APK (el servidor de betas solo admite los archivos de escritorio).
+- **Cómo** (`.github/workflows/desktop.yml`): el trabajo `android` compila el APK **sin firmar y sin ningún secreto** y lo comprueba (`mobile/test/mobile.mjs`: manifiesto fusionado, permisos, código, la web que lleva dentro). El trabajo `release`, el único con secretos, lo firma con `apksigner` (esquemas v2 y v3) y **se niega a publicarlo si el certificado no es exactamente** el de `mobile/release-certificate.sha256`. Si faltan los secretos, Windows y Linux se publican igual y el APK espera al siguiente push (aviso en la ejecución).
+- **Secretos** (Settings > Secrets and variables > Actions, entorno `update-signing`): `ANDROID_KEYSTORE_B64` (el archivo `.p12` en base64) y `ANDROID_KEYSTORE_PASSWORD`. El alias de la clave es `chatterly`.
+- **La clave** (RSA 4096, PKCS12, válida hasta 2053) está **fuera del repositorio**: `C:\Users\Jondals\chatterly-android-release.p12` y su contraseña en `chatterly-android-release-password.txt`, ambos con permisos solo para el usuario. ! Android solo instala una actualización firmada con la **misma clave**: si se pierde, nadie que tenga la app instalada podrá actualizarla (tendrá que desinstalar y perder sus datos locales); si alguien la roba, puede hacer pasar un APK suyo por una actualización. Guarda una copia **cifrada** de los dos archivos fuera de este equipo (gestor de contraseñas o disco cifrado) y no la reutilices para nada más (ni para las actualizaciones de escritorio, que tienen su propia clave Ed25519).
+- **Huella del certificado** (SHA-256): `81:44:EA:EA:E5:D7:7B:BA:BC:8B:5D:8F:18:D7:33:C1:71:CC:5C:9F:33:A4:B2:BC:04:77:42:0F:58:6E:07:B2`.
+- **Verificar un APK descargado**: `sha256sum Chatterly-<v>.apk` debe coincidir con `Chatterly-<v>.apk.sha256` (garantiza que el archivo llegó entero, **no** quién lo hizo: quien controle la release cambia los dos); `apksigner verify --print-certs Chatterly-<v>.apk` debe mostrar la huella de arriba (esto sí dice quién lo firmó). Una vez instalada, Android rechaza por sí mismo cualquier actualización firmada con otra clave (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`, comprobado en el emulador en los dos sentidos).
+- **A mano**: `pnpm build`, `pnpm --dir mobile web`, `pnpm --dir mobile exec cap sync android`, `gradle.cmd assembleRelease` y firmar `app-release-unsigned.apk` con `java -jar <build-tools>/lib/apksigner.jar sign --ks <p12> --ks-pass env:ANDROID_KEYSTORE_PASSWORD --ks-key-alias chatterly --out mobile/dist/Chatterly-<v>.apk ...` (la contraseña por variable, nunca en la línea de órdenes).
+- **Instalar en un móvil**: copiar el APK al teléfono, abrirlo y permitir "instalar apps desconocidas" a la app con que se abre. Play Protect puede avisar de un desarrollador desconocido (la app no viene de Play). Las llamadas cifradas necesitan **Android System WebView 141 o posterior** (se actualiza desde Play Store).

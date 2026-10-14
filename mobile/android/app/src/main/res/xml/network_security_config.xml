@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  mobile/android/app/src/main/res/xml/network_security_config.xml
+  ! No clear-text traffic at all, and only the certificate authorities of the system: a certificate that the person (or
+  a company profile) installed by hand is not trusted, so it cannot be used to read the traffic of the app.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

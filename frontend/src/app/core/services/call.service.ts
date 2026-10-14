@@ -37,6 +37,8 @@ import { canChangeCamera, isNeutral, startCameraFx, type CameraFx } from './came
 import { SocketService, type ServerEvent } from './socket.service';
 import { buildVoiceChain } from '../audio-chain';
 import { desktopBridge } from '../desktop-bridge';
+import { STRICT_RELAY } from '../config';
+import { keepCallAlive } from '../native-bridge';
 import { SoundService, type SfxId } from './sound.service';
 import { ToastService } from './toast.service';
 
@@ -165,7 +167,15 @@ interface Link {
   protectedReceivers: WeakSet<RTCRtpReceiver>;
   /** This connection may only use the relay: a candidate that is not relayed is never sent to the other person. */
   relayRequired: boolean;
+  /** When the connection was first connected (ms since 1970): the frame encryption must be proven soon after. */
+  connectedAt?: number;
 }
+
+/**
+ * ! How long a connected call may go without proof that the frame encryption works before it is closed: at least one
+ * frame of ours through the encryption, and the frames of the other person not all failing to authenticate.
+ */
+const SECURE_MEDIA_PROOF_MS = 12_000;
 
 interface ScreenAudioChain {
   element: HTMLAudioElement;
@@ -315,9 +325,10 @@ export class CallService {
         })
       )
         return 'failing';
-      // * 'active' needs proof, not only keys: at least one frame from every person authenticated under their key.
+      // * 'active' needs proof, not only keys: at least one frame from every person authenticated under their key, and
+      // at least one frame of ours went through the encryption towards them.
       return peers.every(function (p) {
-        return p.encrypted && p.mediaStats.decrypted > 0;
+        return p.encrypted && p.mediaStats.decrypted > 0 && p.mediaStats.encrypted > 0;
       })
         ? 'active'
         : 'pending';
@@ -358,6 +369,7 @@ export class CallService {
   start(): void {
     if (this.started) return;
     this.started = true;
+    document.addEventListener('visibilitychange', this.onVisibility.bind(this));
     this.socket.events$.subscribe(
       function (this: CallService, event: ServerEvent) {
         const e = event as unknown as Record<string, unknown>;
@@ -411,7 +423,7 @@ export class CallService {
     if (typeof RTCRtpScriptTransform === 'undefined') {
       this.toast.error(
         'Browser not supported for secure calls',
-        'End-to-end encrypted media needs Insertable Streams (Chrome/Edge 94+, Firefox 117+, Safari 15.4+).',
+        'End-to-end encrypted media needs RTCRtpScriptTransform (Chrome, Edge and Android WebView 141+, Firefox 117+, Safari 15.4+). Update your browser or the Android System WebView.',
       );
       return;
     }
@@ -1224,7 +1236,7 @@ export class CallService {
    */
   private async loadIce(): Promise<void> {
     const response = await this.fetchRtcConfig();
-    const built = buildPeerConfiguration(response);
+    const built = buildPeerConfiguration(response, Date.now(), STRICT_RELAY);
     this.peerConfiguration = built.configuration;
     this.relayRequired = built.relayRequired;
     this.iceExpiresAt = earliestExpiry(built.configuration.iceServers ?? []);
@@ -1252,7 +1264,7 @@ export class CallService {
     if (this.refreshingIce || !this.peerConfiguration) return;
     this.refreshingIce = true;
     try {
-      const built = buildPeerConfiguration(await this.fetchRtcConfig());
+      const built = buildPeerConfiguration(await this.fetchRtcConfig(), Date.now(), STRICT_RELAY);
       if (built.relayRequired !== this.relayRequired) {
         throw new RelayUnavailableError('The relay policy changed during the call.');
       }
@@ -1278,6 +1290,32 @@ export class CallService {
       'Call stopped',
       'A connection did not go through the relay, so it was closed to protect your address.',
     );
+  }
+
+  /**
+   * ! Fails closed on the frame encryption itself, so DTLS-SRTP alone is never what keeps a call going. A connection
+   * that has been connected for SECURE_MEDIA_PROOF_MS without a single frame of ours through the encryption (the
+   * transform is not running, or the keys were never agreed), or whose incoming frames all fail to authenticate (the
+   * other side sends them unencrypted or with another key), is closed and the person is told why.
+   * A muted microphone still sends silence through the encryption, so muting never trips it.
+   *
+   * @returns False when the connection was closed.
+   */
+  private enforceFrameEncryption(link: Link): boolean {
+    if (link.pc.connectionState !== 'connected' || link.connectedAt === undefined) return true;
+    if (Date.now() - link.connectedAt < SECURE_MEDIA_PROOF_MS) return true;
+    const stats = this.peers()[link.userId]?.mediaStats;
+    if (!stats) return true;
+    const sending = stats.encrypted > 0;
+    const rejected = stats.decrypted === 0 && stats.failed > 0;
+    if (sending && !rejected) return true;
+    console.warn('closing a connection whose frame encryption could not be confirmed');
+    this.closeLink(link.userId);
+    this.toast.error(
+      'Call stopped',
+      'The end-to-end encryption of the media could not be confirmed with a participant, so the connection was closed.',
+    );
+    return false;
   }
 
   /** Builds the audio graph (level meter, voice gate, outgoing track) and starts the meters and the statistics. */
@@ -1432,6 +1470,8 @@ export class CallService {
       }),
     );
     this.status.set('connected');
+    // On Android the microphone stops when the app goes to the background unless a foreground service runs.
+    keepCallAlive(true);
     // Mute/deafen are personal and persist between calls: tell the room how we joined.
     this.applyMute();
     if (this.muted() || this.deafened())
@@ -1569,6 +1609,7 @@ export class CallService {
       this.updatePeer(userId, { connection: pc.connectionState });
       if (pc.connectionState === 'failed') void this.recoverConnection(link);
       if (pc.connectionState === 'connected') {
+        link.connectedAt ??= Date.now();
         this.tuneAudioSender(link);
         this.tellMusicTo(link);
         this.tellSpinlyTo(link);
@@ -1619,6 +1660,21 @@ export class CallService {
     const screen = this.localScreen();
     if (screen) this.addVideo(link, screen, 'screen');
     return link;
+  }
+
+  /**
+   * The page came back to the front (a phone that was locked, or the app that was in the background). Timers barely ran
+   * meanwhile, so the relay credentials may be about to expire and a connection may have dropped when the network
+   * changed: both are renewed now, under the same policy, instead of waiting for the next tick of the statistics.
+   */
+  private onVisibility(): void {
+    if (document.visibilityState !== 'visible' || !this.inCall()) return;
+    if (needsIceRefresh(this.iceExpiresAt, Date.now())) void this.refreshIce();
+    for (const link of this.links.values()) {
+      if (link.pc.connectionState === 'failed' || link.pc.connectionState === 'disconnected') {
+        void this.recoverConnection(link);
+      }
+    }
   }
 
   /**
@@ -2195,6 +2251,7 @@ export class CallService {
       });
       if (!report) continue;
       this.enforceRelay(link, report);
+      if (!this.enforceFrameEncryption(link)) continue;
       const now = performance.now();
       let bytesIn = 0;
       let bytesOut = 0;
@@ -2309,6 +2366,7 @@ export class CallService {
     this.rttHistory.set([]);
     this.previousParticipants = new Set();
     this.status.set('idle');
+    keepCallAlive(false);
     this.worker?.terminate();
     this.worker = null;
     // The next call asks the server again: nothing about how to connect is remembered between calls.

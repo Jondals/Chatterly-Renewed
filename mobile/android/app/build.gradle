@@ -1,0 +1,71 @@
+apply plugin: 'com.android.application'
+
+/**
+ * The version of the app, from mobile/package.json (one version for the whole project). A beta build sets
+ * CHATTERLY_LABEL ("2.33.0-b1"). The versionCode must always grow, and a release must be above its betas:
+ * major*1000000 + minor*10000 + patch*100 + (beta number, or 99 for the release).
+ */
+def chatterlyVersion() {
+    def pkg = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+    def label = System.getenv('CHATTERLY_LABEL') ?: pkg.version
+    def match = (label =~ /^(\d+)\.(\d+)\.(\d+)(?:-b(\d+))?$/)
+    if (!match.matches()) throw new GradleException('Unexpected version label: ' + label)
+    def beta = 99
+    if (match.group(4)) {
+        beta = match.group(4).toInteger()
+        if (beta < 1 || beta > 98) throw new GradleException('A beta number must be between 1 and 98: ' + label)
+    }
+    def code = match.group(1).toInteger() * 1000000 + match.group(2).toInteger() * 10000 +
+        match.group(3).toInteger() * 100 + beta
+    return [name: label, code: code]
+}
+
+android {
+    namespace = "app.chatterly.renewed"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "app.chatterly.renewed"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode chatterlyVersion().code
+        versionName chatterlyVersion().name
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+// ! The template of Capacitor turned Firebase on by itself when a google-services.json appeared in this folder. That
+// was removed on purpose: the default app must never send anything to Google. A file like that now stops the build.
+if (file('google-services.json').exists()) {
+    throw new GradleException('google-services.json found: the default app carries no Firebase (see DOCS.md).')
+}

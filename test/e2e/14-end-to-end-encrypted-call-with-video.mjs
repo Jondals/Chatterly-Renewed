@@ -8,6 +8,7 @@ import { shot, step, check } from './support.mjs';
 export async function step14(world) {
   const { a, b } = world;
   step('end-to-end encrypted call with video');
+  const directChat = a.url();
   await a.click('[data-tip="Voice call"]');
   await a.waitForURL('**/voice');
   await b.waitForSelector('text=Incoming encrypted call', { timeout: 10000 });
@@ -489,4 +490,51 @@ export async function step14(world) {
   await a.click('button[aria-label="Hang up"]');
   await b.waitForTimeout(800);
   await b.click('button[aria-label="Hang up"]');
+
+  step('a call whose frame encryption does not work is never shown as encrypted, and is closed');
+  // ! Bob's browser is broken on purpose: the encryption of his outgoing frames is never attached (as on a browser
+  // whose RTCRtpScriptTransform does nothing), so his audio would travel protected by DTLS-SRTP alone.
+  await b.evaluate(function breakSenderEncryption() {
+    const proto = RTCRtpSender.prototype;
+    window.__chatterlySenderTransform = Object.getOwnPropertyDescriptor(proto, 'transform');
+    Object.defineProperty(proto, 'transform', {
+      configurable: true,
+      get: function none() {
+        return null;
+      },
+      set: function ignore() {
+        return undefined;
+      },
+    });
+  });
+  await a.goto(directChat);
+  await a.waitForSelector('[data-tip="Voice call"]');
+  await a.click('[data-tip="Voice call"]');
+  await b.waitForSelector('text=Incoming encrypted call', { timeout: 15000 });
+  await b.click('button[aria-label=Accept]');
+  const encryptedChip = 'button.chip[title="End-to-end encrypted"]';
+  let shownAsEncrypted = false;
+  const deadline = Date.now() + 45000;
+  let closedA = false;
+  let closedB = false;
+  while (Date.now() < deadline && !(closedA && closedB)) {
+    if ((await a.locator(encryptedChip).count()) || (await b.locator(encryptedChip).count())) {
+      shownAsEncrypted = true;
+    }
+    closedA ||= (await a.locator('text=could not be confirmed').count()) > 0;
+    closedB ||= (await b.locator('text=could not be confirmed').count()) > 0;
+    await a.waitForTimeout(500);
+  }
+  check(!shownAsEncrypted, 'neither side ever shows the call as end-to-end encrypted');
+  check(closedB, 'the side whose frames are not encrypted closes the connection and says why');
+  check(closedA, 'the side that receives frames that do not authenticate closes it too');
+  await shot(b, '11e-cifrado-no-confirmado');
+  await b.evaluate(function restoreSenderEncryption() {
+    Object.defineProperty(RTCRtpSender.prototype, 'transform', window.__chatterlySenderTransform);
+  });
+  for (const page of [a, b]) {
+    const hangUp = page.locator('button[aria-label="Hang up"]');
+    if (await hangUp.count()) await hangUp.first().click();
+  }
+  await b.waitForTimeout(800);
 }

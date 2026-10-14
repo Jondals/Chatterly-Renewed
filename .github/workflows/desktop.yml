@@ -26,6 +26,12 @@
 #   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
 # ! The installers are NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
 #
+# * Android (stable releases only: the beta server only takes the desktop files). The `android` job builds the APK UNSIGNED, with
+#   no secret, and checks it (mobile/test/mobile.mjs). `release` signs it with apksigner and the keystore of the secrets
+#   ANDROID_KEYSTORE_B64 (the .p12 file in base64) and ANDROID_KEYSTORE_PASSWORD, refuses it unless its certificate is exactly
+#   the one in mobile/release-certificate.sha256 (Android only installs an update signed with the SAME key, so an APK signed with
+#   any other key must never be published), and attaches Chatterly-<v>.apk and Chatterly-<v>.apk.sha256 to the release.
+#
 # * To add a platform (Android, macOS, iOS): copy the `linux` job, change `runs-on`, the build step and the file names, add a
 #   check for its files in `prepare` (an output like `linux`), and list the job in `release`'s `needs` (and its artifact in that job).
 #
@@ -62,6 +68,7 @@ jobs:
       number: ${{ steps.version.outputs.number }}
       windows: ${{ steps.version.outputs.windows }}
       linux: ${{ steps.version.outputs.linux }}
+      android: ${{ steps.version.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -101,6 +108,8 @@ jobs:
             # A beta has no release in GitHub: both platforms are always built.
             echo "windows=true" >> "$GITHUB_OUTPUT"
             echo "linux=true" >> "$GITHUB_OUTPUT"
+            # The beta server only takes the desktop files: the Android app is published with the stable release.
+            echo "android=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
@@ -115,6 +124,11 @@ jobs:
           else
             echo "linux=true" >> "$GITHUB_OUTPUT"
           fi
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.apk" && echo "$ASSETS" | grep -qx "Chatterly-$LABEL.apk.sha256"; then
+            echo "android=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "android=true" >> "$GITHUB_OUTPUT"
+          fi
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             NAME="v$LABEL"
             node desktop/scripts/release-notes.mjs "$VERSION" "$NAME" > release-notes.md
@@ -125,7 +139,7 @@ jobs:
   # The web app is built ONCE and both platforms carry that same build (it was built twice before).
   web:
     needs: prepare
-    if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true'
+    if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -214,10 +228,63 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  android:
+    needs: [prepare, web]
+    if: needs.prepare.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # the build gets no way to write anywhere
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      # Gradle 8.14 (the one of Capacitor 8) runs on Java up to 24: JDK 21, as on the computer that builds it by hand.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-build
+          path: frontend/dist/frontend/browser
+      - name: Put the web app inside the Android project (no token here)
+        run: |
+          pnpm --dir mobile install --frozen-lockfile
+          node mobile/scripts/prepare-web.mjs
+          pnpm --dir mobile exec cap sync android
+      - name: Android SDK 36
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - name: Build the APK, unsigned (no token here)
+        env:
+          CHATTERLY_LABEL: ${{ needs.prepare.outputs.label }}
+        working-directory: mobile/android
+        run: bash gradlew --no-daemon assembleRelease
+      - name: Check the APK (manifest, permissions, code, the web app inside)
+        run: node mobile/test/mobile.mjs --web frontend/dist/frontend/browser
+      - name: Name the APK
+        run: |
+          mkdir -p mobile/dist
+          cp mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk \
+            "mobile/dist/Chatterly-${{ needs.prepare.outputs.label }}-unsigned.apk"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-android
+          path: mobile/dist/Chatterly-${{ needs.prepare.outputs.label }}-unsigned.apk
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     # Signs the manifests and publishes: a stable release in GitHub, a beta in the Chatterly server. The only job with secrets, and
     # it runs only after every platform that had to be built has finished well.
-    needs: [prepare, web, windows, linux]
+    needs: [prepare, web, windows, linux, android]
     if: ${{ !cancelled() && needs.prepare.result == 'success' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     environment: update-signing
@@ -228,7 +295,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true'
+        if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.android == 'true'
         with:
           pattern: dist-*
           merge-multiple: true
@@ -243,6 +310,8 @@ jobs:
           BETA_URL: ${{ vars.BETA_SERVER_URL || 'https://chatterlyrenewed.duckdns.org' }}
           VERSION: ${{ needs.prepare.outputs.version }}
           BETA: ${{ needs.prepare.outputs.beta }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -254,6 +323,38 @@ jobs:
           for FILE in dist/*.exe dist/*.AppImage; do cp "$FILE" out/; done
           for FILE in dist/latest.yml dist/beta.yml; do if [ -f "$FILE" ]; then cp "$FILE" "out/$CHANNEL.yml"; fi; done
           for FILE in dist/latest-linux.yml dist/beta-linux.yml; do if [ -f "$FILE" ]; then cp "$FILE" "out/$CHANNEL-linux.yml"; fi; done
+          # ! Android: the APK is signed here (never in the job that ran npm and Gradle), with the keystore written to a private
+          # temporary file that is deleted at the end. Only an APK whose certificate is the one of mobile/release-certificate.sha256
+          # is published: Android only installs an update signed with the same key as the installed app.
+          APKS=(dist/*-unsigned.apk)
+          if [ ${#APKS[@]} -gt 0 ] && [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            # Without the keystore the desktop apps are still published; the APK waits (the next push builds it again).
+            echo "::warning::The secrets ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD are missing: the APK is not published."
+            APKS=()
+          fi
+          if [ ${#APKS[@]} -gt 0 ]; then
+            BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+            KEYSTORE="$RUNNER_TEMP/android-release.p12"
+            trap 'rm -f "$KEYSTORE"' EXIT
+            (umask 077 && printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$KEYSTORE")
+            EXPECTED=$(tr -d ' \r\n' < mobile/release-certificate.sha256)
+            for UNSIGNED in "${APKS[@]}"; do
+              NAME="$(basename "$UNSIGNED" -unsigned.apk).apk"
+              "$BUILD_TOOLS/zipalign" -c -p 4 "$UNSIGNED"
+              "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+                --ks-key-alias chatterly --out "out/$NAME" "$UNSIGNED"
+              "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "out/$NAME" > apk-verify.txt
+              grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' apk-verify.txt
+              ACTUAL=$(grep -m1 'certificate SHA-256 digest' apk-verify.txt | awk '{print $NF}')
+              if [ "$ACTUAL" != "$EXPECTED" ]; then
+                echo "The APK was signed with another certificate ($ACTUAL), not the one of the app ($EXPECTED)"
+                exit 1
+              fi
+              (cd out && sha256sum "$NAME" > "$NAME.sha256")
+              rm -f "out/$NAME.idsig"
+            done
+            rm -f "$KEYSTORE"
+          fi
           MANIFESTS=(out/*.yml)
           if [ ${#MANIFESTS[@]} -gt 0 ]; then
             node desktop/scripts/sign-update.mjs "${MANIFESTS[@]}"

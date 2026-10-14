@@ -1,0 +1,9 @@
+node_modules/
+# Copy of frontend/dist made by "pnpm web" (scripts/prepare-web.mjs); never edit it by hand.
+web/
+# Signed APKs made by hand (CI builds its own in the release job).
+dist/
+# ! Signing material never goes to Git: the keystore and its passwords live outside the repository (see DOCS.md).
+*.jks
+*.keystore
+keystore.properties

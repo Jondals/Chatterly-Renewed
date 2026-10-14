@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  mobile/android/app/src/main/res/values-es/strings.xml
+  Spanish texts of the native side (the same generic notification of a call).
+-->
+<resources>
+    <string name="call_in_progress">Llamada en curso</string>
+    <string name="call_channel_name">Llamadas en curso</string>
+</resources>
