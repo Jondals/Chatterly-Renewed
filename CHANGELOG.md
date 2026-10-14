@@ -2,6 +2,14 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.33.0
+
+- **Betas without GitHub.** The beta versions are no longer published in GitHub: they are served by the Chatterly server only to the accounts an administrator made testers (a token of two hours per account, checked again on every download). They are numbered 1, 2, 3 for each version, and the server keeps only the newest and the app deletes the installer it downloaded after updating.
+- **Signed updates.** Every update manifest carries an Ed25519 signature that the app verifies before downloading anything (one file per platform: the signature is the last line of `latest.yml`). The installed app can only connect to its own server, and the signing and publishing run in a job apart from the builds.
+- **Camera background.** The cutout of the person is much better (the model sees only the part of the picture where you are, and the edge follows the real edge of the picture), the blurred background no longer carries a dark halo, the **Soft edge** slider really changes the edge, and the effect lightens itself when the computer cannot keep up or the screen is being shared.
+- **Screen sharing.** The video is sent for movement or for reading depending on the quality chosen, with a ceiling on the bitrate. The list of windows no longer shows the overlay of the graphics card.
+- **Overlay and messages.** The game overlay no longer appears in Alt+Tab and never keeps the focus. A message counts as read only when the window is in front; until then the sender sees the green dot.
+
 ## 2.32.0
 
 - **Game overlay (desktop app).** The cameras and pictures of the people in your call, with their names and a ring while they talk, are drawn **over the game you are playing**, like the overlay of Discord. A new section, **Settings > Game overlay**, turns it on and has the shortcut to grab the panel and move or resize it with the mouse (Ctrl+Shift+O by default; Esc gives the mouse back to the game), the screen it covers, the size of each person, the transparency, names on or off, only the people who are talking, showing yourself, and **hiding it from recordings and shared screens**. It is one more window of the app (transparent, always on top, it never takes the focus and the mouse goes through it), so it does not touch the game and there is nothing for an anti-cheat to flag. It works over games in window or borderless mode; a game in exclusive full screen owns the monitor and nothing can be drawn over it. The video reaches the overlay through a connection that never leaves the computer.

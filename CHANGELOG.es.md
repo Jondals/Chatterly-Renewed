@@ -2,6 +2,14 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.33.0
+
+- **Betas sin GitHub.** Las versiones beta ya no se publican en GitHub: las sirve el servidor de Chatterly solo a las cuentas que un administrador hizo probadoras (un token de dos horas por cuenta, comprobado otra vez en cada descarga). Se numeran 1, 2, 3 en cada versión, el servidor guarda solo la más reciente y la app borra el instalador que descargó tras actualizar.
+- **Actualizaciones firmadas.** Cada manifiesto de actualización lleva una firma Ed25519 que la app verifica antes de descargar nada (un archivo por plataforma: la firma es la última línea de `latest.yml`). La app instalada solo puede conectarse a su propio servidor, y la firma y la publicación se hacen en un trabajo aparte de las compilaciones.
+- **Fondo de la cámara.** El recorte de la persona es mucho mejor (el modelo ve solo la parte de la imagen donde estás y el borde sigue el borde real de la imagen), el fondo desenfocado ya no arrastra un halo oscuro, la barra **Borde suave** cambia de verdad el borde y el efecto se aligera solo cuando el equipo no da abasto o se comparte la pantalla.
+- **Compartir pantalla.** El vídeo se envía para movimiento o para lectura según la calidad elegida, con un tope de bitrate. La lista de ventanas ya no muestra el overlay de la tarjeta gráfica.
+- **Overlay y mensajes.** El overlay del juego ya no aparece en Alt+Tab y nunca se queda con el foco. Un mensaje cuenta como leído solo cuando la ventana está delante; hasta entonces quien lo envió ve el punto verde.
+
 ## 2.32.0
 
 - **Overlay en el juego (app de escritorio).** Las cámaras y las fotos de las personas de tu llamada, con su nombre y un aro cuando hablan, se dibujan **encima del juego que estás jugando**, como el overlay de Discord. Una sección nueva, **Ajustes > Overlay de juego**, lo activa y tiene el atajo para coger el panel y moverlo o cambiarle el tamaño con el ratón (Ctrl+Mayús+O por defecto; Esc devuelve el ratón al juego), la pantalla que cubre, el tamaño de cada persona, la transparencia, los nombres, mostrar solo a quien habla, mostrarte a ti y **ocultarlo en grabaciones y pantallas compartidas**. Es una ventana más de la app (transparente, siempre encima, sin tomar el foco y con el ratón atravesándola), así que no toca el juego y no hay nada que un antitrampas deba marcar. Funciona sobre juegos en modo ventana o sin bordes; un juego en pantalla completa exclusiva se queda con el monitor y no se puede dibujar nada encima. El vídeo llega al overlay por una conexión que no sale del equipo.
