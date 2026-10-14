@@ -358,7 +358,8 @@ function handleSettings(event, patch) {
   schedule();
   applyInstallOnQuit();
   const changedChannel = next.beta !== previous.beta;
-  trusted = '';
+  // ! What was verified belongs to the channel it came from: another channel starts again.
+  if (changedChannel) trusted = '';
   // Changing the channel looks again at once, so the person sees what the new channel offers (never in the middle of a download).
   if (
     changedChannel &&

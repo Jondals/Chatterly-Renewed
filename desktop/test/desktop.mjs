@@ -349,6 +349,16 @@ function auditSignatures() {
   );
   check(verify.PUBLIC_KEYS.length >= 1, 'the app carries a public key');
 
+  const bundle = require('../src/bundle.cjs');
+  const csp = bundle.allowApiInCsp(
+    `<meta content="default-src 'self'; connect-src 'self' wss: http://localhost:*; img-src 'self'">`,
+    'https://chat.example',
+  );
+  check(
+    csp.includes("connect-src 'self' https://chat.example wss://chat.example;") &&
+      !/wss: |localhost/.test(csp),
+    'the installed app may connect only to its own server (the API and its WebSocket), not to any wss: host',
+  );
   const updater = fs.readFileSync(path.join(SRC, 'updater.cjs'), 'utf8');
   check(
     (updater.match(/allowDowngrade = /g) || []).length === 1 &&

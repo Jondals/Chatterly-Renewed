@@ -70,15 +70,22 @@ function reply(status, body, extra) {
   return new Response(body, { status, headers: { ...HEADERS, ...extra } });
 }
 
-/** index.html with the API address allowed in the CSP. Throws if the CSP no longer has the expected shape. */
+/**
+ * index.html with the connections narrowed to the server the app talks to. The CSP of the page allows any "wss:" host and
+ * localhost (the web build is served by Caddy, which narrows it to its own domain); the installed app has no Caddy, so here
+ * the whole connect-src directive becomes: the app itself, the API address and the WebSocket of that same address, nothing else.
+ * ! So a script that got in by mistake could not send anything to any other server. Throws if the CSP no longer has the
+ *   expected shape.
+ */
 function allowApiInCsp(html, apiOrigin) {
-  const marker = "connect-src 'self'";
-  if (!html.includes(marker)) {
+  const pattern = /connect-src [^;"]*/;
+  if (!pattern.test(html)) {
     throw new Error(
-      "index.html has no connect-src 'self' to extend: update desktop/src/bundle.cjs",
+      'index.html has no connect-src directive to narrow: update desktop/src/bundle.cjs',
     );
   }
-  return html.replace(marker, marker + ' ' + apiOrigin);
+  const socket = apiOrigin.replace(/^http/, 'ws');
+  return html.replace(pattern, "connect-src 'self' " + apiOrigin + ' ' + socket);
 }
 
 /** True when `file` is inside `root` (both absolute and normalised). */

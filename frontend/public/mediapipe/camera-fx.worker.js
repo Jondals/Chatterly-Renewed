@@ -72,7 +72,62 @@ var state = {
   writer: null,
   /** True when the page sends bitmaps (no insertable streams). */
   bitmaps: false,
+  /** How hard the effects work (see LEVELS): 0 is everything; it goes up when the computer cannot keep up and comes back down. */
+  level: 0,
+  levelChanged: 0,
+  lastRead: 0,
+  interval: 33,
+  /** The time (ms) between frames of the camera, from its frame rate. */
+  nominal: 33,
+  skip: false,
 };
+
+/**
+ * The levels of effort. Each one costs less than the one before: the model is asked less often, the blur has fewer rounds and works
+ * on a smaller picture, the edge is cheaper, and the last one makes only every other picture. A person who shares the screen, or a
+ * computer that is slow, gets a higher level before it lags.
+ */
+var LEVELS = [
+  { every: 2, rounds: 3, cheap: false, factor: 4, drop: false },
+  { every: 3, rounds: 2, cheap: false, factor: 4, drop: false },
+  { every: 4, rounds: 2, cheap: true, factor: 8, drop: false },
+  { every: 6, rounds: 1, cheap: true, factor: 8, drop: true },
+];
+
+/** The level that is used now: the one the speed asks for, and at least the second when the page says the computer is busy. */
+function effort() {
+  var wanted = state.options && state.options.busy ? 1 : 0;
+  return LEVELS[Math.max(state.level, wanted)];
+}
+
+/**
+ * Called once for every frame that arrives. When the frames come slower than the camera makes them (the work is not finished
+ * before the next one), the level goes up; after a few quiet seconds it goes down again.
+ */
+function watchSpeed() {
+  var now = performance.now();
+  if (state.lastRead > 0) {
+    state.interval = state.interval * 0.9 + (now - state.lastRead) * 0.1;
+    var slow = Math.max(44, state.nominal * 1.35);
+    var quick = Math.max(37, state.nominal * 1.12);
+    if (
+      state.interval > slow &&
+      state.level < LEVELS.length - 1 &&
+      now - state.levelChanged > 1500
+    ) {
+      state.level++;
+      state.levelChanged = now;
+      self.postMessage({ type: 'level', level: state.level });
+    } else if (state.interval < quick && state.level > 0 && now - state.levelChanged > 8000) {
+      state.level--;
+      state.levelChanged = now;
+      self.postMessage({ type: 'level', level: state.level });
+    }
+  }
+  state.lastRead = now;
+  // the last level makes every other picture
+  state.skip = effort().drop && !state.skip;
+}
 
 /** Handles what the page says. */
 function onMessage(event) {
@@ -130,6 +185,8 @@ function start(message) {
   state.base = message.base;
   state.options = message.options;
   state.bitmaps = message.mode === 'bitmaps';
+  state.nominal = 1000 / Math.max(10, Math.min(60, Number(message.fps) || 30));
+  state.interval = state.nominal;
   if (!state.bitmaps) {
     state.reader = message.readable.getReader();
     state.writer = message.writable.getWriter();
@@ -418,36 +475,31 @@ var COPY =
   '#version 300 es\n' +
   'precision mediump float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
-  'uniform sampler2D uSource; uniform sampler2D uMask; uniform vec4 uMaskRect;\n' +
-  'float maskAt(vec2 p) {\n' +
-  '  vec2 q = (p - uMaskRect.xy) / uMaskRect.zw;\n' +
-  '  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { return 0.0; }\n' +
-  '  return texture(uMask, q).r;\n' +
-  '}\n' +
+  'uniform sampler2D uSource; uniform sampler2D uMatte;\n' +
   'void main() {\n' +
-  '  float back = 1.0 - smoothstep(0.12, 0.42, maskAt(vUv));\n' +
+  '  float back = 1.0 - smoothstep(0.1, 0.4, texture(uMatte, vUv).r);\n' +
   '  outColor = vec4(texture(uSource, vUv).rgb * back, back);\n' +
   '}\n';
 
-/** The final picture: the background behind the person, the person over it, and the adjustments of the camera. */
-var COMPOSE =
+/**
+ * The matte: how much of each pixel is the person (0 to 1), made once per frame at half size, so the final picture only reads it.
+ * The mask of the model is small and blurry. Each of its samples counts as much as its pixel looks like this one (a bilateral
+ * filter guided by the camera), so the edge of the person snaps to the edge that is really in the picture; and the soft edge is the
+ * mask averaged over a ring whose radius (in texels of the mask) comes from the slider, so the person fades into the background
+ * over a distance that really grows. uCheap skips the expensive part when the computer cannot keep up.
+ */
+var MATTE =
   '#version 300 es\n' +
   'precision highp float;\n' +
   'in vec2 vUv; out vec4 outColor;\n' +
-  'uniform sampler2D uVideo; uniform sampler2D uMask; uniform sampler2D uBlur; uniform sampler2D uBg;\n' +
-  'uniform int uMode; uniform float uHasMask;\n' +
-  'uniform float uMirror; uniform float uZoom; uniform vec2 uPan; uniform float uSoft; uniform vec4 uBgFit;\n' +
-  'uniform float uBright; uniform float uContrast; uniform float uSat; uniform vec2 uMaskTexel; uniform vec4 uMaskRect;\n' +
+  'uniform sampler2D uVideo; uniform sampler2D uMask;\n' +
+  'uniform vec2 uMaskTexel; uniform vec4 uMaskRect; uniform float uSoft; uniform float uCheap;\n' +
   '// The mask covers only the crop that was given to the model (uMaskRect, in the coordinates of the picture); outside it nobody is there.\n' +
   'float maskAt(vec2 p) {\n' +
   '  vec2 q = (p - uMaskRect.xy) / uMaskRect.zw;\n' +
   '  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { return 0.0; }\n' +
   '  return texture(uMask, q).r;\n' +
   '}\n' +
-  '// The mask of the model is small and blurry. Each of its samples counts as much as its pixel looks like this one (a bilateral\n' +
-  '// filter guided by the camera), so the edge of the person snaps to the edge that is really in the picture.\n' +
-  '// The soft edge: the mask averaged over a ring whose radius (in texels of the mask) is given by the slider, so the person fades\n' +
-  '// into the background over a distance that really grows, instead of only changing the curve of the edge.\n' +
   'float featherMask(vec2 img, float radius) {\n' +
   '  const vec2 R[8] = vec2[8](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0), vec2(0.7, 0.7), vec2(-0.7, 0.7),\n' +
   '    vec2(0.7, -0.7), vec2(-0.7, -0.7));\n' +
@@ -476,6 +528,30 @@ var COMPOSE =
   '  return sum / weight;\n' +
   '}\n' +
   'void main() {\n' +
+  '  // t is the slider of the soft edge (0 to 1)\n' +
+  '  float t = clamp((uSoft - 0.02) / 0.39, 0.0, 1.0);\n' +
+  '  float edge = 0.07 + t * 0.2;\n' +
+  '  float cut;\n' +
+  '  if (uCheap > 0.5) { cut = smoothstep(0.5 - edge, 0.5 + edge, maskAt(vUv)); }\n' +
+  '  else { cut = smoothstep(0.55 - edge, 0.55 + edge, refineMask(vUv, texture(uVideo, vUv).rgb)); }\n' +
+  '  float m = cut;\n' +
+  '  if (t > 0.03) {\n' +
+  '    float feather = smoothstep(0.5 - edge, 0.5 + edge, featherMask(vUv, 0.7 + pow(t, 0.85) * 42.0));\n' +
+  '    m = mix(cut, feather, clamp(t * 1.6, 0.0, 1.0));\n' +
+  '  }\n' +
+  '  outColor = vec4(m, m, m, 1.0);\n' +
+  '}\n';
+
+/** The final picture: the background behind the person, the person over it, and the adjustments of the camera. */
+var COMPOSE =
+  '#version 300 es\n' +
+  'precision highp float;\n' +
+  'in vec2 vUv; out vec4 outColor;\n' +
+  'uniform sampler2D uVideo; uniform sampler2D uMatte; uniform sampler2D uBlur; uniform sampler2D uBg;\n' +
+  'uniform int uMode; uniform float uHasMask;\n' +
+  'uniform float uMirror; uniform float uZoom; uniform vec2 uPan; uniform vec4 uBgFit;\n' +
+  'uniform float uBright; uniform float uContrast; uniform float uSat;\n' +
+  'void main() {\n' +
   '  vec2 uv = vUv;\n' +
   '  uv = (uv - 0.5) / uZoom + 0.5 + uPan;\n' +
   '  vec2 bgUv = uv;\n' +
@@ -483,14 +559,7 @@ var COMPOSE =
   '  vec2 img = vec2(uv.x, 1.0 - uv.y);\n' +
   '  vec3 color = texture(uVideo, img).rgb;\n' +
   '  if (uMode != 0 && uHasMask > 0.5) {\n' +
-  '    // t is the slider of the soft edge (0 to 1): the cut that follows the picture is crisp, the plain one is soft, and the\n' +
-  '    // slider goes from one to the other.\n' +
-  '    float t = clamp((uSoft - 0.02) / 0.39, 0.0, 1.0);\n' +
-  '    float edge = 0.07 + t * 0.2;\n' +
-  '    float cut = smoothstep(0.55 - edge, 0.55 + edge, refineMask(img, color));\n' +
-  '    // t = 0 is the crisp cut that follows the picture; the more the slider moves, the more the person fades out over a wide ring\n' +
-  '    float feather = smoothstep(0.5 - edge, 0.5 + edge, featherMask(img, 1.0 + t * 22.0));\n' +
-  '    float m = mix(cut, feather, clamp(t * 1.6, 0.0, 1.0));\n' +
+  '    float m = texture(uMatte, img).r;\n' +
   '    vec3 back;\n' +
   '    if (uMode == 1) { vec4 blurred = texture(uBlur, img); back = blurred.rgb / max(blurred.a, 0.06); }\n' +
   '    else {\n' +
@@ -557,6 +626,7 @@ function makeTarget(gl, width, height) {
 function buildGraphics(gl) {
   state.programs.copy = program(gl, COPY);
   state.programs.blur = program(gl, BLUR);
+  state.programs.matte = program(gl, MATTE);
   state.programs.compose = program(gl, COMPOSE);
   state.vao = gl.createVertexArray();
   state.textures.video = makeTexture(gl, true);
@@ -594,6 +664,17 @@ function sizeTargets(width, height, factor) {
   freeTarget(state.targets.b);
   state.targets.a = makeTarget(gl, w, h);
   state.targets.b = makeTarget(gl, w, h);
+}
+
+/** The picture of the matte, half the size of the camera (at least 160 pixels wide). */
+function sizeMatte(width, height) {
+  var w = Math.max(160, Math.round(width / 2));
+  var h = Math.max(90, Math.round(height / 2));
+  if (state.targets.matte && state.targets.matte.width === w && state.targets.matte.height === h) {
+    return;
+  }
+  freeTarget(state.targets.matte);
+  state.targets.matte = makeTarget(state.gl, w, h);
 }
 
 /** Draws the full-screen triangle with a program, its textures (in the order given) and uniforms. */
@@ -702,32 +783,60 @@ function render(frame) {
   if (kind !== 'none' && hasMask) {
     mode = kind === 'blur' ? 1 : 2;
   }
+  var level = effort();
+  if (mode !== 0) {
+    // the matte of the person, at half size, once for the whole picture
+    sizeMatte(width, height);
+    var matte = state.targets.matte;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, matte.framebuffer);
+    gl.viewport(0, 0, matte.width, matte.height);
+    draw(
+      state.programs.matte,
+      [state.textures.video, state.textures.mask],
+      function matteUniforms(g) {
+        var p = state.programs.matte;
+        sampler(g, p, 'uVideo', 0);
+        sampler(g, p, 'uMask', 1);
+        var rect = state.maskRect;
+        g.uniform4f(g.getUniformLocation(p, 'uMaskRect'), rect[0], rect[1], rect[2], rect[3]);
+        // the size of one texel of the mask in the coordinates of the picture (the mask may cover only the crop)
+        g.uniform2f(
+          g.getUniformLocation(p, 'uMaskTexel'),
+          rect[2] / Math.max(1, state.maskSize.width),
+          rect[3] / Math.max(1, state.maskSize.height),
+        );
+        var soft =
+          0.02 +
+          Math.max(
+            0,
+            Math.min(1, options.edgeSoftness === undefined ? 0.55 : options.edgeSoftness),
+          ) *
+            0.39;
+        g.uniform1f(g.getUniformLocation(p, 'uCheap'), level.cheap ? 1 : 0);
+      },
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+  }
   if (mode === 1) {
-    sizeTargets(width, height, 4);
+    sizeTargets(width, height, level.factor);
     var a = state.targets.a;
     var b = state.targets.b;
-    var spread = Math.max(0.5, options.background.amount / 7);
-    // the camera (without the person) into the small picture, then three rounds of blur (across, then down), each a little
-    // wider than the last
+    // The reach of the blur is the same on every level: a smaller picture needs a smaller step.
+    var spread = Math.max(0.5, ((options.background.amount / 7) * 4) / level.factor);
+    // the camera (without the person) into the small picture, then rounds of blur (across, then down), each a little wider than
+    // the last; fewer rounds are wider so the blur looks the same
     gl.bindFramebuffer(gl.FRAMEBUFFER, a.framebuffer);
     gl.viewport(0, 0, a.width, a.height);
     draw(
       state.programs.copy,
-      [state.textures.video, state.textures.mask],
+      [state.textures.video, state.targets.matte.texture],
       function copyUniforms(g) {
         sampler(g, state.programs.copy, 'uSource', 0);
-        sampler(g, state.programs.copy, 'uMask', 1);
-        var rect = state.maskRect;
-        g.uniform4f(
-          g.getUniformLocation(state.programs.copy, 'uMaskRect'),
-          rect[0],
-          rect[1],
-          rect[2],
-          rect[3],
-        );
+        sampler(g, state.programs.copy, 'uMatte', 1);
       },
     );
-    var rounds = [0.55, 0.85, 1.25];
+    var rounds = level.rounds === 3 ? [0.55, 0.85, 1.25] : level.rounds === 2 ? [0.8, 1.4] : [1.6];
     for (var round = 0; round < rounds.length; round++) {
       var step = spread * rounds[round];
       gl.bindFramebuffer(gl.FRAMEBUFFER, b.framebuffer);
@@ -761,28 +870,19 @@ function render(frame) {
   var blurTexture = mode === 1 ? state.targets.a.texture : state.textures.bg;
   draw(
     state.programs.compose,
-    [state.textures.video, state.textures.mask, blurTexture, state.textures.bg],
+    [
+      state.textures.video,
+      state.targets.matte ? state.targets.matte.texture : state.textures.mask,
+      blurTexture,
+      state.textures.bg,
+    ],
     function composeUniforms(g) {
       var p = state.programs.compose;
       sampler(g, p, 'uVideo', 0);
-      sampler(g, p, 'uMask', 1);
+      sampler(g, p, 'uMatte', 1);
       sampler(g, p, 'uBlur', 2);
       sampler(g, p, 'uBg', 3);
       g.uniform1i(g.getUniformLocation(p, 'uMode'), mode);
-      // the size of one texel of the mask in the coordinates of the picture (the mask may cover only the crop)
-      var maskRect = state.maskRect;
-      g.uniform2f(
-        g.getUniformLocation(p, 'uMaskTexel'),
-        maskRect[2] / Math.max(1, state.maskSize.width),
-        maskRect[3] / Math.max(1, state.maskSize.height),
-      );
-      g.uniform4f(
-        g.getUniformLocation(p, 'uMaskRect'),
-        maskRect[0],
-        maskRect[1],
-        maskRect[2],
-        maskRect[3],
-      );
       g.uniform1f(g.getUniformLocation(p, 'uHasMask'), hasMask ? 1 : 0);
       g.uniform1f(g.getUniformLocation(p, 'uMirror'), options.mirror ? 1 : 0);
       var zoom = Math.max(1, options.zoom || 1);
@@ -790,14 +890,8 @@ function render(frame) {
       var room = 0.5 - 0.5 / zoom;
       var panX = Math.max(-1, Math.min(1, options.panX || 0)) * room;
       var panY = Math.max(-1, Math.min(1, options.panY || 0)) * room;
-      // the width of the soft edge of the person: 0.15 (the original look) at 0.33
-      var soft =
-        0.02 +
-        Math.max(0, Math.min(1, options.edgeSoftness === undefined ? 0.55 : options.edgeSoftness)) *
-          0.39;
       g.uniform1f(g.getUniformLocation(p, 'uZoom'), zoom);
       g.uniform2f(g.getUniformLocation(p, 'uPan'), panX, panY);
-      g.uniform1f(g.getUniformLocation(p, 'uSoft'), soft);
       g.uniform4f(g.getUniformLocation(p, 'uBgFit'), fit[0], fit[1], fit[2], fit[3]);
       g.uniform1f(g.getUniformLocation(p, 'uBright'), options.brightness || 0);
       g.uniform1f(
@@ -818,9 +912,10 @@ function processBitmap(bitmap) {
     bitmap.close();
     return;
   }
+  watchSpeed();
   var done = null;
   try {
-    if (needsMask() && state.segmenter && state.frameNumber % SEGMENT_EVERY === 0) {
+    if (needsMask() && state.segmenter && state.frameNumber % effort().every === 0) {
       segmentFrame(bitmap);
     }
     state.frameNumber++;
@@ -852,8 +947,13 @@ async function pump() {
       break;
     }
     var frame = step.value;
+    watchSpeed();
+    if (state.skip) {
+      frame.close();
+      continue;
+    }
     try {
-      if (needsMask() && state.segmenter && state.frameNumber % SEGMENT_EVERY === 0) {
+      if (needsMask() && state.segmenter && state.frameNumber % effort().every === 0) {
         segmentFrame(frame);
       }
       state.frameNumber++;

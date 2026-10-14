@@ -907,6 +907,12 @@ export class CallService {
     }
   }
 
+  /** While the screen is shared the effects of the camera take it easier (less work for the model and the blur), and go back after. */
+  private lightenCameraFx(busy: boolean): void {
+    this.backgrounds.busy = busy;
+    void this.applyBackground();
+  }
+
   /** Opens the camera for a preview (the window of the camera): the same camera the call would use, with no effects. */
   openPreviewCamera(): Promise<MediaStream> {
     return this.openRawCamera();
@@ -998,6 +1004,7 @@ export class CallService {
       }
       this.localScreen.set(stream);
       this.screenOn.set(true);
+      this.lightenCameraFx(true);
       stream.getVideoTracks()[0]?.addEventListener(
         'ended',
         function (this: CallService) {
@@ -1023,6 +1030,7 @@ export class CallService {
     }
     this.localScreen.set(null);
     this.screenOn.set(false);
+    this.lightenCameraFx(false);
     this.socket.send({ t: 'call.update', screen: false });
   }
 

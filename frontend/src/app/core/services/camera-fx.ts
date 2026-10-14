@@ -34,6 +34,8 @@ export interface CameraFxOptions {
   panY: number;
   /** 0 to 1: how soft the edge of the person is against the background (0.33: the original look, 0.55: the default now). */
   edgeSoftness: number;
+  /** The computer is busy with something else (sharing the screen): the effects take it easier so nothing lags. */
+  busy?: boolean;
   background: BackgroundSetting;
 }
 
@@ -156,6 +158,7 @@ class WorkerFx implements CameraFx {
         readable: processor.readable,
         writable: generator.writable,
         base: appUrl('mediapipe/'),
+        fps: source.getVideoTracks()[0]?.getSettings().frameRate,
         options: this.plain(options),
       },
       [processor.readable, generator.writable],
@@ -263,6 +266,7 @@ class BitmapFx implements CameraFx {
       type: 'start',
       mode: 'bitmaps',
       base: appUrl('mediapipe/'),
+      fps: source.getVideoTracks()[0]?.getSettings().frameRate,
       options: this.plain(options),
     });
     void this.sendFrames(options);
