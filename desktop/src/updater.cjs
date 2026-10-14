@@ -127,12 +127,18 @@ function sanitizeSettings(raw, base) {
   return merged;
 }
 
+/** The choices before the person makes any: a build of the beta branch starts on the beta channel, the rest on the release one. */
+function startingSettings() {
+  return { ...DEFAULT_SETTINGS, beta: app.getVersion().includes('-beta.') };
+}
+
 function loadSettings() {
+  const start = startingSettings();
   try {
     const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
-    return sanitizeSettings(raw, DEFAULT_SETTINGS) || { ...DEFAULT_SETTINGS };
+    return sanitizeSettings(raw, start) || start;
   } catch (error) {
-    return { ...DEFAULT_SETTINGS };
+    return start;
   }
 }
 

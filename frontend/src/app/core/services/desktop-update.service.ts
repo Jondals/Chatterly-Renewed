@@ -87,7 +87,7 @@ export class DesktopUpdateService {
 
   /** An account that is not (or no longer) a tester must not keep receiving the beta versions. */
   private leaveBeta(): void {
-    if (this.betaProgram.known() && !this.betaProgram.beta() && this.state().settings.beta) {
+    if (this.betaProgram.known() && !this.betaProgram.canUseBeta() && this.state().settings.beta) {
       this.setSettings({ beta: false });
     }
   }

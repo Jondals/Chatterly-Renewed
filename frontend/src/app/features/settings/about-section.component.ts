@@ -9,7 +9,7 @@ import { UiService } from '../../core/services/ui.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { TECHNOLOGIES } from '../../shared/util/tech-logos';
-import { APP_NAME, APP_VERSION } from '../../version';
+import { APP_NAME, APP_LABEL } from '../../version';
 
 /**
  * About: the animated "Developed by Jondals" signature on top and, below, cards with what protects the account,
@@ -431,7 +431,7 @@ export class AboutSectionComponent {
 
   protected readonly letters = 'Jondals'.split('');
   protected readonly appName = APP_NAME;
-  protected readonly version = APP_VERSION;
+  protected readonly version = APP_LABEL;
   protected readonly links = [
     { label: 'Source', name: 'GitHub', url: 'https://github.com/Jondals/ChatterlyRenewed' },
     {

@@ -14,7 +14,7 @@ import {
 import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
-import { APP_VERSION } from '../../version';
+import { APP_LABEL } from '../../version';
 
 /** The ways to choose how often to look. */
 const INTERVALS: { id: UpdateInterval; label: string }[] = [
@@ -146,15 +146,17 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
           [label]="'Tell me about new versions' | t"
         />
       </app-setting-row>
-      @if (beta.beta() || update.state().settings.beta) {
+      @if (beta.canUseBeta() || update.state().settings.beta) {
         <app-setting-row
-          title="Beta versions"
-          hint="You are a beta tester: also receive the versions that are still being tried. They can have mistakes; tell the administrator what breaks."
+          title="Update channel"
+          hint="Release is the version everybody gets. Beta also gives you the versions that are still being tried: they can have mistakes, tell the administrator what breaks."
         >
-          <app-toggle
-            [checked]="update.state().settings.beta"
-            (checkedChange)="update.setSettings({ beta: $event })"
-            [label]="'Beta versions' | t"
+          <app-select
+            class="w-48 max-w-full"
+            label="Update channel"
+            [options]="channelOptions()"
+            [value]="update.state().settings.beta ? 'beta' : 'release'"
+            (valueChange)="update.setSettings({ beta: $event === 'beta' })"
           />
         </app-setting-row>
       }
@@ -184,7 +186,16 @@ export class UpdatesSectionComponent {
       );
     }.bind(this),
   );
-  protected readonly version = APP_VERSION;
+  /** Release or Beta, in the language of the person. */
+  protected readonly channelOptions = computed(
+    function (this: UpdatesSectionComponent): SelectOption[] {
+      return [
+        { value: 'release', label: this.i18n.t('Release') },
+        { value: 'beta', label: this.i18n.t('Beta') },
+      ];
+    }.bind(this),
+  );
+  protected readonly version = APP_LABEL;
   protected readonly status = computed(
     function (this: UpdatesSectionComponent): DesktopUpdateStatus {
       return this.update.state().status;

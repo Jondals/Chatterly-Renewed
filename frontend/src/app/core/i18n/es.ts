@@ -1617,9 +1617,6 @@ export const ES: Record<string, string> = {
   'The screen where Chatterly is': 'La pantalla donde está Chatterly',
   'Game overlay': 'Overlay de juego',
   'Administration': 'Administración',
-  'Beta versions': 'Versiones beta',
-  'You are a beta tester: also receive the versions that are still being tried. They can have mistakes; tell the administrator what breaks.':
-    'Eres probador beta: recibe también las versiones que aún se están probando. Pueden tener errores; cuéntale al administrador qué falla.',
   'Administrators': 'Administradores',
   'People who can manage this page: add testers and other administrators. The ones marked as owner are set in the server and cannot be removed here.':
     'Personas que pueden gestionar esta página: añadir probadores y otros administradores. Los marcados como dueño están fijados en el servidor y no se pueden quitar desde aquí.',
@@ -1628,4 +1625,9 @@ export const ES: Record<string, string> = {
   'Could not add the administrator': 'No se pudo añadir al administrador',
   'An owner is set in the server and cannot be removed here.':
     'Un dueño está fijado en el servidor y no se puede quitar desde aquí.',
+  'Update channel': 'Canal de actualizaciones',
+  'Release is the version everybody gets. Beta also gives you the versions that are still being tried: they can have mistakes, tell the administrator what breaks.':
+    'Release es la versión que recibe todo el mundo. Beta te da además las versiones que aún se están probando: pueden tener errores, cuéntale al administrador qué falla.',
+  'Release': 'Release',
+  'Beta': 'Beta',
 };

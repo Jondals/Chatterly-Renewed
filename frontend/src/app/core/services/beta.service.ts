@@ -4,7 +4,7 @@
  * Testers can ask the desktop app for the beta versions (Settings > Updates); administrators manage the list in
  * Settings > Administration. The server decides everything: the page only shows what it is told.
  */
-import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 
@@ -31,6 +31,8 @@ export class BetaService {
   readonly beta = signal(false);
   /** The account administers the program. */
   readonly admin = signal(false);
+  /** The beta channel is open to this account: a tester, or an administrator (who can always try what they publish). */
+  readonly canUseBeta = computed(this.readCanUse.bind(this));
   /** The server has answered for this account (before that, "not a tester" only means "not known yet"). */
   readonly known = signal(false);
   /** The testers (filled for an administrator only). */
@@ -41,6 +43,10 @@ export class BetaService {
   /** Asks the server who the account is each time somebody signs in. */
   constructor() {
     effect(this.onUser.bind(this));
+  }
+
+  private readCanUse(): boolean {
+    return this.beta() || this.admin();
   }
 
   /** Adds a tester by username. Throws the error of the server (for example when the name does not exist). */

@@ -4,7 +4,8 @@
  * link to the full changelog. Used by .github/workflows/desktop.yml.
  *
  *   node desktop/scripts/release-notes.mjs 2.30.0
- *   node desktop/scripts/release-notes.mjs 2.32.0-beta.5    (a build of the beta branch: the points of 2.32.0 and a warning)
+ *   node desktop/scripts/release-notes.mjs 2.32.0-beta.5 v2.32.0-b1   (a build of the beta branch: the points of 2.32.0, a
+ *                                                                     warning, and the name people read for it)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,8 @@ if (!/^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(version || '')) {
 }
 const beta = version.includes('-beta.');
 const base = version.replace(/-.*$/, '');
+/** What people read: v2.32.0 for a release and v2.32.0-b1 for the first beta of it (given by the workflow). */
+const label = process.argv[3] || 'v' + version;
 const repo = process.env.GITHUB_REPOSITORY || 'Jondals/ChatterlyRenewed';
 const changelog = fs.readFileSync(
   path.resolve(import.meta.dirname, '..', '..', 'CHANGELOG.md'),
@@ -69,7 +72,7 @@ const warning = beta
   : [];
 console.log(
   [
-    '## Chatterly ' + version,
+    '## ChatterlyRenewed ' + label,
     '',
     ...warning,
     ...(shown.length ? shown : ['Small improvements and fixes.']),
@@ -84,10 +87,6 @@ console.log(
       version +
       '.exe`. The installer is not signed yet, so Windows may show its SmartScreen warning.',
     '',
-    'Linux: download `Chatterly-' +
-      version +
-      '.AppImage` (make it executable and run it) or `Chatterly-' +
-      version +
-      '.deb`.',
+    'Linux: download `Chatterly-' + version + '.AppImage` (make it executable and run it).',
   ].join('\n'),
 );

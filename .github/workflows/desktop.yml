@@ -2,7 +2,7 @@
 # .github/workflows/desktop.yml
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 # * One release for the whole project. You raise the version, commit and push, and that is all: this workflow builds the
-#   desktop app for Windows (installer) and Linux (AppImage and deb) and attaches them to ONE GitHub Release "v<version>"
+#   desktop app for Windows (installer) and Linux (AppImage) and attaches them to ONE GitHub Release "v<version>"
 #   (the version in desktop/package.json). The notes are a short summary with a link to the CHANGELOG
 #   (desktop/scripts/release-notes.mjs). Installed apps look for updates there. A platform that already has its files in the
 #   release is skipped, so a push that did not raise the version does nothing. deploy.yml updates the server on the same push.
@@ -53,6 +53,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       beta: ${{ steps.version.outputs.beta }}
+      label: ${{ steps.version.outputs.label }}
       windows: ${{ steps.version.outputs.windows }}
       linux: ${{ steps.version.outputs.linux }}
     steps:
@@ -73,8 +74,23 @@ jobs:
             BETA=true
             VERSION="${VERSION%%-*}-beta.$RUN_NUMBER"
           fi
+          # What people read: "2.32.0" (release) or "2.32.0-b1" (the first beta of it, b2 the next...). The tag stays
+          # "v2.32.0-beta.<run>": the updater needs a version it can order, and b10 < b2 as text. A release that already exists
+          # (a retry of the same run) keeps its label.
+          LABEL="$VERSION"
+          if [ "$BETA" = true ]; then
+            BASE="${VERSION%%-*}"
+            EXISTING=$(gh release view "v$VERSION" --json name --jq .name 2>/dev/null || true)
+            if [ -n "$EXISTING" ]; then
+              LABEL="${EXISTING#ChatterlyRenewed v}"
+            else
+              COUNT=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\"))] | length")
+              LABEL="$BASE-b$((COUNT + 1))"
+            fi
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "beta=$BETA" >> "$GITHUB_OUTPUT"
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
           # A platform is done when its installer and its update file are already in the release.
           if echo "$ASSETS" | grep -qx "Chatterly-Setup-$VERSION.exe" && echo "$ASSETS" | grep -qx '\(latest\|beta\).yml'; then
@@ -88,11 +104,13 @@ jobs:
             echo "linux=true" >> "$GITHUB_OUTPUT"
           fi
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
-            node desktop/scripts/release-notes.mjs "$VERSION" > release-notes.md
+            NAME="v$LABEL"
             FLAGS=""
             if [ "$BETA" = true ]; then FLAGS="--prerelease"; fi
+            TITLE="ChatterlyRenewed $NAME"
+            node desktop/scripts/release-notes.mjs "$VERSION" "$NAME" > release-notes.md
             gh release create "v$VERSION" --draft $FLAGS --target "$GITHUB_SHA" \
-              --title "Chatterly $VERSION" --notes-file release-notes.md
+              --title "$TITLE" --notes-file release-notes.md
           fi
 
   # The web app is built ONCE and both platforms carry that same build (it was built twice before).
@@ -106,7 +124,7 @@ jobs:
           persist-credentials: false
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -127,7 +145,7 @@ jobs:
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
         shell: bash
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
         with:
           mode: desktop
@@ -165,7 +183,7 @@ jobs:
           persist-credentials: false
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
         with:
           mode: desktop
@@ -173,7 +191,7 @@ jobs:
         with:
           name: web-build
           path: frontend/dist/frontend/browser
-      - name: Build the AppImage and the deb (no token here)
+      - name: Build the AppImage (no token here)
         run: pnpm --dir desktop dist:linux
       - name: Attach the packages to the release
         env:
@@ -183,7 +201,7 @@ jobs:
         run: |
           YML=desktop/dist/latest-linux.yml
           if [ ! -f "$YML" ]; then YML=desktop/dist/beta-linux.yml; fi
-          gh release upload "v$VERSION" "desktop/dist/Chatterly-$VERSION.AppImage" "desktop/dist/Chatterly-$VERSION.deb" "$YML" --clobber
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$VERSION.AppImage" "$YML" --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.

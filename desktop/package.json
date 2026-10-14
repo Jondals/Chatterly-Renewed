@@ -14,7 +14,7 @@
     "test": "node test/desktop.mjs",
     "web": "node scripts/copy-web.mjs",
     "dist": "node scripts/copy-web.mjs && electron-builder --win nsis --publish never",
-    "dist:linux": "node scripts/copy-web.mjs && electron-builder --linux AppImage deb --publish never",
+    "dist:linux": "node scripts/copy-web.mjs && electron-builder --linux AppImage --publish never",
     "dist:store": "node scripts/dist-store.mjs"
   },
   "devDependencies": {
@@ -43,8 +43,7 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        "AppImage"
       ],
       "icon": "build/icon.png",
       "category": "Network",
