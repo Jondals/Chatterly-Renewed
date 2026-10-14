@@ -11,10 +11,10 @@ import { runInStore, type StoreLocation } from '../indexed-db';
 const LOCATION: StoreLocation = { database: 'chatterly-renewed-wallpaper', store: 'bg' };
 const KEY = 'current';
 /** The biggest picture (GIFs included) and video accepted, in bytes. */
-export const WALLPAPER_MAX_IMAGE = 12 * 1024 * 1024;
-export const WALLPAPER_MAX_VIDEO = 25 * 1024 * 1024;
+const WALLPAPER_MAX_IMAGE = 12 * 1024 * 1024;
+const WALLPAPER_MAX_VIDEO = 25 * 1024 * 1024;
 /** What the file chooser offers. */
-export const WALLPAPER_ACCEPT =
+const WALLPAPER_ACCEPT =
   'image/png,image/jpeg,image/webp,image/gif,image/avif,video/mp4,video/webm';
 
 /** The wallpaper kept on the device. */

@@ -37,19 +37,6 @@ export interface CameraFxOptions {
   background: BackgroundSetting;
 }
 
-/** The options that change nothing. */
-export const NEUTRAL_FX: CameraFxOptions = {
-  mirror: false,
-  brightness: 0,
-  contrast: 1,
-  saturation: 1,
-  zoom: 1,
-  panX: 0,
-  panY: 0,
-  edgeSoftness: 0.33,
-  background: { type: 'none' },
-};
-
 /** True when the options change nothing (the plain camera can be used, with no processing at all). */
 export function isNeutral(options: CameraFxOptions): boolean {
   return (
@@ -85,7 +72,7 @@ function appUrl(path: string): string {
 }
 
 /** Whether the effects can be made in a worker (insertable streams and a worker that draws with WebGL). */
-export function canUseWorker(): boolean {
+function canUseWorker(): boolean {
   const scope = window as unknown as {
     MediaStreamTrackProcessor?: TrackProcessorConstructor;
     MediaStreamTrackGenerator?: TrackGeneratorConstructor;
@@ -113,7 +100,7 @@ function offscreenWebgl2(): boolean {
 }
 
 /** Whether the worker can be fed with bitmaps (the way for the browsers with no insertable streams). */
-export function canUseBitmapWorker(): boolean {
+function canUseBitmapWorker(): boolean {
   return (
     typeof Worker !== 'undefined' &&
     typeof OffscreenCanvas !== 'undefined' &&

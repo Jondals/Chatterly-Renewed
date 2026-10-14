@@ -28,6 +28,7 @@ const path = require('node:path');
 const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
 const graphics = require('./graphics.cjs');
+const overlay = require('./overlay.cjs');
 const updater = require('./updater.cjs');
 const { trace } = require('./trace.cjs');
 const windowState = require('./window-state.cjs');
@@ -670,6 +671,10 @@ function onActivate() {
   else showMainWindow();
 }
 
+function onWillQuit() {
+  overlay.stop();
+}
+
 function onWindowAllClosed() {
   // * Closing the window closes the app: nothing keeps running in the background.
   app.quit();
@@ -706,6 +711,7 @@ async function start() {
   createMenu();
   createWindow();
   updater.start(mainWindow, isAppOrigin);
+  overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -715,5 +721,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on('web-contents-created', onWebContentsCreated);
   app.on('activate', onActivate);
   app.on('window-all-closed', onWindowAllClosed);
+  app.on('will-quit', onWillQuit);
   start();
 }

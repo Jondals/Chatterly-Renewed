@@ -550,7 +550,7 @@ const BASIC = [
     }
   `,
 })
-export class BackgroundPickerComponent {
+class BackgroundPickerComponent {
   /** The window was closed. */
   readonly closed = output<void>();
 

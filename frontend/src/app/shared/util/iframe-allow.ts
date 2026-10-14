@@ -17,7 +17,7 @@ function knownFeatures(): string[] | null {
 }
 
 /** The value of `allow` for a frame: the names in the list that this browser knows. */
-export function iframeAllow(names: string[]): string {
+function iframeAllow(names: string[]): string {
   const known = knownFeatures();
   return names
     .filter(function supported(name) {

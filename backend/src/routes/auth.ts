@@ -21,7 +21,7 @@ import {
   cleanText,
 } from '../validation';
 
-export const ACCENTS = [
+const ACCENTS = [
   'mint',
   'violet',
   'coral',
@@ -34,7 +34,7 @@ export const ACCENTS = [
   'custom',
 ] as const;
 /** The animations a name can have (the same list as NAME_FX in the web app). */
-export const NAME_FX = [
+const NAME_FX = [
   'none',
   'float',
   'bounce',
@@ -57,7 +57,7 @@ export const NAME_FX = [
   'toon',
   'ember',
 ] as const;
-export const NAME_FONTS = [
+const NAME_FONTS = [
   'default',
   'display',
   'tech',
@@ -76,7 +76,7 @@ export const NAME_FONTS = [
 ] as const;
 const HEX = '^#[0-9a-fA-F]{6}$';
 const UUID = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-export const AURAS = [
+const AURAS = [
   'void',
   'prism',
   'pulse',

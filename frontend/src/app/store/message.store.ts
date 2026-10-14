@@ -24,7 +24,7 @@ import { sanitizeResult, type SpinlyResult } from '../features/spinly/spinly-res
 import { GuildStore } from './guild.store';
 import { SocialStore } from './social.store';
 
-export type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
+type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
 
 export interface ViewAttachment extends AttachmentPayload {
   kind: AttachmentKind;
@@ -129,7 +129,7 @@ const INLINE_MIME: Record<AttachmentKind, RegExp | null> = {
 /**
  * The kind of an attachment from its type (image, audio, video or plain file): it decides how the chat draws it.
  */
-export function attachmentKind(mime: string): AttachmentKind {
+function attachmentKind(mime: string): AttachmentKind {
   for (const kind of ['image', 'audio', 'video'] as const) {
     if (INLINE_MIME[kind]!.test(mime)) return kind;
   }
@@ -869,18 +869,6 @@ export class MessageStore {
         return rest;
       });
     }, 4100);
-  }
-
-  /** The ids of the people who are typing in a channel right now. */
-  typingUsers(channelId: string): string[] {
-    const now = Date.now();
-    return Object.entries(this.state(channelId).typing())
-      .filter(function ([, until]) {
-        return until > now;
-      })
-      .map(function ([id]) {
-        return id;
-      });
   }
 
   /** The person read the channel: its unread counter goes away. */

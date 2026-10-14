@@ -535,23 +535,6 @@
   }
 }
 
-@keyframes emoji-idle {
-  0%,
-  86%,
-  100% {
-    transform: none;
-  }
-  90% {
-    transform: translateY(-0.45rem) rotate(-6deg) scale(1.08);
-  }
-  94% {
-    transform: translateY(0) rotate(5deg);
-  }
-  97% {
-    transform: translateY(-0.15rem) rotate(-2deg);
-  }
-}
-
 @keyframes emoji-pop {
   0% {
     transform: scale(0.2) rotate(-12deg);
@@ -1081,16 +1064,6 @@
   }
   50% {
     transform: scale(1.08) translateY(2px);
-  }
-}
-@keyframes emo-spin {
-  0%,
-  60%,
-  100% {
-    transform: none;
-  }
-  80% {
-    transform: rotate(360deg) scale(1.2);
   }
 }
 @keyframes emo-cool {

@@ -18,6 +18,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       SERVER_SECRET: ${SERVER_SECRET:-}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
+      ADMIN_USERS: ${ADMIN_USERS:-Jondals}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
       TURN_TTL_SEC: ${TURN_TTL_SEC:-}

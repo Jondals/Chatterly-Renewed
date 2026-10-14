@@ -355,11 +355,6 @@ export class ImageService {
     await this.api.put('/api/images/' + id + '/keys', { keys });
   }
 
-  /** Whether this browser holds the key of a picture (it uploaded it in this session or already opened it). */
-  holdsKey(id: string | null | undefined): boolean {
-    return !!id && this.pictureKeys.has(id);
-  }
-
   /** Opens the key of one of the person's own pictures (after a reload), then shares it with whoever is missing. */
   async shareOwn(id: string | null | undefined): Promise<void> {
     if (!id) {

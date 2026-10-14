@@ -14,7 +14,7 @@ import { imageFile } from './routes/images';
 /** How long a new upload may wait to be attached to a profile or a group before it is considered abandoned. */
 export const IMAGE_GRACE_MS = 24 * 60 * 60 * 1000;
 /** How long an old group icon that is not encrypted may wait for its owner to open the app (which encrypts it) before it is erased. */
-export const PLAIN_ICON_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+const PLAIN_ICON_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 /** How often the cleanup runs. */
 export const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 

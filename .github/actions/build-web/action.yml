@@ -1,0 +1,47 @@
+# .github/actions/build-web/action.yml
+# * The steps every app build shares: install the tools and the packages, and build the web app that the desktop apps carry
+#   inside them (frontend/dist). The jobs of .github/workflows/desktop.yml call it with `uses: ./.github/actions/build-web`.
+# ! Every action is pinned to the exact commit of its release (the tag only says which one), so a moved tag cannot change
+#   what runs. To update one, look up the commit of the new release and change both the hash and the comment.
+name: Build the web app
+description: Installs pnpm, Node and the packages, and builds the web app.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+      with:
+        version: 12.9.1
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24
+        cache: pnpm
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          frontend/pnpm-lock.yaml
+          desktop/pnpm-lock.yaml
+    # The downloads that never change between builds (the browser of the web build, Electron and the installer tools).
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/AppData/Local/ms-playwright
+          ~/AppData/Local/electron/Cache
+          ~/AppData/Local/electron-builder/Cache
+          ~/.cache/ms-playwright
+          ~/.cache/electron
+          ~/.cache/electron-builder
+        key: desktop-tools-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'desktop/pnpm-lock.yaml') }}
+        restore-keys: desktop-tools-${{ runner.os }}-
+    - name: Install
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm --dir frontend install --frozen-lockfile
+        pnpm --dir desktop install --frozen-lockfile
+    # The web build draws a copy of the sign-in screen with a real browser (frontend/scripts/postbuild.mjs).
+    - name: Install the browser the web build needs
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+    - name: Build the web app
+      shell: bash
+      run: pnpm --dir frontend build

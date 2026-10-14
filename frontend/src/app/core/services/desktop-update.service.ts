@@ -8,7 +8,7 @@
  * ! The shell gives the page a few fixed commands and one event (desktop/src/preload.cjs). There is no way to choose
  *   a file or an address from here.
  */
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { I18nService } from '../i18n/i18n.service';
 import {
   desktopBridge,
@@ -16,6 +16,7 @@ import {
   type DesktopUpdates,
   type DesktopUpdateState,
 } from '../desktop-bridge';
+import { BetaService } from './beta.service';
 import { ToastService } from './toast.service';
 
 const INITIAL: DesktopUpdateState = {
@@ -27,7 +28,7 @@ const INITIAL: DesktopUpdateState = {
   bytesPerSecond: 0,
   error: '',
   lastCheck: 0,
-  settings: { interval: '6h', notify: true, auto: false },
+  settings: { interval: '6h', notify: true, auto: false, beta: false },
 };
 
 export type {
@@ -43,6 +44,7 @@ export class DesktopUpdateService {
   private readonly bridge: DesktopUpdates | undefined = desktopBridge()?.updates;
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
+  private readonly betaProgram = inject(BetaService);
   private announced = '';
 
   /** True inside the desktop app (and it can update itself). */
@@ -79,7 +81,15 @@ export class DesktopUpdateService {
       return;
     }
     this.bridge.onState(this.apply.bind(this));
+    effect(this.leaveBeta.bind(this));
     this.bridge.getState().then(this.apply.bind(this), this.ignore);
+  }
+
+  /** An account that is not (or no longer) a tester must not keep receiving the beta versions. */
+  private leaveBeta(): void {
+    if (this.betaProgram.known() && !this.betaProgram.beta() && this.state().settings.beta) {
+      this.setSettings({ beta: false });
+    }
   }
 
   /** Looks for a new version now. */

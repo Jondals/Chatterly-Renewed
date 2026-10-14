@@ -309,13 +309,6 @@ export class SoundService {
     }
   }
 
-  /** Whether a name is one of the built-in effects (the signals of a call carry any text; only these play). */
-  isSfx(id: unknown): id is SfxId {
-    return SOUNDBOARD.some(function same(entry) {
-      return entry.id === id;
-    });
-  }
-
   /** Plays an uploaded clip of the soundboard (always audible, like the built-in effects). */
   async playBlob(key: string, blob: Blob): Promise<void> {
     if (!this.audible) {

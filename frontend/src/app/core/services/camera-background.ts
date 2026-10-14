@@ -75,15 +75,6 @@ async function createSegmenter(): Promise<ImageSegmenter> {
   }
 }
 
-/** Whether this browser can run the cutout (it needs WebAssembly and a canvas that can be captured). */
-export function canChangeBackground(): boolean {
-  return (
-    typeof WebAssembly === 'object' &&
-    typeof HTMLCanvasElement !== 'undefined' &&
-    typeof HTMLCanvasElement.prototype.captureStream === 'function'
-  );
-}
-
 /** Smooth step between two edges. */
 function smooth(value: number): number {
   const t = Math.min(1, Math.max(0, (value - EDGE_LOW) / (EDGE_HIGH - EDGE_LOW)));

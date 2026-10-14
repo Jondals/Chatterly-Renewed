@@ -198,6 +198,11 @@ function auditSource() {
     'graphics:get',
     'graphics:set',
     'graphics:restart',
+    'overlay:get',
+    'overlay:set',
+    'overlay:tiles',
+    'overlay:signal',
+    'overlay:event',
   ]);
   const usedChannels = [...preload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(function name(m) {
     return m[1];
@@ -228,14 +233,29 @@ function auditSource() {
     (preload.match(/require\(/g) || []).length === 1 && preload.includes("require('electron')"),
     'the page preload requires nothing but electron',
   );
+  const overlayPreload = fs.readFileSync(path.join(SRC, 'overlay-preload.cjs'), 'utf8');
+  const overlayChannels = [...overlayPreload.matchAll(/ipcRenderer\.\w+\('([^']+)'/g)].map(
+    function name(m) {
+      return m[1];
+    },
+  );
+  check(
+    overlayChannels.sort().join(',') === 'overlay:layout,overlay:signal-out,overlay:stop-editing',
+    'the overlay window can only send its signalling, its layout and "editing ended"',
+  );
+  check(
+    !overlayPreload.slice(overlayPreload.indexOf('exposeInMainWorld(')).includes('ipcRenderer') &&
+      (overlayPreload.match(/require\(/g) || []).length === 1,
+    'the overlay preload hands out no ipcRenderer and requires nothing but electron',
+  );
   const mainChannels = new Set();
-  for (const name of ['main.cjs', 'updater.cjs']) {
+  for (const name of ['main.cjs', 'updater.cjs', 'overlay.cjs']) {
     for (const m of text[name].matchAll(/ipcMain\.(?:handle|on|once)\('([^']+)'/g))
       mainChannels.add(m[1]);
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,picker:cancel,picker:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,picker:cancel,picker:choose,screen:surface,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -243,7 +263,15 @@ function auditSource() {
     return n.endsWith('.html');
   })) {
     check(/default-src 'none'/.test(text[name]), name + ' has a strict CSP');
-    check(!/<script/i.test(text[name]), name + ' has no script tag');
+    // The overlay page needs its own script, loaded from its own folder only (script-src 'self').
+    if (name === 'overlay.html') {
+      check(
+        /script-src 'self'/.test(text[name]) && !/unsafe-inline|unsafe-eval/.test(text[name]),
+        'overlay.html loads only its own script, never inline code',
+      );
+    } else {
+      check(!/<script/i.test(text[name]), name + ' has no script tag');
+    }
   }
   const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, 'package.json'), 'utf8'));
   const fuses = pkg.build.electronFuses;
@@ -407,9 +435,9 @@ async function runningApp() {
   check(
     world.api ===
       (process.platform === 'win32'
-        ? 'graphics,isDesktop,platform,screen,titlebar,updates'
-        : 'graphics,isDesktop,platform,screen,updates'),
-    'the page sees only isDesktop, platform, the screen hint, the graphics choice and the update commands',
+        ? 'graphics,isDesktop,overlay,platform,screen,titlebar,updates'
+        : 'graphics,isDesktop,overlay,platform,screen,updates'),
+    'the page sees only isDesktop, platform, the screen hint, the graphics choice, the overlay and the update commands',
   );
   check(world.isDesktop === true, 'the page can tell it runs in the desktop app');
   const tampered = await page.evaluate(function () {
@@ -421,6 +449,86 @@ async function runningApp() {
     return window.chatterlyDesktop.isDesktop;
   });
   check(tampered === true, 'the page cannot change the desktop API');
+
+  step('The in-game overlay: choices are checked, the window follows the call');
+  const overlayRun = await page.evaluate(async function () {
+    const api = window.chatterlyDesktop.overlay;
+    const bad = await api.set({
+      hotkey: 'Alt+Shift+Bad',
+      size: 'huge',
+      opacity: 5,
+      x: 9,
+      scale: 'big',
+      evil: true,
+    });
+    const refused = await api.setTiles('not a list');
+    return { bad, refused, signal: await api.signal({ offer: 'x', candidate: {} }) };
+  });
+  check(
+    overlayRun.bad.settings.hotkey === 'CommandOrControl+Shift+O' &&
+      overlayRun.bad.settings.size === 'medium' &&
+      overlayRun.bad.settings.opacity === 30 &&
+      overlayRun.bad.settings.x === 1 &&
+      overlayRun.bad.settings.scale === 1 &&
+      !('evil' in overlayRun.bad.settings),
+    'the overlay keeps only valid values (anything else falls back or is clamped)',
+  );
+  check(overlayRun.signal === false, 'a signalling message with an unknown shape is refused');
+  const overlayWindows = async function countWindows() {
+    return app.evaluate(function count(electronModule) {
+      return electronModule.BrowserWindow.getAllWindows().length;
+    });
+  };
+  const beforeOverlay = await overlayWindows();
+  await page.evaluate(function turnOn() {
+    return window.chatterlyDesktop.overlay.set({ enabled: true });
+  });
+  check(
+    (await overlayWindows()) === beforeOverlay,
+    'turned on but alone in no call: no overlay window yet',
+  );
+  await page.evaluate(function show() {
+    return window.chatterlyDesktop.overlay.setTiles([
+      { id: 'a', name: 'Ann', speaking: true, avatar: 'javascript:alert(1)', color: 'red' },
+    ]);
+  });
+  await waitFor(async function opened() {
+    return (await overlayWindows()) === beforeOverlay + 1;
+  }, 'the overlay window');
+  check(true, 'with people to show, the overlay window opens');
+  const overlayInfo = await waitFor(function inspectOverlay() {
+    return app.evaluate(function inspect(electronModule) {
+      const win = electronModule.BrowserWindow.getAllWindows().find(function isOverlay(w) {
+        return w.webContents.getURL().endsWith('overlay.html');
+      });
+      return win
+        ? {
+            onTop: win.isAlwaysOnTop(),
+            focusable: win.isFocusable(),
+            prefs: win.webContents.getLastWebPreferences(),
+          }
+        : null;
+    });
+  }, 'the overlay page to load');
+  check(
+    overlayInfo !== null &&
+      overlayInfo.onTop &&
+      !overlayInfo.focusable &&
+      overlayInfo.prefs.sandbox === true &&
+      overlayInfo.prefs.contextIsolation === true &&
+      overlayInfo.prefs.nodeIntegration === false,
+    'the overlay is always on top, never takes the focus and is sandboxed like the app',
+  );
+  await page.evaluate(function empty() {
+    return window.chatterlyDesktop.overlay.setTiles([]);
+  });
+  await waitFor(async function closed() {
+    return (await overlayWindows()) === beforeOverlay;
+  }, 'the overlay window to close');
+  check(true, 'when the call ends the overlay window closes');
+  await page.evaluate(function turnOff() {
+    return window.chatterlyDesktop.overlay.set({ enabled: false });
+  });
 
   step('The bar of the window (Windows draws the buttons, the page draws the rest)');
   const bar = await page.evaluate(async function () {

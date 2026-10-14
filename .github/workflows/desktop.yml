@@ -1,24 +1,28 @@
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 # .github/workflows/desktop.yml
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
-# * One release for the whole project: you raise the version, commit and push, and that is all. This workflow then builds
-#   every app and attaches it to ONE GitHub Release "v<version>" (the version in desktop/package.json). The notes are a
-#   short summary with a link to the CHANGELOG (desktop/scripts/release-notes.mjs). Installed apps look for updates there.
-#   If a platform already has its file in that release it is skipped (a push that did not raise the version does nothing).
-#   deploy.yml updates the server on the same push; the two are independent.
-# * How the release is made: `prepare` creates it as a DRAFT (nobody sees it half-done), each platform job uploads its
-#   file, and `publish` makes it public only when every job has finished. A failed build leaves the draft; the next push
-#   (or "Run workflow") finishes it, because only the missing platforms are built again.
-# * Only the installer is uploaded, plus latest.yml (a few hundred bytes: the installed apps need it to find the new
-#   version and to check its sha512). No blockmap: it is only for differential downloads and doubled the upload.
+# * One release for the whole project. You raise the version, commit and push, and that is all: this workflow builds the
+#   desktop app for Windows (installer) and Linux (AppImage and deb) and attaches them to ONE GitHub Release "v<version>"
+#   (the version in desktop/package.json). The notes are a short summary with a link to the CHANGELOG
+#   (desktop/scripts/release-notes.mjs). Installed apps look for updates there. A platform that already has its files in the
+#   release is skipped, so a push that did not raise the version does nothing. deploy.yml updates the server on the same push.
+# * Two channels, two branches:
+#     master / main  the STABLE release "v2.32.0", marked as the latest one. Everybody's app is offered it.
+#     beta           a PRE-RELEASE "v2.32.0-beta.<run number>" (desktop/scripts/beta-version.mjs gives the build that
+#                    version). Only the apps of the beta testers (Settings > Administration) look at pre-releases.
+#   To publish a beta: push to the branch "beta". To publish it for everybody: merge "beta" into master.
+# * How a release is made: `prepare` creates it as a DRAFT (nobody sees it half-done), each platform job uploads its files,
+#   and `publish` makes it public only when every job has finished. A failed build leaves the draft; the next push (or "Run
+#   workflow") finishes it, because only the missing platforms are built again.
+# * Only the installers are uploaded, plus the *.yml of the channel (a few hundred bytes: the installed apps need it to find
+#   the new version and to check its sha512). No blockmap: it is only for differential downloads and doubled the upload.
 # * By hand (Actions tab > Run workflow) it builds the Microsoft Store package instead and keeps it as a download.
 #   Secrets for the Store (Settings > Secrets and variables > Actions): STORE_IDENTITY_NAME, STORE_PUBLISHER and
 #   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
-# ! The installer is NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
+# ! The installers are NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
 #
-# * To add a platform (Android, macOS, iOS): copy the `windows` job, change `runs-on`, the build steps and the file
-#   names, add a check for its file in `prepare` (an output like `windows`), and list the job in `publish`'s `needs`.
-#   Commented templates are after the `windows` job.
+# * To add a platform (Android, macOS, iOS): copy the `linux` job, change `runs-on`, the build step and the file names, add a
+#   check for its files in `prepare` (an output like `linux`), and list the job in `publish`'s `needs`.
 #
 # * Security of this file:
 #   - The builds (which run the code of many npm packages) get NO token. Only the small steps that run the GitHub CLI
@@ -30,7 +34,7 @@ name: Build the apps
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, beta]
   workflow_dispatch:
 
 permissions:
@@ -48,7 +52,9 @@ jobs:
       contents: write # to create the draft release
     outputs:
       version: ${{ steps.version.outputs.version }}
+      beta: ${{ steps.version.outputs.beta }}
       windows: ${{ steps.version.outputs.windows }}
+      linux: ${{ steps.version.outputs.linux }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,19 +64,34 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           VERSION=$(node -p "require('./desktop/package.json').version")
+          BETA=false
+          if [ "$BRANCH" = beta ]; then
+            BETA=true
+            VERSION="${VERSION%%-*}-beta.$RUN_NUMBER"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "beta=$BETA" >> "$GITHUB_OUTPUT"
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
-          # A platform is done when its file is already in the release.
-          if echo "$ASSETS" | grep -qx "Chatterly-Setup-$VERSION.exe" && echo "$ASSETS" | grep -qx 'latest.yml'; then
+          # A platform is done when its installer and its update file are already in the release.
+          if echo "$ASSETS" | grep -qx "Chatterly-Setup-$VERSION.exe" && echo "$ASSETS" | grep -qx '\(latest\|beta\).yml'; then
             echo "windows=false" >> "$GITHUB_OUTPUT"
           else
             echo "windows=true" >> "$GITHUB_OUTPUT"
           fi
+          if echo "$ASSETS" | grep -qx "Chatterly-$VERSION.AppImage" && echo "$ASSETS" | grep -qx '\(latest\|beta\)-linux.yml'; then
+            echo "linux=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "linux=true" >> "$GITHUB_OUTPUT"
+          fi
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             node desktop/scripts/release-notes.mjs "$VERSION" > release-notes.md
-            gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
+            FLAGS=""
+            if [ "$BETA" = true ]; then FLAGS="--prerelease"; fi
+            gh release create "v$VERSION" --draft $FLAGS --target "$GITHUB_SHA" \
               --title "Chatterly $VERSION" --notes-file release-notes.md
           fi
 
@@ -84,36 +105,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
-        with:
-          version: 12.9.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
-            desktop/pnpm-lock.yaml
-      # The downloads that never change between builds (the browser of the web build, Electron and the installer tools).
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/AppData/Local/ms-playwright
-            ~/AppData/Local/electron/Cache
-            ~/AppData/Local/electron-builder/Cache
-          key: desktop-tools-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'desktop/pnpm-lock.yaml') }}
-          restore-keys: desktop-tools-${{ runner.os }}-
-      - name: Install
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir frontend install --frozen-lockfile
-          pnpm --dir desktop install --frozen-lockfile
-      # The web build draws a copy of the sign-in screen with a real browser (frontend/scripts/postbuild.mjs).
-      - name: Install the browser the web build needs
-        run: pnpm exec playwright install chromium
-      - name: Build the web app
-        run: pnpm --dir frontend build
+      - name: Version of the beta build
+        if: needs.prepare.outputs.beta == 'true'
+        shell: bash
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+      - uses: ./.github/actions/build-web
       - name: Check the desktop shell
         run: pnpm --dir desktop test
       - name: Build the installer (no token here)
@@ -125,27 +121,38 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          gh release upload "v$VERSION" \
-            "desktop/dist/Chatterly-Setup-$VERSION.exe" \
-            desktop/dist/latest.yml --clobber
+          # The update file is latest.yml on the stable channel and beta.yml on the beta one.
+          YML=$(ls desktop/dist/latest.yml desktop/dist/beta.yml 2>/dev/null | head -n 1)
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-Setup-$VERSION.exe" "$YML" --clobber
 
-  # ── Templates for the next platforms (uncomment and adapt; each one uploads its own file) ──────────────────────
-  # android:
-  #   needs: prepare
-  #   if: needs.prepare.outputs.android == 'true'
-  #   runs-on: ubuntu-latest
-  #   permissions: { contents: write }
-  #   steps: checkout, setup-node, JDK 21, `pnpm --dir mobile build`, then `gh release upload "v$VERSION" Chatterly-$VERSION.apk`
-  # macos:
-  #   needs: prepare
-  #   if: needs.prepare.outputs.macos == 'true'
-  #   runs-on: macos-latest
-  #   permissions: { contents: write }
-  #   steps: checkout, setup-node, `pnpm --dir desktop dist:mac`, then `gh release upload "v$VERSION" Chatterly-$VERSION.dmg latest-mac.yml`
+  linux:
+    needs: prepare
+    if: needs.prepare.outputs.linux == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the packages to the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version of the beta build
+        if: needs.prepare.outputs.beta == 'true'
+        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}"
+      - uses: ./.github/actions/build-web
+      - name: Build the AppImage and the deb (no token here)
+        run: pnpm --dir desktop dist:linux
+      - name: Attach the packages to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          YML=$(ls desktop/dist/latest-linux.yml desktop/dist/beta-linux.yml 2>/dev/null | head -n 1)
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$VERSION.AppImage" "desktop/dist/Chatterly-$VERSION.deb" "$YML" --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.
-    needs: [prepare, windows]
+    needs: [prepare, windows, linux]
     if: ${{ !cancelled() && needs.prepare.result == 'success' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     permissions:
@@ -156,7 +163,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
-        run: gh release edit "v$VERSION" --draft=false --latest
+          BETA: ${{ needs.prepare.outputs.beta }}
+        run: |
+          if [ "$BETA" = true ]; then
+            gh release edit "v$VERSION" --draft=false --prerelease
+          else
+            gh release edit "v$VERSION" --draft=false --latest
+          fi
 
   store:
     if: github.event_name == 'workflow_dispatch'
@@ -165,26 +178,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
-        with:
-          version: 12.9.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
-            desktop/pnpm-lock.yaml
-      - name: Install
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir frontend install --frozen-lockfile
-          pnpm --dir desktop install --frozen-lockfile
-      - name: Install the browser the web build needs
-        run: pnpm exec playwright install chromium
-      - name: Build the web app
-        run: pnpm --dir frontend build
+      - uses: ./.github/actions/build-web
       - name: Build the Microsoft Store package
         run: pnpm --dir desktop dist:store
         env:

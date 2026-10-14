@@ -17,6 +17,8 @@
  *   signed there is no publisher check on top of that: sign it (or ship through the Store) to get one.
  * ! Only the main page of the app may use the commands (see isTrustedSender); an embedded frame cannot, and the
  *   settings it sends are checked against a fixed list of values.
+ * * Beta channel: with the "beta" choice on, the pre-releases of GitHub (built from the beta branch, see the workflow) are
+ *   offered too. The page only turns it on for an account the server says is a tester; the channel needs no secret.
  * * Nothing is sent but the usual request for the release files: no account, no identifier.
  * ? The updater code is loaded a few seconds after the window, so it does not compete with the start of the app.
  * ? Development only: CHATTERLY_UPDATE_URL=<folder with latest.yml> checks and downloads from there and never installs
@@ -38,7 +40,7 @@ const INTERVALS = {
   start: 0,
   never: -1,
 };
-const DEFAULT_SETTINGS = { interval: '6h', notify: true, auto: false };
+const DEFAULT_SETTINGS = { interval: '6h', notify: true, auto: false, beta: false };
 /** Wait this long after the window opens before the first check. */
 const START_DELAY_MS = 5000;
 const STATE_CHANNEL = 'updates:state';
@@ -115,6 +117,9 @@ function sanitizeSettings(raw, base) {
     } else if (key === 'auto') {
       if (typeof raw.auto !== 'boolean') return null;
       merged.auto = raw.auto;
+    } else if (key === 'beta') {
+      if (typeof raw.beta !== 'boolean') return null;
+      merged.beta = raw.beta;
     } else {
       return null;
     }
@@ -220,6 +225,8 @@ function handleSettings(event, patch) {
   setState({ settings: next });
   schedule();
   applyInstallOnQuit();
+  // The beta channel: the pre-releases of GitHub (built from the beta branch) are offered too.
+  if (autoUpdater) autoUpdater.allowPrerelease = next.beta;
   // Turning it on while a version is waiting starts the download at once.
   if (next.auto && autoUpdater && state.status === 'available') startDownload();
   return state;
@@ -310,7 +317,7 @@ function ensureUpdater() {
   // * download is then started by onAvailable, and the install on quit by applyInstallOnQuit).
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.allowPrerelease = false;
+  autoUpdater.allowPrerelease = state.settings.beta;
   autoUpdater.allowDowngrade = false;
   autoUpdater.on('error', onError);
   autoUpdater.on('update-available', onAvailable);

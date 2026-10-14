@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; media-src blob: mediastream:"
+    />
+    <title>Chatterly overlay</title>
+    <link rel="stylesheet" href="overlay.css" />
+  </head>
+  <body>
+    <div id="panel" class="panel">
+      <div id="tiles" class="tiles"></div>
+      <div id="edit" class="edit" hidden>
+        <span id="hint"></span>
+        <button id="done" type="button">OK</button>
+        <span id="grip" class="grip"></span>
+      </div>
+    </div>
+    <script src="overlay.js"></script>
+  </body>
+</html>

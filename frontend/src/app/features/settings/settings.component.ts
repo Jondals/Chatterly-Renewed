@@ -17,6 +17,8 @@ import { GuildStore } from '../../store/guild.store';
 import { MessageStore } from '../../store/message.store';
 import { SocialStore } from '../../store/social.store';
 import { AboutSectionComponent } from './about-section.component';
+import { AdminSectionComponent } from './admin-section.component';
+import { OverlaySectionComponent } from './overlay-section.component';
 import { AppearanceSectionComponent } from './appearance-section.component';
 import { AudioSectionComponent } from './audio-section.component';
 import { GeneralSectionComponent } from './general-section.component';
@@ -27,7 +29,9 @@ import { SecuritySectionComponent } from './security-section.component';
 import { ShortcutsSectionComponent } from './shortcuts-section.component';
 import { StickersSectionComponent } from './stickers-section.component';
 import { UpdatesSectionComponent } from './updates-section.component';
+import { BetaService } from '../../core/services/beta.service';
 import { DesktopUpdateService } from '../../core/services/desktop-update.service';
+import { OverlayService } from '../../core/services/overlay.service';
 
 /** One entry of the section list: its icon, and the color classes of the small tile behind the icon. */
 interface SectionEntry {
@@ -74,6 +78,22 @@ const UPDATES_ENTRY: SectionEntry = {
   tone: 'bg-emerald/15 text-emerald',
 };
 
+/** Only the desktop app can show the overlay over a game, so only it has this section. */
+const OVERLAY_ENTRY: SectionEntry = {
+  id: 'overlay',
+  label: 'Game overlay',
+  icon: 'monitor',
+  tone: 'bg-violet/15 text-violet',
+};
+
+/** Only the administrators of the server see this section (the beta testers). */
+const ADMIN_ENTRY: SectionEntry = {
+  id: 'admin',
+  label: 'Administration',
+  icon: 'shield',
+  tone: 'bg-amber/15 text-amber',
+};
+
 /** Full-screen settings with a section list on the left. Closes with Esc or the ✕ button. */
 @Component({
   selector: 'app-settings',
@@ -92,6 +112,8 @@ const UPDATES_ENTRY: SectionEntry = {
     SyncSectionComponent,
     AboutSectionComponent,
     UpdatesSectionComponent,
+    OverlaySectionComponent,
+    AdminSectionComponent,
   ],
   template: `
     <div
@@ -118,7 +140,7 @@ const UPDATES_ENTRY: SectionEntry = {
               <app-icon name="x" />
             </button>
           </div>
-          @for (group of groups; track $index) {
+          @for (group of groups(); track $index) {
             @if ($index > 0) {
               <span class="nav-sep hidden md:block"></span>
             }
@@ -209,6 +231,12 @@ const UPDATES_ENTRY: SectionEntry = {
               @case ('integrations') {
                 <app-integrations-section class="anim-fade-up block" />
               }
+              @case ('overlay') {
+                <app-overlay-section class="anim-fade-up block" />
+              }
+              @case ('admin') {
+                <app-admin-section class="anim-fade-up block" />
+              }
               @case ('updates') {
                 <app-updates-section class="anim-fade-up block" />
               }
@@ -240,9 +268,10 @@ export class SettingsComponent {
     this.ui.settingsList && window.matchMedia('(max-width: 767px)').matches,
   );
   private readonly desktopUpdate = inject(DesktopUpdateService);
-  protected readonly groups: SectionEntry[][] = this.desktopUpdate.supported
-    ? [...GROUPS.slice(0, -1), [UPDATES_ENTRY, ...GROUPS[GROUPS.length - 1]]]
-    : GROUPS;
+  private readonly overlay = inject(OverlayService);
+  private readonly beta = inject(BetaService);
+  /** The sections, with the ones that only some people have: the overlay and updates (desktop app), administration. */
+  protected readonly groups = computed(this.buildGroups.bind(this));
   protected readonly section = toSignal(
     this.route.paramMap.pipe(
       map(function (p) {
@@ -252,9 +281,17 @@ export class SettingsComponent {
     { initialValue: 'profile' },
   );
   protected readonly title = computed(this.findTitle.bind(this));
+  /** The list of sections for this person. */
+  private buildGroups(): SectionEntry[][] {
+    const extra: SectionEntry[] = [];
+    if (this.overlay.supported) extra.push(OVERLAY_ENTRY);
+    if (this.desktopUpdate.supported) extra.push(UPDATES_ENTRY);
+    if (this.beta.admin()) extra.push(ADMIN_ENTRY);
+    return [...GROUPS.slice(0, -1), [...extra, ...GROUPS[GROUPS.length - 1]]];
+  }
   /** The label of the open section (the window title). */
   private findTitle(): string {
-    for (const group of this.groups) {
+    for (const group of this.groups()) {
       for (const entry of group) {
         if (entry.id === this.section()) {
           return entry.label;

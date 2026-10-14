@@ -7,7 +7,7 @@ import type { PublicKeys } from '../crypto/identity';
 import { runInStore, type StoreLocation } from '../indexed-db';
 
 /** The identity kept between page loads. */
-export interface StoredIdentity {
+interface StoredIdentity {
   userId: string;
   ecdhPrivate: CryptoKey;
   ecdsaPrivate: CryptoKey;
@@ -44,7 +44,7 @@ function clearIdentity(store: IDBObjectStore): IDBRequest {
 }
 
 /** KeyStore that keeps the identity in IndexedDB. */
-export class IndexedDbKeyStore implements KeyStore {
+class IndexedDbKeyStore implements KeyStore {
   /** The stored identity, or null when there is none (or the database cannot be read). */
   async load(): Promise<StoredIdentity | null> {
     try {

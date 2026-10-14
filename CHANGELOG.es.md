@@ -2,6 +2,15 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.32.0
+
+- **Overlay en el juego (app de escritorio).** Las cámaras y las fotos de las personas de tu llamada, con su nombre y un aro cuando hablan, se dibujan **encima del juego que estás jugando**, como el overlay de Discord. Una sección nueva, **Ajustes > Overlay de juego**, lo activa y tiene el atajo para coger el panel y moverlo o cambiarle el tamaño con el ratón (Ctrl+Mayús+O por defecto; Esc devuelve el ratón al juego), la pantalla que cubre, el tamaño de cada persona, la transparencia, los nombres, mostrar solo a quien habla, mostrarte a ti y **ocultarlo en grabaciones y pantallas compartidas**. Es una ventana más de la app (transparente, siempre encima, sin tomar el foco y con el ratón atravesándola), así que no toca el juego y no hay nada que un antitrampas deba marcar. Funciona sobre juegos en modo ventana o sin bordes; un juego en pantalla completa exclusiva se queda con el monitor y no se puede dibujar nada encima. El vídeo llega al overlay por una conexión que no sale del equipo.
+- **Programa beta.** Hay una rama nueva, **beta**: lo que se sube a ella se construye como pre-release (`v2.32.0-beta.N`) y solo llega a las apps de los **probadores beta**. El administrador (los usuarios de `ADMIN_USERS` del servidor) tiene una sección nueva, **Ajustes > Administración**, para añadir y quitar probadores por nombre de usuario y para hacer administradoras a otras personas desde la app (los dueños de `ADMIN_USERS` quedan fijos). Un probador ve el interruptor **Versiones beta** en Ajustes > Actualizaciones; la app de quien deja de ser probador lo apaga sola. La versión estable sigue siendo la de master y sustituye a cualquier beta.
+- **Una versión para Linux.** Las apps se construyen ahora para **Windows y Linux** (AppImage y deb) en cada push, y las dos se suben a la misma release. El AppImage se actualiza solo como la app de Windows.
+- **Todo lo de las apps en un solo workflow.** Los pasos que comparten las dos compilaciones están en un solo sitio, las notas de la release conocen las betas y Linux, y los archivos viejos de `deploy/` (systemd, script de actualización y Caddy sin Docker) han desaparecido (el servidor corre con Docker).
+- **Un documento en vez de muchos.** Los archivos ARCHITECTURE, DEPLOY, README de escritorio, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY.es y README de sonidos, y el experimento del overlay, son ahora **DOCS.md**: la app, las decisiones de diseño, las apps, el servidor y los tests, en un solo sitio.
+- **Limpieza.** Se quitó la integración con Tenor (su API está cerrada), las funciones, exportaciones, estilos, animaciones y traducciones que nada usaba, el paquete `@angular/forms` sin uso y los archivos de la antigua forma de correr sin Docker.
+
 ## 2.31.3
 
 - **App de escritorio: la introducción suena al instante.** El sonido de la introducción necesitaba un clic antes. La app se abre antes de que carguen sus sonidos y el audio se descartaba si no estaba listo; ahora la introducción trae su sonido enseguida y lo reproduce en cuanto está listo, sin clic.

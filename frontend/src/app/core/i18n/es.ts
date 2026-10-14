@@ -1,6 +1,7 @@
 /** Spanish translations. Key = the English UI text; placeholders like {name} are kept verbatim. */
 export const ES: Record<string, string> = {
   'Yesterday': 'Ayer',
+  'Chatterly Renewed': 'Chatterly Renewed',
   'Integrations': 'Integraciones',
   'Move member up': 'Subir miembro',
   'Move member down': 'Bajar miembro',
@@ -83,10 +84,8 @@ export const ES: Record<string, string> = {
   'How long it takes to fade': 'Lo que tarda en desvanecerse',
   'From small to large': 'De pequeño a grande',
   'Add to your message': 'Añadir a tu mensaje',
-  'Attach files': 'Adjuntar archivos',
   'Encrypted before they leave your device': 'Cifrados antes de salir de tu dispositivo',
   'Voice note': 'Nota de voz',
-  'Record and send your voice': 'Graba y envía tu voz',
   'The cursor pulses with an outline around its shape.':
     'El cursor late con un contorno alrededor de su forma.',
   'Cursor size': 'Tamaño del cursor',
@@ -967,7 +966,7 @@ export const ES: Record<string, string> = {
     'Las solicitudes que envíes esperan aquí hasta que respondan.',
   'GitHub': 'GitHub',
   'Changelog': 'Registro de cambios',
-  'CONTRIBUTING': 'CONTRIBUTING',
+  'Documentation': 'Documentación',
   'Gloss': 'Brillante',
   'Block': 'Bloque',
   'Fast': 'Rápido',
@@ -1169,7 +1168,6 @@ export const ES: Record<string, string> = {
     'Ábrelo desde la barra de una llamada o con su atajo, para probar los efectos y subir tus propios sonidos.',
   'Cursor': 'Cursor',
   'Sounds': 'Sonidos',
-  'YouTube, in sync': 'YouTube, sincronizado',
   'This group has no tags yet.': 'Este grupo aún no tiene etiquetas.',
   'New tag': 'Nueva etiqueta',
   'Could not change the tags': 'No se pudieron cambiar las etiquetas',
@@ -1188,10 +1186,7 @@ export const ES: Record<string, string> = {
   'Auld Lang Syne, played on bells.': 'Auld Lang Syne (despedida del año), tocada con campanas.',
   'Arcade': 'Arcade',
   'A cheerful 8-bit chip-tune.': 'Una alegre melodía de 8 bits.',
-  'A warm, bouncy loop in a major key.': 'Un bucle cálido y saltarín en tono mayor.',
-  'Deck the Halls, with sleigh bells.': 'Deck the Halls, con cascabeles.',
   'A spooky waltz in a minor key.': 'Un vals tenebroso en tono menor.',
-  'Ode to Joy, to celebrate.': 'Oda a la alegría, para celebrar.',
   'Manage tags': 'Gestionar etiquetas',
   'Add a color': 'Añadir un color',
   'Remove this color': 'Quitar este color',
@@ -1217,7 +1212,6 @@ export const ES: Record<string, string> = {
   'Microphone processing': 'Procesado del micrófono',
   'Your voice': 'Tu voz',
   'Microphone volume': 'Volumen del micrófono',
-  'Mirror my camera': 'Cámara en espejo',
   'Frames per second': 'Imágenes por segundo',
   'How loud your voice is before it is sent. Above 100% it is amplified.':
     'Lo alto que suena tu voz antes de enviarse. Por encima del 100 % se amplifica.',
@@ -1225,8 +1219,6 @@ export const ES: Record<string, string> = {
     'El tamaño de tu imagen. Más alto se ve más nítido y gasta más datos.',
   'Smoother motion at 60, lighter on slow connections at 15.':
     'Movimiento más fluido a 60, más ligero en conexiones lentas a 15.',
-  'You see yourself as in a mirror. The others see you as you are.':
-    'Te ves como en un espejo. Los demás te ven tal como eres.',
   '480p': '480p',
   '720p': '720p',
   '1080p': '1080p',
@@ -1425,10 +1417,6 @@ export const ES: Record<string, string> = {
   'Check for updates': 'Buscar actualizaciones',
   'Checking…': 'Buscando…',
   'You have the latest version': 'Tienes la última versión',
-  'Version {v} is available (see the notifications)':
-    'La versión {v} está disponible (mira las notificaciones)',
-  'Ready to restart': 'Lista para reiniciar',
-  'The check failed': 'No se pudo comprobar',
   'Later': 'Más tarde',
   'Update settings': 'Ajustes de actualización',
   'Preferences': 'Preferencias',
@@ -1464,9 +1452,6 @@ export const ES: Record<string, string> = {
   'YouTube video, ready': 'Vídeo de YouTube, listo',
   'YouTube playlist, ready': 'Lista de YouTube, lista',
   'Spotify link, ready': 'Enlace de Spotify, listo',
-  'Any emoji': 'Cualquier emoji',
-  'Search an emoji': 'Buscar un emoji',
-  'Loading…': 'Cargando…',
   'Clear the link': 'Borrar el enlace',
   'A screen is shared at once; for a window you pick which one next.':
     'Una pantalla se comparte al instante; si eliges una ventana, después dices cuál.',
@@ -1515,7 +1500,6 @@ export const ES: Record<string, string> = {
     'Los GIF se descargan a través del servidor. Con tecnología de GIPHY.',
   'Night': 'Noche',
   'Camera background': 'Fondo de la cámara',
-  'What the others see behind you.': 'Lo que ven los demás detrás de ti.',
   'This browser cannot change the background of the camera.':
     'Este navegador no puede cambiar el fondo de la cámara.',
   'Ready-made': 'Ya hechos',
@@ -1524,9 +1508,6 @@ export const ES: Record<string, string> = {
   'Add a file or GIF': 'Añadir un archivo o GIF',
   'Pictures and GIFs you add stay in your library, ready for the next call.':
     'Las imágenes y GIF que añadas se quedan en tu biblioteca, listos para la próxima llamada.',
-  'The cutout runs on your device: nothing about your camera is sent to anyone to make it.':
-    'El recorte se hace en tu dispositivo: no se envía nada de tu cámara a nadie para hacerlo.',
-  'Slight blur': 'Desenfoque suave',
   'Blur': 'Desenfoque',
   'Add a background': 'Añadir un fondo',
   'Upload your own picture or pick a GIF.': 'Sube tu propia imagen o elige un GIF.',
@@ -1561,8 +1542,6 @@ export const ES: Record<string, string> = {
   'You already have it': 'Ya lo tienes',
   'You already have this preset.': 'Ya tienes este preajuste.',
   'Background and adjustments': 'Fondo y ajustes',
-  'The picture is turned like in a mirror, for you and for everybody who sees you.':
-    'La imagen se gira como en un espejo, para ti y para todo el que te ve.',
   'Blur or change what is behind you, and adjust brightness, contrast, color and zoom, with a live preview.':
     'Desenfoca o cambia lo que hay detrás de ti, y ajusta brillo, contraste, color y zoom, con vista previa en directo.',
   'Notification volume': 'Volumen de las notificaciones',
@@ -1597,4 +1576,56 @@ export const ES: Record<string, string> = {
   'Automatic picks the best one for your computer. Try another one if you see glitches or the video stutters.':
     'Automática elige la mejor para tu equipo. Prueba otra si ves fallos o el vídeo va a tirones.',
   'Automatic (recommended)': 'Automática (recomendada)',
+  'Beta testers': 'Probadores beta',
+  'People who receive the beta versions of the desktop app before everybody else, and tell you what breaks. They choose in Settings > Updates whether to use them.':
+    'Personas que reciben las versiones beta de la app de escritorio antes que nadie y te cuentan qué falla. Ellas eligen en Ajustes > Actualizaciones si las usan.',
+  'Add tester': 'Añadir probador',
+  'Nobody is a beta tester yet.': 'Todavía no hay ningún probador beta.',
+  'Added {date}': 'Añadido el {date}',
+  'Could not add the tester': 'No se pudo añadir al probador',
+  'Show my call over my game': 'Mostrar mi llamada sobre mi juego',
+  'It appears over games in window or borderless mode. A game in exclusive full screen owns the monitor and nothing can be drawn over it: choose borderless in its video options.':
+    'Aparece sobre juegos en modo ventana o sin bordes. Un juego en pantalla completa exclusiva se queda con el monitor y no se puede dibujar nada encima: elige sin bordes en sus opciones de vídeo.',
+  'Another program is using that shortcut. Choose a different one.':
+    'Otro programa está usando ese atajo. Elige uno distinto.',
+  'Transparency': 'Transparencia',
+  'Show names': 'Mostrar nombres',
+  'Only the people who are talking': 'Solo las personas que hablan',
+  'Show myself': 'Mostrarme a mí',
+  'Hide it from recordings and shared screens': 'Ocultarlo en grabaciones y pantallas compartidas',
+  'The video goes to the overlay inside your computer only: it is never sent anywhere. The overlay is a window of Chatterly; it does not touch the game, so there is nothing for an anti-cheat to flag, but not every game can be promised.':
+    'El vídeo llega al overlay solo dentro de tu ordenador: nunca se envía a ningún sitio. El overlay es una ventana de Chatterly; no toca el juego, así que un antitrampas no tiene nada que marcar, pero no se puede prometer en todos los juegos.',
+  'Move and resize shortcut': 'Atajo para mover y cambiar el tamaño',
+  'Size of each person': 'Tamaño de cada persona',
+  'Draws the cameras and the pictures of the people in your call, and who is talking, over the games you play. It never reads or changes the game.':
+    'Dibuja las cámaras y las fotos de las personas de tu llamada, y quién habla, sobre los juegos que juegas. Nunca lee ni cambia el juego.',
+  'Press it during a call to grab the panel with the mouse: drag it where you want, pull the corner to resize it, and press Esc (or the shortcut again) to give the game back its mouse.':
+    'Púlsalo durante una llamada para coger el panel con el ratón: arrástralo donde quieras, tira de la esquina para cambiar el tamaño y pulsa Esc (o el atajo otra vez) para devolver el ratón al juego.',
+  'Which screen the overlay covers.': 'Qué pantalla cubre el overlay.',
+  'You can also resize the whole panel with the mouse.':
+    'También puedes cambiar el tamaño de todo el panel con el ratón.',
+  'Lower it to see more of the game behind.': 'Bájala para ver más del juego que hay detrás.',
+  'The name under each person.': 'El nombre bajo cada persona.',
+  'Everybody else disappears until they speak. Cameras and pictures keep the game clear.':
+    'El resto desaparece hasta que hable. Así las cámaras y las fotos no tapan el juego.',
+  'Adds your own camera or picture to the panel.': 'Añade tu propia cámara o foto al panel.',
+  "Your friends' cameras do not appear if you record your game or share your screen.":
+    'Las cámaras de tus amigos no salen si grabas tu juego o compartes tu pantalla.',
+  'Small': 'Pequeño',
+  'Large': 'Grande',
+  'The main screen': 'La pantalla principal',
+  'The screen where Chatterly is': 'La pantalla donde está Chatterly',
+  'Game overlay': 'Overlay de juego',
+  'Administration': 'Administración',
+  'Beta versions': 'Versiones beta',
+  'You are a beta tester: also receive the versions that are still being tried. They can have mistakes; tell the administrator what breaks.':
+    'Eres probador beta: recibe también las versiones que aún se están probando. Pueden tener errores; cuéntale al administrador qué falla.',
+  'Administrators': 'Administradores',
+  'People who can manage this page: add testers and other administrators. The ones marked as owner are set in the server and cannot be removed here.':
+    'Personas que pueden gestionar esta página: añadir probadores y otros administradores. Los marcados como dueño están fijados en el servidor y no se pueden quitar desde aquí.',
+  'Add administrator': 'Añadir administrador',
+  'Owner': 'Dueño',
+  'Could not add the administrator': 'No se pudo añadir al administrador',
+  'An owner is set in the server and cannot be removed here.':
+    'Un dueño está fijado en el servidor y no se puede quitar desde aquí.',
 };

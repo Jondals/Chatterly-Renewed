@@ -14,7 +14,7 @@ import {
 import { Router } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DialogService } from '../../core/services/dialog.service';
-import { IMAGE_PRESETS, ImageService } from '../../core/services/image.service';
+import { IMAGE_PRESETS } from '../../core/services/image.service';
 import { ToastService } from '../../core/services/toast.service';
 import { UiService } from '../../core/services/ui.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
@@ -394,7 +394,6 @@ export class GuildModalsComponent {
   protected readonly ui = inject(UiService);
   protected readonly guilds = inject(GuildStore);
   protected readonly social = inject(SocialStore);
-  private readonly images = inject(ImageService);
   private readonly injector = inject(EnvironmentInjector);
   private readonly toast = inject(ToastService);
   private readonly dialog = inject(DialogService);
@@ -613,7 +612,7 @@ export class GuildModalsComponent {
     if (!g) return;
     try {
       const adjuster = await import('../../shared/components/image-adjust.component');
-      const blob = await adjuster.pickAndPrepareImage(this.images, this.injector, 'group');
+      const blob = await adjuster.pickAndPrepareImage(this.injector, 'group');
       if (blob) await this.guilds.setIcon(g.id, blob);
     } catch (e) {
       this.toast.error(this.i18n.t('Could not upload the image'), describeError(e));

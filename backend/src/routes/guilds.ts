@@ -118,7 +118,7 @@ function sameIds(given: { id: string }[], wanted: string[]): boolean {
 /**
  * What a member receives about a group: channels, members with their tags, the tags, and only THEIR own wrapped keys.
  */
-export function guildPayload(db: Db, guild: GuildRow, userId: string) {
+function guildPayload(db: Db, guild: GuildRow, userId: string) {
   const channels = db
     .prepare(
       'SELECT id, name, type, position FROM channels WHERE guild_id = ? ORDER BY position, created_at',

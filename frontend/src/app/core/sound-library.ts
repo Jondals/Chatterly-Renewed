@@ -22,7 +22,7 @@ interface SoundDef {
 }
 
 /** Every sound by the name it is used with. */
-export const SOUNDS = {
+const SOUNDS = {
   // ---- interface (ui/)
   messageReceived: { file: 'ui/message-received.ogg' },
   messageSent: { file: 'ui/message-sent.ogg' },

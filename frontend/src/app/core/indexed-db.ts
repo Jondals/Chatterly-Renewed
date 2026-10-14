@@ -12,7 +12,7 @@ export interface StoreLocation {
 }
 
 /** Opens the database, creating the object store the first time. */
-export function openStore(location: StoreLocation): Promise<IDBDatabase> {
+function openStore(location: StoreLocation): Promise<IDBDatabase> {
   return new Promise<IDBDatabase>(function open(resolve, reject) {
     const request = indexedDB.open(location.database, 1);
     request.onupgradeneeded = function create() {

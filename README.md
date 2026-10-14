@@ -8,7 +8,7 @@
 
 **English** · [Español](README.es.md)
 
-![version](https://img.shields.io/badge/version-2.31.3-2ef2b0?style=flat-square)
+![version](https://img.shields.io/badge/version-2.32.0-2ef2b0?style=flat-square)
 ![encryption](https://img.shields.io/badge/E2EE-AES--256--GCM%20%C2%B7%20ECDH%20P--256%20%C2%B7%20ECDSA-8b5cf6?style=flat-square)
 ![calls](https://img.shields.io/badge/calls-WebRTC%20mesh%20%C2%B7%20DTLS--SRTP-38e8ff?style=flat-square)
 ![tests](https://img.shields.io/badge/test-1%20completo-2ef2b0?style=flat-square)
@@ -162,11 +162,11 @@ Known limitations: DM keys are static pairwise keys (no per-message forward secr
 a user who loses their password cannot recover their identity; a compromised _client_ (malicious frontend
 build, XSS) is outside what E2EE can protect. Deploy the frontend from a source you trust and pin it.
 
-How the pieces fit together, and why they are the way they are, is explained in [ARCHITECTURE.md](ARCHITECTURE.md) (in Spanish: [ARCHITECTURE.es.md](ARCHITECTURE.es.md)).
+How the pieces fit together, and why they are the way they are, is explained in [DOCS.md](DOCS.md) (in Spanish).
 
 ## Desktop app (Windows)
 
-The same app in its own window, with the web build inside it and a self-update that installs by itself. Everything to run, test, build the installer, publish updates and ship to the Microsoft Store is in [desktop/README.md](desktop/README.md):
+The same app in its own window, with the web build inside it and a self-update that installs by itself. Everything to run, test, build the installer, publish updates and ship to the Microsoft Store is in [DOCS.md](DOCS.md):
 
 ```
 pnpm build                  # the web app the installer carries
@@ -192,12 +192,12 @@ frontend/                Angular 21 (signals) + Tailwind 4
   src/app/features       auth, chat, direct, guild, settings, spinly, voice
   src/app/layout         rail, sidebar, dialogs, call dock
   src/app/shared         components, pipes, utilities
-  public/sounds          every sound of the app as an audio file in organized folders (see its README)
+  public/sounds          every sound of the app as an audio file in organized folders (see DOCS.md)
   scripts/postbuild.mjs  pre-render and CSP hash
 scripts/                 production server used by the test and Lighthouse
 test/                    the single test, split by topic: run.mjs + e2e/ (browser), security.mts + security/ (no browser), chatterly-test.exe
-deploy/                  server and deployment: Caddy, coturn, systemd, update script (see deploy/DEPLOY.md)
-.github/                 CONTRIBUTING, code of conduct, issue and pull request templates, deploy workflow
+deploy/                  server and deployment: Caddy, coturn, .env template (see DOCS.md)
+.github/                 issue and pull request templates, workflows (server and apps)
 Dockerfile, docker-compose.yml   stay at the root: the server and its deployment build from here
 ```
 
@@ -223,7 +223,7 @@ There is one test, `pnpm test` (or run `test/chatterly-test.exe`), and it leaves
 
 ## Contributing
 
-Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first (Spanish: [CONTRIBUTING.es.md](.github/CONTRIBUTING.es.md)). Security problems go through [SECURITY.md](SECURITY.md) (Spanish: [SECURITY.es.md](SECURITY.es.md)); everyone is expected to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
+Read the contributing section of [DOCS.md](DOCS.md) first (it also holds the code of conduct). Security problems go through [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -88,7 +88,7 @@ export function hashSeed(text: string): number {
 }
 
 /** A generator of numbers from 0 up to (not including) 1 that always gives the same series for the same seed. */
-export function makeRandom(seed: number): () => number {
+function makeRandom(seed: number): () => number {
   let state = seed >>> 0;
   /** The next number of the series (mulberry32). */
   function next(): number {
@@ -166,10 +166,10 @@ export function isLightColor(color: string): boolean {
 
 // ---- the tournament ------------------------------------------------------------------------
 
-export type Side = 'a' | 'b';
+type Side = 'a' | 'b';
 
 /** A participant with the place the draw gave them (1 = top seed). */
-export interface Participant {
+interface Participant {
   id: string;
   name: string;
   color: string;
@@ -177,7 +177,7 @@ export interface Participant {
 }
 
 /** One spin of a duel, or a duel awarded without spinning. */
-export interface TournamentEvent {
+interface TournamentEvent {
   match: string;
   winner: Side;
   forced: boolean;
@@ -206,7 +206,7 @@ export interface Match {
 }
 
 /** The bracket rebuilt from the participants and the spins so far. */
-export interface Bracket {
+interface Bracket {
   rounds: Match[][];
   third: Match | null;
   /** The duel to play now; null once there is a champion. */
@@ -217,7 +217,7 @@ export interface Bracket {
 }
 
 /** What a spin of the tournament did, ready to be animated. */
-export interface ResolvedSpin {
+interface ResolvedSpin {
   match: string;
   /** Who was on each side. */
   a: string;
@@ -238,7 +238,7 @@ export interface TournamentState {
 }
 
 /** Spin wins needed to take a best-of-N duel. */
-export function winsNeeded(bestOf: number): number {
+function winsNeeded(bestOf: number): number {
   return Math.floor(bestOf / 2) + 1;
 }
 
@@ -248,7 +248,7 @@ function nextPowerOfTwo(n: number): number {
 }
 
 /** Classic seeding order: for an 8-slot bracket, [1, 8, 4, 5, 2, 7, 3, 6]. */
-export function seedOrder(size: number): number[] {
+function seedOrder(size: number): number[] {
   let order = [1];
   while (order.length < size) {
     const next = order.length * 2 + 1;
@@ -262,7 +262,7 @@ export function seedOrder(size: number): number[] {
 }
 
 /** Gives each participant a seed: in the listed order, or shuffled from the draw seed. */
-export function seedParticipants(spec: TournamentSpec): Participant[] {
+function seedParticipants(spec: TournamentSpec): Participant[] {
   const list = spec.participants.slice();
   if (spec.config.seeding === 'random') {
     const random = makeRandom(spec.drawSeed);
@@ -297,13 +297,13 @@ function emptyMatch(id: string, round: number, slot: number, bestOf: number, thi
 }
 
 /** Every match in play order: round by round, with the third-place match right before the final. */
-export function playOrder(bracket: Pick<Bracket, 'rounds' | 'third'>): Match[] {
+function playOrder(bracket: Pick<Bracket, 'rounds' | 'third'>): Match[] {
   const { rounds, third } = bracket;
   return [...rounds.slice(0, -1).flat(), ...(third ? [third] : []), rounds[rounds.length - 1][0]];
 }
 
 /** Rebuilds the bracket from the participants and the spins played so far. */
-export function buildBracket(
+function buildBracket(
   participants: Participant[],
   config: TournamentConfig,
   events: TournamentEvent[],
@@ -427,11 +427,7 @@ export function buildBracket(
 }
 
 /** Probability that side A wins each spin of a duel. */
-export function probabilityA(
-  participants: Participant[],
-  config: TournamentConfig,
-  match: Match,
-): number {
+function probabilityA(participants: Participant[], config: TournamentConfig, match: Match): number {
   if (config.odds === 'equal' || !match.a || !match.b) {
     return 0.5;
   }
@@ -450,7 +446,7 @@ export function probabilityA(
  * Where each side sits on the duel wheel, in degrees clockwise from the top. B takes the first part and A the
  * rest, so with even odds the wheel matches the scoreboard (A on the left, B on the right).
  */
-export function duelSplit(probability: number): number {
+function duelSplit(probability: number): number {
   return 360 * (1 - probability);
 }
 

@@ -10,6 +10,7 @@ const MESSAGES: Record<string, string> = {
   account_locked: 'Too many failed attempts. Try again in a few minutes.',
   username_taken: 'That username is already taken.',
   user_not_found: 'No user with that username.',
+  owner_fixed: 'An owner is set in the server and cannot be removed here.',
   cannot_friend_self: 'You cannot add yourself.',
   already_friends: 'You are already friends.',
   already_requested: 'Friend request already sent.',

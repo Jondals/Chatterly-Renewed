@@ -74,7 +74,7 @@ export interface User {
 }
 
 /** Who sees what: the choices that the server itself enforces. */
-export interface PrivacyChoices {
+interface PrivacyChoices {
   /** Who sees that the person is online. */
   presenceVisibility: 'everyone' | 'friends' | 'nobody';
   /** Who may send them a friend request. */
@@ -96,7 +96,7 @@ export interface GuildChannel {
   position: number;
 }
 
-export interface GuildKeyRow {
+interface GuildKeyRow {
   keyVersion: number;
   wrapperId: string;
   /** Public key of the wrapper when that person erased their account (their row is gone, the key is kept here). */

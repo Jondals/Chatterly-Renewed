@@ -26,7 +26,7 @@ export interface Participant {
   joinedAt: number;
 }
 
-export const MAX_ROOM_SIZE = 8; // full-mesh P2P: every extra peer adds an upstream per participant.
+const MAX_ROOM_SIZE = 8; // full-mesh P2P: every extra peer adds an upstream per participant.
 
 /** The most connections (tabs, devices) one person can keep open at once. */
 const MAX_CONNECTIONS_PER_USER = 8;
@@ -110,11 +110,6 @@ export class Hub {
     for (const client of [...(this.clients.get(userId) ?? [])]) {
       if (client.sessionId === sessionId) client.close(4401, 'session ended');
     }
-  }
-
-  /** Whether a person has any connection open. */
-  isOnline(userId: string): boolean {
-    return this.clients.has(userId);
   }
 
   /** How many connections are open. */

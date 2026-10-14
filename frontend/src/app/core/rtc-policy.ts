@@ -132,7 +132,7 @@ export function isRelayCandidate(candidate: string): boolean {
 }
 
 /** How far from the present the timestamp of the first signal of a session may be, in milliseconds. */
-export const SIGNAL_MAX_SKEW_MS = 5 * 60_000;
+const SIGNAL_MAX_SKEW_MS = 5 * 60_000;
 
 /**
  * Whether the timestamp of a signaling message is recent. A message that starts or replaces a session must be fresh,

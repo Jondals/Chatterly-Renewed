@@ -18,7 +18,7 @@ interface Drag {
 }
 
 /** The place of the screen under a point. */
-export function placeAt(x: number, y: number, area?: DOMRect | null): DockPlace {
+function placeAt(x: number, y: number, area?: DOMRect | null): DockPlace {
   const left = area ? area.left : 0;
   const top = area ? area.top : 0;
   const width = area ? area.width : window.innerWidth;

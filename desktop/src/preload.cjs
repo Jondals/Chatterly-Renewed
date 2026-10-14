@@ -63,6 +63,31 @@ function setSurface(surface, audio) {
   return ipcRenderer.invoke('screen:surface', surface, audio === true);
 }
 
+/** The in-game overlay: its choices, the people to draw and the signalling of the local video connection. */
+function getOverlay() {
+  return ipcRenderer.invoke('overlay:get');
+}
+function setOverlay(patch) {
+  return ipcRenderer.invoke('overlay:set', patch);
+}
+function setOverlayTiles(tiles) {
+  return ipcRenderer.invoke('overlay:tiles', tiles);
+}
+function signalOverlay(message) {
+  return ipcRenderer.invoke('overlay:signal', message);
+}
+/** Calls `callback(event)` for what the overlay says: a new state, the window being ready or closed, a signalling message. */
+function onOverlayEvent(callback) {
+  if (typeof callback !== 'function') return function noop() {};
+  function listener(event, message) {
+    callback(message);
+  }
+  ipcRenderer.on('overlay:event', listener);
+  return function stop() {
+    ipcRenderer.removeListener('overlay:event', listener);
+  };
+}
+
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
 function onState(callback) {
   if (typeof callback !== 'function') return function noop() {};
@@ -104,6 +129,13 @@ contextBridge.exposeInMainWorld(
     updates: Object.freeze({ getState, check, download, install, setSettings, onState }),
     screen: Object.freeze({ setSurface }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
+    overlay: Object.freeze({
+      get: getOverlay,
+      set: setOverlay,
+      setTiles: setOverlayTiles,
+      signal: signalOverlay,
+      onEvent: onOverlayEvent,
+    }),
     ...(titlebarHeight
       ? { titlebar: Object.freeze({ height: titlebarHeight, setColors: setTitlebarColors }) }
       : {}),

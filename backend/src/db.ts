@@ -195,6 +195,18 @@ CREATE TABLE IF NOT EXISTS vault_items (
 );
 CREATE INDEX IF NOT EXISTS idx_vault_owner ON vault_items(owner_id);
 
+-- The administrators added from inside the app (the ones of ADMIN_USERS are fixed and are not here): see routes/beta.ts.
+CREATE TABLE IF NOT EXISTS admins (
+  user_id   TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  added_at  INTEGER NOT NULL
+);
+
+-- The people the administrator lets try the beta versions of the desktop app (see routes/beta.ts).
+CREATE TABLE IF NOT EXISTS beta_testers (
+  user_id   TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  added_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS files (
   id           TEXT PRIMARY KEY,
   channel_id   TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -341,7 +353,7 @@ function migrate(db: Database.Database): void {
 }
 
 /** Version of the schema, kept in `PRAGMA user_version`: it only grows, and a database from the future is refused. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Opens the database (creating the folder and the tables) with foreign keys on and the journal that allows reading while writing.

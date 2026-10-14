@@ -2,6 +2,15 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.32.0
+
+- **Game overlay (desktop app).** The cameras and pictures of the people in your call, with their names and a ring while they talk, are drawn **over the game you are playing**, like the overlay of Discord. A new section, **Settings > Game overlay**, turns it on and has the shortcut to grab the panel and move or resize it with the mouse (Ctrl+Shift+O by default; Esc gives the mouse back to the game), the screen it covers, the size of each person, the transparency, names on or off, only the people who are talking, showing yourself, and **hiding it from recordings and shared screens**. It is one more window of the app (transparent, always on top, it never takes the focus and the mouse goes through it), so it does not touch the game and there is nothing for an anti-cheat to flag. It works over games in window or borderless mode; a game in exclusive full screen owns the monitor and nothing can be drawn over it. The video reaches the overlay through a connection that never leaves the computer.
+- **Beta program.** There is a new branch, **beta**: what is pushed to it is built as a pre-release (`v2.32.0-beta.N`) and only reaches the apps of the **beta testers**. The administrator (the usernames in `ADMIN_USERS` of the server) has a new section, **Settings > Administration**, to add and remove testers by username, and to make other people administrators from the app (the owners named in `ADMIN_USERS` stay fixed). A tester sees the switch **Beta versions** in Settings > Updates; the app of someone who is no longer a tester turns it off by itself. The stable release is still the one from master and it replaces every beta.
+- **A version for Linux.** The apps are now built for **Windows and Linux** (AppImage and deb) on every push, and both are attached to the same release. The AppImage updates itself like the Windows app.
+- **Everything about the apps in one workflow.** The steps both builds share live in one place, the release notes know about betas and Linux, and the old systemd, update-script and non-Docker Caddy files of `deploy/` are gone (the server runs with Docker).
+- **One document instead of many.** The ARCHITECTURE, DEPLOY, desktop README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY.es and sounds README files, and the overlay experiment, are now **DOCS.md** (in Spanish): the app, the design decisions, the apps, the server and the tests, in one place.
+- **Cleaning.** Removed the Tenor integration (its API is closed), the unused functions, exports, styles, animations and translations that nothing used, the unused `@angular/forms` package and the files of the old way of running without Docker.
+
 ## 2.31.3
 
 - **Desktop app: the introduction sounds at once.** The sound of the introduction needed a click first. The app opens before its sounds are loaded and the audio was dropped when it was not ready; now the introduction fetches its sound right away and starts it as soon as it is ready, with no click.

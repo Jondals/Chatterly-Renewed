@@ -5,6 +5,7 @@
  */
 import { Component, computed, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
+import { BetaService } from '../../core/services/beta.service';
 import {
   DesktopUpdateService,
   type DesktopUpdateStatus,
@@ -145,6 +146,18 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
           [label]="'Tell me about new versions' | t"
         />
       </app-setting-row>
+      @if (beta.beta() || update.state().settings.beta) {
+        <app-setting-row
+          title="Beta versions"
+          hint="You are a beta tester: also receive the versions that are still being tried. They can have mistakes; tell the administrator what breaks."
+        >
+          <app-toggle
+            [checked]="update.state().settings.beta"
+            (checkedChange)="update.setSettings({ beta: $event })"
+            [label]="'Beta versions' | t"
+          />
+        </app-setting-row>
+      }
     </section>
 
     <p class="mt-4 text-xs text-dim">
@@ -156,6 +169,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
 })
 export class UpdatesSectionComponent {
   protected readonly update = inject(DesktopUpdateService);
+  protected readonly beta = inject(BetaService);
   private readonly i18n = inject(I18nService);
   /** The ways to choose how often to look, in the language of the person. */
   protected readonly intervalOptions = computed(

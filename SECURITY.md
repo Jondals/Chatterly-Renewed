@@ -1,7 +1,5 @@
 # Security policy
 
-Spanish version: [SECURITY.es.md](SECURITY.es.md).
-
 Chatterly-Renewed is built so that the server cannot read messages or listen to calls. If you find a way around that, or any other vulnerability, please tell us privately.
 
 ## What the app guarantees (and what it does not)
@@ -14,7 +12,7 @@ Chatterly-Renewed is built so that the server cannot read messages or listen to 
 - An account that writes too much in an hour (largest messages, one after another) is stopped, so one account cannot fill the disk.
 - Keys of contacts are pinned the first time they are seen; calls with a changed key are refused until reviewed. Compare the safety number for high-stakes conversations.
 - A server that serves malicious JavaScript can defeat any of this: the guarantees assume the code you load is this repository's.
-- **The Windows app (`desktop/`) carries that code inside its installer**, so a server cannot swap it. It is a sandboxed window with no access to Node, it refuses to start with switches that weaken it, and it follows a supported Electron (Chromium) version. Its updates come from this repository's GitHub Releases and are checked against the hash in `latest.yml`; until the installer is signed (or published through the Microsoft Store), whoever can publish a release in the repository can publish an update, and the person still has to download and apply it. Details: [desktop/README.md](desktop/README.md#security).
+- **The Windows app (`desktop/`) carries that code inside its installer**, so a server cannot swap it. It is a sandboxed window with no access to Node, it refuses to start with switches that weaken it, and it follows a supported Electron (Chromium) version. Its updates come from this repository's GitHub Releases and are checked against the hash in `latest.yml`; until the installer is signed (or published through the Microsoft Store), whoever can publish a release in the repository can publish an update, and the person still has to download and apply it. Details: [DOCS.md](DOCS.md#10-compilar-y-publicar-las-apps).
 
 ## How to report
 

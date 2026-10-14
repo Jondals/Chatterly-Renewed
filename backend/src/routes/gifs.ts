@@ -1,13 +1,13 @@
 /**
  * src/routes/gifs.ts
- * Search and download proxy for GIFs (GIPHY and optional Tenor), so the browser never talks to the providers.
+ * Search and download proxy for GIFs (GIPHY), so the browser never talks to the providers.
  */
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 
 /** Only media from the CDNs of the providers can be downloaded, so this endpoint cannot be used to reach internal hosts. */
 const GIF_MEDIA =
-  /^https:\/\/((media\d*|i)\.giphy\.com|(media\d*|c)\.tenor\.com)\/(?!.*\.\.)[A-Za-z0-9_\-./%]+(\?[A-Za-z0-9_=&.%-]*)?$/;
+  /^https:\/\/((media\d*|i)\.giphy\.com)\/(?!.*\.\.)[A-Za-z0-9_\-./%]+(\?[A-Za-z0-9_=&.%-]*)?$/;
 const MAX_GIF_BYTES = 12 * 1024 * 1024;
 const PAGE = 24;
 
@@ -37,17 +37,11 @@ interface GiphyResult {
   images?: Record<string, GiphyImage>;
 }
 
-interface TenorResult {
-  id: string;
-  content_description?: string;
-  media_formats?: Record<string, { url: string; dims?: [number, number] }>;
-}
-
 /**
- * GIF proxy. Searches GIPHY and Tenor (when each has a key) and mixes the results.
+ * GIF proxy. Searches GIPHY (when it has a key).
  * The browser never talks to the providers: searches go through this server and the chosen GIF is
  * downloaded here and encrypted again by the client as a normal attachment, so no provider knows who
- * is talking to whom. If a provider fails (Tenor closed its API) the other one keeps working.
+ * is talking to whom.
  */
 export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
   const { config } = ctx;
@@ -55,9 +49,9 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
   const auth = { onRequest: [app.authenticate] };
   const limit = { config: { rateLimit: { max: 90, timeWindow: 60_000 } } };
 
-  /** Whether a GIF service is configured (a key of Giphy or Tenor). */
+  /** Whether the GIF service is configured (a key of Giphy). */
   function enabled(): boolean {
-    return !!config.gifKey || !!config.tenorKey;
+    return !!config.gifKey;
   }
 
   app.get('/api/gifs/status', auth, async function () {
@@ -103,120 +97,24 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
     };
   }
 
-  /** Asks Tenor and turns its answer into the format of the app. */
-  async function tenor(
-    path: 'search' | 'featured',
-    params: Record<string, string>,
-    pos: string,
-  ): Promise<GifPage> {
-    const url = new URL('https://tenor.googleapis.com/v2/' + path);
-    url.search = new URLSearchParams({
-      key: config.tenorKey,
-      client_key: 'chatterly-renewed',
-      limit: String(PAGE),
-      media_filter: 'gif,tinygif',
-      contentfilter: 'medium',
-      ...params,
-      ...(pos ? { pos } : {}),
-    }).toString();
-    const res = await doFetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error('tenor_' + res.status);
-    const data = (await res.json()) as {
-      results?: TenorResult[];
-      next?: string;
-    };
-    return {
-      next: data.next ?? '',
-      results: (data.results ?? []).map(function (r) {
-        const tiny = r.media_formats?.['tinygif'];
-        return {
-          id: 't' + r.id,
-          title: r.content_description ?? '',
-          preview: tiny?.url ?? '',
-          url: r.media_formats?.['gif']?.url ?? tiny?.url ?? '',
-          width: tiny?.dims?.[0] ?? 200,
-          height: tiny?.dims?.[1] ?? 200,
-        };
-      }),
-    };
-  }
-
-  /** The pagination cursor joins the one of each provider: "giphy|tenor". */
-  function splitPos(pos: string): [string, string] {
-    const [g = '', t = ''] = pos.split('|');
-    return [g, t];
-  }
-
-  /** Mixes the results of each provider in turn and drops what does not come from an allowed CDN. */
-  function merge(pages: GifPage[]): GifPage {
-    const lists = pages.map(function (p) {
-      return p.results.filter(function (r) {
-        return GIF_MEDIA.test(r.preview) && GIF_MEDIA.test(r.url);
-      });
-    });
-    const results: GifItem[] = [];
-    const longest = Math.max(
-      0,
-      ...lists.map(function (l) {
-        return l.length;
-      }),
-    );
-    for (let i = 0; i < longest; i++) {
-      for (const list of lists) {
-        const item = list[i];
-        if (item) results.push(item);
-      }
-    }
-    return { results, next: '' };
-  }
-
-  /** Looks in every configured GIF service and joins the results in one page. */
+  /** Looks in the GIF service and returns one page, keeping only what comes from an allowed CDN. */
   async function lookup(
     kind: 'search' | 'featured',
     q: string,
     pos: string,
     lang: string,
   ): Promise<GifPage> {
-    const [giphyPos, tenorPos] = splitPos(pos);
-    // After the first page only the providers that still have more results are asked again.
-    const first = pos === '';
-    const jobs: { slot: number; page: Promise<GifPage> }[] = [];
-    if (config.gifKey && (first || giphyPos)) {
-      jobs.push({
-        slot: 0,
-        page: giphy(
-          kind === 'search' ? 'search' : 'trending',
-          kind === 'search' ? { q, lang } : {},
-          giphyPos,
-        ),
-      });
-    }
-    if (config.tenorKey && (first || tenorPos)) {
-      jobs.push({
-        slot: 1,
-        page: tenor(
-          kind === 'search' ? 'search' : 'featured',
-          kind === 'search' ? { q, locale: lang } : {},
-          tenorPos,
-        ),
-      });
-    }
-    const settled = await Promise.allSettled(
-      jobs.map(function (job) {
-        return job.page;
-      }),
+    const page = await giphy(
+      kind === 'search' ? 'search' : 'trending',
+      kind === 'search' ? { q, lang } : {},
+      pos,
     );
-    const pages: GifPage[] = [];
-    const nexts = ['', ''];
-    settled.forEach(function (result, index) {
-      if (result.status !== 'fulfilled') return;
-      pages.push(result.value);
-      nexts[jobs[index]!.slot] = result.value.next;
-    });
-    if (!pages.length) throw new Error('gif_provider_error');
-    const merged = merge(pages);
-    merged.next = nexts[0] || nexts[1] ? nexts.join('|') : '';
-    return merged;
+    return {
+      results: page.results.filter(function allowed(item) {
+        return GIF_MEDIA.test(item.preview) && GIF_MEDIA.test(item.url);
+      }),
+      next: page.next,
+    };
   }
 
   const queryProps = {

@@ -300,8 +300,8 @@ export async function step17(world) {
   await a.click('button[aria-expanded]:has-text("Typeface")');
   await a.waitForTimeout(600);
   check(
-    (await a.locator('.choice-card:visible').count()) === 9,
-    'the typeface shows nine cards (the last one uploads your own)',
+    (await a.locator('.choice-card:visible').count()) === 10,
+    'the typeface shows ten cards (nine typefaces and one that uploads your own)',
   );
   await shot(a, '05a-tipografia');
   await a.click('button[aria-expanded]:has-text("Accent color")');

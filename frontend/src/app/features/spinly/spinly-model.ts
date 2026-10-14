@@ -22,7 +22,7 @@ export const MAX_TITLE = 40;
 /** Most themes and presets kept from a linked Spinly account. */
 export const MAX_PROFILE_ITEMS = 40;
 /** Most colors in one theme. */
-export const MAX_THEME_COLORS = 12;
+const MAX_THEME_COLORS = 12;
 
 /** Spinly's palette, by name. */
 export const PALETTE: Record<string, string> = {
@@ -133,7 +133,7 @@ export function cleanText(value: unknown, max: number): string {
 }
 
 /** A palette name or #rrggbb color; anything else becomes the fallback. */
-export function cleanColor(value: unknown, fallback: string): string {
+function cleanColor(value: unknown, fallback: string): string {
   if (typeof value !== 'string') {
     return fallback;
   }
@@ -197,7 +197,7 @@ function cleanInt(value: unknown, min: number, max: number, fallback: number): n
 }
 
 /** Validates how a tournament is played, falling back to the defaults field by field. */
-export function sanitizeConfig(raw: unknown): TournamentConfig {
+function sanitizeConfig(raw: unknown): TournamentConfig {
   const source = isRecord(raw) ? raw : {};
   return {
     bestOf: cleanInt(source['bestOf'], 1, 10, DEFAULT_TOURNAMENT_CONFIG.bestOf),

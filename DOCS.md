@@ -1,0 +1,333 @@
+# Chatterly-Renewed: documentación
+
+Todo lo que hay que saber de la app y de por qué está hecha así, en un solo sitio. Para qué es la app y cómo empezar: [README.md](README.md). Qué cambió en cada versión: [CHANGELOG.md](CHANGELOG.md). Cómo informar de un fallo de seguridad: [SECURITY.md](SECURITY.md).
+
+## Índice
+
+1. [La idea en un párrafo](#1-la-idea-en-un-párrafo)
+2. [Mapa del repositorio](#2-mapa-del-repositorio)
+3. [Backend](#3-backend)
+4. [Frontend](#4-frontend)
+5. [Criptografía](#5-criptografía)
+6. [Llamadas](#6-llamadas)
+7. [App de escritorio](#7-app-de-escritorio)
+8. [Overlay en el juego](#8-overlay-en-el-juego)
+9. [Versiones, ramas y programa beta](#9-versiones-ramas-y-programa-beta)
+10. [Compilar y publicar las apps](#10-compilar-y-publicar-las-apps)
+11. [Servidor: despliegue](#11-servidor-despliegue)
+12. [Relay TURN](#12-relay-turn)
+13. [Tests](#13-tests)
+14. [Convenciones de código](#14-convenciones-de-código)
+15. [Sonidos](#15-sonidos)
+16. [Decisiones de diseño y límites conocidos](#16-decisiones-de-diseño-y-límites-conocidos)
+17. [Contribuir y código de conducta](#17-contribuir-y-código-de-conducta)
+18. [Problemas frecuentes](#18-problemas-frecuentes)
+
+## 1. La idea en un párrafo
+
+El servidor es una oficina de correos que no puede abrir las cartas. Todo lo privado (texto de los mensajes, reacciones, archivos, el vídeo y el audio de las llamadas, los nombres de grupos y canales, las fotos de perfil, los ajustes y la biblioteca personal) se cifra **en el navegador** con claves que nunca salen de él en claro. El servidor guarda texto cifrado, comprueba **quién puede pedir qué** y reenvía eventos en tiempo real. Por eso casi toda la lógica interesante está en el frontend y el backend es pequeño y estricto a propósito.
+
+## 2. Mapa del repositorio
+
+```
+backend/     Fastify 5 + SQLite (better-sqlite3) + WebSocket        la oficina de correos
+frontend/    Angular 22 (signals, standalone) + Tailwind 4           donde viven las claves y se dibuja todo
+desktop/     Electron: la app de Windows y Linux                     la misma web en su propia ventana
+deploy/      Caddy, coturn, plantilla de .env                        cómo corre en un servidor
+scripts/     servidor de producción (estáticos) y copia de seguridad pequeñas herramientas sin dependencias
+test/        UN solo test: `pnpm test`                               ver "Tests"
+.github/     workflows (servidor y apps), acción compartida, plantillas de incidencias
+Dockerfile, docker-compose.yml                                       en la raíz: el servidor se construye desde aquí
+```
+
+Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe igual en `package.json` (raíz, `backend/`, `frontend/`, `desktop/`), `frontend/src/app/version.ts` y `backend/src/config.ts`, más la entrada de `CHANGELOG.md` / `CHANGELOG.es.md` y la insignia del README.
+
+## 3. Backend
+
+| Pieza | Qué hace | Por qué es así |
+| --- | --- | --- |
+| `app.ts` | Construye el servidor: cabeceras, CORS, límites, JWT, manejo de errores | Una función lo construye todo, así los tests levantan el servidor _real_ en memoria (sin mocks que se desvíen de producción) |
+| `db.ts` | Esquema y migraciones de SQLite | SQLite es un archivo, fácil de copiar y suficiente para un chat propio. Las migraciones solo añaden y una base de datos más nueva que la app se rechaza (`SCHEMA_VERSION`) |
+| `routes/*.ts` | Un archivo por área: auth, social, guilds, messages, images, settings-sync, vault, gifs, preview, beta | Cada ruta comprueba **quién pregunta** antes de tocar nada. Un id inexistente o ajeno responde 404 (no se pueden sondear ids) |
+| `validation.ts` | Formas de los campos (base64, textos sellados, ids) | Todo cuerpo se valida con esquema; el servidor nunca se fía del formato del cliente |
+| `security/` | Hash de contraseñas, límite de intentos, sesiones | Un token solo vale mientras su sesión está abierta: cerrar sesión, cambiar la contraseña o borrar la cuenta lo mata al instante |
+| `ws/` | El socket en tiempo real: presencia, escritura, llamadas | Solo reenvía señalización opaca y cifrada entre personas de la misma sala |
+| `maintenance.ts` | Limpieza cada hora de lo que nada puede alcanzar | Sin ella, subidas abandonadas y sesiones muertas se quedarían para siempre |
+
+**Qué guarda el servidor.** Sellado con una clave que el servidor nunca tiene: texto de mensajes, reacciones, contenido de archivos, nombres de grupos, canales y etiquetas de miembros, fotos, banners, iconos de grupo, el blob de ajustes y la biblioteca personal (fondos de cámara). En claro, porque lo necesita para funcionar: nombres de usuario, quién es amigo de quién, quién está en qué grupo, marcas de tiempo, tamaños y quién está conectado. Está explicado con honestidad en el README ("What the server still sees").
+
+**Configuración (variables de entorno).** `PORT`, `HOST`, `CORS_ORIGINS` (la web y `app://chatterly`), `JWT_SECRET` y `SERVER_SECRET` (largos, distintos; si faltan se generan y se guardan en el volumen), `DATA_DIR`, `GIPHY_API_KEY` (sin ella no hay búsqueda de GIFs), `STUN_URLS`, `TURN_URLS`, `TURN_SECRET`, `TURN_TTL_SEC`, `RELAY_ONLY`, `TRUST_PROXY`, `TLS_KEY`/`TLS_CERT` y `ADMIN_USERS` (usuarios que administran el programa beta, ver el apartado 9). Ejemplos en `backend/.env.example` y `deploy/.env.docker.example`.
+
+## 4. Frontend
+
+| Carpeta | Qué hay | Por qué |
+| --- | --- | --- |
+| `core/crypto/` | WebCrypto: derivación de claves, identidad, claves de pareja y de grupo, archivos, cifrado de medios | Funciones puras sin Angular: las usan la app y el test de seguridad |
+| `core/services/` | Auth, socket, llamadas WebRTC, sonido, ajustes, cursor, presets, imágenes, beta, overlay | Un servicio por tema; el estado va en signals |
+| `store/` | Amigos, grupos, mensajes (la tubería de descifrado) | El único sitio que convierte lo que manda el servidor en cosas que las pantallas pueden mostrar |
+| `features/` | Una carpeta por pantalla: auth, chat, direct, guild, settings, spinly, voice | Pantallas con carga diferida: el login no paga por la pantalla de llamadas |
+| `layout/` | Carril, barra lateral, dock, diálogos | El marco que se queda mientras cambia la página |
+| `shared/` | Componentes, pipes, directivas, utilidades | Piezas reutilizables que no conocen las pantallas |
+| `styles/` | CSS global por áreas | Tailwind para la maqueta, CSS normal donde un efecto lo necesita |
+
+**Decisiones del frontend**
+
+- **Signals, no estado con RxJS.** El estado de la interfaz es `signal`/`computed`; RxJS solo donde un flujo es la forma natural (eventos del socket, del router).
+- **Una ruta por pantalla con partes opcionales.** `groups`, `groups/:guild` y `groups/:guild/:channel` son una sola ruta (`optionalParams`). Con una ruta por forma de dirección, Angular destruía y reconstruía la pantalla al añadir el canal y la página saltaba.
+- **Las animaciones solo mueven `transform` y `opacity`.** Esas dos las hace la tarjeta gráfica; cualquier otra cosa (filtros, clip-path, posición del fondo) obliga a la página a redibujar cada fotograma.
+- **Modo ligero para equipos flojos.** `main.ts` marca móviles y máquinas débiles (`data-perf="low"`): sin desenfoque tras los paneles, animación de llegada más tranquila, movimiento rápido.
+- **El trabajo pesado fuera de la página.** El espectáculo de luces de la llegada va en un worker con `OffscreenCanvas`; el cifrado de medios de las llamadas y los efectos de cámara (MediaPipe + WebGL2) también.
+- **Todo está alojado por nosotros.** Sin scripts, fuentes ni rastreadores de terceros; la CSP lista solo con quién habla de verdad la página (los reproductores incrustables en un mensaje son opcionales).
+- **Los textos pasan por un diccionario.** Cada texto visible está en `core/i18n/es.ts` (la clave es el texto en inglés) y `node frontend/scripts/i18n.mjs --check` falla si falta alguno.
+- **Ajustes.** Se guardan en el navegador (`persisted(...)`) y se sincronizan sellados con la clave de la persona (Ajustes > Sincronización). Las secciones de escritorio (Overlay, Actualizaciones) y la de Administración solo aparecen donde tienen sentido.
+
+## 5. Criptografía
+
+1. **Identidad.** Cada persona tiene un par de claves ECDH y otro ECDSA hechos en el navegador y envueltos con una clave derivada de la contraseña (PBKDF2, 600 000 vueltas); la contraseña no llega al servidor.
+2. **Chats directos.** ECDH entre las dos identidades, expandido con HKDF a una clave AES-256-GCM ligada a la conversación; cada mensaje además va firmado.
+3. **Grupos.** Una clave AES-256-GCM por grupo y versión. Cada miembro la guarda envuelta para su par de claves. Cuando alguien se va, el dueño crea una versión nueva y **vuelve a sellar todo lo que depende de ella** (mensajes nuevos, clave del icono y nombres, en la misma petición).
+4. **Llamadas.** El medio se cifra fotograma a fotograma con claves que se renuevan solas; la señalización va cifrada y firmada.
+5. **Biblioteca personal** (fondos de cámara). Cada archivo tiene su clave AES-GCM aleatoria; esa clave y la descripción se sellan con una clave derivada de la identidad, y el id del elemento forma parte de lo que liga cada cifrado, así el servidor no puede intercambiar partes de dos elementos.
+
+Todo texto sellado va **ligado a su contexto** (grupo, tipo de texto, id de lo que nombra, versión de clave). Por eso el servidor no puede darle el nombre de un canal a otro ni mover un texto sellado entre grupos.
+
+## 6. Llamadas
+
+- Malla completa WebRTC (máximo 8 personas por sala: cada persona extra suma una subida por participante).
+- El medio va de igual a igual por DTLS-SRTP **y además** cifrado por fotograma en el navegador; el relay no puede leerlo.
+- **`RELAY_ONLY=1`** (obligatorio en producción): las llamadas usan solo tu relay TURN y fallan si no está, en vez de conectar directo. El cliente descarta cualquier candidato que no sea de relay y cierra una conexión que descubra directa. Sin TURN configurado el servidor se niega a dar servidores ICE (falla cerrado). El relay y la máquina que lo aloja ven direcciones de red y volumen de tráfico, no contenido.
+- Los códigos de seguridad (4 emojis iguales en los dos lados) permiten comprobar a viva voz que nadie manipuló el intercambio de claves.
+- La política vive en `core/rtc-policy.ts`, que además comprueba la frescura de la señalización (5 minutos) para que no valga una grabación antigua.
+
+## 7. App de escritorio
+
+La web de Chatterly en su propia ventana (Windows y Linux; macOS usa el mismo código, solo falta empaquetarlo). El instalador lleva la web **dentro**: el código que maneja tus claves es el que se instaló, no el que un servidor mande en cada arranque. La carcasa no añade ninguna forma de leer mensajes ni envía nada a ningún sitio.
+
+**Qué hace**
+
+- **Web empaquetada** en `web/`, servida como `app://chatterly`; la ventana solo habla con el servidor para la API (`https://…/api`, `wss://…/ws`). `bundle.cjs` reescribe la CSP una vez al servir `index.html`.
+- **Ventana endurecida.** Renderer en sandbox, aislamiento de contexto, sin Node en la página, herramientas de desarrollo apagadas al instalar. La página solo ve `window.chatterlyDesktop` y `window.CHATTERLY_API`.
+- **Los enlaces no salen de la app**: otros sitios se abren en el navegador y las ventanas emergentes se deniegan.
+- **Permisos**: cámara, micrófono, notificaciones y captura de pantalla solo para la app misma, nunca para un marco incrustado (YouTube y similares).
+- **Compartir pantalla** siempre pregunta antes en el selector propio (pestañas **Pantalla completa** y **Una ventana**; una casilla comparte también el sonido del equipo).
+- **Cerrar la ventana cierra la app** (sin bandeja). Se abre maximizada la primera vez y luego como la dejaste (`window-state.json`).
+- **Gráficos**: aceleración por hardware y capa ANGLE elegibles en Ajustes (`graphics.cjs`), aplican al reiniciar.
+- **Fusibles de Electron** fijados al compilar: sin `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` ni `--inspect`, integridad del asar comprobada, solo carga desde el asar.
+- Una app instalada **se niega a arrancar** con interruptores que la abren (`--remote-debugging-port`, `--ignore-certificate-errors`, `--disable-web-security`, `--no-sandbox`, `--proxy-server`, `--host-resolver-rules`…).
+- **Preload mínimo** (`preload.cjs`): ni IPC genérico ni Node; cada comando admite como mucho un argumento que el proceso principal valida contra una lista fija. `desktop/test/desktop.mjs` comprueba la lista de canales: añadir uno exige revisión de seguridad y actualizar ese test.
+
+**Actualizaciones.** La app busca versión nueva unos segundos después de arrancar y luego con la frecuencia que elijas (Ajustes > Actualizaciones), y solo **avisa**: tarjeta en la campana, tú pulsas Descargar y luego Reiniciar y actualizar. Opciones: cada hora / 6 h (por defecto) / 12 h / cada día / solo al arrancar / solo si lo pides; "Actualizar sola" (descarga al encontrarla e instala en silencio al cerrar, sin reiniciar nunca en mitad de una llamada); "Avisarme de versiones nuevas". Lee las **Releases de GitHub** del repositorio y comprueba el sha512 de `latest.yml`; sin firma del instalador no hay comprobación del editor (ver límites). La versión de la Microsoft Store la actualiza la Store. En Linux solo se actualiza el AppImage (el `.deb` se reinstala a mano).
+
+**Variables de entorno de desarrollo**
+
+| Variable | Qué hace |
+| --- | --- |
+| `CHATTERLY_URL` | El servidor (API). Por defecto el sitio público. Una app instalada solo admite `https` |
+| `CHATTERLY_MODE=remote` | Solo desarrollo: carga el servidor en vez de la web empaquetada |
+| `CHATTERLY_WEB_DIR` | Solo desarrollo: usa esta compilación web en vez de `desktop/web` |
+| `CHATTERLY_NO_UPDATE=1` | Apaga la actualización |
+| `CHATTERLY_UPDATE_URL` | Solo desarrollo: carpeta con `latest.yml` para probar actualizaciones (nunca instala) |
+| `CHATTERLY_TRACE=<archivo>` | Escribe los tiempos de arranque (ms desde que empezó el proceso) |
+
+Una app instalada ignora `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` y `CHATTERLY_UPDATE_URL`: una variable de entorno no puede cambiar el código que guarda las claves.
+
+**Trabajar con ella**
+
+```
+pnpm install && pnpm --dir backend install && pnpm --dir frontend install && pnpm --dir desktop install
+pnpm --dir desktop start        # abre el sitio público (modo remoto)
+pnpm build                      # construye backend y web
+CHATTERLY_URL=http://localhost:3000 CHATTERLY_WEB_DIR=../frontend/dist/frontend/browser pnpm --dir desktop start
+pnpm --dir desktop test         # unas 250 comprobaciones de la carcasa
+```
+
+(En PowerShell: `$env:CHATTERLY_URL = "..."`. Si `ELECTRON_RUN_AS_NODE` está puesta en tu terminal, `desktop/scripts/start.mjs` la quita; si lanzas `electron .` a mano, quítala.) El servidor debe listar `app://chatterly` en `CORS_ORIGINS`: `docker-compose.yml` ya lo hace; si el inicio de sesión falla por CORS o el WebSocket se cierra con 1008, es esto.
+
+Tus datos (claves de la cuenta, ajustes) viven en `%APPDATA%\Chatterly` (en Linux `~/.config/Chatterly`); desinstalar no los borra. **Velocidad**: la web se lee del instalador (no se descarga), sus scripts se compilan una vez y se cachean (V8 code cache), el código del actualizador se carga 5 s después de abrir la ventana y la detección de oclusión de Windows está apagada para que una llamada tapada por otra ventana no se ralentice.
+
+**Microsoft Store (gratis, firmado por Microsoft).** Crea una cuenta de Partner Center, reserva el nombre y copia los tres valores de _Product identity_ (`STORE_IDENTITY_NAME`, `STORE_PUBLISHER`, `STORE_PUBLISHER_DISPLAY_NAME`); con ellos `pnpm --dir desktop dist:store` genera el `.appx` (o, en GitHub, _Actions > Build the apps > Run workflow_ con esos tres como secretos). Sustituye antes las imágenes de `desktop/build/appx/`. **Firma del instalador directo** (opcional, para quitar el aviso de SmartScreen sin Store): Azure Artifact Signing o un certificado de firma de código (`CSC_LINK`, `CSC_KEY_PASSWORD`); una vez firmado, añade `publisherName` en `build.win` para que el actualizador compruebe quién firmó.
+
+## 8. Overlay en el juego
+
+Como el de Discord, solo en la app de escritorio: las cámaras (o fotos) y los nombres de tu llamada, con un aro cuando hablan, dibujados **encima del juego** que estás jugando. Se configura en **Ajustes > Overlay de juego**.
+
+**Cómo funciona**
+
+- `desktop/src/overlay.cjs` abre una ventana del tamaño de la pantalla elegida: transparente, sin marco, `alwaysOnTop` al nivel `screen-saver`, sin foco, fuera de la barra de tareas y con el ratón atravesándola (`setIgnoreMouseEvents(true, { forward: true })`). Es **otra ventana de la propia app**, con el mismo sandbox y sin Node: no inyecta nada en el juego ni lo lee, así que no hay nada que un antitrampas deba marcar. Se abre mientras haya llamada y el overlay esté activado, y se cierra al acabar.
+- **El vídeo**: un `MediaStream` no se puede pasar a otra ventana, así que la página y el overlay se conectan con un **WebRTC local** (sin STUN, sin TURN, sin red). El proceso principal solo retransmite los mensajes de señalización entre las dos ventanas (validados: una oferta, una respuesta o un candidato, nada más); los fotogramas ya vienen descifrados, viajan dentro del equipo y se quedan ahí. Esta conexión es independiente de las llamadas y no toca su política de relay. Cada cámara se manda a mitad de resolución, 600 kbit/s y 24 fps como mucho: un recuadro no necesita más (el experimento previo midió ~2 % de un núcleo).
+- **La página** (`core/services/overlay.service.ts`) le dice a la carcasa quién está en la llamada (nombre, foto reducida a 96 px, color, si habla, si está silenciado) y la carcasa lo vuelve a validar (`sanitizeTiles`): una página que mintiera solo podría dibujar sus propios nombres y fotos.
+- **Editar la posición**: el atajo (por defecto `Ctrl+Mayús+O`, configurable) deja pasar el ratón a la ventana un momento: arrastras el panel, estiras la esquina para cambiar el tamaño y `Esc` (o el atajo otra vez) devuelve el foco al juego. La posición se guarda como fracciones de la pantalla en `overlay.json` (perfil), junto al resto de opciones.
+- **Opciones**: activar, atajo, pantalla (la principal o donde esté Chatterly), tamaño de cada persona, transparencia, mostrar nombres, solo quien habla, mostrarme a mí, y **ocultarlo en grabaciones y pantallas compartidas** (`setContentProtection`, activado por defecto: las cámaras de tus amigos no salen en tu stream).
+
+**Límites, sin adornos**
+
+- **Pantalla completa exclusiva: imposible** con este enfoque. El juego se queda con el monitor y ninguna otra ventana puede dibujarse encima. Hay que jugar en modo ventana o sin bordes (la mayoría de juegos lo tiene, y las "optimizaciones de pantalla completa" de Windows 10/11 convierten muchos "pantalla completa" en sin bordes).
+- La inyección en la API gráfica (lo que hace Discord) también cubre la pantalla completa exclusiva, pero es código nativo por API, firmado, que los antitrampas detectan y pueden banear: **no es realista aquí** y se descartó.
+- Otra ventana encima puede impedir que Windows presente el juego directamente (un coste mínimo de tiempo de fotograma en algunos equipos) y algún juego reclama su propio nivel "topmost"; no se puede prometer en todos. Cada antitrampas tiene sus reglas sobre ventanas ajenas: probar los juegos que importen.
+- **Windows primero**: en macOS hace falta `setVisibleOnAllWorkspaces(..., { visibleOnFullScreen: true })` (ya puesto) pero no está probado, y Linux con Wayland no garantiza ni "siempre encima" ni "ratón atravesado".
+- Sin detección automática del juego: se muestra mientras haya llamada. Detectarlo exigiría un módulo nativo (p. ej. `electron-overlay-window`) o consultar la lista de procesos, y una dependencia más que mantener.
+
+## 9. Versiones, ramas y programa beta
+
+**Dos ramas, dos canales.**
+
+| Rama | Qué publica | Quién lo recibe |
+| --- | --- | --- |
+| `master` (o `main`) | Release estable `v2.32.0`, marcada como la última. Además `deploy.yml` actualiza el servidor | Todas las apps instaladas |
+| `beta` | Pre-release `v2.32.0-beta.<nº de ejecución>` (el workflow le pone ese número con `desktop/scripts/beta-version.mjs`). **No** toca el servidor | Solo las apps de los probadores beta |
+
+Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`). Para sacarla a todo el mundo: fusiona `beta` en `master`. La beta es siempre mayor que la estable anterior y menor que la estable de su número (`2.32.0-beta.5` < `2.32.0`), así que la estable sustituye a cualquier beta y una beta nunca reemplaza a una estable.
+
+**Quién administra.** Los **dueños** son los usuarios de la variable `ADMIN_USERS` del servidor (separados por comas; son fijos y no se pueden quitar desde la app). Cualquier administrador ve en Ajustes la sección **Administración**, donde añade o quita **probadores** y **otros administradores** por nombre de usuario (tabla `admins`); así solo hay que tocar el `.env` una vez, para el primer dueño.
+
+**Quién es probador.** Lo decide un administrador en esa misma sección. La lista vive en el servidor (`routes/beta.ts`, tabla `beta_testers`, se borra con la cuenta); quien no es administrador recibe 404 en esas rutas como si no existieran. Un probador ve en **Ajustes > Actualizaciones** el interruptor **Versiones beta**; al activarlo su app (`updater.cjs`, `allowPrerelease`) busca también en las pre-releases de GitHub. Si le quitas el acceso, su app lo desactiva sola en cuanto el servidor se lo dice.
+
+Qué conviene saber: el control es solo de **quién recibe el aviso de actualización dentro de la app**. Si las Releases son públicas, cualquiera puede descargar una beta a mano; no hay secreto en ellas. Y el servidor web sigue siendo uno solo: la beta cambia la app de escritorio, no el backend (un cambio de backend en beta debe esperar a `master` para llegar al servidor).
+
+## 10. Compilar y publicar las apps
+
+**Publicar** (una sola release por versión, no una por plataforma):
+
+1. Sube la versión **a la vez en todos los sitios** (apartado 2) y añade la entrada del CHANGELOG.
+2. Haz commit y push a `master`.
+
+Eso es todo. `deploy.yml` actualiza el servidor y `.github/workflows/desktop.yml` construye **Windows** (instalador `Chatterly-Setup-<v>.exe`) y **Linux** (`Chatterly-<v>.AppImage` y `.deb`), los sube a la release `v<v>` y la publica cuando terminan todos. Si esa versión ya tiene una release completa (un push que no subió la versión) no se construye nada; una release que se quedó a medias por un fallo la termina el siguiente push (o _Run workflow_), porque solo se rehacen las plataformas que faltan. El repositorio (o al menos sus Releases) debe ser **público** o las apps no pueden descargar actualizaciones.
+
+**Cómo está hecho el workflow.** `prepare` crea la release en **borrador** y decide qué plataformas faltan; cada trabajo (`windows`, `linux`) sube lo suyo; `publish` la hace pública solo si todos acabaron bien (como estable `--latest` o como `--prerelease` en beta). Los pasos comunes (pnpm, Node, caché, instalar, Playwright, compilar la web) están en la acción compartida `.github/actions/build-web`. Seguridad: las compilaciones (que ejecutan código de muchos paquetes npm) **no reciben ningún token**, solo los pasos pequeños que ejecutan la CLI de GitHub; el checkout no deja el token en la carpeta; cada acción está fijada al commit exacto de su versión; solo corre para pushes a ramas del repositorio, nunca para pull requests. Para añadir una plataforma (Android, macOS, iOS) se copia el trabajo `linux` (hay una nota en el propio archivo). Solo se suben los instaladores y el `*.yml` del canal (unos cientos de bytes; las apps lo necesitan para ver la versión y comprobar el sha512); sin blockmap.
+
+**A mano** (con la CLI de GitHub): `pnpm build && pnpm --dir desktop dist` (o `dist:linux`), `node desktop/scripts/release-notes.mjs <v> > notas.md`, `gh release create v<v> --target master --title "Chatterly <v>" --notes-file notas.md` y `gh release upload v<v> <archivos>`.
+
+**Seguridad de las actualizaciones: lo que aún no está cubierto.** Una actualización se acepta porque viene de las Releases de este repositorio por https y coincide con el sha512 de `latest.yml`. Quien pueda escribir releases (o robe un token que pueda) podría publicar una actualización que cada app ofrecería a su dueño (que aún tendría que pulsar Descargar y Reiniciar). El arreglo completo es firmar el instalador y que la app compruebe la firma, o repartir por la Store. Mientras tanto: autenticación en dos pasos con llave de hardware en la cuenta de GitHub, el mínimo de personas con escritura y `contents: write` solo en los trabajos que lo necesitan. Electron se mantiene en una versión con soporte (trae su propio Chromium); antes de cada versión, `pnpm --dir desktop audit`.
+
+## 11. Servidor: despliegue
+
+Producción corre en **una máquina Oracle Cloud Always Free** con Docker, un Caddy del sistema que pone el HTTPS y coturn para las llamadas. (Cuidado: solo `VM.Standard.A1.Flex` —hasta los límites actuales de Always Free— y `VM.Standard.E2.1.Micro` son gratis; cualquier otra forma, por ejemplo `E5.Flex`, se cobra. Comprueba la forma en la consola antes de crearla.)
+
+> **Puntos críticos**
+>
+> 1. **`RELAY_ONLY=1` debe estar en el `.env` del servidor.** Sin eso las llamadas pueden conectar directo y mostrar direcciones. Se pone con `bash deploy/turn-setup.sh --private`.
+> 2. **`deploy/turnserver.generated.conf` debe existir** (lo crea `turn-setup.sh`) o el servicio `turn` no arranca. Modo `640`, grupo `65534`: con `600` coturn (usuario `nobody`) no puede leerlo y arranca **sin configuración**.
+> 3. **Nunca añadas `-n` al comando de coturn** (significa "no leas el archivo de configuración") y mantén `NET_BIND_SERVICE` si usas `cap_drop: ALL`.
+> 4. **Los secretos** (`.env`, `TURN_SECRET`, `JWT_SECRET`, `SERVER_SECRET`) viven solo en el servidor, nunca en Git. Rota `TURN_SECRET` con `bash deploy/turn-setup.sh --rotate-secret` si alguna vez se mostró.
+> 5. **Cortafuegos y Oracle**: públicos solo TCP 22, 80, 443, UDP 443 y TCP+UDP 3478 (con `RELAY_ONLY=1` el rango UDP 49152-49252 **no** hace falta).
+
+**Puesta en marcha**
+
+1. Crea la instancia (Ubuntu 24.04) y descarga la clave SSH. En la VCN (Security List) abre TCP 80 y 443 (y UDP 443 si quieres HTTP/3); las imágenes de Oracle además bloquean con iptables: `sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT` (igual con 443) y `sudo netfilter-persistent save`.
+2. Un dominio apuntando a la IP pública (uno gratis de duckdns.org sirve): el navegador solo permite micrófono, cámara y cifrado en HTTPS.
+3. Instala Docker: `curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER` (sal y entra).
+4. `git clone <tu repositorio> ~/ChatterlyRenewed && cd ~/ChatterlyRenewed && cp deploy/.env.docker.example .env` y edita `.env` (al menos el dominio y `ADMIN_USERS`).
+5. `docker compose up -d --build app`. La primera compilación tarda unos minutos en ARM.
+6. HTTPS: si la máquina ya tiene un Caddy, añade el bloque de `deploy/Caddyfile.host` (la API en 3000 **Y** la web en 3001, o el inicio de sesión falla con "JSON.parse: unexpected character") y `sudo systemctl reload caddy`; si no, `docker compose --profile caddy up -d --build` arranca uno dentro de Docker (`deploy/Caddyfile.docker`).
+7. Relay para llamadas: `bash deploy/turn-setup.sh --private` (ver el apartado 12) y las reglas de entrada de la Security List de Oracle (UDP y TCP 3478, 5349 con `--tls`).
+
+**Actualizar.** `.github/workflows/deploy.yml` lo hace tras cada push a `master`/`main`: entra por SSH, `git reset --hard origin/<rama>` (el servidor queda **idéntico a GitHub**: los archivos fuera de Git, `.env` y `docker-compose.override.yml`, sobreviven), construye primero (la web sigue en pie), quita el contenedor viejo y levanta el nuevo (con docker-compose 1.x recrear falla con `KeyError: 'ContainerConfig'`), arranca el relay si no corre y limpia imágenes. Secretos de GitHub (Settings > Secrets and variables > Actions): `SSH_HOST`, `SSH_USER`, `SSH_KEY` (la clave **privada** entera, hecha solo para esto con `ssh-keygen -t ed25519`) y `SSH_PORT` si no es 22. Los cambios en `desktop/` y `mobile/` no redespliegan el servidor. A mano: `git pull && docker compose up -d --build app`; logs con `docker compose logs -f app`.
+
+**Después de cada despliegue.** `curl -s http://127.0.0.1:3000/api/health` debe dar `{"status":"ok"}`, `docker compose ps` mostrar `app` sana y `turn` en marcha, y una llamada de prueba debe usar relay (ver el apartado 12). Los datos (BD, subidas y secretos) están en el volumen `chatterly-data`; cópialo de vez en cuando: `BACKUP_PASSPHRASE=... docker compose exec app node scripts/backup.mjs backup /data/backups` (cifrado) y sácalo de la máquina.
+
+**Lista de comprobación de seguridad de la máquina** (no se puede verificar desde el repositorio):
+
+- [ ] Security List / NSG: entrada solo para TCP 22 (restringido a tu dirección), 80, 443, UDP 443, 3478 UDP+TCP (5349 con TLS). Nada para 3000, 3001, 4200.
+- [ ] Cortafuegos del sistema (`sudo iptables -S INPUT`) y puertos a la escucha (`sudo ss -tulpn`): 3000 y 3001 solo en `127.0.0.1`; nada más alcanzable desde fuera (ni API de Docker en 2375).
+- [ ] SSH solo con clave (`PasswordAuthentication no`, `PermitRootLogin no`); la clave de despliegue de GitHub limitada a esta máquina.
+- [ ] `.env` con permisos 600 y fuera del repositorio; secretos largos y aleatorios; si uno se subió alguna vez a Git, rotarlo y limpiar el historial (decisión del dueño: reescribe la historia).
+- [ ] TURN: `turnserver.generated.conf` modo 640 grupo 65534; una asignación sin credencial válida se rechaza (`turnutils_uclient` con mala contraseña falla).
+- [ ] TLS: `curl -I https://tu.dominio` muestra HSTS; el certificado se renueva; HTTP redirige a HTTPS; el WebSocket funciona por `wss://`.
+- [ ] Proxy inverso: la app ve un proxy (`TRUST_PROXY=1`) y Caddy reemplaza cualquier `X-Forwarded-For` del cliente.
+- [ ] `unattended-upgrades` activo; imágenes de Docker fijadas por etiqueta en `docker-compose.yml` (se cambian a propósito y se prueban).
+- [ ] Copias de seguridad probadas con una restauración real; vigilancia de disco (`df -h`) y alerta si la web o el relay dejan de responder.
+- [ ] Registros: la app no registra direcciones ni consultas; coturn registra asignaciones (direcciones) en el log de su contenedor, que rota a 5 × 10 MB; decide cuánto tiempo los conservas.
+
+La recuperación del servidor concreto (copias, firewall, guardián, cuotas) está en `RECUPERACION-SERVIDOR.local.md`, que se guarda solo en tu equipo.
+
+## 12. Relay TURN
+
+- **Señalización**: el WebSocket `/ws` del backend (Caddy lo pasa solo). Lo que viaja está sellado: mensajes cifrados en el navegador y ofertas/respuestas firmadas y cifradas entre las dos personas.
+- **STUN** dice a un navegador su dirección pública; con relay propio coturn también hace de STUN y no se pregunta a Google (que aprendería la dirección de cada llamante).
+- **TURN** retransmite el medio cuando no hay camino directo (móviles, oficinas estrictas). El medio ya va cifrado fotograma a fotograma, así que el relay no puede leerlo. El backend entrega credenciales de una hora hechas con `TURN_SECRET`; nadie recibe el secreto.
+
+`bash deploy/turn-setup.sh` escribe las variables TURN del `.env`, abre puertos con iptables y levanta coturn y la app a partir de la plantilla `deploy/turnserver.conf` (nunca pongas valores reales en esa plantilla: está en Git). Opciones: `--private` (pone `RELAY_ONLY=1`), `--tls` (el relay responde solo por `turns:` TCP 5349 con el certificado que Caddy ya obtuvo; abre 5349 y **no** 3478; `deploy/turn-cert-sync.sh` copia el certificado tras cada renovación, cada ~60 días, mejor con un temporizador diario), `--no-logs` (coturn no escribe ningún log) y `--rotate-secret`. Máxima privacidad: `bash deploy/turn-setup.sh --private --tls --no-logs`. Quien observe la red ya no lee usuarios ni mensajes de control del relay, pero sigue viendo que alguien habla con tu servidor y cuánto; el operador del relay ve las direcciones mientras dura la llamada. TLS va sobre TCP: con pérdidas, algo más de retardo que UDP.
+
+**Comprobar que una llamada usa de verdad el relay**: abre `chrome://webrtc-internals` (Firefox: `about:webrtc`) antes de llamar; el par de candidatos seleccionado debe tener candidato local de tipo `relay` y la rejilla solo candidatos `relay`. Para la prueba negativa para el relay (`docker compose stop turn`) e intenta llamar: debe salir "Private call unavailable" y la llamada no empezar. No copies direcciones de esas páginas en chats ni incidencias.
+
+## 13. Tests
+
+Hay **un único comando**, `pnpm test` (o `test/chatterly-test.exe` en Windows), que debe acabar en `ALL CORRECT` y no deja nada atrás. Está dividido por temas:
+
+```
+test/run.mjs           el lanzador: ejecuta los pasos en orden
+test/e2e/              el test de navegador: un archivo por paso (registro, amigos, chat, llamadas, grupos, ajustes, escritorio...)
+test/e2e/support.mjs   lo que comparten los pasos (carpeta temporal, puertos, limpieza)
+test/security.mts      el lanzador de las comprobaciones de seguridad (sin navegador)
+test/security/         un archivo por tema: sesiones, autorización, imágenes, sockets, borrado, cabeceras, beta...
+desktop/test/desktop.mjs   la carcasa de escritorio (también corre dentro de pnpm test)
+```
+
+Lo que hace: tipos de backend y frontend + que cada texto esté traducido; ataques al backend real en memoria como lo haría una cuenta hostil; dos Chromium reales (registro, amistad, chat, GIFs, llamada cifrada con vídeo con códigos de seguridad iguales, grupos, ajustes, importar stickers, cursor, sonidos, móvil); que el servidor **nunca** guarda texto en claro y rechaza peticiones sin sesión; y la app de escritorio con la web dentro registrándose contra el backend real. Con `CHATTERLY_SHOTS=<carpeta>` guarda capturas para revisar a ojo; si falla, guarda capturas en la carpeta temporal del sistema e imprime su ruta. Lighthouse: login y registro 100/100/100/100 en móvil y escritorio.
+
+## 14. Convenciones de código
+
+- Código, identificadores y comentarios **en inglés**; los textos de la interfaz pasan por el pipe de traducción y cada texto nuevo necesita su entrada en `frontend/src/app/core/i18n/es.ts`.
+- Cada archivo empieza con una cabecera que dice qué hace y cada función lleva un comentario corto.
+- **Sin funciones flecha**: funciones con nombre o `bind` (lo comprueba el test de escritorio en los `.cjs`).
+- Formato con Prettier (`frontend/.prettierrc`; en el backend `--config ../frontend/.prettierrc`). `quoteProps: preserve` es obligatorio: si no, Prettier quita las comillas de las claves de `es.ts` y rompe `scripts/i18n.mjs`.
+- Antes de dar algo por terminado: `pnpm typecheck`, `node frontend/scripts/i18n.mjs --check`, `pnpm test` y borrar `frontend/dist`.
+- Nunca registres, guardes ni envíes el texto de los mensajes, las contraseñas ni las claves.
+- Cursor, animaciones y estados `hover` coherentes con el resto de la interfaz.
+- Añadir un idioma: copia `es.ts`, traduce los valores y regístralo en `i18n.service.ts`.
+- Los comentarios marcados (`!` importante, `*` aclaración, `?` duda, `TODO`) se ven con colores con la extensión Better Comments.
+
+## 15. Sonidos
+
+Cada sonido de la app es un archivo de `frontend/public/sounds/`, organizado por uso. **Para cambiar uno, sustituye el archivo por otro del mismo nombre** (OGG, MP3 y WAV valen; si cambia la extensión, cámbiala también en `frontend/src/app/core/sound-library.ts`, el único sitio que los lista). Empiezan a cargarse al abrir la página y el navegador los guarda una semana; son pequeños a propósito (OGG Vorbis: 4–6 KB un sonido de interfaz, 30–80 KB un tono de llamada, unos 300 KB en total). Los sonidos de la interfaz suenan bajos antes del volumen de ajustes (~−38 dB); si uno que añadas suena más fuerte, baja su `trim` en `sound-library.ts`.
+
+| Carpeta | Contenido |
+| --- | --- |
+| `ui/` | `message-received`, `message-sent`, `menu-open`, `toggle-switch`, `notice-success`, `notice-error` y `click-*` (el sonido de pulsar un botón, uno por estilo elegido en Ajustes > Sonidos; también es el "tic" de un deslizador) |
+| `call/` | `you-join`, `you-leave`, `user-joined`, `user-left`, `mic-mute`, `mic-unmute`, `headphones-deafen`, `headphones-undeafen` y `call` |
+| `ringtones/` | Tonos por defecto (`classic`, `old` —el del primer Chatterly—, `chime`, `christmas`, `halloween`, `newyear`, `arcade`); la pausa entre repeticiones es `gap` en `sound-library.ts`. `secret.ogg` es un tono de broma que no se puede elegir: una llamada suena con él una de cada diez mil (`SECRET_RING_CHANCE`) |
+| `auth/` | La banda sonora entera de cada animación de llegada: `intro`, `sign-in-unlock`, `sign-out-lock`, `sign-up-fireworks` |
+| `soundboard/` | Los seis efectos de la mesa de sonidos de una llamada: `air-horn`, `boing`, `sad-trombone`, `ta-da`, `rimshot`, `applause` (el resto son sonidos propios de la persona, en su dispositivo) |
+
+Origen y licencia: los cuatro clics `click-tap`, `click-switch`, `click-pluck` y `click-bubble` son de "Interface Sounds" de Kenney (<https://www.kenney.nl>), Creative Commons Zero (CC0). Todos los demás se generaron para este proyecto (sintetizados y renderizados) y los cubre la licencia del proyecto (`frontend/public/sounds/LICENSE.txt`).
+
+## 16. Decisiones de diseño y límites conocidos
+
+**Decisiones**
+
+- **Sin cuentas ni suscripciones de pago de terceros** siempre que se pueda: Windows por instalador (o Store gratis), Linux por AppImage/deb; solo Apple (99 USD/año) es inevitable cuando llegue macOS. El servidor es Oracle Always Free (plan B: un VPS europeo barato; un dominio propio es mejor que DuckDNS).
+- **Orden de plataformas**: Windows (Electron) → Android (Capacitor) → macOS → iOS, en este mismo repositorio (`desktop/`, `mobile/`), no en repos nuevos. Linux salió gratis del mismo código de Electron.
+- **El overlay es una ventana, no una inyección**: más limitado (no cubre pantalla completa exclusiva) pero sin riesgo de baneo y sin código nativo que mantener.
+- **El programa beta reutiliza GitHub Releases** (pre-releases) en vez de un servidor de actualizaciones propio: cero infraestructura nueva; el coste es que no es un secreto.
+- **La actualización avisa, no impone.** Nada se descarga, instala ni reinicia sin que lo decida la persona (salvo "Actualizar sola", que se activa a propósito).
+- **Cada cambio con efecto visible sube versión** y añade entrada de CHANGELOG, en inglés y en español.
+- **Se borra lo que no se usa**: funciones, exportaciones, estilos, textos de traducción y scripts sin referencias se eliminan en lugar de dejarlos "por si acaso" (la API de Tenor, que cerró, es un ejemplo).
+
+**Límites conocidos** (escritos, no escondidos): las claves de los mensajes directos son estáticas (aún sin secreto hacia delante por mensaje); un servidor que sirva JavaScript malicioso derrota cualquier promesa de extremo a extremo (la app de escritorio lo evita porque lleva el código dentro); el servidor sigue viendo el grafo social y las marcas de tiempo; quien pierde la contraseña no puede recuperar su identidad; el instalador de escritorio no está firmado (SmartScreen avisa; la Store lo firma); el overlay no cubre pantalla completa exclusiva; en Linux el AppImage puede necesitar que el sistema permita los espacios de usuario sin privilegios para el sandbox de Chromium (si no, usa el `.deb`, que instala el sandbox con permisos). Detalles de seguridad en [SECURITY.md](SECURITY.md).
+
+## 17. Contribuir y código de conducta
+
+Gracias por querer ayudar. Instala Node.js 20 o superior y pnpm; `pnpm install:all` instala raíz, backend y frontend; `pnpm dev` arranca el backend (3000) y el frontend (4200) a la vez. Antes de abrir una pull request: `pnpm typecheck` debe pasar y `pnpm test` acabar en `ALL CORRECT`; cambios pequeños y centrados (una idea por pull request); sigue las convenciones del apartado 14. Si encuentras una vulnerabilidad **no abras una incidencia pública**: lee [SECURITY.md](SECURITY.md).
+
+Código de conducta: sé respetuoso (nada de insultos, acoso ni discriminación), asume buenas intenciones y explica tu punto de vista con calma, critica el trabajo y no a la persona, y no publiques información privada de otras. Quien rompa estas reglas puede ver retirados sus comentarios y ser bloqueado del proyecto. Para avisar de un problema, escribe a quien mantiene el proyecto con el contacto del perfil del repositorio.
+
+## 18. Problemas frecuentes
+
+| Síntoma | Causa y solución |
+| --- | --- |
+| La página carga pero nada funciona, la consola dice _CORS_ | `CORS_ORIGINS` debe ser exactamente la dirección del navegador, con `https://` y sin barra final; varias, separadas por comas. El WebSocket comprueba la misma lista. La app de escritorio usa `app://chatterly` |
+| El WebSocket se cierra al momento (1008, "origin not allowed") | Lo mismo: el origen no está en `CORS_ORIGINS` |
+| "La sesión caducó" todo el rato, o todos parecen tener la misma IP | Falta `TRUST_PROXY=1`: el backend ve a Caddy como único cliente y los límites castigan a todos |
+| El micrófono o la cámara nunca preguntan | La página no está en HTTPS (o la abriste por IP). Usa el dominio |
+| Las llamadas solo conectan entre personas de la misma red | Hay STUN pero no TURN, o sus puertos están cerrados (también en la Security List de Oracle) |
+| "Private call unavailable" | El relay está caído o no leyó su configuración: `docker compose logs --tail 50 turn` (un arranque sano muestra `Default realm: <tu dominio>`) |
+| _Frames rejected_ o "Securing…" para siempre | Los dos navegadores no se pusieron de acuerdo con las claves: recarga ambos; si se repite, mira la consola y `docker compose logs app` |
+| `502` de Caddy | El backend o el servidor web está caído: `docker compose ps` y `docker compose logs app` |
+| Tras actualizar no cambia nada | El navegador guarda archivos viejos: recarga forzada (Ctrl+Mayús+R) |
+| Electron arranca como Node: `Cannot read properties of undefined (reading 'enableSandbox')` | `ELECTRON_RUN_AS_NODE` está puesta en tu terminal (algunos editores lo hacen) |
+| `pnpm --dir desktop dist` dice que no hay compilación web o que las versiones difieren | Ejecuta antes `pnpm build` en la raíz; `desktop/package.json` y `frontend/package.json` deben tener la misma versión |
+| electron-builder avisa `Cannot create symbolic link` con `winCodeSign` | Aviso en Windows sin modo desarrollador; la compilación termina. Activa el _Modo desarrollador_ para silenciarlo |
+| La app instalada no inicia sesión | El servidor no lista `app://chatterly` en `CORS_ORIGINS` |
+| SmartScreen bloquea el instalador | No está firmado: _Más información_, _Ejecutar de todos modos_, o usa la Store |
+| La actualización no llega | La release no es pública, le falta el `.yml` de su canal, su versión no es mayor que la instalada, o la app no está en el canal beta |
+| El overlay no aparece sobre mi juego | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa |

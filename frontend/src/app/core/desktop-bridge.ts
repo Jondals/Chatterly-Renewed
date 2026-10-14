@@ -18,6 +18,8 @@ export interface DesktopUpdateSettings {
   interval: UpdateInterval;
   notify: boolean;
   auto: boolean;
+  /** Also offer the beta versions (only for accounts the administrator made testers). */
+  beta: boolean;
 }
 
 /** What the desktop shell tells the page about the update. */
@@ -47,16 +49,16 @@ export interface DesktopUpdates {
 }
 
 /** What to offer when sharing the screen. */
-export type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
+type ShareSurface = 'any' | 'monitor' | 'window' | 'browser';
 
 /** The screen sharing hint. */
-export interface DesktopScreen {
+interface DesktopScreen {
   /** Says what is about to be shared and whether the picker starts with the sound ticked. */
   setSurface(surface: ShareSurface, audio?: boolean): Promise<boolean>;
 }
 
 /** The bar at the top of the window, when the app draws its own (Windows). */
-export interface DesktopTitlebar {
+interface DesktopTitlebar {
   /** Height of the bar in pixels. */
   height: number;
   /** Colors of the buttons of Windows: the background and the symbols, as "#rrggbb". */
@@ -82,13 +84,83 @@ export interface DesktopGraphicsState {
 }
 
 /** The graphics choice. */
-export interface DesktopGraphics {
+interface DesktopGraphics {
   get(): Promise<DesktopGraphicsState | null>;
   set(choice: {
     hardwareAcceleration: boolean;
     backend: GraphicsBackend;
   }): Promise<DesktopGraphicsState | null>;
   restart(): Promise<boolean>;
+}
+
+/** How big the tiles of the overlay are. */
+export type OverlaySize = 'small' | 'medium' | 'large';
+
+/** The choices about the in-game overlay (kept by the desktop app; the place of the panel is fractions of the screen). */
+export interface OverlaySettings {
+  enabled: boolean;
+  /** The shortcut that lets the panel be moved and resized, as an Electron accelerator ("CommandOrControl+Shift+O"). */
+  hotkey: string;
+  size: OverlaySize;
+  /** 30 to 100. */
+  opacity: number;
+  onlySpeaking: boolean;
+  showSelf: boolean;
+  showNames: boolean;
+  /** Keep the overlay out of screen recordings and shared screens. */
+  hideFromCapture: boolean;
+  /** The screen it covers: the main one, or the one the app window is on. */
+  display: 'primary' | 'app';
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/** What the desktop app says about the overlay. */
+export interface OverlayState {
+  settings: OverlaySettings;
+  /** The panel can be moved with the mouse right now. */
+  editing: boolean;
+  /** False when another program already has the shortcut. */
+  hotkeyOk: boolean;
+  /** The overlay window is open. */
+  running: boolean;
+}
+
+/** One person to draw in the overlay. */
+export interface OverlayTile {
+  id: string;
+  name: string;
+  /** A small picture as a data address, or empty to draw the initials. */
+  avatar: string;
+  color: string;
+  speaking: boolean;
+  muted: boolean;
+  /** The id of the stream that carries their video over the local connection, or empty when there is none. */
+  streamId: string;
+}
+
+/** A message of the local video connection between the app and the overlay window. */
+export interface OverlaySignal {
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+}
+
+/** What the overlay tells the page. */
+export type OverlayEvent =
+  | { type: 'state'; state: OverlayState }
+  | { type: 'ready' }
+  | { type: 'closed' }
+  | { type: 'signal'; message: OverlaySignal };
+
+/** The in-game overlay. */
+export interface DesktopOverlay {
+  get(): Promise<OverlayState | null>;
+  set(patch: Partial<OverlaySettings>): Promise<OverlayState | null>;
+  setTiles(tiles: OverlayTile[]): Promise<boolean>;
+  signal(message: OverlaySignal): Promise<boolean>;
+  onEvent(callback: (event: OverlayEvent) => void): () => void;
 }
 
 /** Everything the desktop app puts on the page. */
@@ -98,6 +170,7 @@ export interface DesktopBridge {
   updates?: DesktopUpdates;
   screen?: DesktopScreen;
   graphics?: DesktopGraphics;
+  overlay?: DesktopOverlay;
   titlebar?: DesktopTitlebar;
 }
 

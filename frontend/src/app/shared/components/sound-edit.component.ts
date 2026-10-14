@@ -200,7 +200,7 @@ function toWav(buffer: AudioBuffer, from: number, to: number): Blob {
     }
   `,
 })
-export class SoundEditComponent implements AfterViewInit, OnDestroy {
+class SoundEditComponent implements AfterViewInit, OnDestroy {
   /** The sound to edit (the original file when it was cut before). */
   readonly source = input.required<Blob>();
   /** What the sound had before (when it is edited, not new). */

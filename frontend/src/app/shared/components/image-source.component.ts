@@ -219,7 +219,7 @@ const SEARCH_DELAY_MS = 350;
     }
   `,
 })
-export class ImageSourceComponent {
+class ImageSourceComponent {
   readonly title = input('Choose a picture');
   readonly subtitle = input('');
   /** The result: what was chosen, or null when the person cancels. */

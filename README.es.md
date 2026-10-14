@@ -67,7 +67,7 @@ Todo se configura con variables de entorno (ver [`backend/.env.example`](backend
 | `TRUST_PROXY`                       | –                                             | Número de proxies inversos delante (`1` para Caddy)                                 |
 | `TLS_KEY`, `TLS_CERT`               | –                                             | HTTPS directo (si no, termínalo en un proxy inverso)                                |
 
-> **Lista para producción:** todo por HTTPS/WSS, define `JWT_SECRET` y `SERVER_SECRET`, restringe `CORS_ORIGINS`, monta un relay TURN con `RELAY_ONLY=1`, haz copias de seguridad (`scripts/backup.mjs`, con cifrado opcional) y revisa la lista de [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+> **Lista para producción:** todo por HTTPS/WSS, define `JWT_SECRET` y `SERVER_SECRET`, restringe `CORS_ORIGINS`, monta un relay TURN con `RELAY_ONLY=1`, haz copias de seguridad (`scripts/backup.mjs`, con cifrado opcional) y revisa la lista de [`DOCS.md`](DOCS.md).
 
 ## Cómo funciona la seguridad
 
@@ -89,7 +89,7 @@ Nombres de usuario, campos del perfil, grafo de amigos, miembros de grupos (**no
 
 ## App de escritorio (Windows)
 
-La misma app en su propia ventana, con la web dentro y una actualización automática que se instala sola. Todo lo necesario para ejecutarla, probarla, generar el instalador, publicar actualizaciones y subirla a la Microsoft Store está en [desktop/README.es.md](desktop/README.es.md):
+La misma app en su propia ventana, con la web dentro y una actualización automática que se instala sola. Todo lo necesario para ejecutarla, probarla, generar el instalador, publicar actualizaciones y subirla a la Microsoft Store está en [DOCS.md](DOCS.md):
 
 ```
 pnpm build                  # la web que lleva el instalador
@@ -111,11 +111,11 @@ deploy/      guía para un servidor gratuito (Oracle Cloud), Caddy, coturn y com
 
 ## Despliegue
 
-La guía completa está en [`deploy/DEPLOY.md`](deploy/DEPLOY.md): Docker, Caddy con HTTPS automático, relay TURN con `deploy/turn-setup.sh --private`, lista de comprobación de seguridad para Oracle Cloud, copias de seguridad y cómo verificar que una llamada usa de verdad el relay.
+La guía completa está en [`DOCS.md`](DOCS.md): Docker, Caddy con HTTPS automático, relay TURN con `deploy/turn-setup.sh --private`, lista de comprobación de seguridad para Oracle Cloud, copias de seguridad y cómo verificar que una llamada usa de verdad el relay.
 
 ## Contribuir
 
-Lee primero [CONTRIBUTING.es.md](.github/CONTRIBUTING.es.md). Los problemas de seguridad se comunican según [SECURITY.es.md](SECURITY.es.md) y se espera que todo el mundo siga el [código de conducta](.github/CODE_OF_CONDUCT.es.md). Cómo encaja todo y por qué está hecho así: [ARCHITECTURE.es.md](ARCHITECTURE.es.md).
+Lee primero el apartado de contribuir de [DOCS.md](DOCS.md) (incluye el código de conducta). Los problemas de seguridad se comunican según [SECURITY.md](SECURITY.md).
 
 ## Sonidos y licencias
 

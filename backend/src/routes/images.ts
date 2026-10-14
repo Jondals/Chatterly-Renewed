@@ -15,7 +15,7 @@ import type { AppContext } from '../context';
 import { callerId } from '../validation';
 import { canSeeProfile, profileAudience } from '../models';
 
-export const IMAGE_KINDS = ['avatar', 'banner', 'group', 'font'] as const;
+const IMAGE_KINDS = ['avatar', 'banner', 'group', 'font'] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 
 const MAX_IMAGES_PER_USER = 30;

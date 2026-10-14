@@ -5,7 +5,7 @@
 # * What it does: copies the certificate that Caddy already got for your domain into deploy/tls/, where the relay
 #   (coturn) reads it, and asks the relay to load the new one. The relay then answers over TLS ("turns:", port 5349).
 # * Run by `deploy/turn-setup.sh --tls` the first time. Run it again after every renewal (about every 60 days):
-#     bash deploy/turn-cert-sync.sh                 (or let a daily timer do it, see deploy/DEPLOY.md)
+#     bash deploy/turn-cert-sync.sh                 (or let a daily timer do it, see DOCS.md)
 # ! The private key is copied with mode 640 and group 65534 (coturn runs as "nobody"): nobody else can read it.
 #   deploy/tls/ is in .gitignore. NEVER commit it.
 # ? Needs Caddy on the same machine (it keeps its certificates in /var/lib/caddy/.local/share/caddy/certificates).

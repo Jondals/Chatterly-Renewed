@@ -7,9 +7,9 @@
  */
 
 /** Outline of the arrow shared by the arrow families. */
-export const ARROW = 'M6 3.5v21l5.6-5 3.4 8 3.2-1.4-3.4-7.8H22z';
+const ARROW = 'M6 3.5v21l5.6-5 3.4 8 3.2-1.4-3.4-7.8H22z';
 /** The point every arrow-like cursor points with: the tip of the arrow and the tip of the finger of the hand are drawn here. */
-export const TIP: [number, number] = [10, 4];
+const TIP: [number, number] = [10, 4];
 /** A dart, like a paper plane (the tip is at 5, 4). */
 const DART = 'M5 4 27 14 16.5 16.5 13 27z';
 /** A solid right triangle, like a folded corner (the tip is at 4, 4). */

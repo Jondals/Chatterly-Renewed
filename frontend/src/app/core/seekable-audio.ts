@@ -12,7 +12,7 @@ const MAX_SECONDS = 15 * 60;
 const MAX_BYTES = 40 * 1024 * 1024;
 
 /** True for the formats whose recordings cannot be moved. */
-export function needsRewrite(mime: string): boolean {
+function needsRewrite(mime: string): boolean {
   return /webm|ogg|opus/i.test(mime);
 }
 
