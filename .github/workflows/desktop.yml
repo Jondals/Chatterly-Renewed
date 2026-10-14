@@ -104,13 +104,13 @@ jobs:
             exit 0
           fi
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
-          # A platform is done when its installer, its manifest and the signature of the manifest are already in the release.
-          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.exe" && echo "$ASSETS" | grep -qx 'latest.yml' && echo "$ASSETS" | grep -qx 'latest.yml.sig'; then
+          # A platform is done when its installer and its manifest (which carries the signature inside) are already in the release.
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.exe" && echo "$ASSETS" | grep -qx 'latest.yml'; then
             echo "windows=false" >> "$GITHUB_OUTPUT"
           else
             echo "windows=true" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.AppImage" && echo "$ASSETS" | grep -qx 'latest-linux.yml' && echo "$ASSETS" | grep -qx 'latest-linux.yml.sig'; then
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.AppImage" && echo "$ASSETS" | grep -qx 'latest-linux.yml'; then
             echo "linux=false" >> "$GITHUB_OUTPUT"
           else
             echo "linux=true" >> "$GITHUB_OUTPUT"
@@ -259,7 +259,7 @@ jobs:
             node desktop/scripts/sign-update.mjs "${MANIFESTS[@]}"
           fi
           if [ "$BETA" = true ]; then
-            # The server keeps no record of who downloads. Installers first, then signatures, then manifests: an app that sees a
+            # The server keeps no record of who downloads. Installers first, then manifests: an app that sees a
             # manifest finds everything it points to.
             send() {
               curl -fsS --retry 3 --retry-all-errors -X PUT -H "Authorization: Bearer $BETA_UPLOAD_TOKEN" \
@@ -267,7 +267,7 @@ jobs:
                 "$BETA_URL/api/beta/upload/$(basename "$1")" > /dev/null
               echo "uploaded $(basename "$1")"
             }
-            for FILE in out/*.exe out/*.AppImage out/*.sig out/*.yml; do send "$FILE"; done
+            for FILE in out/*.exe out/*.AppImage out/*.yml; do send "$FILE"; done
           else
             for FILE in out/*; do
               gh release delete-asset "v$VERSION" "$(basename "$FILE")" --yes 2>/dev/null || true

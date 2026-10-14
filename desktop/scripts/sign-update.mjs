@@ -1,14 +1,15 @@
 /**
  * desktop/scripts/sign-update.mjs
- * Signs the manifest of an update (latest.yml, beta.yml...) and writes the signature next to it as "<manifest>.sig".
+ * Signs the manifest of an update (latest.yml, beta.yml...) and writes the signature in its last line ("chatterlySignature: ...",
+ * which electron-updater ignores), so the manifest is the only file to publish. What is signed is everything before that line.
  *
  *   CHATTERLY_UPDATE_KEY="<private key, PEM>" node desktop/scripts/sign-update.mjs <manifest> [<manifest>...]
  *
  * * The app checks this signature with the public key in desktop/src/update-verify.cjs before it downloads anything.
  * ! The private key lives only in the secret of the repository (the "update-signing" environment), and only the small job of the
  *   workflow that publishes receives it: never the jobs that build with the code of many npm packages.
- * * After signing, the script checks the signature with the public keys of the app, so a key that does not match is found in the
- *   build and not by the people who would receive an update they cannot install.
+ * * After signing, the script checks the manifest the same way the app does, so a key that does not match is found in the build and
+ *   not by the people who would receive an update they cannot install.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -24,6 +25,7 @@ if (!pem || files.length === 0) {
   console.error('Usage: CHATTERLY_UPDATE_KEY=<PEM> node sign-update.mjs <manifest>...');
   process.exit(1);
 }
+
 /**
  * The key as it arrives from the secret of GitHub: a PEM, but pasting often changes it (line breaks become spaces, a line is lost,
  * Windows line ends). Only the base64 body matters, so it is taken out and read as the DER of a PKCS#8 key.
@@ -48,16 +50,25 @@ function readKey(text) {
     process.exit(1);
   }
 }
+
+const NEWLINE = String.fromCharCode(10);
 const key = readKey(pem);
 for (const file of files) {
-  const data = fs.readFileSync(file);
-  const signature = crypto.sign(null, data, key).toString('base64');
-  if (!verify.verifySignature(data, signature)) {
+  const text = fs.readFileSync(file, 'utf8');
+  // a manifest that was signed already is signed again from its content
+  const split = verify.splitSigned(text);
+  const base = split ? split.content : text;
+  const content = base.endsWith(NEWLINE) ? base : base + NEWLINE;
+  const signature = crypto.sign(null, Buffer.from(content, 'utf8'), key).toString('base64');
+  const signed = content + verify.SIGNATURE_MARK.slice(1) + signature + NEWLINE;
+  // the same check the app makes: the manifest has to say what it says and the signature has to be of the key the app carries
+  const info = verify.readManifest(content);
+  if (!info || verify.checkAgainstManifest(info, signed) !== '') {
     console.error(
       'The signature of ' + path.basename(file) + ' does not match the public key of the app.',
     );
     process.exit(1);
   }
-  fs.writeFileSync(file + '.sig', signature + '\n');
+  fs.writeFileSync(file, signed);
   console.log('signed ' + path.basename(file));
 }

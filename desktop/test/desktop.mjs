@@ -348,6 +348,16 @@ function auditSignatures() {
     'a broken key verifies nothing',
   );
   check(verify.PUBLIC_KEYS.length >= 1, 'the app carries a public key');
+  const inside = manifest + verify.SIGNATURE_MARK.slice(1) + good + String.fromCharCode(10);
+  check(
+    verify.checkAgainstManifest(found, inside, '', keys) === '',
+    'a manifest that carries its own signature in the last line is accepted (one file per platform)',
+  );
+  check(
+    verify.checkAgainstManifest(found, inside.replace('2.40.0', '2.41.0'), '', keys) !== '' &&
+      verify.checkAgainstManifest(found, manifest, '', keys) !== '',
+    'changing a signed manifest, or taking its signature off, is refused',
+  );
 
   const bundle = require('../src/bundle.cjs');
   const csp = bundle.allowApiInCsp(

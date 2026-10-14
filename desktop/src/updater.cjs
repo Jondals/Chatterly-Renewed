@@ -421,7 +421,10 @@ async function verifyAvailable(info) {
     sha512: info.sha512 || (info.files && info.files[0] && info.files[0].sha512) || '',
   };
   const text = await fetchSmall(base + feed.name, feed.headers);
-  const signature = await fetchSmall(base + feed.name + '.sig', feed.headers);
+  // the signature is the last line of the manifest; only a release older than that has it in a file of its own
+  const signature = verify.splitSigned(text)
+    ? ''
+    : await fetchSmall(base + feed.name + '.sig', feed.headers);
   return verify.checkAgainstManifest(found, text, signature);
 }
 
