@@ -8,7 +8,7 @@
 #   release is skipped, so a push that did not raise the version does nothing. deploy.yml updates the server on the same push.
 # * Two channels, two branches:
 #     master / main  the STABLE release "v2.32.0", marked as the latest one. Everybody's app is offered it.
-#     beta           a PRE-RELEASE "v2.32.0-beta.<run number>" (desktop/scripts/beta-version.mjs gives the build that
+#     beta           a PRE-RELEASE "v2.32.0-beta.<n>" (desktop/scripts/beta-version.mjs gives the build that
 #                    version). Only the apps of the beta testers (Settings > Administration) look at pre-releases.
 #   To publish a beta: push to the branch "beta". To publish it for everybody: merge "beta" into master.
 # * How a release is made: `prepare` creates it as a DRAFT (nobody sees it half-done), each platform job uploads its files,
@@ -54,6 +54,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       beta: ${{ steps.version.outputs.beta }}
       label: ${{ steps.version.outputs.label }}
+      number: ${{ steps.version.outputs.number }}
       windows: ${{ steps.version.outputs.windows }}
       linux: ${{ steps.version.outputs.linux }}
     steps:
@@ -66,28 +67,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
-          RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           VERSION=$(node -p "require('./desktop/package.json').version")
           BETA=false
+          # What people read: "2.32.0" (release) or "2.32.0-b1" (the first beta of it, b2 the next...). The tag is
+          # "v2.32.0-beta.1", "-beta.2"...: the updater needs a version it can order (b10 < b2 as text, and 01 is not a valid
+          # number) and only understands the channels alpha and beta. The number counts the betas of that version; a retry of
+          # the same push (same commit) finds its draft and keeps its number.
+          LABEL="$VERSION"
           if [ "$BRANCH" = beta ]; then
             BETA=true
-            VERSION="${VERSION%%-*}-beta.$RUN_NUMBER"
-          fi
-          # What people read: "2.32.0" (release) or "2.32.0-b1" (the first beta of it, b2 the next...). The tag stays
-          # "v2.32.0-beta.<run>": the updater needs a version it can order, and b10 < b2 as text. A release that already exists
-          # (a retry of the same run) keeps its label.
-          LABEL="$VERSION"
-          if [ "$BETA" = true ]; then
             BASE="${VERSION%%-*}"
-            EXISTING=$(gh release view "v$VERSION" --json name --jq .name 2>/dev/null || true)
-            if [ -n "$EXISTING" ]; then
-              LABEL="${EXISTING#Chatterly v}"
+            TAG=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq "[.[] | select(.tag_name | startswith(\"v$BASE-beta.\")) | select(.target_commitish == \"$GITHUB_SHA\")][0].tag_name // empty")
+            if [ -n "$TAG" ]; then
+              VERSION="${TAG#v}"
             else
-              COUNT=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\"))] | length")
-              LABEL="$BASE-b$((COUNT + 1))"
+              LAST=$(gh release list --limit 200 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$BASE-beta.\")) | .tagName | sub(\"^.*beta\\.\"; \"\") | tonumber] | max // 0")
+              VERSION="$BASE-beta.$((LAST + 1))"
             fi
+            LABEL="$BASE-b${VERSION##*.}"
           fi
+          echo "number=${VERSION##*.}" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "beta=$BETA" >> "$GITHUB_OUTPUT"
           echo "label=$LABEL" >> "$GITHUB_OUTPUT"
@@ -124,7 +125,7 @@ jobs:
           persist-credentials: false
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
+        run: node desktop/scripts/beta-version.mjs "${{ needs.prepare.outputs.number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -145,7 +146,7 @@ jobs:
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
         shell: bash
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
+        run: node desktop/scripts/beta-version.mjs "${{ needs.prepare.outputs.number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
         with:
           mode: desktop
@@ -186,7 +187,7 @@ jobs:
           persist-credentials: false
       - name: Version of the beta build
         if: needs.prepare.outputs.beta == 'true'
-        run: node desktop/scripts/beta-version.mjs "${{ github.run_number }}" "${{ needs.prepare.outputs.label }}"
+        run: node desktop/scripts/beta-version.mjs "${{ needs.prepare.outputs.number }}" "${{ needs.prepare.outputs.label }}"
       - uses: ./.github/actions/build-web
         with:
           mode: desktop
@@ -205,9 +206,9 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           LABEL: ${{ needs.prepare.outputs.label }}
         run: |
-          YML=desktop/dist/latest-linux.yml
-          if [ ! -f "$YML" ]; then YML=desktop/dist/beta-linux.yml; fi
-          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.AppImage" "$YML" --clobber
+          # The update file of the channel (latest-linux.yml or beta-linux.yml): whatever electron-builder wrote.
+          ls -l desktop/dist
+          gh release upload "v$VERSION" "desktop/dist/Chatterly-$LABEL.AppImage" desktop/dist/*-linux.yml --clobber
 
   publish:
     # Makes the release public once every platform job that had to run has finished well.

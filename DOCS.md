@@ -176,7 +176,7 @@ Como el de Discord, solo en la app de escritorio: las cámaras (o fotos) y los n
 | Rama | Qué publica | Quién lo recibe |
 | --- | --- | --- |
 | `master` (o `main`) | Release estable `v2.32.0`, marcada como la última. Además `deploy.yml` actualiza el servidor | Todas las apps instaladas |
-| `beta` | Pre-release `v2.32.0-beta.<nº de ejecución>` (el workflow le pone ese número con `desktop/scripts/beta-version.mjs`). **No** toca el servidor | Solo las apps de los probadores beta |
+| `beta` | Pre-release `v2.32.0-beta.<n>` (n cuenta las betas de esa versión; el workflow le pone ese número con `desktop/scripts/beta-version.mjs`). **No** toca el servidor | Solo las apps de los probadores beta |
 
 Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`). Para sacarla a todo el mundo: fusiona `beta` en `master`. La beta es siempre mayor que la estable anterior y menor que la estable de su número (`2.32.0-beta.5` < `2.32.0`), así que la estable sustituye a cualquier beta y una beta nunca reemplaza a una estable.
 
@@ -184,7 +184,7 @@ Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`).
 
 **Quién es probador.** Lo decide un administrador en esa misma sección. La lista vive en el servidor (`routes/beta.ts`, tabla `beta_testers`, se borra con la cuenta); quien no es administrador recibe 404 en esas rutas como si no existieran. Un probador (o un administrador) ve en **Ajustes > Actualizaciones** el selector **Canal de actualizaciones: Release / Beta**; con Beta su app (`updater.cjs`, `allowPrerelease`) busca también en las pre-releases de GitHub, y con Release vuelve a las estables. Una app instalada desde una build beta arranca ya en el canal Beta. Si le quitas el acceso a un probador, su app vuelve a Release sola en cuanto el servidor se lo dice.
 
-**Cómo se llaman.** Lo que se lee (título de la release, versión en la app) es `Chatterly v2.32.0` para una release y `v2.32.0-b1`, `-b2`... para las betas de esa versión (las cuenta el workflow). Solo la etiqueta de Git conserva `v2.32.0-beta.<nº de ejecución>`: el actualizador necesita una versión que sepa ordenar (como texto, `b10` quedaría antes que `b2`) y solo entiende los canales `alpha` y `beta`.
+**Cómo se llaman.** Lo que se lee (título de la release, versión en la app) es `Chatterly v2.32.0` para una release y `v2.32.0-b1`, `-b2`... para las betas de esa versión (las cuenta el workflow). Solo la etiqueta de Git conserva `v2.32.0-beta.<n>` (n es el mismo número de `b1`, `b2`...): el actualizador necesita una versión que sepa ordenar (como texto, `b10` quedaría antes que `b2`) y solo entiende los canales `alpha` y `beta`.
 
 Qué conviene saber: el control es solo de **quién recibe el aviso de actualización dentro de la app**. Si las Releases son públicas, cualquiera puede descargar una beta a mano; no hay secreto en ellas. Y el servidor web sigue siendo uno solo: la beta cambia la app de escritorio, no el backend (un cambio de backend en beta debe esperar a `master` para llegar al servidor).
 
