@@ -2,6 +2,12 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.34.0
+
+- **Desktop: the beta channel no longer gets stuck.** The app asked the server for a new beta access token every time the update screen changed, dozens in a few seconds, until the server refused them; after switching Release and Beta the app was left without access and only said "The update could not be downloaded". Now the token is asked for only when the channel or the account changes (and again a while later if the server did not answer), a look or download waits for it instead of failing, and the real reason of a failure is shown under the message.
+- **Android: clearer update messages.** On the Beta channel the app says when no Android beta has been published yet, or when the newest beta is older than the installed version (Android only installs it after uninstalling), instead of "up to date".
+- **Fewer files in a release.** A release carries the Windows installer, the Linux AppImage and the Android APK (uploaded in that order) plus the update files of the desktop apps; the separate `.apk.sha256` (Android checks the signature of the APK itself) and the separate `.yml.sig` (the signature is inside every `.yml` since 2.33.0) are gone. A desktop app of 2.32.0 or before therefore no longer updates by itself: install the new version by hand once.
+
 ## 2.33.0
 
 - **Betas without GitHub.** The beta versions are no longer published in GitHub: they are served by the Chatterly server only to the accounts an administrator made testers (a token of two hours per account, checked again on every download). They are numbered 1, 2, 3 for each version, and the server keeps only the newest and the app deletes the installer it downloaded after updating.

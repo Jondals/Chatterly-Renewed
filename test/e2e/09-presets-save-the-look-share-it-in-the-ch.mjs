@@ -13,7 +13,7 @@ export async function step09(world) {
   await a.click('a:has-text("Appearance")');
   await a.click('button[aria-expanded]:has-text("Theme presets")');
   await a.fill('input[aria-label="Name of the preset"]', 'Night');
-  await a.click('button:has-text("Save what I have now")');
+  await a.click('app-presets form button[type=submit]');
   await a.waitForSelector('app-presets >> text=Night');
   check(true, 'a preset of the theme is saved with a name');
   await a.keyboard.press('Escape');

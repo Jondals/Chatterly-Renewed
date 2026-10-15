@@ -358,17 +358,6 @@ function auditSignatures() {
       verify.checkAgainstManifest(found, manifest, '', keys) !== '',
     'changing a signed manifest, or taking its signature off, is refused',
   );
-  // The apps up to 2.32.0 read only "<manifest>.sig" and check it against the whole manifest they download, signature line
-  // included (sign-update.mjs writes that file too).
-  const legacy = sign(null, Buffer.from(inside), pair.privateKey).toString('base64');
-  check(
-    verify.verifySignature(Buffer.from(inside), legacy, keys) && !!verify.readManifest(inside),
-    'the separate .sig still lets an app of 2.32.0 or before verify the new manifest',
-  );
-  check(
-    !verify.verifySignature(Buffer.from(inside.replace('2.40.0', '2.41.0')), legacy, keys),
-    'a .sig left from another build does not verify a different manifest (it is refused, not trusted)',
-  );
 
   const bundle = require('../src/bundle.cjs');
   const csp = bundle.allowApiInCsp(

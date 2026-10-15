@@ -2,6 +2,12 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.34.0
+
+- **Escritorio: el canal beta ya no se atasca.** La app pedía al servidor un token de acceso a la beta cada vez que cambiaba la pantalla de actualizaciones, decenas en pocos segundos, hasta que el servidor los rechazaba; al cambiar entre Release y Beta la app se quedaba sin acceso y solo decía "No se pudo descargar la actualización". Ahora el token se pide solo cuando cambian el canal o la cuenta (y otra vez un rato después si el servidor no respondió), una búsqueda o descarga lo espera en vez de fallar, y el motivo real de un fallo aparece debajo del mensaje.
+- **Android: mensajes de actualización más claros.** En el canal Beta la app dice cuándo todavía no hay ninguna beta de Android publicada, o cuándo la beta más nueva es anterior a la versión instalada (Android solo la instala tras desinstalar), en vez de "al día".
+- **Menos archivos en una release.** Una release lleva el instalador de Windows, el AppImage de Linux y el APK de Android (subidos en ese orden) y los archivos de actualización de escritorio; desaparecen el `.apk.sha256` aparte (Android comprueba la firma del propio APK) y los `.yml.sig` aparte (la firma va dentro de cada `.yml` desde la 2.33.0). Por eso una app de escritorio 2.32.0 o anterior ya no se actualiza sola: hay que instalar la nueva versión a mano una vez.
+
 ## 2.33.0
 
 - **Betas sin GitHub.** Las versiones beta ya no se publican en GitHub: las sirve el servidor de Chatterly solo a las cuentas que un administrador hizo probadoras (un token de dos horas por cuenta, comprobado otra vez en cada descarga). Se numeran 1, 2, 3 en cada versión, el servidor guarda solo la más reciente y la app borra el instalador que descargó tras actualizar.

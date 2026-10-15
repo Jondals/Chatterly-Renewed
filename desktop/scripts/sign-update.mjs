@@ -70,23 +70,5 @@ for (const file of files) {
     process.exit(1);
   }
   fs.writeFileSync(file, signed);
-  // ! The apps up to 2.32.0 only read the signature from "<manifest>.sig", and check it against the WHOLE manifest they
-  // download (signature line included). Without this file they could never update again (a stale .sig of another build on
-  // the server made them refuse every beta). It is written while those apps may still be around.
-  const legacy = crypto.sign(null, Buffer.from(signed, 'utf8'), key).toString('base64');
-  if (
-    !verify.verifySignature(Buffer.from(signed, 'utf8'), legacy) ||
-    !verify.readManifest(signed)
-  ) {
-    console.error('The separate signature of ' + path.basename(file) + ' does not verify.');
-    process.exit(1);
-  }
-  fs.writeFileSync(file + '.sig', legacy + NEWLINE);
-  console.log(
-    'signed ' +
-      path.basename(file) +
-      ' (and ' +
-      path.basename(file) +
-      '.sig for apps up to 2.32.0)',
-  );
+  console.log('signed ' + path.basename(file));
 }

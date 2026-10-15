@@ -30,7 +30,7 @@
 #   no secret, and checks it (mobile/test/mobile.mjs). `release` signs it with apksigner and the keystore of the secrets
 #   ANDROID_KEYSTORE_B64 (the .p12 file in base64) and ANDROID_KEYSTORE_PASSWORD, refuses it unless its certificate is exactly
 #   the one in mobile/release-certificate.sha256 (Android only installs an update signed with the SAME key, so an APK signed with
-#   any other key must never be published), and attaches Chatterly-<v>.apk and Chatterly-<v>.apk.sha256 to the release.
+#   any other key must never be published), and attaches Chatterly-<v>.apk to the release.
 #
 # * To add a platform (Android, macOS, iOS): copy the `linux` job, change `runs-on`, the build step and the file names, add a
 #   check for its files in `prepare` (an output like `linux`), and list the job in `release`'s `needs` (and its artifact in that job).
@@ -124,7 +124,7 @@ jobs:
           else
             echo "linux=true" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.apk" && echo "$ASSETS" | grep -qx "Chatterly-$LABEL.apk.sha256"; then
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.apk"; then
             echo "android=false" >> "$GITHUB_OUTPUT"
           else
             echo "android=true" >> "$GITHUB_OUTPUT"
@@ -352,7 +352,6 @@ jobs:
                 echo "The APK was signed with another certificate ($ACTUAL), not the one of the app ($EXPECTED)"
                 exit 1
               fi
-              (cd out && sha256sum "$NAME" > "$NAME.sha256")
               rm -f "out/$NAME.idsig"
             done
             rm -f "$KEYSTORE"
@@ -370,14 +369,13 @@ jobs:
                 "$BETA_URL/api/beta/upload/$(basename "$1")" > /dev/null
               echo "uploaded $(basename "$1")"
             }
-            # The separate *.yml.sig (apps up to 2.32.0) goes right before its manifest, so the two never disagree for long.
-            for FILE in out/*.exe out/*.AppImage out/*.yml.sig out/*.yml; do send "$FILE"; done
+            for FILE in out/*.exe out/*.AppImage out/*.yml; do send "$FILE"; done
             # Android: the APK, then beta-android.yml (version, file, SHA-256). The app installs it only if Android confirms it is
             # newer and signed with the same certificate, so it needs no Ed25519 signature. A server that still runs an older
             # version refuses these names: the desktop beta is published anyway and the APK waits for the next beta.
             for APK in out/*.apk; do
               NAME=$(basename "$APK")
-              printf 'version: %s\npath: %s\nsha256: %s\n' "${NAME#Chatterly-}" "$NAME" "$(cut -d' ' -f1 < "$APK.sha256")" \
+              printf 'version: %s\npath: %s\nsha256: %s\n' "${NAME#Chatterly-}" "$NAME" "$(sha256sum "$APK" | cut -d' ' -f1)" \
                 | sed 's/^version: \(.*\)\.apk$/version: \1/' > out/beta-android.yml
               if send "$APK" && send out/beta-android.yml; then
                 echo "Android beta published: $NAME"
@@ -386,7 +384,9 @@ jobs:
               fi
             done
           else
-            for FILE in out/*; do
+            # Installers first, in this order (Windows, Linux, Android), then the manifests: an app that sees a manifest finds
+            # the installer it points to. The signature travels inside each manifest (last line).
+            for FILE in out/*.exe out/*.AppImage out/*.apk out/*.yml; do
               gh release delete-asset "v$VERSION" "$(basename "$FILE")" --yes 2>/dev/null || true
               gh release upload "v$VERSION" "$FILE"
             done
