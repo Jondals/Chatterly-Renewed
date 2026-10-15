@@ -43,6 +43,8 @@ import {
   ToggleComponent,
 } from '../../shared/components/controls.component';
 import { ACCENTS, THEMES } from '../../core/theme-data';
+import { ANDROID_APP } from '../../core/config';
+import { NativeCallService } from '../../core/services/native-call.service';
 import { PresetsComponent } from './presets.component';
 
 const FONTS: { id: FontId; label: string; css: string }[] = [
@@ -451,6 +453,63 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
           <app-icon name="play" [size]="14" /> {{ 'Watch it again' | t }}
         </button>
       </app-setting-row>
+      <app-setting-row
+        title="Show it when the app starts"
+        hint="Off: the app opens straight away (you can still watch it with the button above)."
+      >
+        <app-toggle
+          [checked]="s.introOnStart()"
+          (checkedChange)="s.introOnStart.set($event)"
+          [label]="'Show it when the app starts' | t"
+        />
+      </app-setting-row>
+    </section>
+
+    <section class="settings-card">
+      <h2 class="settings-card-title">{{ 'Performance' | t }}</h2>
+      <app-setting-row title="Power mode" [hint]="powerHint()">
+        <app-segmented
+          [options]="powerModes"
+          [value]="s.powerMode()"
+          (valueChange)="setPowerMode($event)"
+        />
+      </app-setting-row>
+      @if (s.powerMode() === 'auto' && s.saving()) {
+        <p class="pb-3 text-xs text-amber">
+          {{
+            (s.batteryLow()
+              ? 'Saving battery now: the battery is low.'
+              : 'Saving battery now: this device could not keep up with everything.'
+            ) | t
+          }}
+        </p>
+      }
+      @if (android) {
+        <app-setting-row
+          title="Calls in the background"
+          hint="Stay connected with a quiet notification, so calls ring with the app minimized or the screen off. Off saves some battery, but calls only ring with the app open."
+        >
+          <app-toggle
+            [checked]="s.backgroundCalls()"
+            (checkedChange)="s.backgroundCalls.set($event)"
+            [label]="'Calls in the background' | t"
+          />
+        </app-setting-row>
+        @if (!nativeCall.fullScreenAllowed()) {
+          <app-setting-row
+            title="Calls over the lock screen"
+            hint="Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked."
+          >
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              (click)="nativeCall.openFullScreenSettings()"
+            >
+              {{ 'Allow' | t }}
+            </button>
+          </app-setting-row>
+        }
+      }
     </section>
 
     <section class="settings-card">
@@ -955,9 +1014,36 @@ export class AppearanceSectionComponent {
     { at: 5, text: 'Round' },
   ];
   protected readonly shuffleModes = [
-    { id: 'reload', label: 'On every reload' },
-    { id: 'interval', label: 'Every few minutes' },
+    { id: 'reload', label: 'Reload' },
+    { id: 'interval', label: 'Timed' },
   ];
+  /** The Android app: it has the setting of calls in the background. */
+  protected readonly android = ANDROID_APP;
+  /** Android: the permission of calls over the lock screen. */
+  protected readonly nativeCall = inject(NativeCallService);
+  protected readonly powerModes = [
+    { id: 'auto', label: 'Automatic' },
+    { id: 'full', label: 'Maximum' },
+    { id: 'saver', label: 'Saver' },
+  ];
+
+  /** What the chosen power mode does. */
+  protected powerHint(): string {
+    const mode = this.s.powerMode();
+    if (mode === 'saver') {
+      return 'Still decorations, no blur, the camera at 480p and 15 frames per second. The animations of the interface follow their own setting.';
+    }
+    if (mode === 'full') {
+      return 'Everything on, always, even with low battery.';
+    }
+    return 'Everything on. With low battery, or on a device that cannot keep up, it saves battery by itself.';
+  }
+
+  /** Chooses the power mode. */
+  protected setPowerMode(value: string): void {
+    this.s.powerMode.set(value === 'saver' ? 'saver' : value === 'full' ? 'full' : 'auto');
+  }
+
   protected readonly animations = [
     { id: 'off', label: 'Static' },
     { id: 'on', label: 'Animated' },

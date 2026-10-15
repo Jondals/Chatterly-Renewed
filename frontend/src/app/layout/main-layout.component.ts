@@ -8,6 +8,9 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { I18nService } from '../core/i18n/i18n.service';
 import { CallService } from '../core/services/call.service';
+import { NativeCallService } from '../core/services/native-call.service';
+import { OverlayService } from '../core/services/overlay.service';
+import { ANDROID_APP } from '../core/config';
 import { NameFontShareService } from '../core/services/name-font-share.service';
 import { ShortcutsService } from '../core/services/shortcuts.service';
 import { SocketService } from '../core/services/socket.service';
@@ -26,6 +29,7 @@ import { IncomingCallComponent } from './incoming-call.component';
 import { ProfileModalComponent } from './profile-modal.component';
 import { RailComponent } from './rail.component';
 import { SoundboardDockComponent } from './soundboard-dock.component';
+import { closeOnBack } from '../core/services/back.service';
 
 /** How long the app waits before it prepares the emoji list (ms). */
 const EMOJI_WARM_UP_MS = 6000;
@@ -80,7 +84,10 @@ const EMOJI_WARM_UP_MS = 6000;
       </main>
     </div>
     <router-outlet name="settings" />
-    <app-call-dock />
+    <!-- On Android the call lives in the notification of the phone (NativeCallService), not in a floating panel. -->
+    @if (!android) {
+      <app-call-dock />
+    }
     <app-incoming-call />
     @defer (on idle) {
       <app-guild-modals />
@@ -94,6 +101,9 @@ const EMOJI_WARM_UP_MS = 6000;
   `,
 })
 export class MainLayoutComponent implements OnInit {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   /** The keyboard shortcuts of the call work everywhere in the private area. */
   private readonly shortcuts = inject(ShortcutsService);
   /** Shares the own name font with friends and opens theirs (it works by itself once it exists). */
@@ -121,6 +131,14 @@ export class MainLayoutComponent implements OnInit {
   private readonly guilds = inject(GuildStore);
   private readonly messages = inject(MessageStore);
   protected readonly call = inject(CallService);
+  /** The Android app: the call is controlled from the notification of the phone. */
+  protected readonly android = ANDROID_APP;
+  private readonly nativeCall = inject(NativeCallService);
+  /**
+   * ! The game overlay of the desktop app must be fed from the start: it used to be made only when Settings was opened,
+   *   so after starting the app a call never showed the overlay.
+   */
+  private readonly overlay = inject(OverlayService);
   private readonly i18n = inject(I18nService);
 
   /** Asks the emoji list in advance, when the browser has nothing else to do. */
@@ -155,5 +173,15 @@ export class MainLayoutComponent implements OnInit {
       return undefined;
     });
     void this.guilds.refresh();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return this.ui.sidebarOpen();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.ui.sidebarOpen.set(false);
   }
 }

@@ -20,6 +20,7 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import { closeOnBack } from '../../core/services/back.service';
 
 /** How far from the cursor the menu appears (pixels). */
 const CURSOR_GAP = 4;
@@ -133,6 +134,9 @@ const CURSOR_GAP = 4;
   `,
 })
 export class PersonMenuComponent implements OnDestroy {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   /** Where the cursor was (the menu appears next to it). */
   readonly x = input.required<number>();
   readonly y = input.required<number>();
@@ -235,5 +239,15 @@ export class PersonMenuComponent implements OnDestroy {
   protected endMove(event: PointerEvent): void {
     this.moving = false;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return true;
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.closed.emit();
   }
 }

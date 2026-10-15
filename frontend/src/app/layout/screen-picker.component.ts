@@ -6,6 +6,7 @@
 import { Component, HostListener, inject } from '@angular/core';
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { ScreenPickerService } from '../core/services/screen-picker.service';
+import { closeOnBack } from '../core/services/back.service';
 
 /** The menu to choose a screen or a window to share. */
 @Component({
@@ -90,6 +91,9 @@ import { ScreenPickerService } from '../core/services/screen-picker.service';
   `,
 })
 export class ScreenPickerComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   protected readonly picker = inject(ScreenPickerService);
 
   /** Esc closes the menu. */
@@ -103,5 +107,15 @@ export class ScreenPickerComponent {
     if (event.target === event.currentTarget) {
       this.picker.cancel();
     }
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return !!this.picker.request();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.picker.cancel();
   }
 }

@@ -4,6 +4,7 @@
  */
 import { Component, HostListener, input, output } from '@angular/core';
 import { IconComponent } from './icon.component';
+import { closeOnBack } from '../../core/services/back.service';
 
 @Component({
   selector: 'app-modal',
@@ -46,6 +47,9 @@ import { IconComponent } from './icon.component';
   `,
 })
 export class ModalComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   readonly title = input.required<string>();
   readonly subtitle = input<string>('');
   readonly width = input(460);
@@ -57,5 +61,15 @@ export class ModalComponent {
   /** A press on the dark area around the window closes it. */
   onBackdrop(event: MouseEvent) {
     if (event.target === event.currentTarget) this.closed.emit();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return true;
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.closed.emit();
   }
 }

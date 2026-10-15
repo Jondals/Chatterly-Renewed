@@ -12,6 +12,7 @@ import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { SpinlyLogoComponent } from '../../shared/components/spinly-logo.component';
 import { SpinlyComposerComponent } from './spinly-composer.component';
+import { closeOnBack } from '../../core/services/back.service';
 
 /** Large panel with the Spinly frame, opened from the "+" menu of the composer and from the call screen. */
 @Component({
@@ -121,6 +122,9 @@ import { SpinlyComposerComponent } from './spinly-composer.component';
   `,
 })
 export class SpinlyPanelComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   protected readonly spinly = inject(SpinlyService);
   private readonly settings = inject(SettingsService);
   private readonly sanitizer = inject(DomSanitizer);
@@ -173,5 +177,15 @@ export class SpinlyPanelComponent {
     if (this.spinly.panelOpen()) {
       this.spinly.close();
     }
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return this.spinly.panelOpen() && !this.spinly.composing();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.spinly.close();
   }
 }

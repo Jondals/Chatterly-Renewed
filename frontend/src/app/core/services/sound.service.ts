@@ -24,6 +24,7 @@ import {
 } from '../sound-library';
 import { SettingsService } from './settings.service';
 import { isDesktopApp } from '../desktop-bridge';
+import { ANDROID_APP } from '../config';
 
 /** The sounds of the interface and of the calls. */
 export type UiSound =
@@ -153,7 +154,8 @@ export class SoundService {
 
   /** True when the browser lets a sound start (a press happened in this page, or the desktop app, which always allows it). */
   get activated(): boolean {
-    return this.gestured || isDesktopApp();
+    // The desktop app and the Android app (its WebView plays without a press) may sound from the start.
+    return this.gestured || isDesktopApp() || ANDROID_APP;
   }
 
   /** Master gain for the volume setting (0 to 100): a perceptual curve, then boosted. */

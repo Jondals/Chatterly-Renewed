@@ -5,6 +5,7 @@
  * page underneath may change; the animations themselves live in a component that is loaded only when needed.
  */
 import { Injectable, signal } from '@angular/core';
+import { ANDROID_APP } from '../config';
 import { isDesktopApp } from '../desktop-bridge';
 import { preloadSounds } from '../sound-library';
 
@@ -22,6 +23,8 @@ const GIVE_UP_MS = 4000;
 
 /** The mark that says the introduction already played in this session of the browser. */
 const INTRO_SEEN = 'chatterly.introSeen';
+/** The setting "show the introduction when the app starts" (Settings > Appearance), read here before the settings exist. */
+export const INTRO_ON_START = 'chatterly.pref.introOnStart';
 
 /** Plays the arrival animations and says when the page underneath can change. */
 @Injectable({ providedIn: 'root' })
@@ -86,15 +89,24 @@ export class ArrivalService {
     } catch {
       /* no storage: the introduction plays, as it would the first time */
     }
-    if (this.wanted() && !seen) {
-      if (isDesktopApp()) {
-        // The desktop app plays the introduction with sound: start fetching it now, before the animation is on screen.
+    if (this.wanted() && !seen && this.onStart()) {
+      if (isDesktopApp() || ANDROID_APP) {
+        // The apps play the introduction with sound: start fetching it now, before the animation is on screen.
         void preloadSounds(['authIntro']);
       }
       void this.play('intro');
       setTimeout(this.dropCover, 6000);
     } else {
       this.dropCover();
+    }
+  }
+
+  /** Whether the person wants the introduction when the app starts (on unless they turned it off). */
+  private onStart(): boolean {
+    try {
+      return localStorage.getItem(INTRO_ON_START) !== 'false';
+    } catch {
+      return true;
     }
   }
 

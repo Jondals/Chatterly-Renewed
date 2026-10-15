@@ -18,6 +18,8 @@ import { CallService } from '../../core/services/call.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { openBackgroundPicker } from './background-picker.component';
+import { closeOnBack } from '../../core/services/back.service';
+import { listenWhile } from '../../shared/util/listen-while';
 
 /** One device of the list. */
 interface Device {
@@ -146,6 +148,9 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
   `,
 })
 export class DeviceMenuComponent implements OnDestroy {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   /** Which devices to offer. */
   readonly kind = input.required<DeviceKind>();
 
@@ -170,9 +175,16 @@ export class DeviceMenuComponent implements OnDestroy {
     navigator.mediaDevices?.removeEventListener?.('devicechange', this.onDeviceChange);
   }
 
+  /** While open, a press anywhere else closes the list. */
+  private readonly outside = listenWhile(
+    this.backOpen.bind(this),
+    document,
+    'mousedown',
+    this.onOutside.bind(this),
+  );
+
   /** A press anywhere else closes the list. */
-  @HostListener('document:mousedown', ['$event'])
-  onOutside(event: MouseEvent): void {
+  onOutside(event: Event): void {
     if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
       this.open.set(false);
     }
@@ -246,5 +258,15 @@ export class DeviceMenuComponent implements OnDestroy {
   protected chooseCamera(id: string): void {
     this.settings.cameraDeviceId.set(id);
     void this.call.changeCamera();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return this.open();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.open.set(false);
   }
 }

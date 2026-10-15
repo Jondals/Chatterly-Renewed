@@ -2,7 +2,7 @@
  * src/app/shared/components/page-header.component.ts
  * Page header with title, icon and actions.
  */
-import { Component, inject, input } from '@angular/core';
+import { Component, inject, input, output } from '@angular/core';
 import { UiService } from '../../core/services/ui.service';
 import { NameColorDirective } from '../util/name-color.directive';
 import { IconComponent } from './icon.component';
@@ -22,21 +22,30 @@ import { IconComponent } from './icon.component';
       >
         <app-icon name="menu" />
       </button>
-      <ng-content select="[leading]" />
-      @if (icon()) {
-        <app-icon [name]="icon()" class="text-muted" />
-      }
-      <div class="min-w-0 flex-1 leading-tight">
-        <h1
-          class="truncate text-[0.9375rem] font-bold"
-          [class]="titleClass()"
-          [appNameColor]="titleColor()"
-        >
-          {{ title() }}
-        </h1>
-        @if (subtitle()) {
-          <p class="truncate text-xs text-muted">{{ subtitle() }}</p>
+      <div
+        class="flex min-w-0 flex-1 items-center gap-3"
+        [class.page-header-link]="clickable()"
+        [attr.role]="clickable() ? 'button' : null"
+        [attr.tabindex]="clickable() ? 0 : null"
+        (click)="press()"
+        (keydown.enter)="press()"
+      >
+        <ng-content select="[leading]" />
+        @if (icon()) {
+          <app-icon [name]="icon()" class="text-muted" />
         }
+        <div class="min-w-0 flex-1 leading-tight">
+          <h1
+            class="truncate text-[0.9375rem] font-bold"
+            [class]="titleClass()"
+            [appNameColor]="titleColor()"
+          >
+            {{ title() }}
+          </h1>
+          @if (subtitle()) {
+            <p class="truncate text-xs text-muted">{{ subtitle() }}</p>
+          }
+        </div>
       </div>
       <ng-content />
     </header>
@@ -50,5 +59,16 @@ export class PageHeaderComponent {
   readonly titleClass = input('');
   /** Color or gradient of the title when it is the name of a person. */
   readonly titleColor = input('');
+  /** The picture and the title open something when pressed (the profile of the person of a direct chat). */
+  readonly clickable = input(false);
+  /** The picture or the title was pressed (only when clickable). */
+  readonly pressed = output<void>();
   protected readonly ui = inject(UiService);
+
+  /** Tells the page that the picture or the title was pressed. */
+  protected press(): void {
+    if (this.clickable()) {
+      this.pressed.emit();
+    }
+  }
 }

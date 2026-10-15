@@ -7,7 +7,6 @@
 import {
   Component,
   ElementRef,
-  HostListener,
   computed,
   inject,
   input,
@@ -17,6 +16,8 @@ import {
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from './icon.component';
+import { closeOnBack } from '../../core/services/back.service';
+import { listenWhile } from '../util/listen-while';
 
 /** One choice of the list. */
 export interface SelectOption {
@@ -88,6 +89,9 @@ const MAX_HEIGHT = 288;
   `,
 })
 export class SelectComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   /** What can be chosen. */
   readonly options = input.required<SelectOption[]>();
   /** The value that is chosen now. */
@@ -193,15 +197,32 @@ export class SelectComponent {
     }
   }
 
-  /** A press anywhere else closes the list. */
-  @HostListener('document:mousedown')
+  /** While the list is open, a press anywhere else closes it, and so does a resize (the list does not follow the page). */
+  private readonly outside = listenWhile(
+    this.backOpen.bind(this),
+    document,
+    'mousedown',
+    this.closeOutside.bind(this),
+  );
+  private readonly resized = listenWhile(
+    this.backOpen.bind(this),
+    window,
+    'resize',
+    this.closeOutside.bind(this),
+  );
+
+  /** Closes the list. */
   protected closeOutside(): void {
     this.open.set(false);
   }
 
-  /** The list does not follow a page that moves under it. */
-  @HostListener('window:resize')
-  protected closeOnResize(): void {
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return this.open();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
     this.open.set(false);
   }
 }

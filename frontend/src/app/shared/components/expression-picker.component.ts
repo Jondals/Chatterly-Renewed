@@ -24,6 +24,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { loadEmojiData, type EmojiEntry } from '../util/emoji-data';
 import { GifThumbComponent } from './gif-thumb.component';
 import { IconComponent } from './icon.component';
+import { closeOnBack } from '../../core/services/back.service';
 
 type Tab = 'emoji' | 'gif' | 'sticker';
 
@@ -327,6 +328,9 @@ const SCROLL_AHEAD_PX = 320;
   `,
 })
 export class ExpressionPickerComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   readonly tabs = input<Tab[]>(['emoji', 'gif', 'sticker']);
   readonly emoji = output<string>();
   readonly gif = output<GifResult>();
@@ -755,6 +759,16 @@ export class ExpressionPickerComponent {
     this.closed.emit();
   }
   @HostListener('document:keydown.escape') onEscape() {
+    this.closed.emit();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return true;
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
     this.closed.emit();
   }
 }

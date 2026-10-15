@@ -26,6 +26,9 @@ import { SocialStore } from './social.store';
 
 type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
 
+/** The most decrypted files (pictures, GIFs, voice notes) kept in memory at once. */
+const MAX_DECRYPTED_FILES = 120;
+
 export interface ViewAttachment extends AttachmentPayload {
   kind: AttachmentKind;
 }
@@ -652,7 +655,11 @@ export class MessageStore {
   /** Downloads, decrypts and integrity-checks an attachment; resolves to an object URL. */
   attachmentUrl(attachment: ViewAttachment): Promise<string> {
     let promise = this.attachmentCache.get(attachment.fileId);
-    if (!promise) {
+    if (promise) {
+      // The most recently used go to the end: the ones that leave first are the ones not seen for longest.
+      this.attachmentCache.delete(attachment.fileId);
+      this.attachmentCache.set(attachment.fileId, promise);
+    } else {
       promise = async function (this: MessageStore) {
         const cipher = await this.api.download(`/api/files/${attachment.fileId}`);
         const plain = await decryptFile(cipher, attachment.secret);
@@ -670,8 +677,30 @@ export class MessageStore {
         }.bind(this),
       );
       this.attachmentCache.set(attachment.fileId, promise);
+      this.trimAttachments();
     }
     return promise;
+  }
+
+  /**
+   * ! Keeps at most MAX_DECRYPTED_FILES decrypted files in memory. Every picture, GIF and voice note that was ever opened
+   *   stayed there until the app closed, and a long chat full of GIFs filled the memory of a phone until the page froze.
+   *   The ones not used for longest are released (opened again, they are decrypted again).
+   */
+  private trimAttachments(): void {
+    while (this.attachmentCache.size > MAX_DECRYPTED_FILES) {
+      const oldest = this.attachmentCache.keys().next().value as string;
+      const promise = this.attachmentCache.get(oldest);
+      this.attachmentCache.delete(oldest);
+      void promise?.then(
+        function revoke(url: string): void {
+          URL.revokeObjectURL(url);
+        },
+        function ignore(): void {
+          return undefined;
+        },
+      );
+    }
   }
 
   // ---- realtime handlers ---------------------------------------------------------------------

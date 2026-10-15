@@ -258,12 +258,12 @@ export class SecuritySectionComponent {
   private readonly api = inject(ApiService);
 
   protected readonly presenceOptions = [
-    { id: 'everyone', label: 'Everybody' },
-    { id: 'friends', label: 'Friends only' },
+    { id: 'everyone', label: 'All' },
+    { id: 'friends', label: 'Friends' },
     { id: 'nobody', label: 'Nobody' },
   ];
   protected readonly requestOptions = [
-    { id: 'everyone', label: 'Everybody' },
+    { id: 'everyone', label: 'All' },
     { id: 'nobody', label: 'Nobody' },
   ];
   protected readonly presenceVisibility = computed(

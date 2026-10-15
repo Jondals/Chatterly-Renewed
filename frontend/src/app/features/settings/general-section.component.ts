@@ -402,7 +402,7 @@ export class GeneralSectionComponent {
 
   protected readonly noticeModes = [
     { id: 'all', label: 'All' },
-    { id: 'important', label: 'Only important' },
+    { id: 'important', label: 'Important' },
     { id: 'off', label: 'Off' },
   ];
 

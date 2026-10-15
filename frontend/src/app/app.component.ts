@@ -179,8 +179,10 @@ export class AppComponent {
     this.injector.get(cursor.CursorService);
     this.injector.get(tooltip.TooltipService);
     // The emoji, script and serif fonts are a separate stylesheet that does not block the first paint.
+    // * Always: the emoji font makes every emoji look the same on the phone, the computer and the web (the emoji of the
+    //   system differ, and some joined ones, like the eye in a speech bubble, were drawn as two broken pieces).
     const lazyFonts = document.getElementById('lazy-fonts');
-    if (lazyFonts && document.documentElement.dataset['perf'] !== 'low') {
+    if (lazyFonts) {
       (lazyFonts as HTMLLinkElement).media = 'all';
     }
     const fonts = await import('./core/services/font.service');

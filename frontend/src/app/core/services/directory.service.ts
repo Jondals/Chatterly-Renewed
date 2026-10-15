@@ -11,6 +11,7 @@ import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { DialogService } from './dialog.service';
 import { SettingsService } from './settings.service';
+import { SettingsSyncService } from './settings-sync.service';
 
 /** Fingerprints by user id. */
 type PinMap = Record<string, string>;
@@ -48,6 +49,7 @@ export class DirectoryService {
   private readonly auth = inject(AuthService);
   private readonly settings = inject(SettingsService);
   private readonly dialog = inject(DialogService);
+  private readonly sync = inject(SettingsSyncService);
 
   /** Profiles by user id, with the nickname already applied as display name. */
   readonly users = signal<ReadonlyMap<string, User>>(new Map());
@@ -67,6 +69,34 @@ export class DirectoryService {
   constructor() {
     // When a nickname changes, every name in the app updates at once.
     effect(this.reapplyNicknames.bind(this));
+    // A contact verified on another device of the account is verified here too (and the other way round).
+    effect(this.takeAccountVerified.bind(this));
+  }
+
+  /**
+   * Merges the contacts verified on the account with the ones of this device. For a contact in both, the fingerprint
+   * that matches their current key wins (a verification of an old key is not a verification of the new one). Contacts
+   * verified only here (before verification followed the account) are sent to the account.
+   */
+  private takeAccountVerified(): void {
+    const account = this.sync.accountVerified();
+    const local = this.verified();
+    const current = this.fingerprints();
+    const merged: PinMap = { ...account };
+    let localOnly = false;
+    for (const [id, print] of Object.entries(local)) {
+      if (!merged[id] || (print === current[id] && merged[id] !== print)) {
+        merged[id] = print;
+        localOnly = true;
+      }
+    }
+    if (JSON.stringify(merged) !== JSON.stringify(local)) {
+      this.verified.set(merged);
+      writeMap(VERIFIED_KEY, merged);
+    }
+    if (localOnly && Object.keys(account).length + Object.keys(local).length > 0) {
+      void this.sync.shareVerified(merged);
+    }
   }
 
   /** Returns the user with the nickname as display name (and the real name kept in `realName`). */
@@ -211,6 +241,8 @@ export class DirectoryService {
     const verified = { ...this.verified(), [userId]: await fingerprint(user.publicKeys) };
     this.verified.set(verified);
     writeMap(VERIFIED_KEY, verified);
+    // Once for the account: the other devices of the person see the contact as verified too.
+    await this.sync.shareVerified({ [userId]: verified[userId]! });
   }
 
   /** Trusts the new key of a contact after the person acknowledged the warning. */
@@ -233,8 +265,13 @@ export class DirectoryService {
     }
     const pins = readMap(PINS_KEY);
     if (!pins[user.id]) {
-      pins[user.id] = current;
+      // ! A contact verified on the account is pinned to the key that was checked, not to whatever the server shows this
+      //   device the first time: a key swapped before this device ever saw the contact is still caught.
+      pins[user.id] = this.verified()[user.id] ?? current;
       writeMap(PINS_KEY, pins);
+      if (pins[user.id] !== current) {
+        this.keyChanges.set(new Set(this.keyChanges()).add(user.id));
+      }
     } else if (pins[user.id] !== current) {
       this.keyChanges.set(new Set(this.keyChanges()).add(user.id));
     }

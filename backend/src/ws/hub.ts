@@ -40,6 +40,12 @@ export class Hub {
   private readonly statuses = new Map<string, Presence>();
   private readonly rooms = new Map<string, Map<string, Participant>>();
   private readonly userRoom = new Map<string, string>();
+  /**
+   * ! The one connection (device) that holds the place of each person in their call. A person can be signed in on the
+   * phone and on the computer at once, but only one of them is in the call: signals go only to that connection, and only
+   * it may change or leave the place. Joining from another device moves the place there (see joinRoom).
+   */
+  private readonly callClient = new Map<string, Client>();
 
   private closed = false;
 
@@ -53,6 +59,7 @@ export class Hub {
     this.clients.clear();
     this.rooms.clear();
     this.userRoom.clear();
+    this.callClient.clear();
   }
 
   // ---- connections -------------------------------------------------------------------------
@@ -71,12 +78,16 @@ export class Hub {
     if (first) this.broadcastPresence(client.userId);
   }
 
-  /** A connection closed: when it was the last one of the person they go offline and leave their call. */
+  /**
+   * A connection closed. When it held the place of the person in a call, they leave it (the app ends the call when its
+   * connection drops, so the place would stay empty otherwise); when it was their last connection they go offline.
+   */
   detach(client: Client): void {
     if (this.closed) return;
     const set = this.clients.get(client.userId);
     if (!set) return;
     set.delete(client);
+    if (this.callClient.get(client.userId) === client) this.leaveRoom(client.userId);
     if (set.size === 0) {
       this.clients.delete(client.userId);
       this.leaveRoom(client.userId);
@@ -124,6 +135,19 @@ export class Hub {
     const set = this.clients.get(userId);
     if (!set) return;
     for (const client of set) client.send(message);
+  }
+
+  /**
+   * Sends a message about a call to the one connection that is in it for that person (the signals of a call must reach a
+   * single device: two devices answering the same offer broke the call). Nothing is sent when they are not in a call.
+   */
+  sendToCall(userId: string, message: unknown): void {
+    this.callClient.get(userId)?.send(message);
+  }
+
+  /** Whether this connection is the one that holds the place of its person in a call. */
+  isCallClient(client: Client): boolean {
+    return this.callClient.get(client.userId) === client;
   }
 
   /** Sends a message to several people, except one if asked. */
@@ -217,10 +241,20 @@ export class Hub {
     return !!room && room.has(a) && room.has(b);
   }
 
-  /** Returns false when the room is full. Leaves any previous room first. */
-  joinRoom(roomId: string, userId: string): { ok: boolean; previousRoom?: string } {
+  /**
+   * Puts a connection of a person in a room. Returns false when the room is full. Leaves any previous room first.
+   * When another connection of the same person held their place (in this room or another one), the place moves to this
+   * one and that connection is returned as `replaced`, to be told that its call goes on somewhere else.
+   */
+  joinRoom(
+    roomId: string,
+    client: Client,
+  ): { ok: boolean; previousRoom?: string; replaced?: Client } {
+    const userId = client.userId;
     const existing = this.rooms.get(roomId);
     if (existing && !existing.has(userId) && existing.size >= MAX_ROOM_SIZE) return { ok: false };
+    const holder = this.callClient.get(userId);
+    const replaced = holder && holder !== client ? holder : undefined;
     const previous = this.userRoom.get(userId);
     if (previous && previous !== roomId) this.leaveRoom(userId);
     const room = existing ?? new Map<string, Participant>();
@@ -234,9 +268,11 @@ export class Hub {
     });
     this.rooms.set(roomId, room);
     this.userRoom.set(userId, roomId);
+    this.callClient.set(userId, client);
     return {
       ok: true,
       previousRoom: previous && previous !== roomId ? previous : undefined,
+      replaced,
     };
   }
 
@@ -253,6 +289,7 @@ export class Hub {
 
   /** Removes the user from their room; returns the room id they left (if any). */
   leaveRoom(userId: string): string | undefined {
+    this.callClient.delete(userId);
     const roomId = this.userRoom.get(userId);
     if (!roomId) return undefined;
     this.userRoom.delete(userId);

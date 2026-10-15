@@ -1,11 +1,24 @@
 <?xml version='1.0' encoding='utf-8'?>
 <!--
   mobile/android/app/src/main/res/values-es/strings.xml
-  Spanish texts of the native side (the same generic notification of a call).
+  Spanish texts of the native side.
 -->
 <resources>
     <string name="call_in_progress">Llamada en curso</string>
     <string name="call_channel_name">Llamadas en curso</string>
     <string name="screen_in_progress">Compartiendo la pantalla</string>
     <string name="screen_channel_name">Pantalla compartida</string>
+    <string name="incoming_call">Llamada entrante</string>
+    <string name="incoming_channel_name">Llamadas entrantes</string>
+    <string name="listening">Conectado: las llamadas sonarán</string>
+    <string name="listening_channel_name">Conectado en segundo plano</string>
+    <string name="action_mute">Silenciar</string>
+    <string name="action_unmute">Activar micro</string>
+    <string name="action_deafen">Ensordecer</string>
+    <string name="action_undeafen">Dejar de ensordecer</string>
+    <string name="action_hang_up">Colgar</string>
+    <string name="action_answer">Contestar</string>
+    <string name="action_decline">Rechazar</string>
+    <string name="state_muted">Micro silenciado</string>
+    <string name="state_deafened">Ensordecido</string>
 </resources>

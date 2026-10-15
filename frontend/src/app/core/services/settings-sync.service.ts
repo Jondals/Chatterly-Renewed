@@ -9,6 +9,9 @@
  * the cursor files, the fonts that were uploaded) is never sent.
  * ? The settings are compared a few seconds apart and saved when something changed (there are dozens of signals; looking at
  * them all together is simpler and cheaper than watching each one).
+ * ! The same sealed blob also carries the contacts the person verified (`trust`). That is not a preference: it belongs to
+ *   the account whatever profile or mode a device follows, so a contact verified on the phone is verified on the computer
+ *   too. Sealed with the key of the identity, the server can neither read it nor add a contact to it.
  */
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { toB64 } from '../crypto/bytes';
@@ -27,6 +30,8 @@ const DEVICE_ONLY = new Set([
   'pref.customNameFontName',
   'pref.ringtoneName',
   'pref.clickName',
+  'pref.powerMode',
+  'pref.backgroundCalls',
 ]);
 
 /** The most a single setting may weigh when it is JSON (a big one is a file and stays where it is). */
@@ -46,6 +51,30 @@ interface Profile {
 interface SettingsBlob {
   v: 1;
   profiles: Record<string, Profile>;
+  /** The contacts the person verified, for every device of the account: user id to the fingerprint that was checked. */
+  trust?: { verified?: Record<string, string> };
+}
+
+/** The most verified contacts kept on the account. */
+const MAX_VERIFIED = 5000;
+
+/** The verified contacts of a blob, keeping only well-formed entries (a damaged copy gives an empty list). */
+export function cleanVerified(raw: unknown): Record<string, string> {
+  const clean: Record<string, string> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return clean;
+  }
+  for (const [id, print] of Object.entries(raw as Record<string, unknown>).slice(0, MAX_VERIFIED)) {
+    if (
+      /^[\w-]{1,64}$/.test(id) &&
+      typeof print === 'string' &&
+      print.length > 0 &&
+      print.length <= 200
+    ) {
+      clean[id] = print;
+    }
+  }
+  return clean;
 }
 
 /** Whether the settings of this device follow the account. */
@@ -65,6 +94,8 @@ export class SettingsSyncService {
   readonly profiles = signal<{ id: string; name: string }[]>([]);
   /** What is happening: nothing, saving, saved, or a problem. */
   readonly status = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  /** The contacts verified on the account (from any device), as last read from it. */
+  readonly accountVerified = signal<Record<string, string>>({});
 
   private blob: SettingsBlob = { v: 1, profiles: {} };
   /** The version of the account that this device has seen (0: none yet). */
@@ -165,6 +196,7 @@ export class SettingsSyncService {
         this.blob = found.blob;
         this.base = found.version;
       }
+      this.accountVerified.set(cleanVerified(this.blob.trust?.verified));
       this.listProfiles();
       if (this.mode() === 'account') {
         const mine = this.blob.profiles[this.active()];
@@ -193,8 +225,51 @@ export class SettingsSyncService {
     this.base = 0;
     this.blob = { v: 1, profiles: {} };
     this.profiles.set([]);
+    this.accountVerified.set({});
     this.status.set('idle');
   }
+
+  /**
+   * Puts the verified contacts of this device on the account (merged with what is already there), whatever the mode of
+   * the device. Called by the directory when a contact is verified.
+   */
+  async shareVerified(verified: Record<string, string>): Promise<void> {
+    if (!this.ready || this.working) {
+      this.pendingVerified = { ...this.pendingVerified, ...verified };
+      return;
+    }
+    this.working = true;
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const merged = { ...cleanVerified(this.blob.trust?.verified), ...verified };
+        this.blob.trust = { verified: merged };
+        const version = await this.upload(this.blob);
+        if (version !== null) {
+          this.base = version;
+          this.accountVerified.set(merged);
+          return;
+        }
+        // Another device saved first: its copy is taken and the contacts of this device go on top.
+        const found = await this.download();
+        if (found) {
+          const mine = this.blob.profiles[this.active()];
+          this.blob = found.blob;
+          this.base = found.version;
+          if (mine && this.mode() === 'account') {
+            this.blob.profiles[this.active()] = mine;
+          }
+        }
+      }
+    } catch {
+      // No connection: the contact stays verified on this device and goes to the account the next time.
+      this.pendingVerified = { ...this.pendingVerified, ...verified };
+    } finally {
+      this.working = false;
+    }
+  }
+
+  /** Verified contacts that could not be put on the account yet (sent at the next check). */
+  private pendingVerified: Record<string, string> | null = null;
 
   /** Makes the list of the sets of settings of the account. */
   private listProfiles(): void {
@@ -213,6 +288,11 @@ export class SettingsSyncService {
 
   /** Saves when something changed since the last time. */
   private async check(): Promise<void> {
+    if (this.ready && !this.working && this.pendingVerified) {
+      const pending = this.pendingVerified;
+      this.pendingVerified = null;
+      await this.shareVerified(pending);
+    }
     if (!this.ready || this.working || this.mode() !== 'account') {
       return;
     }
@@ -241,11 +321,18 @@ export class SettingsSyncService {
           this.status.set('saved');
           return;
         }
-        // Another device saved first: its sets are taken, and this device's own set goes on top.
+        // Another device saved first: its sets are taken, and this device's own set goes on top (the verified contacts
+        // of both are kept).
         const found = await this.download();
         if (found) {
           const mine = this.blob.profiles[this.active()];
+          const trusted = {
+            ...cleanVerified(found.blob.trust?.verified),
+            ...cleanVerified(this.blob.trust?.verified),
+          };
           this.blob = found.blob;
+          this.blob.trust = { verified: trusted };
+          this.accountVerified.set(trusted);
           this.base = found.version;
           if (mine) {
             this.blob.profiles[this.active()] = mine;

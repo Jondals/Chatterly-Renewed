@@ -4,13 +4,12 @@
  */
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
-import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
+import { emojiCountOf, emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   computed,
   effect,
   inject,
@@ -18,11 +17,12 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { TranslatePipe } from '../../core/i18n/i18n.service';
+import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { saveFile } from '../../shared/util/save-file';
 import { ToastService } from '../../core/services/toast.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
@@ -159,7 +159,8 @@ const EMOJI_REST_MS = 5000;
             [class.is-fresh]="bigEmoji() && emojiFresh()"
             (click)="replayEmoji($event)"
             [class.is-many]="bigEmoji() && emojiCount() > 3 && emojiCount() <= 6"
-            [class.is-lots]="bigEmoji() && emojiCount() > 6"
+            [class.is-lots]="bigEmoji() && emojiCount() > 6 && emojiCount() <= 14"
+            [class.is-heaps]="bigEmoji() && emojiCount() > 14"
             [attr.data-pop]="bigEmoji() ? emojiPop() : null"
             [attr.data-mood]="bigEmoji() && singleEmoji() ? emojiMoodOf() : null"
             [class.px-0]="!bubbles()"
@@ -322,6 +323,7 @@ export class MessageItemComponent {
   private readonly directory = inject(DirectoryService);
   protected readonly store = inject(MessageStore);
   private readonly toast = inject(ToastService);
+  private readonly i18n = inject(I18nService);
   private readonly dialog = inject(DialogService);
   protected readonly settings = inject(SettingsService);
 
@@ -377,26 +379,19 @@ export class MessageItemComponent {
       return message.text.replace(/https?:\/\/\S+/g, '').trim().length > 0;
     }.bind(this),
   );
-  /** True when the message is just one to three emoji: they are drawn big, without a bubble. */
   /** A message that is exactly one emoji (it gets its own little show). */
   protected readonly singleEmoji = computed(
     function (this: MessageItemComponent) {
-      const text = this.message().text.trim();
-      return (
-        [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].length === 1
-      );
+      return this.emojiCount() === 1;
     }.bind(this),
   );
-  /** How many emoji the message has (the more there are, the smaller each one is drawn). */
+  /** How many emoji the message has, spaces apart (the more there are, the smaller each one is drawn). */
   protected readonly emojiCount = computed(
     function (this: MessageItemComponent) {
-      return [
-        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
-          this.message().text.trim(),
-        ),
-      ].length;
+      return emojiCountOf(this.message().text);
     }.bind(this),
   );
+  /** True when the message is only emoji: they are drawn big, without a bubble. */
   protected readonly bigEmoji = computed(
     function (this: MessageItemComponent) {
       const message = this.message();
@@ -536,9 +531,28 @@ export class MessageItemComponent {
     });
   }
 
-  /** A press anywhere else hides the actions that a tap opened. */
-  @HostListener('document:pointerdown', ['$event'])
-  protected closeTapped(event: Event): void {
+  /**
+   * A press anywhere else hides the actions that a tap opened. ! The page is listened to only while the actions are open:
+   * every message listening to every press of the page made each click run hundreds of handlers in a long chat.
+   */
+  private readonly outsidePress = this.closeTapped.bind(this);
+  private readonly followTapped = effect(
+    function (this: MessageItemComponent) {
+      if (this.tapped()) {
+        document.addEventListener('pointerdown', this.outsidePress, { passive: true });
+      } else {
+        document.removeEventListener('pointerdown', this.outsidePress);
+      }
+    }.bind(this),
+  );
+  private readonly forgetTapped = inject(DestroyRef).onDestroy(
+    function (this: MessageItemComponent) {
+      document.removeEventListener('pointerdown', this.outsidePress);
+    }.bind(this),
+  );
+
+  /** A press outside the message closes its actions. */
+  private closeTapped(event: Event): void {
     if (this.tapped() && !this.host.nativeElement.contains(event.target as Node)) {
       this.tapped.set(false);
     }
@@ -567,6 +581,23 @@ export class MessageItemComponent {
           return void this.copy(plainText(m.text));
         }.bind(this),
       });
+    // Every file of the message can be kept: a GIF, a picture, a sticker, a voice note or any file (on the phone, in
+    // Downloads). With several files each one is named.
+    const files = m.attachments.slice(0, 6);
+    for (const file of files) {
+      items.push({
+        label:
+          files.length > 1
+            ? this.i18n.t('Download {name}', { name: file.name.slice(0, 28) })
+            : file.gif
+              ? 'Save GIF'
+              : file.kind === 'image'
+                ? 'Save image'
+                : 'Download',
+        icon: 'download',
+        action: this.saveAttachment.bind(this, file),
+      });
+    }
     if (this.mine() && m.text && !m.spinly && !m.activity)
       items.push({
         label: 'Edit',
@@ -586,6 +617,19 @@ export class MessageItemComponent {
         }.bind(this),
       });
     this.menu.open(event, items);
+  }
+
+  /** Decrypts a file of the message (if it was not yet) and saves it on the device. */
+  private async saveAttachment(file: ViewAttachment): Promise<void> {
+    try {
+      const url = await this.store.attachmentUrl(file);
+      const where = await saveFile(url, file.name, file.mime);
+      if (where === 'downloads') {
+        this.toast.success(this.i18n.t('Saved in Downloads'), file.name);
+      }
+    } catch {
+      this.toast.error(this.i18n.t('Could not save the file'));
+    }
   }
 
   /** Reacts to the message with an emoji. */

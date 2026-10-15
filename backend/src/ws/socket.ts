@@ -196,8 +196,14 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
             return send({ t: 'error', code: 'not_friends' });
         }
         const wasEmpty = hub.participants(channel.id).length === 0;
-        const joined = hub.joinRoom(channel.id, userId);
+        const heldRoom = hub.roomOf(userId);
+        const joined = hub.joinRoom(channel.id, client);
         if (!joined.ok) return send({ t: 'error', code: 'room_full' });
+        // ! The person joined from another of their devices: that one leaves the call quietly (it must not send "leave",
+        //   which would take away the place that has just moved here).
+        if (joined.replaced && heldRoom) {
+          joined.replaced.send({ t: 'call.transferred', roomId: heldRoom });
+        }
         send({
           t: 'call.joined',
           roomId: channel.id,
@@ -218,12 +224,15 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
       }
 
       case 'call.leave': {
+        // A device whose call already moved to another one cannot end it there.
+        if (!hub.isCallClient(client)) return;
         const room = hub.leaveRoom(userId);
         if (room) send({ t: 'call.left', roomId: room });
         return;
       }
 
       case 'call.update': {
+        if (!hub.isCallClient(client)) return;
         const room = hub.roomOf(userId);
         if (!room) return;
         const patch: Record<string, boolean> = {};
@@ -246,8 +255,8 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
         )
           return;
         if (JSON.stringify(payload).length > MAX_SIGNAL_BYTES) return;
-        if (!hub.inSameRoom(roomId, userId, to)) return;
-        hub.sendTo(to, { t: 'rtc.signal', roomId, from: userId, payload });
+        if (!hub.isCallClient(client) || !hub.inSameRoom(roomId, userId, to)) return;
+        hub.sendToCall(to, { t: 'rtc.signal', roomId, from: userId, payload });
         return;
       }
 

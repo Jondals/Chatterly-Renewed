@@ -1426,8 +1426,56 @@ export const ES: Record<string, string> = {
     'Chatterly se cerrará y se abrirá de nuevo con la versión nueva.',
   'The update could not be downloaded': 'No se pudo descargar la actualización',
   'No Android beta has been published yet.': 'Todavía no se ha publicado ninguna beta de Android.',
-  'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.':
-    'La última beta es anterior a la versión instalada: Android solo la instala si antes desinstalas Chatterly.',
+  'A download is already in progress: wait for it to finish.':
+    'Ya hay una descarga en marcha: espera a que termine.',
+  'That version is not newer than the one installed: Android never installs an older or equal version over it.':
+    'Esa versión no es más nueva que la instalada: Android nunca instala una versión anterior o igual encima.',
+  'The file is not signed with the key of Chatterly, so it was refused: it could be a forged copy.':
+    'El archivo no está firmado con la clave de Chatterly y se ha rechazado: podría ser una copia falsificada.',
+  'The downloaded file is not Chatterly, so it was refused.':
+    'El archivo descargado no es Chatterly y se ha rechazado.',
+  'The download arrived damaged (its fingerprint does not match). Try again.':
+    'La descarga llegó dañada (su huella no coincide). Inténtalo otra vez.',
+  'The file of that version is not on the server: it may not be published yet.':
+    'El archivo de esa versión no está en el servidor: puede que aún no se haya publicado.',
+  'The server could not give the file right now. Try again in a few minutes.':
+    'El servidor no ha podido dar el archivo ahora. Inténtalo dentro de unos minutos.',
+  'The update pointed to an address the app does not trust, so nothing was downloaded.':
+    'La actualización apuntaba a una dirección de la que la app no se fía, así que no se descargó nada.',
+  'The file is far bigger than an update of Chatterly, so it was refused.':
+    'El archivo es mucho más grande que una actualización de Chatterly y se ha rechazado.',
+  'The phone could not save the file: check that there is free space.':
+    'El teléfono no ha podido guardar el archivo: comprueba que hay espacio libre.',
+  'There is no connection with the server. Check the internet and try again.':
+    'No hay conexión con el servidor. Comprueba internet e inténtalo otra vez.',
+  'Too many tries in a short time: wait a minute and try again.':
+    'Demasiados intentos en poco tiempo: espera un minuto e inténtalo otra vez.',
+  'Your account is not in the beta program any more: choose Release.':
+    'Tu cuenta ya no está en el programa beta: elige Release.',
+  'The session has expired: sign in again and retry.':
+    'La sesión ha caducado: vuelve a iniciar sesión e inténtalo otra vez.',
+  'The beta server answered something the app does not understand.':
+    'El servidor de betas ha respondido algo que la app no entiende.',
+  'An older version is available in this channel': 'Este canal tiene una versión anterior',
+  'Ready to change version': 'Listo para cambiar de versión',
+  'Change to v{v}': 'Cambiar a la v{v}',
+  'Uninstall Chatterly': 'Desinstalar Chatterly',
+  'Android never installs an older version over a newer one. To change to it, Chatterly has to be uninstalled first: that erases what the app keeps on this phone and you will sign in again. Or wait: the next version of this channel will arrive by itself.':
+    'Android nunca instala una versión anterior encima de una más nueva. Para cambiar a ella hay que desinstalar Chatterly antes: eso borra lo que la app guarda en este móvil y tendrás que volver a iniciar sesión. O espera: la próxima versión de este canal te llegará sola.',
+  '{name} is saved in the Downloads folder of the phone.':
+    '{name} está guardado en la carpeta Descargas del móvil.',
+  'Press Uninstall Chatterly and confirm it in the window of Android.':
+    'Pulsa Desinstalar Chatterly y confírmalo en la ventana de Android.',
+  'Open the Files app (or Downloads), tap the file and install it. Android may ask to allow that app to install apps.':
+    'Abre la app Archivos (o Descargas), toca el archivo e instálalo. Android puede pedirte que permitas a esa app instalar apps.',
+  'Open Chatterly and sign in again.': 'Abre Chatterly y vuelve a iniciar sesión.',
+  'The version could not be prepared': 'No se pudo preparar la versión',
+  'The uninstaller of Android could not be opened': 'No se pudo abrir el desinstalador de Android',
+  'Changing to an older version needs Android 10 or newer: uninstall Chatterly and install the APK from the release page by hand.':
+    'Cambiar a una versión anterior necesita Android 10 o posterior: desinstala Chatterly e instala a mano el APK de la página de la release.',
+  'The file could not be saved in Downloads: check that there is free space.':
+    'No se pudo guardar el archivo en Descargas: comprueba que hay espacio libre.',
+  'That is the version you already have.': 'Esa es la versión que ya tienes.',
   'Updates': 'Actualizaciones',
   'Check for updates': 'Buscar actualizaciones',
   'Checking…': 'Buscando…',
@@ -1676,4 +1724,47 @@ export const ES: Record<string, string> = {
   'Add from the open windows': 'Añadir desde las ventanas abiertas',
   'No other windows are open.': 'No hay otras ventanas abiertas.',
   'Or type part of the name of its window': 'O escribe parte del nombre de su ventana',
+  'Saved in Downloads': 'Guardado en Descargas',
+  'Download {name}': 'Descargar {name}',
+  'Could not save the file': 'No se pudo guardar el archivo',
+  'Save GIF': 'Guardar GIF',
+  'Save image': 'Guardar imagen',
+  'A contact is verified once for your account: your other devices see it as verified too.':
+    'Un contacto se verifica una vez para tu cuenta: tus otros dispositivos también lo ven verificado.',
+  'Performance': 'Rendimiento',
+  'Calls in the background': 'Llamadas en segundo plano',
+  'Power mode': 'Modo de energía',
+  'Stay connected with a quiet notification, so calls ring with the app minimized or the screen off. Off saves some battery, but calls only ring with the app open.':
+    'Sigue conectado con una notificación discreta, así las llamadas suenan con la app minimizada o la pantalla apagada. Desactivado ahorra algo de batería, pero las llamadas solo suenan con la app abierta.',
+  'Maximum': 'Máximo',
+  'Battery saver': 'Ahorro de batería',
+  'Saving battery now: the battery is low.': 'Ahorrando batería ahora: queda poca batería.',
+  'Saving battery now: this device could not keep up with everything.':
+    'Ahorrando batería ahora: este dispositivo no podía con todo.',
+  'Still decorations, no blur, the camera at 480p and 15 frames per second. The animations of the interface follow their own setting.':
+    'Decoraciones quietas, sin desenfoque y la cámara a 480p y 15 imágenes por segundo. Las animaciones de la interfaz siguen su propio ajuste.',
+  'Everything on, always, even with low battery.':
+    'Todo activado, siempre, aunque quede poca batería.',
+  'Everything on. With low battery, or on a device that cannot keep up, it saves battery by itself.':
+    'Todo activado. Con poca batería, o en un dispositivo que no puede con todo, ahorra batería solo.',
+  'Audio output': 'Salida de audio',
+  'No other output': 'No hay otra salida',
+  'Phone': 'Teléfono',
+  'Speaker': 'Altavoz',
+  'Headphones': 'Auriculares',
+  'Bluetooth': 'Bluetooth',
+  'Call moved to another device': 'La llamada pasó a otro dispositivo',
+  'You are in this call on another device now.':
+    'Ahora estás en esta llamada desde otro dispositivo.',
+  'Show it when the app starts': 'Mostrarla al abrir la app',
+  'Off: the app opens straight away (you can still watch it with the button above).':
+    'Desactivado: la app se abre directamente (puedes verla igualmente con el botón de arriba).',
+  'Calls over the lock screen': 'Llamadas sobre la pantalla de bloqueo',
+  'Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked.':
+    'Android pide que lo permitas: así una llamada que suena ocupa la pantalla, como una llamada de teléfono, aunque el móvil esté bloqueado.',
+  'Allow': 'Permitir',
+  'Reload': 'Recarga',
+  'Timed': 'Periódico',
+  'Saver': 'Ahorro',
+  'Important': 'Importantes',
 };

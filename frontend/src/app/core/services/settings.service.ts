@@ -3,7 +3,7 @@
  * Per-device preferences (appearance, sound, cursor, background, calls, nicknames, privacy, integrations) and
  * the code that applies them to the page. Nothing here is ever sent to the server.
  */
-import { Injectable, effect } from '@angular/core';
+import { Injectable, computed, effect, signal } from '@angular/core';
 import { setTimeFormat } from '../../shared/pipes/timestamp.pipe';
 import type { AccentId } from '../models';
 import type { TrailType } from './cursor-trail';
@@ -33,16 +33,22 @@ export type ThemeId =
 /** How opaque the big blocks of the interface are for each level of "background visibility", in percent. */
 const GLASS_LEVELS = [94, 80, 64, 46, 28];
 
-/** The animations to start with: off for whoever had "reduce motion" on before this setting existed. */
+/** The animations to start with: off for whoever had "reduce motion" on before this setting existed, all of them otherwise. */
 function initialAnimations(): 'off' | 'quick' | 'full' {
   try {
-    if (localStorage.getItem('chatterly.pref.reduceMotion') === 'true') {
-      return 'off';
-    }
-    return document.documentElement.dataset['perf'] === 'low' ? 'quick' : 'full';
+    return localStorage.getItem('chatterly.pref.reduceMotion') === 'true' ? 'off' : 'full';
   } catch {
     return 'full';
   }
+}
+
+/** Below this charge (0 to 1), without a charger, the automatic power mode saves battery. */
+const LOW_BATTERY = 0.2;
+
+/** The part of the Battery Status API that is read (Chromium and the Android WebView have it). */
+interface BatteryInfo extends EventTarget {
+  level: number;
+  charging: boolean;
 }
 
 /** The corner styles of the interface, from square to bubbly: the radius of small and of large elements, in pixels. */
@@ -302,6 +308,29 @@ export class SettingsService {
   }>('pref.screenShare', { surface: 'any', quality: 'high', audio: true });
   /** How much the interface animates: nothing, short transitions, or everything. Apart from the motion of the background. */
   readonly animations = persisted<'off' | 'quick' | 'full'>('pref.animations', initialAnimations());
+  /**
+   * How the app uses the battery and the processor (this device only):
+   *   - 'auto': everything on; the light mode (no blur, still decorations, a lighter camera) only on a device that cannot
+   *     keep up or with the battery under 20 % and no charger;
+   *   - 'full': everything on, always;
+   *   - 'saver': the light mode always, the camera at 480p and 15 pictures per second, slower meters.
+   */
+  readonly powerMode = persisted<'auto' | 'full' | 'saver'>('pref.powerMode', 'auto');
+  /** Whether the introduction plays when the app (or the browser) starts. */
+  readonly introOnStart = persisted('pref.introOnStart', true);
+  /** Android: stay connected in the background (a quiet notification) so calls ring with the app minimized. */
+  readonly backgroundCalls = persisted('pref.backgroundCalls', true);
+  /** The device could not keep up (few cores or little memory, or the frames of the page came slow). */
+  readonly deviceWeak = signal(document.documentElement.dataset['weak'] === '1');
+  /** The battery is low and not charging (read from the system when it says). */
+  readonly batteryLow = signal(false);
+  /** True while the light mode is on (the power mode asks for it, or the automatic mode decided it). */
+  readonly saving = computed(
+    function (this: SettingsService) {
+      const mode = this.powerMode();
+      return mode === 'saver' || (mode === 'auto' && (this.deviceWeak() || this.batteryLow()));
+    }.bind(this),
+  );
   /** How much of the animated background shows through the big blocks of the interface (0 = almost none, 4 = the most). */
   readonly bgVisibility = persisted<number>('pref.bgVisibility', 2);
   readonly language = persisted<LanguagePref>('pref.language', 'auto');
@@ -369,10 +398,64 @@ export class SettingsService {
     effect(this.applyTimeFormat.bind(this));
     effect(this.applyCustomTheme.bind(this));
     effect(this.applyDocumentSettings.bind(this));
+    effect(this.applyPowerMode.bind(this));
+    window.addEventListener('chatterly:weak', this.markWeak.bind(this));
+    void this.watchBattery();
+  }
+
+  /** The light mode follows the power mode: `data-perf="low"` on the page (no blur, still decorations). */
+  private applyPowerMode(): void {
+    const root = document.documentElement;
+    if (this.saving()) {
+      root.dataset['perf'] = 'low';
+    } else {
+      delete root.dataset['perf'];
+    }
+    root.dataset['power'] = this.saving() ? 'saver' : 'normal';
+  }
+
+  /** The frame monitor (perf-monitor.ts) found that the device cannot keep up. */
+  private markWeak(): void {
+    this.deviceWeak.set(true);
+  }
+
+  /** Follows the charge of the battery, when the system tells it, for the automatic power mode. */
+  private async watchBattery(): Promise<void> {
+    const getBattery = (navigator as Navigator & { getBattery?: () => Promise<BatteryInfo> })
+      .getBattery;
+    if (!getBattery) {
+      return;
+    }
+    try {
+      const battery = await getBattery.call(navigator);
+      const update = this.readBattery.bind(this, battery);
+      update();
+      battery.addEventListener('levelchange', update);
+      battery.addEventListener('chargingchange', update);
+    } catch {
+      // No battery information: the automatic mode only looks at the speed of the device.
+    }
+  }
+
+  /** Low battery: under LOW_BATTERY and not charging. */
+  private readBattery(battery: BatteryInfo): void {
+    this.batteryLow.set(!battery.charging && battery.level <= LOW_BATTERY);
   }
 
   /** Brings preferences saved by older versions up to date (renamed fields, removed themes). */
   private upgradeOldData(): void {
+    // ? Phones used to start with the quick animations (and that choice was saved and copied to the account): everything
+    //   animates now, and the battery saver (Settings > Appearance > Performance) is the way to do less. Once per device.
+    try {
+      if (localStorage.getItem('chatterly.upgrade.fullAnimations') !== '1') {
+        localStorage.setItem('chatterly.upgrade.fullAnimations', '1');
+        if (this.animations() === 'quick') {
+          this.animations.set('full');
+        }
+      }
+    } catch {
+      // Storage blocked: nothing to bring up to date.
+    }
     // The flat message list no longer exists: the chat is always bubbles.
     if (this.chatStyle() !== 'bubbles') {
       this.chatStyle.set('bubbles');

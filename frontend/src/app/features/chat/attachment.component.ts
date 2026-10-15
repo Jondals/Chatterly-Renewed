@@ -18,6 +18,7 @@ import {
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { PresetService } from '../../core/services/preset.service';
 import { ToastService } from '../../core/services/toast.service';
+import { saveFile } from '../../shared/util/save-file';
 import { SoundImportService } from './sound-import.service';
 import { formatBytes, formatDuration } from '../../shared/pipes/timestamp.pipe';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -622,10 +623,9 @@ export class AttachmentComponent implements OnDestroy {
     this.error.set('');
     try {
       const url = await this.store.attachmentUrl(this.att());
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = this.att().name.replace(/[\\/:*?"<>|]/g, '_');
-      a.click();
+      if ((await saveFile(url, this.att().name, this.att().mime)) === 'downloads') {
+        this.toast.success(this.i18n.t('Saved in Downloads'), this.att().name);
+      }
     } catch {
       this.error.set('Integrity check failed — the file was altered or corrupted.');
     } finally {

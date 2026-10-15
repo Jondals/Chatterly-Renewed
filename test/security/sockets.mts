@@ -129,5 +129,89 @@ export async function checkSockets(): Promise<void> {
     }),
     'a signal addressed to somebody outside the room is not delivered to them',
   );
+  await checkOneDevicePerCall(port, alice, bob, dm, a, b);
   await app.close();
+}
+
+/**
+ * A person signed in on two devices is in a call on only one of them: joining from the second moves the place there,
+ * the first is told and can no longer send signals nor end the call, and signals reach only the device in the call.
+ */
+async function checkOneDevicePerCall(
+  port: number,
+  alice: { id: string; access: string },
+  bob: { id: string },
+  dm: string,
+  a: Awaited<ReturnType<typeof openSocket>>,
+  b: Awaited<ReturnType<typeof openSocket>>,
+): Promise<void> {
+  step(
+    'realtime: one device per person in a call (moving the call from the phone to the computer)',
+  );
+  const second = await openSocket(port, alice.access);
+  await second.ready;
+  second.send({ t: 'call.join', roomId: dm });
+  check(
+    await until(function moved() {
+      return a.frames.some(function isMoved(f) {
+        return f['t'] === 'call.transferred' && f['roomId'] === dm;
+      });
+    }),
+    'the first device is told that its call moved to the other device',
+  );
+  check(
+    await until(function joinedHere() {
+      return second.frames.some(function isJoined(f) {
+        return f['t'] === 'call.joined' && f['roomId'] === dm;
+      });
+    }),
+    'the second device is in the call',
+  );
+  const countFrom = function (socket: typeof a, from: string): number {
+    return socket.frames.filter(function isSignal(f) {
+      return f['t'] === 'rtc.signal' && f['from'] === from;
+    }).length;
+  };
+  const oldBefore = a.frames.filter(function isSignal(f) {
+    return f['t'] === 'rtc.signal';
+  }).length;
+  b.send({ t: 'rtc.signal', roomId: dm, to: alice.id, payload: { sdp: 'to the new device' } });
+  check(
+    await until(function arrived() {
+      return countFrom(second, bob.id) === 1;
+    }),
+    'a signal for the person reaches the device that is in the call',
+  );
+  await sleep(150);
+  check(
+    a.frames.filter(function isSignal(f) {
+      return f['t'] === 'rtc.signal';
+    }).length === oldBefore,
+    'the device that left the call no longer gets its signals',
+  );
+  const bobBefore = countFrom(b, alice.id);
+  a.send({ t: 'rtc.signal', roomId: dm, to: bob.id, payload: { sdp: 'stale' } });
+  a.send({ t: 'call.leave' });
+  await sleep(200);
+  check(countFrom(b, alice.id) === bobBefore, 'the old device cannot send signals any more');
+  const stateHasAlice = function (): boolean {
+    const states = b.frames.filter(function isState(f) {
+      return f['t'] === 'call.state' && f['roomId'] === dm;
+    });
+    const last = states[states.length - 1] as { participants: { userId: string }[] } | undefined;
+    return !!last?.participants.some(function isAlice(p) {
+      return p.userId === alice.id;
+    });
+  };
+  check(
+    stateHasAlice(),
+    'a late "leave" from the old device does not take the person out of the call',
+  );
+  second.close();
+  check(
+    await until(function left() {
+      return !stateHasAlice();
+    }),
+    'closing the connection that is in the call takes the person out of it (the other device stays signed in)',
+  );
 }

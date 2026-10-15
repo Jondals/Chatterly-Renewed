@@ -1,15 +1,41 @@
 /**
  * src/app/shared/util/emoji-only.ts
- * Detects a message that is only a few emoji (up to ten), which the chat draws big (like WhatsApp does): the fewer, the bigger.
+ * Detects a message that is only emoji (spaces between them are fine), which the chat draws big and without a bubble
+ * (like WhatsApp does): the fewer, the bigger.
  */
 
-/** One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ. */
-const EMOJI =
-  /^(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*){1,10}$/u;
+/**
+ * One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ; or a
+ * flag (two regional letters); or a keycap (a digit, # or * with the keycap mark).
+ */
+const ONE =
+  /(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3)/u
+    .source;
 
-/** True when the text (ignoring spaces at both ends) is only one to ten emoji. */
+/** Only emoji, up to MAX_EMOJI of them, with any spaces between them. */
+const EMOJI = new RegExp('^' + ONE + '(?:\\s*' + ONE + ')*$', 'u');
+
+/** Above this many emoji the message is drawn as normal text (a wall of emoji is a text, not a sticker). */
+const MAX_EMOJI = 80;
+
+/** Splits a text into what a person sees as characters (an emoji with its skin tone or a family is one). */
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** How many emoji (graphemes that are not spaces) a text has. */
+export function emojiCountOf(text: string): number {
+  let count = 0;
+  for (const part of GRAPHEMES.segment(text.trim())) {
+    if (part.segment.trim()) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/** True when the text (ignoring spaces) is only emoji: one to MAX_EMOJI of them. */
 export function isOnlyEmoji(text: string): boolean {
-  return EMOJI.test(text.trim());
+  const trimmed = text.trim();
+  return trimmed.length > 0 && EMOJI.test(trimmed) && emojiCountOf(trimmed) <= MAX_EMOJI;
 }
 
 /** The kinds of emoji that have their own little animation when they are alone in a message (the first one counts). */

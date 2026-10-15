@@ -7,6 +7,7 @@ import { Component, ElementRef, HostListener, effect, inject, viewChild } from '
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { ContextMenuService, type MenuItem } from '../core/services/context-menu.service';
 import { IconComponent } from '../shared/components/icon.component';
+import { closeOnBack } from '../core/services/back.service';
 
 /** Space kept between the menu and the edge of the window, in pixels. */
 const EDGE_GAP = 8;
@@ -98,6 +99,9 @@ const EDGE_GAP = 8;
   `,
 })
 export class ContextMenuComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   protected readonly menu = inject(ContextMenuService);
   private readonly box = viewChild<ElementRef<HTMLElement>>('box');
 
@@ -151,6 +155,16 @@ export class ContextMenuComponent {
   /** The menu closes when the window changes size (its position would no longer be right). */
   @HostListener('window:resize')
   onResize(): void {
+    this.menu.close();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return !!this.menu.state();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
     this.menu.close();
   }
 }
