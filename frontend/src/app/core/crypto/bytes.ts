@@ -23,6 +23,11 @@ export function toB64(data: ArrayBuffer | Uint8Array): string {
   return btoa(binary);
 }
 
+/** Encodes bytes as base64url text without padding (safe in URLs and JSON, as the server's tokens are). */
+export function toB64Url(data: ArrayBuffer | Uint8Array): string {
+  return toB64(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /** Decodes base64 text into bytes. */
 export function fromB64(b64: string): Bytes {
   const binary = atob(b64);

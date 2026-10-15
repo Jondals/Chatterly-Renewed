@@ -3,7 +3,9 @@
  * Checks that an update is the one the project published, before anything is downloaded or installed.
  *
  * * Every manifest of an update (latest.yml, beta.yml...) is signed in the build with an Ed25519 key that never reaches GitHub or the
- *   server: next to it travels "<manifest>.sig" (the signature in base64). The app holds only the PUBLIC keys, below. electron-updater
+ *   server. The signature travels INSIDE the manifest, in its last line ("chatterlySignature: <base64>", which electron-updater
+ *   ignores), so there is one file to publish per platform; what is signed is everything before that line. (Releases made before
+ *   that carry it apart, in "<manifest>.sig": that way is still read.) The app holds only the PUBLIC keys, below. electron-updater
  *   then checks the sha512 of the installer against that manifest, so the chain is: signature, manifest, installer.
  * ! HTTPS and the sha512 alone are not enough: whoever can write in the release (or in the beta server) could change the installer
  *   and the manifest together. They cannot sign.
@@ -40,6 +42,19 @@ function verifySignature(data, signature, keys = PUBLIC_KEYS) {
   return false;
 }
 
+/** The line that holds the signature inside a manifest. */
+const SIGNATURE_MARK = '\nchatterlySignature: ';
+
+/** The manifest without its signature line and the signature it carries ({ content, signature }), or null when it carries none. */
+function splitSigned(text) {
+  if (typeof text !== 'string') return null;
+  const at = text.lastIndexOf(SIGNATURE_MARK);
+  if (at < 0) return null;
+  const signature = text.slice(at + SIGNATURE_MARK.length).trim();
+  if (!/^[A-Za-z0-9+/=]{86,90}$/.test(signature)) return null;
+  return { content: text.slice(0, at + 1), signature };
+}
+
 /** The version, installer name and sha512 of a manifest (the lines that start at the left edge), or null. */
 function readManifest(text) {
   if (typeof text !== 'string' || text.length > 64 * 1024) return null;
@@ -55,14 +70,24 @@ function readManifest(text) {
  * not (a short English sentence for the log and the page).
  */
 function checkAgainstManifest(info, manifestText, signature, keys = PUBLIC_KEYS) {
-  if (!verifySignature(Buffer.from(manifestText, 'utf8'), signature, keys)) {
+  // the signature inside the manifest covers what comes before it; a separate one (older releases) covers the whole file
+  const inside = splitSigned(manifestText);
+  const content = inside ? inside.content : manifestText;
+  if (!verifySignature(Buffer.from(content, 'utf8'), inside ? inside.signature : signature, keys)) {
     return 'the signature of the update is not valid';
   }
-  const signed = readManifest(manifestText);
+  const signed = readManifest(content);
   if (!signed) return 'the signed manifest cannot be read';
   if (!info || info.version !== signed.version) return 'the version is not the signed one';
   if (info.sha512 !== signed.sha512) return 'the installer is not the signed one';
   return '';
 }
 
-module.exports = { PUBLIC_KEYS, verifySignature, readManifest, checkAgainstManifest };
+module.exports = {
+  PUBLIC_KEYS,
+  SIGNATURE_MARK,
+  splitSigned,
+  verifySignature,
+  readManifest,
+  checkAgainstManifest,
+};

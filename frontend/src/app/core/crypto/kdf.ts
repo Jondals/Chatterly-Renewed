@@ -4,6 +4,23 @@
  */
 import { fromB64, utf8 } from './bytes';
 
+/**
+ * ! The cheapest password stretching this client ever performs. The number of rounds of an account comes from the
+ * server, so a hostile server could ask for 1 round: the `authSecret` it then receives would be almost free to brute
+ * force, and with the password it would also get the wrapping key. Every derivation is checked here, so no flow
+ * (sign in, password change, account deletion) can be talked into a weaker one.
+ */
+export const MIN_KDF_ITERATIONS = 600_000;
+
+/** The server asked for weaker password stretching than this client accepts. */
+export class KdfDowngradeError extends Error {
+  /** Creates the error; the message names the number of rounds that was refused. */
+  constructor(iterations: number) {
+    super(`Refused to stretch the password with only ${iterations} rounds`);
+    this.name = 'KdfDowngradeError';
+  }
+}
+
 export interface DerivedSecrets {
   /** Sent to the server (which hashes it again with scrypt). Reveals nothing about the wrapping key. */
   authSecret: string;
@@ -24,6 +41,9 @@ export async function deriveSecrets(
   saltB64: string,
   iterations: number,
 ): Promise<DerivedSecrets> {
+  if (!Number.isSafeInteger(iterations) || iterations < MIN_KDF_ITERATIONS) {
+    throw new KdfDowngradeError(iterations);
+  }
   const passwordKey = await crypto.subtle.importKey(
     'raw',
     utf8(password.normalize('NFKC')),

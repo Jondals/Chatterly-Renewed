@@ -8,7 +8,9 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { UiService } from '../../core/services/ui.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
-import { TECHNOLOGIES } from '../../shared/util/tech-logos';
+import { TECHNOLOGIES, type TechPlatform } from '../../shared/util/tech-logos';
+import { ANDROID_APP } from '../../core/config';
+import { isDesktopApp } from '../../core/desktop-bridge';
 import { APP_NAME, APP_LABEL } from '../../version';
 
 /**
@@ -490,10 +492,18 @@ export class AboutSectionComponent {
     this.ui.openSettings(section);
   }
 
-  /** Marks the SVG of every technology logo as safe to insert (they never contain user input). */
+  /** The platform this copy of the app runs on: it decides which technologies are listed. */
+  private platform(): TechPlatform {
+    if (ANDROID_APP) return 'android';
+    return isDesktopApp() ? 'desktop' : 'web';
+  }
+
+  /** Marks the SVG of the technology logos of this platform as safe to insert (they never contain user input). */
   private trustLogos(): { name: string; url: string; svg: SafeHtml }[] {
     const trusted: { name: string; url: string; svg: SafeHtml }[] = [];
+    const platform = this.platform();
     for (const technology of TECHNOLOGIES) {
+      if (technology.platforms && !technology.platforms.includes(platform)) continue;
       trusted.push({
         name: technology.name,
         url: technology.url,

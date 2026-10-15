@@ -4,7 +4,17 @@
  */
 
 /** Name and SVG drawing of each technology. They are constants of this app: no user input ever reaches them. */
-export const TECHNOLOGIES: { name: string; url: string; svg: string }[] = [
+export type TechPlatform = 'web' | 'desktop' | 'android';
+
+/** A technology; without `platforms` it is shown on every platform (the page and the server are the same everywhere). */
+export interface Technology {
+  name: string;
+  url: string;
+  svg: string;
+  platforms?: TechPlatform[];
+}
+
+export const TECHNOLOGIES: Technology[] = [
   {
     name: 'Angular 21',
     url: 'https://angular.dev',
@@ -13,7 +23,7 @@ export const TECHNOLOGIES: { name: string; url: string; svg: string }[] = [
   {
     name: 'Tailwind 4',
     url: 'https://tailwindcss.com',
-    svg: '<path d="M12 6c-2.7 0-4.4 1.3-5 4 1-1.3 2.2-1.8 3.5-1.5.8.2 1.3.7 1.9 1.3 1 1 2.1 2.2 4.6 2.2 2.7 0 4.4-1.3 5-4-1 1.3-2.2 1.8-3.5 1.5-.8-.2-1.3-.7-1.9-1.3C15.6 7.2 14.5 6 12 6zM7 12c-2.7 0-4.4 1.3-5 4 1-1.3 2.2-1.8 3.5-1.5.8.2 1.3.700 1.9 1.3 1 1 2.1 2.2 4.6 2.2 2.7 0 4.4-1.3 5-4-1 1.3-2.2 1.8-3.5 1.5-.8-.2-1.3-.7-1.9-1.3C10.6 13.2 9.5 12 7 12z" fill="#38bdf8"/>',
+    svg: '<path d="M12 6c-2.7 0-4.4 1.3-5 4 1-1.3 2.2-1.8 3.5-1.5.8.2 1.3.7 1.9 1.3 1 1 2.1 2.2 4.6 2.2 2.7 0 4.4-1.3 5-4-1 1.3-2.2 1.8-3.5 1.5-.8-.2-1.3-.7-1.9-1.3C15.6 7.2 14.5 6 12 6zM7 12c-2.7 0-4.4 1.3-5 4 1-1.3 2.2-1.8 3.5-1.5.8.2 1.3.7 1.9 1.3 1 1 2.1 2.2 4.6 2.2 2.7 0 4.4-1.3 5-4-1 1.3-2.2 1.8-3.5 1.5-.8-.2-1.3-.7-1.9-1.3C10.6 13.2 9.5 12 7 12z" fill="#38bdf8"/>',
   },
   {
     name: 'WebCrypto',
@@ -24,6 +34,24 @@ export const TECHNOLOGIES: { name: string; url: string; svg: string }[] = [
     name: 'WebRTC',
     url: 'https://webrtc.org',
     svg: '<circle cx="12" cy="12" r="9" fill="none" stroke="#f59e0b" stroke-width="2"/><path d="M7 12a5 5 0 0 1 10 0" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/><path d="M9.5 15a2.5 2.5 0 0 0 5 0" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.4" fill="#fff"/>',
+  },
+  {
+    name: 'Electron 44',
+    url: 'https://www.electronjs.org',
+    platforms: ['desktop'],
+    svg: '<circle cx="12" cy="12" r="2" fill="#9feaf9"/><g fill="none" stroke="#47848f" stroke-width="1.6"><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/></g>',
+  },
+  {
+    name: 'Capacitor 8',
+    url: 'https://capacitorjs.com',
+    platforms: ['android'],
+    svg: '<rect x="2" y="2" width="20" height="20" rx="5" fill="#119eff"/><path d="M12 5 6.5 12.5H11L10 19l5.5-7.5H13z" fill="#fff"/>',
+  },
+  {
+    name: 'Android',
+    url: 'https://developer.android.com',
+    platforms: ['android'],
+    svg: '<path d="M6 16.5a6 6 0 0 1 12 0z" fill="#3ddc84"/><path d="M8.5 8.5 7.3 6.5M15.5 8.5l1.2-2" stroke="#3ddc84" stroke-width="1.2" stroke-linecap="round"/><circle cx="9.500" cy="13" r=".8" fill="#0b2b19"/><circle cx="14.500" cy="13" r=".8" fill="#0b2b19"/>',
   },
   {
     name: 'Fastify 5',

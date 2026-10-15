@@ -16,6 +16,7 @@ const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
 @Component({
   selector: 'app-register',
   standalone: true,
+  host: { class: 'auth-page auth-page-right block' },
   imports: [IconComponent, RouterLink, TranslatePipe],
   template: `
     <h2 class="text-2xl font-bold tracking-tight">{{ 'Create your identity' | t }} ✨</h2>

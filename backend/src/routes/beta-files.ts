@@ -29,11 +29,15 @@ const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 const GRACE_MS = 60 * 60 * 1000;
 /** The biggest file the build may upload. */
 const MAX_FILE_BYTES = 400 * 1024 * 1024;
-/** The names that exist here: the manifests (and their signatures) of each platform and the installers. Nothing else. */
+/**
+ * The names that exist here: the manifests (and their signatures) of each platform and the installers. Nothing else.
+ * * Android: beta-android.yml says which APK is the beta (its version, file and SHA-256). It needs no Ed25519 signature: the app
+ *   installs an APK only if Android confirms it is signed with the same certificate as the installed app and is newer.
+ */
 const FILE_NAME =
-  /^(?:(?:beta|beta-linux)\.yml(?:\.sig)?|Chatterly-[0-9A-Za-z.-]{1,60}\.(?:exe|AppImage))$/;
-const MANIFEST_NAME = /^(?:beta|beta-linux)\.yml$/;
-const INSTALLER_NAME = /^Chatterly-[0-9A-Za-z.-]{1,60}\.(?:exe|AppImage)$/;
+  /^(?:(?:beta|beta-linux)\.yml(?:\.sig)?|beta-android\.yml|Chatterly-[0-9A-Za-z.-]{1,60}\.(?:exe|AppImage|apk))$/;
+const MANIFEST_NAME = /^(?:beta|beta-linux|beta-android)\.yml$/;
+const INSTALLER_NAME = /^Chatterly-[0-9A-Za-z.-]{1,60}\.(?:exe|AppImage|apk)$/;
 
 /** Stops a stream that is bigger than allowed. */
 class SizeLimit extends Transform {
@@ -234,7 +238,7 @@ export function registerBetaFileRoutes(app: FastifyInstance, ctx: AppContext): v
   /** Keeps what a manifest points to and deletes the installers nobody points to (and left-over partial uploads). */
   function prune(): void {
     const keep = new Set<string>();
-    for (const manifest of ['beta.yml', 'beta-linux.yml']) {
+    for (const manifest of ['beta.yml', 'beta-linux.yml', 'beta-android.yml']) {
       try {
         const text = fs.readFileSync(path.join(config.betaDir, manifest), 'utf8');
         const found = /^path:\s*(\S+)\s*$/m.exec(text);

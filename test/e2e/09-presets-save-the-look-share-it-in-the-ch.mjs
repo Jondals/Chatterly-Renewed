@@ -22,8 +22,7 @@ export async function step09(world) {
   await a.click('[data-tip="More"]');
   // The menu offers photo or video, file and voice note as tiles, and the rest as cards.
   await a.waitForSelector('button:has-text("Photo or video")');
-  await a.waitForTimeout(500);
-  await shot(a, '09a-plus-menu');
+  await shot(a, '09a-plus-menu', 500);
   check(
     (await a.locator('button:has-text("File")').count()) >= 1 &&
       (await a.locator('button:has-text("Voice note")').count()) >= 1,

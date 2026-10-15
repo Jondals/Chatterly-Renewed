@@ -57,7 +57,7 @@ const ASSET_LABELS: Record<AssetName, string> = {
         type="submit"
         [disabled]="!name().trim() || busy() || full()"
       >
-        <app-icon name="plus" [size]="14" /> {{ 'Save what I have now' | t }}
+        <app-icon name="plus" [size]="14" /> {{ 'Save' | t }}
       </button>
     </form>
     @if (list().length === 0) {

@@ -52,7 +52,7 @@ const EMOJI_WARM_UP_MS = 6000;
   ],
   template: `
     <div
-      class="flex h-[var(--app-h,100dvh)] gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] max-sm:p-1 max-sm:pb-[max(0.125rem,calc(env(safe-area-inset-bottom)*0.45))] max-sm:pl-[max(0.25rem,env(safe-area-inset-left))] max-sm:pr-[max(0.25rem,env(safe-area-inset-right))] max-sm:pt-[max(0.25rem,env(safe-area-inset-top))]"
+      class="flex h-[var(--app-h,100dvh)] gap-2 p-2 pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pl-[max(0.5rem,var(--safe-area-inset-left,env(safe-area-inset-left)))] pr-[max(0.5rem,var(--safe-area-inset-right,env(safe-area-inset-right)))] pt-[max(0.5rem,var(--safe-area-inset-top,env(safe-area-inset-top)))] max-sm:p-1 max-sm:pb-[max(0.125rem,calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom))*0.45))] max-sm:pl-[max(0.25rem,var(--safe-area-inset-left,env(safe-area-inset-left)))] max-sm:pr-[max(0.25rem,var(--safe-area-inset-right,env(safe-area-inset-right)))] max-sm:pt-[max(0.25rem,var(--safe-area-inset-top,env(safe-area-inset-top)))]"
     >
       <!-- On narrow screens the navigation becomes a slide-in drawer -->
       @if (ui.sidebarOpen()) {

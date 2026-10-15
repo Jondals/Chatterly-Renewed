@@ -211,7 +211,7 @@ export const ES: Record<string, string> = {
   'Bubble': 'Burbuja',
   'Drop': 'Gota',
   'Tick': 'Tic',
-  'Typewriter': 'Máquina de escribir',
+  'Typewriter': 'Máquina',
   'Classic': 'Clásico',
   'Your cursors': 'Tus cursores',
   'Use this cursor': 'Usar este cursor',
@@ -776,6 +776,10 @@ export const ES: Record<string, string> = {
   'Private call unavailable': 'Llamada privada no disponible',
   'A private call needs the relay server, and it is not available. Your address would be exposed, so the call was not started.':
     'Una llamada privada necesita el servidor de retransmisión y no está disponible. Tu dirección quedaría expuesta, así que la llamada no se inició.',
+  'A private call needs the encrypted relay (turns:) of the server, and it is not available. Your address would be exposed, so the call was not started.':
+    'Una llamada privada necesita la retransmisión cifrada (turns:) del servidor y no está disponible. Tu dirección quedaría expuesta, así que la llamada no se inició.',
+  'End-to-end encrypted media needs RTCRtpScriptTransform (Chrome, Edge and Android WebView 141+, Firefox 117+, Safari 15.4+). Update your browser or the Android System WebView.':
+    'El cifrado de extremo a extremo de la llamada necesita RTCRtpScriptTransform (Chrome, Edge y Android WebView 141+, Firefox 117+, Safari 15.4+). Actualiza el navegador o Android System WebView.',
   'The server asks for private calls but its relay is not working, so the call was not started.':
     'El servidor exige llamadas privadas pero su retransmisión no funciona, así que la llamada no se inició.',
   'The call configuration could not be loaded from the server, so the call was not started.':
@@ -783,6 +787,11 @@ export const ES: Record<string, string> = {
   'The server sent an unusable call configuration.':
     'El servidor envió una configuración de llamada inutilizable.',
   'Call stopped': 'Llamada detenida',
+  'Screen sharing is not available on Android': 'Compartir pantalla no está disponible en Android',
+  'The Android web view cannot capture the screen. Share it from the web or the desktop app.':
+    'El WebView de Android no puede capturar la pantalla. Compártela desde la web o la app de escritorio.',
+  'The end-to-end encryption of the media could not be confirmed with a participant, so the connection was closed.':
+    'No se pudo confirmar el cifrado de extremo a extremo del audio y el vídeo con un participante, así que se cerró la conexión.',
   'A connection did not go through the relay, so it was closed to protect your address.':
     'Una conexión no pasó por la retransmisión, así que se cerró para proteger tu dirección.',
   'Call blocked': 'Llamada bloqueada',
@@ -1407,12 +1416,18 @@ export const ES: Record<string, string> = {
   'Open the notifications (the bell) to update.':
     'Abre las notificaciones (la campana) para actualizar.',
   'Chatterly {v}': 'Chatterly {v}',
+  'Electron 44': 'Electron 44',
+  'Capacitor 8': 'Capacitor 8',
+  'Android': 'Android',
   'Download': 'Descargar',
   'Downloading… {n}%': 'Descargando… {n}%',
   'Restart and update': 'Reiniciar y actualizar',
   'Chatterly will close and open again with the new version.':
     'Chatterly se cerrará y se abrirá de nuevo con la versión nueva.',
   'The update could not be downloaded': 'No se pudo descargar la actualización',
+  'No Android beta has been published yet.': 'Todavía no se ha publicado ninguna beta de Android.',
+  'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.':
+    'La última beta es anterior a la versión instalada: Android solo la instala si antes desinstalas Chatterly.',
   'Updates': 'Actualizaciones',
   'Check for updates': 'Buscar actualizaciones',
   'Checking…': 'Buscando…',
@@ -1626,6 +1641,22 @@ export const ES: Record<string, string> = {
   'An owner is set in the server and cannot be removed here.':
     'Un dueño está fijado en el servidor y no se puede quitar desde aquí.',
   'Update channel': 'Canal de actualizaciones',
+  'Install': 'Instalar',
+  'Android will ask you to confirm. The first time, it asks to allow Chatterly to install apps.':
+    'Android te pedirá que lo confirmes. La primera vez te pedirá permitir que Chatterly instale apps.',
+  'Before it is installed, the app checks that the new version is Chatterly, newer, and signed by the same author; Android checks it again.':
+    'Antes de instalarla, la app comprueba que la versión nueva es Chatterly, más reciente y firmada por el mismo autor; Android lo vuelve a comprobar.',
+  'Looking for updates…': 'Buscando actualizaciones…',
+  'Chatterly is up to date': 'Chatterly está al día',
+  'Downloading the update…': 'Descargando la actualización…',
+  'The update is ready to install': 'La actualización está lista para instalar',
+  'The update could not be completed': 'No se pudo completar la actualización',
+  'Could not look for updates': 'No se pudieron buscar actualizaciones',
+  'The installer could not be opened': 'No se pudo abrir el instalador',
+  'Allow Chatterly to install apps, come back and press Install again.':
+    'Permite que Chatterly instale apps, vuelve y pulsa Instalar otra vez.',
+  'A new version of Chatterly is available': 'Hay una versión nueva de Chatterly',
+  'Open Settings > Updates to download it.': 'Abre Ajustes > Actualizaciones para descargarla.',
   'Release is the version everybody gets. Beta also gives you the versions that are still being tried: they can have mistakes, tell the administrator what breaks.':
     'Release es la versión que recibe todo el mundo. Beta te da además las versiones que aún se están probando: pueden tener errores, cuéntale al administrador qué falla.',
   'Release': 'Release',

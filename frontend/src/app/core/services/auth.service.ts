@@ -5,7 +5,7 @@
  */
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { KDF_ITERATIONS, MIN_ACCEPTED_KDF_ITERATIONS } from '../config';
-import { randomBytes, toB64 } from '../crypto/bytes';
+import { randomBytes, toB64, toB64Url } from '../crypto/bytes';
 import {
   createIdentity,
   rewrapIdentity,
@@ -17,12 +17,18 @@ import { deriveSecrets } from '../crypto/kdf';
 import type { Tokens, User } from '../models';
 import { ApiError, ApiService } from './api.service';
 import { forgetVault, openText, sealText } from '../session-vault';
+import { wipeDeviceData } from '../device-wipe';
 import { KEY_STORE } from './key-store';
 
 /** Tokens plus the moment the access token expires. */
 interface Session extends Tokens {
   /** Epoch ms at which the access token expires. */
   accessExp: number;
+  /**
+   * The retry key of the renewal in progress (32 random bytes, base64url). It is saved with the refresh token BEFORE
+   * asking, so if the answer is lost the next try proves it is the same request and gets the same new token.
+   */
+  retryKey?: string;
 }
 
 /** Key under which the session is saved in localStorage. */
@@ -38,19 +44,6 @@ type LoginResponse = AuthResponse & { wrappedKeys: WrappedKeys };
  * split into an auth secret (sent over TLS, hashed again by the server) and a wrapping key (kept here) that
  * decrypts the identity private keys stored on the server.
  */
-/** The databases of this device where the keys and the person's own files are kept (the ones that exist are erased). */
-const LOCAL_DATABASES = [
-  'chatterly-renewed-keys',
-  'chatterly-renewed-vault',
-  'chatterly-renewed-library',
-  'chatterly-renewed-stickers',
-  'chatterly-renewed-sounds',
-  'chatterly-renewed-fonts',
-  'chatterly-renewed-click',
-  'chatterly-renewed-ringtone',
-  'chatterly-renewed-wallpaper',
-];
-
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(ApiService);
@@ -83,7 +76,10 @@ export class AuthService {
     if (this.erasing) {
       return;
     }
-    void this.logout(false);
+    void this.logout(false).then(function reload() {
+      // Nothing of the account stays in memory either: the sign-in page is loaded from scratch.
+      window.location.assign('/login');
+    });
   }
 
   /** The unlocked identity (it throws when nobody is signed in). */
@@ -113,7 +109,7 @@ export class AuthService {
         if (saved.user.id === stored.userId) {
           this.session = saved.session;
           this.user.set(saved.user);
-          if (sealed && sealed.startsWith('{')) this.persist();
+          if (sealed && sealed.startsWith('{')) void this.persist();
           this.unlockedIdentity.set({
             ecdhPrivate: stored.ecdhPrivate,
             ecdsaPrivate: stored.ecdsaPrivate,
@@ -161,14 +157,24 @@ export class AuthService {
     await this.startSession(response, identity);
   }
 
-  /** Signs in: derives the secrets with the parameters of the account and unlocks the identity. */
-  async login(username: string, password: string): Promise<void> {
+  /**
+   * ! The password stretching of an account, as the server tells it. Every flow that derives from the password asks
+   * through here, so a server that asks for fewer rounds than this client accepts is refused with a clear message (and
+   * deriveSecrets refuses it again, in case a new flow forgets this).
+   */
+  private async accountKdf(username: string): Promise<{ salt: string; iterations: number }> {
     const kdf = await this.api.get<{ salt: string; iterations: number }>(
       '/api/auth/kdf?username=' + encodeURIComponent(username),
     );
-    if (kdf.iterations < MIN_ACCEPTED_KDF_ITERATIONS) {
+    if (!Number.isSafeInteger(kdf.iterations) || kdf.iterations < MIN_ACCEPTED_KDF_ITERATIONS) {
       throw new ApiError(0, 'kdf_downgrade');
     }
+    return kdf;
+  }
+
+  /** Signs in: derives the secrets with the parameters of the account and unlocks the identity. */
+  async login(username: string, password: string): Promise<void> {
+    const kdf = await this.accountKdf(username);
     const { authSecret, wrappingKey } = await deriveSecrets(password, kdf.salt, kdf.iterations);
     const response = await this.api.post<LoginResponse>(
       '/api/auth/login',
@@ -185,9 +191,7 @@ export class AuthService {
 
   /** Changes the password: the private keys are encrypted again with the new one. */
   async changePassword(username: string, oldPassword: string, newPassword: string): Promise<void> {
-    const kdf = await this.api.get<{ salt: string; iterations: number }>(
-      '/api/auth/kdf?username=' + encodeURIComponent(username),
-    );
+    const kdf = await this.accountKdf(username);
     const oldSecrets = await deriveSecrets(oldPassword, kdf.salt, kdf.iterations);
     // The wrapped keys are fetched again through a verified sign in.
     const login = await this.api.post<LoginResponse>(
@@ -209,7 +213,7 @@ export class AuthService {
       kdfIterations: KDF_ITERATIONS,
       wrappedKeys,
     });
-    this.storeSession(tokens);
+    await this.storeSession(tokens);
   }
 
   /**
@@ -217,9 +221,7 @@ export class AuthService {
    * and then everything kept on this device goes too (keys, session, preferences, stickers, sounds, fonts).
    */
   async deleteAccount(username: string, password: string): Promise<void> {
-    const kdf = await this.api.get<{ salt: string; iterations: number }>(
-      '/api/auth/kdf?username=' + encodeURIComponent(username),
-    );
+    const kdf = await this.accountKdf(username);
     const secrets = await deriveSecrets(password, kdf.salt, kdf.iterations);
     // ! The password is checked through a sign in first: a wrong one must not look like an expired session (which signs out).
     await this.api.post('/api/auth/login', { username, authSecret: secrets.authSecret }, false);
@@ -231,24 +233,21 @@ export class AuthService {
       throw error;
     }
     // Everything kept on this device goes, without touching the state in memory: the page is loaded again right after.
-    const names = new Set(LOCAL_DATABASES);
-    for (const database of (await indexedDB.databases?.()) ?? []) {
-      if (database.name) {
-        names.add(database.name);
-      }
-    }
-    for (const name of names) {
-      indexedDB.deleteDatabase(name);
-    }
-    localStorage.clear();
-    sessionStorage.clear();
+    await wipeDeviceData();
   }
 
   /** Signs out; the server is told too unless the session was already refused. */
   async logout(callServer = true): Promise<void> {
     const refresh = this.session?.refreshToken;
+    const retryKey = this.session?.retryKey;
     if (callServer && refresh) {
-      await this.api.post('/api/auth/logout', { refreshToken: refresh }, false).catch(this.ignore);
+      await this.api
+        .post(
+          '/api/auth/logout',
+          retryKey ? { refreshToken: refresh, retryKey } : { refreshToken: refresh },
+          false,
+        )
+        .catch(this.ignore);
     }
     await this.clearLocal();
   }
@@ -256,7 +255,7 @@ export class AuthService {
   /** Stores a new version of the profile of the person. */
   setUser(user: User): void {
     this.user.set(user);
-    this.persist();
+    void this.persist();
   }
 
   /** Returns a valid access token, renewing it (and rotating the refresh token) when it is about to expire. */
@@ -276,18 +275,27 @@ export class AuthService {
     this.refreshing = null;
   }
 
-  /** Exchanges the refresh token for new tokens; a refusal means the session is gone. */
+  /**
+   * Exchanges the refresh token for new tokens; a refusal means the session is gone.
+   * ! The retry key is written to storage together with the old token BEFORE the request, and the new tokens are written
+   * before they are used. If the answer is lost (no network, the system kills the app), the next try sends the same key
+   * and the server answers with the same new token instead of taking the old one for a stolen copy.
+   */
   private async refresh(): Promise<string | null> {
     if (!this.session) {
       return null;
     }
     try {
+      if (!this.session.retryKey) {
+        this.session = { ...this.session, retryKey: toB64Url(randomBytes(32)) };
+        await this.persist();
+      }
       const tokens = await this.api.post<Tokens>(
         '/api/auth/refresh',
-        { refreshToken: this.session.refreshToken },
+        { refreshToken: this.session.refreshToken, retryKey: this.session.retryKey },
         false,
       );
-      this.storeSession(tokens);
+      await this.storeSession(tokens);
       return tokens.accessToken;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -307,34 +315,45 @@ export class AuthService {
     });
     this.unlockedIdentity.set(identity);
     this.user.set(response.user);
-    this.storeSession(response);
+    await this.storeSession(response);
   }
 
-  /** Remembers new tokens. */
-  private storeSession(tokens: Tokens): void {
-    this.session = { ...tokens, accessExp: Date.now() + tokens.expiresIn * 1000 };
-    this.persist();
+  /** Remembers new tokens; the promise ends when they are written to storage. */
+  private storeSession(tokens: Tokens): Promise<void> {
+    this.session = {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn: tokens.expiresIn,
+      accessExp: Date.now() + tokens.expiresIn * 1000,
+    };
+    return this.persist();
   }
 
-  /** Writes the session to localStorage. */
-  private persist(): void {
+  /** The writes of the session, one after the other (an older one can never finish after a newer one). */
+  private writing: Promise<void> = Promise.resolve();
+
+  /** Writes the session to localStorage, encrypted; the promise ends when the latest version is written. */
+  private persist(): Promise<void> {
+    const write = this.writeSession.bind(this);
+    this.writing = this.writing.then(write, write);
+    return this.writing;
+  }
+
+  /** Seals the session as it is now and writes it (unless the person signed out meanwhile). */
+  private async writeSession(): Promise<void> {
     if (!this.session || !this.user()) {
       return;
     }
-    // The tokens are written encrypted; the write is not awaited (the page does not wait for the disk).
-    void sealText(JSON.stringify({ session: this.session, user: this.user() })).then(
-      this.writeSealed.bind(this),
-    );
-  }
-
-  /** Writes the encrypted session to localStorage (unless the person signed out meanwhile). */
-  private writeSealed(sealed: string): void {
+    const sealed = await sealText(JSON.stringify({ session: this.session, user: this.user() }));
     if (this.session) {
       localStorage.setItem(SESSION_KEY, sealed);
     }
   }
 
-  /** Forgets everything about the session on this device. */
+  /**
+   * Forgets everything about the account on this device (see device-wipe.ts for the list). The caller loads the page
+   * again afterwards, so nothing that was read into memory survives either.
+   */
   private async clearLocal(): Promise<void> {
     this.session = null;
     this.user.set(null);
@@ -342,5 +361,6 @@ export class AuthService {
     localStorage.removeItem(SESSION_KEY);
     await forgetVault();
     await this.keyStore.clear();
+    await wipeDeviceData();
   }
 }

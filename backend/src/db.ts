@@ -247,6 +247,12 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['guilds', 'tag_color', "TEXT NOT NULL DEFAULT '#7c8cff'"],
   ['guilds', 'tag_icon', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'tag_guild', 'TEXT'],
+  // The second chance of a renewal whose answer was lost (see renew in routes/auth.ts): the session of the spent token,
+  // when it was rotated (0 = no second chance) and the hash of the retry key of that request. Rows without them (older
+  // versions) never get the second chance, so a server that goes back to an older version keeps working.
+  ['spent_tokens', 'session_id', 'TEXT'],
+  ['spent_tokens', 'spent_at', 'INTEGER NOT NULL DEFAULT 0'],
+  ['spent_tokens', 'retry_hash', 'TEXT'],
   // The key of the encrypted icon of a group, sealed in the browser of the owner with the key of the group (see routes/guilds.ts).
   ['guilds', 'icon_key_version', 'INTEGER NOT NULL DEFAULT 0'],
   ['guilds', 'icon_key_iv', "TEXT NOT NULL DEFAULT ''"],

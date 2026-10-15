@@ -1,0 +1,4 @@
+# mobile/pnpm-workspace.yaml
+# ! Supply chain: a package version must have been public for 14 days (20160 minutes) before this folder accepts it, so a
+#   hijacked release is usually found and pulled before it can reach the APK. No package may run install scripts.
+minimumReleaseAge: 20160

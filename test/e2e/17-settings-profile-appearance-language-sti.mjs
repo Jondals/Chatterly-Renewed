@@ -586,6 +586,5 @@ export async function step17(world) {
   await a.click('a:has-text("Acerca de")');
   await a.waitForSelector('text=Jondals', { timeout: 10000 });
   check(true, 'animated "Developed by Jondals" signature visible');
-  await a.waitForTimeout(1500);
-  await shot(a, '08-acerca');
+  await shot(a, '08-acerca', 1500);
 }

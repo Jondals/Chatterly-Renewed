@@ -33,5 +33,4 @@ export async function step21(world) {
     errors.length === 0,
     'no errors in the browser console' + (errors.length ? ':\n' + errors.join('\n') : ''),
   );
-  console.log('\nALL CORRECT');
 }

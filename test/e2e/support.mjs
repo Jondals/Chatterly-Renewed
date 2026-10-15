@@ -25,9 +25,12 @@ export const errors = [];
 export const shared = { browser: null, webServer: null };
 
 /** Optional: CHATTERLY_SHOTS=<dir> saves screenshots for a visual review (nothing is written otherwise). */
-export async function shot(page, name) {
+export async function shot(page, name, settle = 0) {
   const dir = process.env.CHATTERLY_SHOTS;
-  if (dir) await page.screenshot({ path: path.join(dir, name + '.png') });
+  if (!dir) return;
+  // A wait that only makes the picture nicer (an animation ending) happens only when pictures are saved.
+  if (settle) await page.waitForTimeout(settle);
+  await page.screenshot({ path: path.join(dir, name + '.png') });
 }
 
 export const step = function (s) {

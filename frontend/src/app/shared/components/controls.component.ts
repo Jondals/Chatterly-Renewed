@@ -38,13 +38,16 @@ export class ToggleComponent {
   standalone: true,
   imports: [TranslatePipe],
   template: `
-    <div class="inline-flex max-w-full flex-wrap rounded-ui bg-black/30 p-0.5" role="radiogroup">
+    <div
+      class="inline-flex max-w-full flex-wrap gap-1 rounded-ui bg-black/30 p-1"
+      role="radiogroup"
+    >
       @for (o of options(); track o.id) {
         <button
           type="button"
           role="radio"
           [attr.aria-checked]="value() === o.id"
-          class="rounded-[calc(var(--r)*.75)] px-3 py-1.5 text-xs font-semibold"
+          class="whitespace-nowrap rounded-[calc(var(--r)*.75)] px-3 py-1.5 text-xs font-semibold max-md:px-3.5 max-md:py-2"
           [class.bg-accent]="value() === o.id"
           [class.text-accent-ink]="value() === o.id"
           [class.text-muted]="value() !== o.id"

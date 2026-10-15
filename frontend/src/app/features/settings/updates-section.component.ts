@@ -99,6 +99,10 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
             {{ 'Try again' | t }}
           </button>
         </div>
+        <!-- The reason, as the shell gives it, so a failure can be told apart (signature, network, beta access...). -->
+        @if (update.state().error) {
+          <p class="mt-1.5 text-xs text-muted break-words">{{ update.state().error }}</p>
+        }
       }
       @if (status() === 'ready') {
         <p class="mt-3 text-xs text-muted">

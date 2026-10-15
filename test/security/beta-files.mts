@@ -164,6 +164,41 @@ export async function checkBetaFiles(): Promise<void> {
       fs.existsSync(path.join(dir, 'Chatterly-2.32.0-b2.exe')),
     'the installer of the old beta is deleted, the one a manifest points to stays',
   );
+
+  // Android: the APK and its manifest live here too, and follow the same rules.
+  check(
+    (await put('Chatterly-2.32.0-b2.apk', 'apk-two')).statusCode === 201 &&
+      (
+        await put(
+          'beta-android.yml',
+          'version: 2.32.0-b2\npath: Chatterly-2.32.0-b2.apk\nsha256: x\n',
+        )
+      ).statusCode === 201,
+    'the build uploads the Android APK of the beta and its manifest',
+  );
+  // (The tester was taken off the list above: the administrator, still in the program, downloads.)
+  const adminToken = (await call(app, admin, 'GET', '/api/beta/feed')).json().token as string;
+  check(
+    (await download('Chatterly-2.32.0-b2.apk', adminToken)).statusCode === 200 &&
+      (await download('Chatterly-2.32.0-b2.apk', token)).statusCode === 404 &&
+      (await download('Chatterly-2.32.0-b2.apk', null)).statusCode === 404,
+    'the APK is given only with the token of somebody still in the program',
+  );
+  check(
+    (await put('Chatterly-2.32.0-b2.apk.exe.sh', 'x')).statusCode === 400 &&
+      (await put('beta-ios.yml', 'x')).statusCode === 400 &&
+      (await put('../Chatterly-2.32.0-b2.apk', 'x')).statusCode !== 201,
+    'no other names than the APK and its manifest are taken for Android',
+  );
+  await put('Chatterly-2.32.0-b1.apk', 'apk-one');
+  fs.utimesSync(path.join(dir, 'Chatterly-2.32.0-b1.apk'), longAgo, longAgo);
+  await put('beta-android.yml', 'version: 2.32.0-b2\npath: Chatterly-2.32.0-b2.apk\nsha256: x\n');
+  check(
+    !fs.existsSync(path.join(dir, 'Chatterly-2.32.0-b1.apk')) &&
+      fs.existsSync(path.join(dir, 'Chatterly-2.32.0-b2.apk')) &&
+      fs.existsSync(path.join(dir, 'Chatterly-2.32.0-b2.exe')),
+    'an old APK is deleted; the APK and the installers that a manifest points to stay',
+  );
   await app.close();
 
   const off = await makeApp({ betaDir: dir });
