@@ -206,7 +206,9 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
       </app-collapse>
 
       <app-collapse title="Background" [summary]="currentBackground()">
-        <span preview class="relative h-8 w-14 overflow-hidden rounded-ui border border-white/10"
+        <span
+          preview
+          class="bg-preview relative h-8 w-14 overflow-hidden rounded-ui border border-white/10"
           ><app-bg-scene [kind]="s.background()"
         /></span>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -218,7 +220,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
               [class.border-white/10]="s.background() !== b.id"
               (click)="s.background.set(b.id)"
             >
-              <span class="relative block h-16 overflow-hidden"
+              <span class="bg-preview relative block h-16 overflow-hidden"
                 ><app-bg-scene [kind]="b.id" />
                 @if (b.id === 'shuffle') {
                   <span class="absolute inset-0 flex items-center justify-center text-white/90"

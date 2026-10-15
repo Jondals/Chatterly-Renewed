@@ -4,7 +4,9 @@
  * makes the two changes that only the Android app needs:
  *   1. native-config.js: the address of the API and the native policy (calls ONLY through the relay over TLS). It is a
  *      file inside the APK, loaded before the app, so no server can change it.
- *   2. A stricter Content-Security-Policy: the page may talk only to the exact API origin (no "any wss:" and no
+ *   2. The viewport without viewport-fit=cover: the WebView is kept out of the bars of the system (see below), and
+ *      native-config.js marks the page as the Android app (html[data-platform="android"]) for the styles of the phone.
+ *   3. A stricter Content-Security-Policy: the page may talk only to the exact API origin (no "any wss:" and no
  *      localhost), media only from itself and the API, and no third-party frames (embedded players could open their own
  *      WebRTC connections and leak the address, which the relay policy cannot see).
  *
@@ -118,6 +120,8 @@ function nativeConfig(api) {
     '  writable: false,',
     '  configurable: false,',
     '});',
+    '// The styles that only the Android app uses hang from this mark (html[data-platform="android"]).',
+    "document.documentElement.setAttribute('data-platform', 'android');",
     '',
   ].join('\n');
 }
@@ -161,6 +165,13 @@ function main() {
     // ! Right after the CSP and before every script of the app: config.ts reads it when it is first imported.
     '<script src="native-config.js"></script>';
   html = html.replace(found[0][0], tag);
+  // ! Without viewport-fit=cover Capacitor keeps the WebView out of the status bar, the navigation bar and the keyboard
+  // (it pads the window natively), so no screen of the app (chat, settings, dialogs, calls) is drawn under them. The web
+  // keeps cover, for the notch of phones in the browser.
+  const viewport = /(<meta\s+name="viewport"\s+content="[^"]*?),\s*viewport-fit=cover([^"]*")/i;
+  if (!viewport.test(html))
+    fail('index.html has no viewport-fit=cover to take out: update this script.');
+  html = html.replace(viewport, '$1$2');
 
   fs.rmSync(target, { recursive: true, force: true });
   fs.cpSync(source, target, { recursive: true });

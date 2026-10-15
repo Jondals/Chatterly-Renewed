@@ -9,7 +9,7 @@ declare global {
   interface Window {
     CHATTERLY_API?: string;
     /** Set only by native-config.js, a file that the native apps carry inside their package (never sent by a server). */
-    CHATTERLY_NATIVE?: { strictRelay?: boolean };
+    CHATTERLY_NATIVE?: { strictRelay?: boolean; platform?: string };
   }
 }
 
@@ -27,6 +27,9 @@ export const WS_URL: string = API_BASE.replace(/^http/, 'ws') + '/ws';
  * (see buildPeerConfiguration). Read once, when the app starts: nothing that arrives later can change it.
  */
 export const STRICT_RELAY: boolean = window.CHATTERLY_NATIVE?.strictRelay === true;
+
+/** True inside the Android app (set by its native-config.js, like STRICT_RELAY). */
+export const ANDROID_APP: boolean = window.CHATTERLY_NATIVE?.platform === 'android';
 
 /** Argon-class cost is not available in WebCrypto; PBKDF2 at OWASP's recommended 600k rounds. */
 export const KDF_ITERATIONS = 600_000;

@@ -23,3 +23,5 @@
 @import './styles/spinly.css';
 @import './styles/scenes.css';
 @import './styles/keyframes.css';
+/* Last: the styles of the Android app only (html[data-platform='android']). */
+@import './styles/android.css';

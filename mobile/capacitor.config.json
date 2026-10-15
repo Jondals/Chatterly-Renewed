@@ -12,5 +12,11 @@
   "android": {
     "allowMixedContent": false,
     "captureInput": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "insetsHandling": "css"
+    }
   }
 }

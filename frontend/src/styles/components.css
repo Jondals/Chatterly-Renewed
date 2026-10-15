@@ -399,6 +399,26 @@ label,
   animation-delay: var(--d, 0ms);
 }
 
+.auth-page-left {
+  --from: -22px;
+}
+
+.auth-page-right {
+  --from: 22px;
+}
+
+/* Switching between sign in and register: the new form slides in from its side and fades in (every platform). */
+.auth-page {
+  animation: auth-page-in 0.38s var(--ease) both;
+}
+
+@keyframes auth-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--from, 0));
+  }
+}
+
 .anim-fade-in {
   animation: fade-in 0.35s ease both;
   animation-delay: var(--d, 0ms);

@@ -32,6 +32,7 @@ import { checkStaticServer } from './security/static-server.mts';
 import { checkMediaCipher } from './security/media-cipher.mts';
 import { checkRelayPolicy } from './security/relay-policy.mts';
 import { checkKdf } from './security/kdf.mts';
+import { checkVersions } from './security/versions.mts';
 import { checkHeaders } from './security/headers.mts';
 import { checkPrivacy } from './security/privacy.mts';
 import { checkFriendRemoval } from './security/friend-removal.mts';
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
     await checkMediaCipher();
     await checkRelayPolicy();
     await checkKdf();
+    await checkVersions();
     await checkHeaders();
     console.log('\nSECURITY CHECKS CORRECT');
   } finally {

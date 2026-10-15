@@ -24,6 +24,13 @@
   will-change: auto;
 }
 
+/* The small previews of the backgrounds (Settings > Appearance) keep moving in the light mode, which every phone starts in:
+   they are the way to see what a background does. A still background (motion off) still stops them. */
+:root[data-perf='low']:not([data-bg='still']) .bg-preview .scene,
+:root[data-perf='low']:not([data-bg='still']) .bg-preview .scene * {
+  animation-play-state: running !important;
+}
+
 /* the lit grid background */
 .grid-lines {
   --gl: color-mix(in oklab, var(--accent) 24%, transparent);

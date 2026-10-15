@@ -16,6 +16,7 @@ import { DialogService } from '../core/services/dialog.service';
 import { AuthService } from '../core/services/auth.service';
 import { CallService } from '../core/services/call.service';
 import { DesktopUpdateService } from '../core/services/desktop-update.service';
+import { AndroidUpdateService } from '../core/services/android-update.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { UiService } from '../core/services/ui.service';
 import { AvatarComponent } from '../shared/components/avatar.component';
@@ -604,6 +605,13 @@ export class ContextSidebarComponent {
   protected readonly directory = inject(DirectoryService);
   protected readonly call = inject(CallService);
   protected readonly desktopUpdate = inject(DesktopUpdateService);
+  /** Android app: a quiet check for a new version a few seconds after signing in (a toast only if there is one). */
+  private readonly androidUpdate = inject(AndroidUpdateService);
+
+  /** Starts the quiet update check of the Android app (it does nothing elsewhere). */
+  constructor() {
+    this.androidUpdate.checkOnStart();
+  }
   private readonly router = inject(Router);
   private readonly contextMenu = inject(ContextMenuService);
   private readonly dialog = inject(DialogService);

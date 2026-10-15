@@ -26,10 +26,15 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
-        // The only native plugin of the app: keep a call alive in the background (see CallServicePlugin).
+        // The native plugins of the app: keep a call alive in the background, share the screen, and download and install an update.
         registerPlugin(CallServicePlugin.class);
+        registerPlugin(UpdatePlugin.class);
+        registerPlugin(ScreenSharePlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().setWebChromeClient(new SecureWebChromeClient(getBridge()));
+        // The WebView multiplies every text by the font scale of the system, on top of the text size of the app itself
+        // (Settings > Appearance): the app keeps its own size, like in the browser and the desktop app.
+        getBridge().getWebView().getSettings().setTextZoom(100);
         getOnBackPressedDispatcher().addCallback(this, new WebHistoryBack());
     }
 

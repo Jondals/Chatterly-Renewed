@@ -197,11 +197,11 @@ const FLAGS: Record<string, string> = {
         <h2 class="settings-card-title">{{ 'Sounds' | t }}</h2>
         <div class="my-5">
           <app-collapse title="Click sound" [summary]="clickLabel()">
-            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-4">
               @for (c of clickStyles; track c.id) {
                 <button
                   type="button"
-                  class="rounded-ui border px-3 py-2.5 text-sm font-medium hover:bg-white/5"
+                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
                   [class.border-accent]="s.clickStyle() === c.id"
                   [class.bg-accent/10]="s.clickStyle() === c.id"
                   [class.border-white/10]="s.clickStyle() !== c.id"
@@ -213,7 +213,7 @@ const FLAGS: Record<string, string> = {
               @if (s.clickName()) {
                 <button
                   type="button"
-                  class="rounded-ui border px-3 py-2.5 text-sm font-medium hover:bg-white/5"
+                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
                   [class.border-accent]="s.clickStyle() === 'custom'"
                   [class.bg-accent/10]="s.clickStyle() === 'custom'"
                   [class.border-white/10]="s.clickStyle() !== 'custom'"
@@ -224,7 +224,7 @@ const FLAGS: Record<string, string> = {
               }
               <button
                 type="button"
-                class="flex items-center justify-center gap-2 rounded-ui border border-dashed border-white/15 px-3 py-2.5 text-sm font-medium text-muted hover:bg-white/5 hover:text-fg"
+                class="flex min-w-0 items-center justify-center gap-2 truncate rounded-ui border border-dashed border-white/15 px-3 py-2.5 text-sm font-medium text-muted hover:bg-white/5 hover:text-fg"
                 (click)="uploadClick()"
               >
                 <app-icon name="upload" [size]="15" />

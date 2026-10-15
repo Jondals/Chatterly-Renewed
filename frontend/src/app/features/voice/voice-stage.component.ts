@@ -3,6 +3,8 @@
  * Call screen: participant tiles, controls, shared music and statistics.
  */
 import { isDesktopApp } from '../../core/desktop-bridge';
+import { ANDROID_APP } from '../../core/config';
+import { androidScreenAvailable } from '../../core/android-screen';
 import { parseMusicLink } from '../../shared/util/music-link';
 import { FoldComponent } from '../../shared/components/fold.component';
 import { NgTemplateOutlet } from '@angular/common';
@@ -515,6 +517,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     <button
                       class="btn btn-icon h-12 w-12 tip"
                       [class.btn-active]="call.screenOn() || shareOpen()"
+                      [class.opacity-40]="android && !androidShare"
                       [attr.data-tip]="(call.screenOn() ? 'Stop sharing' : 'Share your screen') | t"
                       type="button"
                       (mousedown)="$event.stopPropagation()"
@@ -1845,6 +1848,10 @@ export class VoiceStageComponent {
   protected readonly shareOpen = signal(false);
   /** True in the desktop app, where the picker is the app's own: "a tab" does not exist and the sound is not shared. */
   protected readonly desktop = isDesktopApp();
+  /** The Android app: its WebView cannot capture the screen (no getDisplayMedia), so the button only explains why. */
+  protected readonly android = ANDROID_APP;
+  /** The Android app can share the screen through its own plugin (pictures drawn on a canvas); see android-screen.ts. */
+  protected readonly androidShare = androidScreenAvailable();
   protected readonly shareSurfaces: {
     id: 'any' | 'monitor' | 'window' | 'browser';
     label: string;
@@ -1876,6 +1883,14 @@ export class VoiceStageComponent {
    * right click).
    */
   protected screenClick(): void {
+    if (this.android && !this.androidShare) {
+      this.toast.info(
+        'Screen sharing is not available on Android',
+        'The Android web view cannot capture the screen. Share it from the web or the desktop app.',
+        '🖥️',
+      );
+      return;
+    }
     if (this.call.screenOn()) {
       void this.call.toggleScreen();
       return;
@@ -1886,6 +1901,7 @@ export class VoiceStageComponent {
       this.shareOpen.set(open);
       return;
     }
+    // On a phone the system asks what to share and the quality is the one of the menu (opened with a long press).
     this.shareOpen.set(false);
     void this.call.toggleScreen();
   }
@@ -1893,7 +1909,8 @@ export class VoiceStageComponent {
   /** The right click on the button of the screen opens its options (quality, sound, what to offer). */
   protected shareOptions(event: Event): void {
     event.preventDefault();
-    if (this.call.screenOn()) {
+    // The Android app has nothing to choose here: the system asks what to share.
+    if (this.call.screenOn() || this.android) {
       return;
     }
     const open = !this.shareOpen();

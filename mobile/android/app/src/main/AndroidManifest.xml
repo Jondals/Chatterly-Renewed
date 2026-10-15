@@ -57,6 +57,14 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- ! Captures the screen while it is shared in a call. Not exported; type "mediaProjection" only, started by the
+             page after the person accepted the dialog of the system and stopped when sharing ends
+             (ScreenForegroundService.java). -->
+        <service
+            android:name=".ScreenForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
         <!-- ! AndroidX adds this receiver EXPORTED (guarded by the DUMP permission) for performance tools; the app does not
              need it, so the merged manifest leaves it out and only the main screen stays exported. -->
         <receiver
@@ -75,6 +83,10 @@
     <!-- Calls with the screen off: the foreground service of type microphone (only while a call is on). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Sharing the screen: the foreground service of type mediaProjection (only while the screen is shared). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Updates: hand a downloaded new version to the installer of Android (the person confirms; see UpdatePlugin.java). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- A phone without a camera can still install the app (voice calls and chat). -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

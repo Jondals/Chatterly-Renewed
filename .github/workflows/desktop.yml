@@ -108,8 +108,8 @@ jobs:
             # A beta has no release in GitHub: both platforms are always built.
             echo "windows=true" >> "$GITHUB_OUTPUT"
             echo "linux=true" >> "$GITHUB_OUTPUT"
-            # The beta server only takes the desktop files: the Android app is published with the stable release.
-            echo "android=false" >> "$GITHUB_OUTPUT"
+            # The Android beta goes to the beta server too (APK + beta-android.yml), only for the testers.
+            echo "android=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
@@ -268,6 +268,8 @@ jobs:
         working-directory: mobile/android
         run: bash gradlew --no-daemon assembleRelease
       - name: Check the APK (manifest, permissions, code, the web app inside)
+        env:
+          CHATTERLY_LABEL: ${{ needs.prepare.outputs.label }}
         run: node mobile/test/mobile.mjs --web frontend/dist/frontend/browser
       - name: Name the APK
         run: |
@@ -368,7 +370,21 @@ jobs:
                 "$BETA_URL/api/beta/upload/$(basename "$1")" > /dev/null
               echo "uploaded $(basename "$1")"
             }
-            for FILE in out/*.exe out/*.AppImage out/*.yml; do send "$FILE"; done
+            # The separate *.yml.sig (apps up to 2.32.0) goes right before its manifest, so the two never disagree for long.
+            for FILE in out/*.exe out/*.AppImage out/*.yml.sig out/*.yml; do send "$FILE"; done
+            # Android: the APK, then beta-android.yml (version, file, SHA-256). The app installs it only if Android confirms it is
+            # newer and signed with the same certificate, so it needs no Ed25519 signature. A server that still runs an older
+            # version refuses these names: the desktop beta is published anyway and the APK waits for the next beta.
+            for APK in out/*.apk; do
+              NAME=$(basename "$APK")
+              printf 'version: %s\npath: %s\nsha256: %s\n' "${NAME#Chatterly-}" "$NAME" "$(cut -d' ' -f1 < "$APK.sha256")" \
+                | sed 's/^version: \(.*\)\.apk$/version: \1/' > out/beta-android.yml
+              if send "$APK" && send out/beta-android.yml; then
+                echo "Android beta published: $NAME"
+              else
+                echo "::warning::The beta server did not take the APK (it may run an older version): the Android beta waits."
+              fi
+            done
           else
             for FILE in out/*; do
               gh release delete-asset "v$VERSION" "$(basename "$FILE")" --yes 2>/dev/null || true

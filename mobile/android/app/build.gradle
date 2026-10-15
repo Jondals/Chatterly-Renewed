@@ -20,7 +20,18 @@ def chatterlyVersion() {
     return [name: label, code: code]
 }
 
+/** The host of the API the app talks to (the same CHATTERLY_URL as mobile/scripts/prepare-web.mjs): updates come only from it. */
+def chatterlyApiHost() {
+    def url = System.getenv('CHATTERLY_URL') ?: 'https://chatterlyrenewed.duckdns.org'
+    def host = new URI(url).getHost()
+    if (!url.startsWith('https://') || !host) throw new GradleException('CHATTERLY_URL must be an https address: ' + url)
+    return host.toLowerCase()
+}
+
 android {
+    buildFeatures {
+        buildConfig = true
+    }
     namespace = "app.chatterly.renewed"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
@@ -29,6 +40,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode chatterlyVersion().code
         versionName chatterlyVersion().name
+        buildConfigField 'String', 'CHATTERLY_API_HOST', '"' + chatterlyApiHost() + '"'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

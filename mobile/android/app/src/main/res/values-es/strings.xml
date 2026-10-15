@@ -6,4 +6,6 @@
 <resources>
     <string name="call_in_progress">Llamada en curso</string>
     <string name="call_channel_name">Llamadas en curso</string>
+    <string name="screen_in_progress">Compartiendo la pantalla</string>
+    <string name="screen_channel_name">Pantalla compartida</string>
 </resources>

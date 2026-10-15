@@ -47,37 +47,61 @@ import { step18 } from './e2e/18-phone-settings-are-a-list-first-and-the.mjs';
 import { step19 } from './e2e/19-the-server-stores-nothing-in-clear.mjs';
 import { step20 } from './e2e/20-deleting-the-account.mjs';
 import { step21 } from './e2e/21-api-requests-without-a-session-and-cors.mjs';
-import { step22 } from './e2e/22-desktop-app-with-the-web-app-inside.mjs';
+import { step22, startDesktopShellChecks } from './e2e/22-desktop-app-with-the-web-app-inside.mjs';
 import { step23 } from './e2e/23-android-app-settings-and-web-inside.mjs';
 
 /** What the steps hand to each other (the people, the addresses and the files they made). */
 const world = {};
 
 /** The whole test: the steps, in order. */
+/** The steps, in order (each one gets the shared world). */
+const STEPS = [
+  step01,
+  step02,
+  step03,
+  step04,
+  step05,
+  step06,
+  step07,
+  step08,
+  step09,
+  step10,
+  step11,
+  step12,
+  step13,
+  step14,
+  step15,
+  step16,
+  step17,
+  step18,
+  step19,
+  step20,
+  step21,
+  step22,
+  step23,
+];
+
+/** The whole test: the steps, in order, with the time each one took (to see what makes the test slow). */
 async function main() {
-  await step01(world);
-  await step02(world);
-  await step03(world);
-  await step04(world);
-  await step05(world);
-  await step06(world);
-  await step07(world);
-  await step08(world);
-  await step09(world);
-  await step10(world);
-  await step11(world);
-  await step12(world);
-  await step13(world);
-  await step14(world);
-  await step15(world);
-  await step16(world);
-  await step17(world);
-  await step18(world);
-  await step19(world);
-  await step20(world);
-  await step21(world);
-  await step22(world);
-  await step23(world);
+  const times = [];
+  const started = performance.now();
+  // The checks of the desktop shell need nothing of the other steps: they run alongside them (step 22 waits for them).
+  startDesktopShellChecks(world);
+  for (const run of STEPS) {
+    const at = performance.now();
+    await run(world);
+    times.push([run.name, (performance.now() - at) / 1000]);
+  }
+  console.log(
+    '\nTime of each step (s): ' +
+      times
+        .map(function format(entry) {
+          return entry[0].replace('step', '') + ' ' + entry[1].toFixed(0);
+        })
+        .join(', ') +
+      ' | total ' +
+      ((performance.now() - started) / 1000).toFixed(0),
+  );
   // ! Printed only here, after the last step: the words mean that the WHOLE command passed.
   console.log('\nALL CORRECT');
 }

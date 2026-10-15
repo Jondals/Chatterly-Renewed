@@ -57,8 +57,7 @@ export async function step12(world) {
   await b.keyboard.press('Enter');
   await a.waitForSelector('.bubble-emoji', { timeout: 15000 });
   await a.locator('.bubble-emoji').first().scrollIntoViewIfNeeded();
-  await a.waitForTimeout(900);
-  await shot(a, '07d-emoji');
+  await shot(a, '07d-emoji', 900);
   check(true, 'a single emoji is drawn big and without a bubble');
 
   // An emoji that has just arrived makes an entrance and a short show of its kind (a party popper sends confetti)...

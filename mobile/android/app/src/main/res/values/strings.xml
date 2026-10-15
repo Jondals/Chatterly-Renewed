@@ -10,4 +10,6 @@
     <string name="custom_url_scheme">app.chatterly.renewed</string>
     <string name="call_in_progress">Call in progress</string>
     <string name="call_channel_name">Calls in progress</string>
+    <string name="screen_in_progress">Sharing the screen</string>
+    <string name="screen_channel_name">Screen sharing</string>
 </resources>

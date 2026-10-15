@@ -1,0 +1,28 @@
+/* The styles of the Android app only. native-config.js (inside the APK, mobile/scripts/prepare-web.mjs) marks the page
+   with html[data-platform='android']; nothing here applies to the web or to the desktop app. */
+
+/* The text and everything measured in rem (spacing, widths) a step smaller than on a computer: 15 px where the web uses
+   16 px for the same setting of Settings > Appearance. The WebView no longer adds the font scale of the system on top
+   (setTextZoom(100) in MainActivity.java). */
+html[data-platform='android'] {
+  font-size: calc(var(--font-size) * 15 / 14);
+}
+
+/* Settings on the phone: the list and each section are separate screens. Switching between them started two animations
+   at once (the list sliding in, the title and the section rising), which looked like a jump; now the screen that appears
+   only fades in, quickly. */
+html[data-platform='android'] .settings-overlay .anim-slide-left,
+html[data-platform='android'] .settings-overlay .anim-fade-up {
+  animation: none;
+}
+
+html[data-platform='android'] .settings-overlay nav,
+html[data-platform='android'] .settings-overlay main {
+  animation: android-screen-in 0.15s ease-out both;
+}
+
+@keyframes android-screen-in {
+  from {
+    opacity: 0;
+  }
+}

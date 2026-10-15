@@ -8,6 +8,8 @@
   "scripts": {
     "web": "node scripts/prepare-web.mjs",
     "sync": "node scripts/prepare-web.mjs && cap sync android",
+    "apk": "node scripts/build-apk.mjs",
+    "icons": "node scripts/make-icons.mjs",
     "test": "node test/mobile.mjs"
   },
   "dependencies": {

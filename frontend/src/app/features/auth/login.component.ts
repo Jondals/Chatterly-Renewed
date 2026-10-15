@@ -13,6 +13,7 @@ import { ArrivalService } from '../../core/services/arrival.service';
 @Component({
   selector: 'app-login',
   standalone: true,
+  host: { class: 'auth-page auth-page-left block' },
   imports: [IconComponent, RouterLink, TranslatePipe],
   template: `
     <h2 class="text-2xl font-bold tracking-tight">{{ 'Welcome back' | t }}</h2>

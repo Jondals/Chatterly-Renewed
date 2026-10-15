@@ -29,6 +29,5 @@ export async function step04(world) {
     new URL(a.url()).pathname === '/login',
     'the root without a session leads to the login (' + a.url() + ')',
   );
-  await a.waitForTimeout(1500);
-  await shot(a, '00-login');
+  await shot(a, '00-login', 1500);
 }

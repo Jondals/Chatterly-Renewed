@@ -29,6 +29,8 @@ import { SecuritySectionComponent } from './security-section.component';
 import { ShortcutsSectionComponent } from './shortcuts-section.component';
 import { StickersSectionComponent } from './stickers-section.component';
 import { UpdatesSectionComponent } from './updates-section.component';
+import { AndroidUpdatesSectionComponent } from './android-updates-section.component';
+import { ANDROID_APP } from '../../core/config';
 import { BetaService } from '../../core/services/beta.service';
 import { DesktopUpdateService } from '../../core/services/desktop-update.service';
 import { OverlayService } from '../../core/services/overlay.service';
@@ -112,6 +114,7 @@ const ADMIN_ENTRY: SectionEntry = {
     SyncSectionComponent,
     AboutSectionComponent,
     UpdatesSectionComponent,
+    AndroidUpdatesSectionComponent,
     OverlaySectionComponent,
     AdminSectionComponent,
   ],
@@ -142,7 +145,7 @@ const ADMIN_ENTRY: SectionEntry = {
           </div>
           @for (group of groups(); track $index) {
             @if ($index > 0) {
-              <span class="nav-sep hidden md:block"></span>
+              <span class="nav-sep shrink-0"></span>
             }
             @for (s of group; track s.id) {
               <a
@@ -238,7 +241,11 @@ const ADMIN_ENTRY: SectionEntry = {
                 <app-admin-section class="anim-fade-up block" />
               }
               @case ('updates') {
-                <app-updates-section class="anim-fade-up block" />
+                @if (android) {
+                  <app-android-updates-section class="anim-fade-up block" />
+                } @else {
+                  <app-updates-section class="anim-fade-up block" />
+                }
               }
               @case ('about') {
                 <app-about-section class="block" />
@@ -270,6 +277,8 @@ export class SettingsComponent {
   private readonly desktopUpdate = inject(DesktopUpdateService);
   private readonly overlay = inject(OverlayService);
   private readonly beta = inject(BetaService);
+  /** The Android app: it has its own Updates section and no overlay. */
+  protected readonly android = ANDROID_APP;
   /** The sections, with the ones that only some people have: the overlay and updates (desktop app), administration. */
   protected readonly groups = computed(this.buildGroups.bind(this));
   protected readonly section = toSignal(
@@ -285,9 +294,18 @@ export class SettingsComponent {
   private buildGroups(): SectionEntry[][] {
     const extra: SectionEntry[] = [];
     if (this.overlay.supported) extra.push(OVERLAY_ENTRY);
-    if (this.desktopUpdate.supported) extra.push(UPDATES_ENTRY);
+    // Updates: the desktop app (electron-updater) and the Android app (its own plugin). The overlay stays desktop only.
+    if (this.desktopUpdate.supported || this.android) extra.push(UPDATES_ENTRY);
     if (this.beta.admin()) extra.push(ADMIN_ENTRY);
-    return [...GROUPS.slice(0, -1), [...extra, ...GROUPS[GROUPS.length - 1]]];
+    // The Android app has no keyboard, so no shortcuts section.
+    const base = this.android
+      ? GROUPS.map(function withoutShortcuts(group) {
+          return group.filter(function keep(entry) {
+            return entry.id !== 'shortcuts';
+          });
+        })
+      : GROUPS;
+    return [...base.slice(0, -1), [...extra, ...base[base.length - 1]]];
   }
   /** The label of the open section (the window title). */
   private findTitle(): string {

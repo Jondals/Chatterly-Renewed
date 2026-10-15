@@ -39,6 +39,7 @@ import { buildVoiceChain } from '../audio-chain';
 import { desktopBridge } from '../desktop-bridge';
 import { STRICT_RELAY } from '../config';
 import { keepCallAlive } from '../native-bridge';
+import { androidScreenAvailable, startAndroidScreen, stopAndroidScreen } from '../android-screen';
 import { SoundService, type SfxId } from './sound.service';
 import { ToastService } from './toast.service';
 
@@ -984,6 +985,10 @@ export class CallService {
     if (choice.surface !== 'any') {
       video.displaySurface = choice.surface;
     }
+    if (androidScreenAvailable()) {
+      await this.shareAndroidScreen(choice.quality);
+      return;
+    }
     try {
       // In the desktop app the picker has the screens and the windows in tabs (what the person chose in the menu is the
       // tab it opens in) and a box for the sound that starts as the menu has it.
@@ -1033,8 +1038,33 @@ export class CallService {
     }
   }
 
+  /** The Android app: the system captures the screen (after asking) and the pictures become the video of the call. */
+  private async shareAndroidScreen(quality: string): Promise<void> {
+    try {
+      const stream = await startAndroidScreen(quality);
+      this.localScreen.set(stream);
+      this.screenOn.set(true);
+      this.lightenCameraFx(true);
+      stream.getVideoTracks()[0]?.addEventListener(
+        'ended',
+        function (this: CallService) {
+          return this.stopScreen();
+        }.bind(this),
+      );
+      for (const link of this.links.values()) {
+        link.screenStreamId = stream.id;
+        this.addVideo(link, stream, 'screen');
+      }
+      this.socket.send({ t: 'call.update', screen: true });
+    } catch {
+      /* the person cancelled the dialog of Android */
+    }
+  }
+
   /** Stops sharing the screen and removes its video for every person in the call. */
   private stopScreen(): void {
+    if (!this.screenOn()) return;
+    stopAndroidScreen();
     this.stopStream(this.localScreen());
     for (const link of this.links.values()) {
       this.removeSenders(link, 'screen');
@@ -2343,6 +2373,7 @@ export class CallService {
     for (const id of [...this.links.keys()]) this.closeLink(id);
     this.stopStream(this.micStream);
     this.stopStream(this.localCamera());
+    stopAndroidScreen();
     this.stopStream(this.localScreen());
     this.micSource?.disconnect();
     this.gate?.disconnect();

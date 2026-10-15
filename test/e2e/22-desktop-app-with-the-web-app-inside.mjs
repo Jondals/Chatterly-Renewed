@@ -17,7 +17,6 @@ import {
   shot,
   step,
   check,
-  run,
   freePort,
   waitFor,
 } from './support.mjs';
@@ -35,6 +34,31 @@ async function chooseInterval(page, label) {
   await page.getByRole('option', { name: label }).click();
 }
 
+/**
+ * Starts the checks of the desktop shell (desktop/test/desktop.mjs) in the background, at the very start of the test: they
+ * need nothing of the browser steps, so they run while the other steps do (about half a minute less). step22 collects them.
+ */
+export function startDesktopShellChecks(world) {
+  const env = { ...process.env };
+  delete env['ELECTRON_RUN_AS_NODE'];
+  world.desktopShell = new Promise(function runShell(resolve) {
+    const child = spawn(process.execPath, [path.join(DESKTOP, 'test', 'desktop.mjs')], {
+      cwd: ROOT,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    const keep = function keep(chunk) {
+      output += chunk;
+    };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    child.on('close', function done(code) {
+      resolve({ code, output });
+    });
+  });
+}
+
 /** Desktop app (Electron) with the web app inside it: the real build and the real backend, sign-up included. */
 export async function step22(world) {
   step('desktop app (Electron) with the web app inside it');
@@ -43,9 +67,14 @@ export async function step22(world) {
     console.log('  SKIPPED: Electron is not installed (run: pnpm --dir desktop install)');
     return;
   }
-  // The checks of the shell itself (sandbox, permissions, navigation, screen picker, the app:// server, the packaged build).
-  run('node', [path.join('desktop', 'test', 'desktop.mjs')]);
-  check(true, 'the desktop shell checks pass (desktop/test/desktop.mjs)');
+  // The checks of the shell itself (sandbox, permissions, navigation, screen picker, the app:// server, the packaged build):
+  // they were started in the background when the test began (startDesktopShellChecks).
+  const shell = await world.desktopShell;
+  check(
+    shell.code === 0,
+    'the desktop shell checks pass (desktop/test/desktop.mjs)' +
+      (shell.code === 0 ? '' : ':\n' + shell.output),
+  );
 
   const electronExe = createRequire(path.join(DESKTOP, 'package.json'))('electron');
 
@@ -237,8 +266,7 @@ export async function step22(world) {
     await page.getByRole('button', { name: 'Update settings' }).click();
     await page.getByText('Chatterly 2.99.0 is available').first().waitFor({ timeout: 15000 });
     check(true, 'Settings > Updates opens and says a new version is available');
-    await page.waitForTimeout(500);
-    await shot(page, '22b-desktop-settings-updates');
+    await shot(page, '22b-desktop-settings-updates', 500);
     check(
       (await updaterState()).settings.interval === '6h',
       'it looks every 6 hours until the person chooses otherwise',
