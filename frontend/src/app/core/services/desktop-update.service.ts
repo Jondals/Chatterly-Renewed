@@ -21,6 +21,9 @@ import { ToastService } from './toast.service';
 
 /** How often the token of the beta channel is renewed (it lasts two hours). */
 const TOKEN_RENEW_MS = 30 * 60 * 1000;
+/** After a failed token request: 5 s, then 10, 20... up to two minutes (the server allows 30 a minute). */
+const TOKEN_RETRY_MS = 5000;
+const TOKEN_RETRY_MAX_MS = 2 * 60 * 1000;
 
 const INITIAL: DesktopUpdateState = {
   status: 'unavailable',
@@ -49,7 +52,9 @@ export class DesktopUpdateService {
   private readonly i18n = inject(I18nService);
   private readonly betaProgram = inject(BetaService);
   private announced = '';
-  private tokenTimer: ReturnType<typeof setInterval> | null = null;
+  private tokenTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Failed token requests in a row (the wait before the next one doubles). */
+  private tokenFailures = 0;
 
   /** True inside the desktop app (and it can update itself). */
   readonly supported = Boolean(this.bridge);
@@ -71,6 +76,14 @@ export class DesktopUpdateService {
         return false;
       }
       return state.status !== 'available' || this.postponed() !== state.version;
+    }.bind(this),
+  );
+  /** The shell needs the beta token: the account is a tester (or an administrator) and the beta channel is on. */
+  private readonly wantsBetaToken = computed(
+    function (this: DesktopUpdateService) {
+      return (
+        this.betaProgram.known() && this.betaProgram.canUseBeta() && this.state().settings.beta
+      );
     }.bind(this),
   );
   /** A failed download, to show in the bell (only when the person wants notices). */
@@ -100,32 +113,51 @@ export class DesktopUpdateService {
   /**
    * The beta channel needs the server to know who asks: while the account is a tester and the channel is on, the shell gets a token
    * of the account (renewed every half hour); otherwise it is told to forget it.
+   * ! It follows `wantsBetaToken` (a boolean), never the whole state: every answer of the shell is a new state, and following it
+   *   asked for a new token on each one, a loop that used up the limit of the server (429) and left the shell without a token.
    */
   private syncBetaToken(): void {
-    const wanted =
-      this.betaProgram.known() && this.betaProgram.canUseBeta() && this.state().settings.beta;
+    const wanted = this.wantsBetaToken();
     untracked(this.followToken.bind(this, wanted));
   }
 
   private followToken(wanted: boolean): void {
     if (this.tokenTimer !== null) {
-      clearInterval(this.tokenTimer);
+      clearTimeout(this.tokenTimer);
       this.tokenTimer = null;
     }
+    this.tokenFailures = 0;
     if (!wanted) {
       this.bridge?.setBetaToken(null).catch(this.ignore);
       return;
     }
     this.sendToken();
-    this.tokenTimer = setInterval(this.sendToken.bind(this), TOKEN_RENEW_MS);
   }
 
   private sendToken(): void {
-    this.betaProgram.feedToken().then(this.giveToken.bind(this), this.ignore);
+    this.tokenTimer = null;
+    this.betaProgram.feedToken().then(this.giveToken.bind(this), this.tokenFailed.bind(this));
   }
 
   private giveToken(answer: { token: string; expiresAt: number }): void {
+    this.tokenFailures = 0;
+    this.nextToken(TOKEN_RENEW_MS);
     this.run(this.bridge?.setBetaToken(answer));
+  }
+
+  /** The server did not give the token (offline, too many requests): tries again later, waiting longer each time. */
+  private tokenFailed(): void {
+    this.tokenFailures++;
+    this.nextToken(Math.min(TOKEN_RETRY_MAX_MS, TOKEN_RETRY_MS * 2 ** (this.tokenFailures - 1)));
+  }
+
+  private nextToken(delay: number): void {
+    if (this.tokenTimer !== null) clearTimeout(this.tokenTimer);
+    if (!untracked(this.wantsBetaToken)) {
+      this.tokenTimer = null;
+      return;
+    }
+    this.tokenTimer = setTimeout(this.sendToken.bind(this), delay);
   }
 
   /** Looks for a new version now. */

@@ -66,6 +66,8 @@ const MANIFEST_MAX_BYTES = 64 * 1024;
 const MANIFEST_TIMEOUT_MS = 20000;
 /** A beta token that is about to expire is not used: a download takes a while. */
 const TOKEN_MARGIN_MS = 10 * 60 * 1000;
+/** How long a beta look or download waits for the page to give the token of the account. */
+const TOKEN_WAIT_MS = 30 * 1000;
 
 /**
  * What the web app sees. status: 'unavailable' (this build does not update itself), 'idle', 'checking', 'none'
@@ -90,8 +92,13 @@ let checkTimer = null;
 let serverOrigin = '';
 /** What the page gave for the beta channel: the token of the account and when it stops working. */
 let betaAuth = { token: '', expiresAt: 0 };
-/** The look for a beta was put off for lack of a token: it is done when the page gives one. */
-let betaCheckPending = false;
+/**
+ * A beta look ('check') or download ('download') put off for lack of a token: it is done when the page gives one. The page asks
+ * for it when the channel changes, so this is the normal path right after choosing Beta, not an error.
+ */
+let betaPending = '';
+/** Gives up waiting for the token (the account is signed out, or the server refuses it) and says so. */
+let tokenWaitTimer = null;
 /** Where the manifest of the channel in use is (see prepareFeed). */
 let feed = null;
 /** The version whose signature was verified: nothing else is downloaded. */
@@ -214,7 +221,11 @@ function prepareFeed() {
     autoUpdater.requestHeaders = feed.headers;
   } else {
     feed = { base: '', name: manifestName(false), headers: {} };
-    autoUpdater.setFeedURL({ provider: 'github', owner: GITHUB.owner, repo: GITHUB.repo });
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: GITHUB.owner,
+      repo: GITHUB.repo,
+    });
     autoUpdater.channel = 'latest';
     autoUpdater.requestHeaders = null;
   }
@@ -225,8 +236,7 @@ function prepareFeed() {
 function runCheck() {
   const problem = prepareFeed();
   if (problem === 'beta-needs-token') {
-    betaCheckPending = true;
-    onError(new Error('Sign in to Chatterly to look for beta versions'));
+    waitForToken('check');
     return;
   }
   if (problem) {
@@ -278,11 +288,13 @@ function startDownload() {
     return;
   }
   const problem = prepareFeed();
+  if (problem === 'beta-needs-token') {
+    setState({ status: 'checking', error: '' });
+    waitForToken('download');
+    return;
+  }
   if (problem) {
-    setState({
-      status: 'error',
-      error: problem === 'beta-needs-token' ? 'Sign in to Chatterly again to download' : problem,
-    });
+    setState({ status: 'error', error: problem, lastCheck: Date.now() });
     return;
   }
   setState({
@@ -338,11 +350,32 @@ function handleBetaToken(event, payload) {
     return state;
   }
   betaAuth = { token: payload.token, expiresAt: payload.expiresAt };
-  if (betaCheckPending && state.settings.beta) {
-    betaCheckPending = false;
-    check();
-  }
+  const next = betaPending;
+  stopWaitingForToken();
+  if (next === 'download' && state.settings.beta) startDownload();
+  else if (next === 'check' && state.settings.beta) check();
   return state;
+}
+
+/** Puts a beta look or download off until the page gives the token, and gives up after TOKEN_WAIT_MS. */
+function waitForToken(next) {
+  // a download that waits is not lost to a look that comes later
+  if (betaPending !== 'download') betaPending = next;
+  clearTimeout(tokenWaitTimer);
+  tokenWaitTimer = setTimeout(tokenNeverCame, TOKEN_WAIT_MS);
+  tokenWaitTimer.unref();
+}
+
+function stopWaitingForToken() {
+  betaPending = '';
+  clearTimeout(tokenWaitTimer);
+  tokenWaitTimer = null;
+}
+
+function tokenNeverCame() {
+  stopWaitingForToken();
+  // A silent look (status idle) shows nothing; a look the person asked for says why.
+  onError(new Error('The Chatterly server did not give the beta access: sign in again and retry'));
 }
 
 function handleSettings(event, patch) {
@@ -359,7 +392,10 @@ function handleSettings(event, patch) {
   applyInstallOnQuit();
   const changedChannel = next.beta !== previous.beta;
   // ! What was verified belongs to the channel it came from: another channel starts again.
-  if (changedChannel) trusted = '';
+  if (changedChannel) {
+    trusted = '';
+    stopWaitingForToken();
+  }
   // Changing the channel looks again at once, so the person sees what the new channel offers (never in the middle of a download).
   if (
     changedChannel &&

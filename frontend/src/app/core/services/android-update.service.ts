@@ -88,6 +88,13 @@ export class AndroidUpdateService {
         this.found.set(found.version);
         this.status.set('available');
       } else {
+        // Android never installs an older version over a newer one (a stable 2.33.0 is above every 2.33.0-bN): say so,
+        // instead of a plain "up to date" that hides why the beta is not offered.
+        if (found && found.version !== APP_LABEL && this.usingBeta()) {
+          this.problem.set(
+            'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.',
+          );
+        }
         this.status.set('none');
       }
     } catch (error) {
@@ -117,7 +124,10 @@ export class AndroidUpdateService {
       cache: 'no-store',
     });
     // No Android beta has been uploaded yet (the beta server answers 404 to everything it does not have).
-    if (response.status === 404) return null;
+    if (response.status === 404) {
+      this.problem.set('No Android beta has been published yet.');
+      return null;
+    }
     if (!response.ok) throw new Error('beta_manifest_' + response.status);
     const text = (await response.text()).slice(0, 2000);
     const read = function field(name: string): string {

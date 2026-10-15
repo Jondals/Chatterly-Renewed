@@ -46,15 +46,15 @@ Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe i
 
 ## 3. Backend
 
-| Pieza | Qué hace | Por qué es así |
-| --- | --- | --- |
-| `app.ts` | Construye el servidor: cabeceras, CORS, límites, JWT, manejo de errores | Una función lo construye todo, así los tests levantan el servidor _real_ en memoria (sin mocks que se desvíen de producción) |
-| `db.ts` | Esquema y migraciones de SQLite | SQLite es un archivo, fácil de copiar y suficiente para un chat propio. Las migraciones solo añaden y una base de datos más nueva que la app se rechaza (`SCHEMA_VERSION`) |
-| `routes/*.ts` | Un archivo por área: auth, social, guilds, messages, images, settings-sync, vault, gifs, preview, beta | Cada ruta comprueba **quién pregunta** antes de tocar nada. Un id inexistente o ajeno responde 404 (no se pueden sondear ids) |
-| `validation.ts` | Formas de los campos (base64, textos sellados, ids) | Todo cuerpo se valida con esquema; el servidor nunca se fía del formato del cliente |
-| `security/` | Hash de contraseñas, límite de intentos, sesiones | Un token solo vale mientras su sesión está abierta: cerrar sesión, cambiar la contraseña o borrar la cuenta lo mata al instante |
-| `ws/` | El socket en tiempo real: presencia, escritura, llamadas | Solo reenvía señalización opaca y cifrada entre personas de la misma sala |
-| `maintenance.ts` | Limpieza cada hora de lo que nada puede alcanzar | Sin ella, subidas abandonadas y sesiones muertas se quedarían para siempre |
+| Pieza            | Qué hace                                                                                               | Por qué es así                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app.ts`         | Construye el servidor: cabeceras, CORS, límites, JWT, manejo de errores                                | Una función lo construye todo, así los tests levantan el servidor _real_ en memoria (sin mocks que se desvíen de producción)                                               |
+| `db.ts`          | Esquema y migraciones de SQLite                                                                        | SQLite es un archivo, fácil de copiar y suficiente para un chat propio. Las migraciones solo añaden y una base de datos más nueva que la app se rechaza (`SCHEMA_VERSION`) |
+| `routes/*.ts`    | Un archivo por área: auth, social, guilds, messages, images, settings-sync, vault, gifs, preview, beta | Cada ruta comprueba **quién pregunta** antes de tocar nada. Un id inexistente o ajeno responde 404 (no se pueden sondear ids)                                              |
+| `validation.ts`  | Formas de los campos (base64, textos sellados, ids)                                                    | Todo cuerpo se valida con esquema; el servidor nunca se fía del formato del cliente                                                                                        |
+| `security/`      | Hash de contraseñas, límite de intentos, sesiones                                                      | Un token solo vale mientras su sesión está abierta: cerrar sesión, cambiar la contraseña o borrar la cuenta lo mata al instante                                            |
+| `ws/`            | El socket en tiempo real: presencia, escritura, llamadas                                               | Solo reenvía señalización opaca y cifrada entre personas de la misma sala                                                                                                  |
+| `maintenance.ts` | Limpieza cada hora de lo que nada puede alcanzar                                                       | Sin ella, subidas abandonadas y sesiones muertas se quedarían para siempre                                                                                                 |
 
 **Qué guarda el servidor.** Sellado con una clave que el servidor nunca tiene: texto de mensajes, reacciones, contenido de archivos, nombres de grupos, canales y etiquetas de miembros, fotos, banners, iconos de grupo, el blob de ajustes y la biblioteca personal (fondos de cámara). En claro, porque lo necesita para funcionar: nombres de usuario, quién es amigo de quién, quién está en qué grupo, marcas de tiempo, tamaños y quién está conectado. Está explicado con honestidad en el README ("What the server still sees").
 
@@ -62,15 +62,15 @@ Hay una sola versión para todo el proyecto (web, servidor y apps). Se escribe i
 
 ## 4. Frontend
 
-| Carpeta | Qué hay | Por qué |
-| --- | --- | --- |
-| `core/crypto/` | WebCrypto: derivación de claves, identidad, claves de pareja y de grupo, archivos, cifrado de medios | Funciones puras sin Angular: las usan la app y el test de seguridad |
-| `core/services/` | Auth, socket, llamadas WebRTC, sonido, ajustes, cursor, presets, imágenes, beta, overlay | Un servicio por tema; el estado va en signals |
-| `store/` | Amigos, grupos, mensajes (la tubería de descifrado) | El único sitio que convierte lo que manda el servidor en cosas que las pantallas pueden mostrar |
-| `features/` | Una carpeta por pantalla: auth, chat, direct, guild, settings, spinly, voice | Pantallas con carga diferida: el login no paga por la pantalla de llamadas |
-| `layout/` | Carril, barra lateral, dock, diálogos | El marco que se queda mientras cambia la página |
-| `shared/` | Componentes, pipes, directivas, utilidades | Piezas reutilizables que no conocen las pantallas |
-| `styles/` | CSS global por áreas | Tailwind para la maqueta, CSS normal donde un efecto lo necesita |
+| Carpeta          | Qué hay                                                                                              | Por qué                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `core/crypto/`   | WebCrypto: derivación de claves, identidad, claves de pareja y de grupo, archivos, cifrado de medios | Funciones puras sin Angular: las usan la app y el test de seguridad                             |
+| `core/services/` | Auth, socket, llamadas WebRTC, sonido, ajustes, cursor, presets, imágenes, beta, overlay             | Un servicio por tema; el estado va en signals                                                   |
+| `store/`         | Amigos, grupos, mensajes (la tubería de descifrado)                                                  | El único sitio que convierte lo que manda el servidor en cosas que las pantallas pueden mostrar |
+| `features/`      | Una carpeta por pantalla: auth, chat, direct, guild, settings, spinly, voice                         | Pantallas con carga diferida: el login no paga por la pantalla de llamadas                      |
+| `layout/`        | Carril, barra lateral, dock, diálogos                                                                | El marco que se queda mientras cambia la página                                                 |
+| `shared/`        | Componentes, pipes, directivas, utilidades                                                           | Piezas reutilizables que no conocen las pantallas                                               |
+| `styles/`        | CSS global por áreas                                                                                 | Tailwind para la maqueta, CSS normal donde un efecto lo necesita                                |
 
 **Decisiones del frontend**
 
@@ -124,14 +124,14 @@ La web de Chatterly en su propia ventana (Windows y Linux; macOS usa el mismo c�
 
 **Variables de entorno de desarrollo**
 
-| Variable | Qué hace |
-| --- | --- |
-| `CHATTERLY_URL` | El servidor (API). Por defecto el sitio público. Una app instalada solo admite `https` |
-| `CHATTERLY_MODE=remote` | Solo desarrollo: carga el servidor en vez de la web empaquetada |
-| `CHATTERLY_WEB_DIR` | Solo desarrollo: usa esta compilación web en vez de `desktop/web` |
-| `CHATTERLY_NO_UPDATE=1` | Apaga la actualización |
-| `CHATTERLY_UPDATE_URL` | Solo desarrollo: carpeta con `latest.yml` para probar actualizaciones (nunca instala) |
-| `CHATTERLY_TRACE=<archivo>` | Escribe los tiempos de arranque (ms desde que empezó el proceso) |
+| Variable                    | Qué hace                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `CHATTERLY_URL`             | El servidor (API). Por defecto el sitio público. Una app instalada solo admite `https` |
+| `CHATTERLY_MODE=remote`     | Solo desarrollo: carga el servidor en vez de la web empaquetada                        |
+| `CHATTERLY_WEB_DIR`         | Solo desarrollo: usa esta compilación web en vez de `desktop/web`                      |
+| `CHATTERLY_NO_UPDATE=1`     | Apaga la actualización                                                                 |
+| `CHATTERLY_UPDATE_URL`      | Solo desarrollo: carpeta con `latest.yml` para probar actualizaciones (nunca instala)  |
+| `CHATTERLY_TRACE=<archivo>` | Escribe los tiempos de arranque (ms desde que empezó el proceso)                       |
 
 Una app instalada ignora `CHATTERLY_MODE`, `CHATTERLY_WEB_DIR` y `CHATTERLY_UPDATE_URL`: una variable de entorno no puede cambiar el código que guarda las claves.
 
@@ -177,10 +177,10 @@ Como el de Discord, solo en la app de escritorio: las cámaras (o fotos) y los n
 
 **Dos ramas, dos canales.**
 
-| Rama | Qué publica | Dónde vive | Quién lo recibe |
-| --- | --- | --- | --- |
-| `master` (o `main`) | Release estable `v2.32.0`, marcada como la última. Además `deploy.yml` actualiza el servidor | GitHub Releases | Todas las apps instaladas |
-| `beta` | Beta `2.32.0-b1`, `-b2`... (versión interna `2.32.0-beta.<n>`, con `desktop/scripts/beta-version.mjs`). **No** se publica en GitHub ni toca el servidor web | El servidor de Chatterly (`backend/src/routes/beta-files.ts`, carpeta `beta/` del volumen de datos) | Solo las apps de probadores y administradores |
+| Rama                | Qué publica                                                                                                                                                 | Dónde vive                                                                                          | Quién lo recibe                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `master` (o `main`) | Release estable `v2.32.0`, marcada como la última. Además `deploy.yml` actualiza el servidor                                                                | GitHub Releases                                                                                     | Todas las apps instaladas                     |
+| `beta`              | Beta `2.32.0-b1`, `-b2`... (versión interna `2.32.0-beta.<n>`, con `desktop/scripts/beta-version.mjs`). **No** se publica en GitHub ni toca el servidor web | El servidor de Chatterly (`backend/src/routes/beta-files.ts`, carpeta `beta/` del volumen de datos) | Solo las apps de probadores y administradores |
 
 Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`). Para sacarla a todo el mundo: fusiona `beta` en `master`. La beta es siempre mayor que la estable anterior y menor que la estable de su número (`2.32.0-beta.5` < `2.32.0`), así que la estable sustituye a cualquier beta y una beta nunca reemplaza a una estable. **Solo hay una bajada de versión permitida:** quien está en una beta y elige Release recibe la última release firmada aunque su número sea menor que el de su beta (`allowDowngrade` solo se activa en ese caso, en `updater.cjs`); cualquier otra app nunca baja. Esa release debe llevar su `latest.yml.sig`: las anteriores a la firma hay que firmarlas a mano (`sign-update.mjs`) y subir el `.sig` a su release.
 
@@ -217,7 +217,32 @@ Eso es todo. `deploy.yml` actualiza el servidor y `.github/workflows/desktop.yml
 
 **Cómo está hecho el workflow.** `prepare` decide la versión (y crea la release estable en **borrador**); `web`, `windows` y `linux` **solo compilan** (sin ningún secreto y con un token de solo lectura) y entregan los archivos como artefactos; `release` es el **único trabajo con secretos** (la clave de firma, el token de la release y el secreto de subida de la beta): no ejecuta código de npm, firma los manifiestos (`desktop/scripts/sign-update.mjs`), sube y publica (como estable `--latest`, o en el servidor si es beta), y solo si todos acabaron bien. Los pasos comunes (pnpm, Node, caché, instalar, Playwright, compilar la web) están en la acción compartida `.github/actions/build-web`. Seguridad: el checkout no deja el token en la carpeta; cada acción está fijada al commit exacto de su versión; solo corre para pushes a ramas del repositorio, nunca para pull requests. Para añadir una plataforma (Android, macOS, iOS) se copia el trabajo `linux` y se añade su artefacto al trabajo `release` (hay una nota en el propio archivo). Se suben los instaladores y el `*.yml` del canal (unos cientos de bytes, con la firma dentro; las apps lo necesitan para ver la versión y comprobarla); sin blockmap.
 
-**A mano** (con la CLI de GitHub): `pnpm build && pnpm --dir desktop dist` (o `dist:linux`), `node desktop/scripts/release-notes.mjs <v> > notas.md`, `gh release create v<v> --target master --title "Chatterly <v>" --notes-file notas.md` y `gh release upload v<v> <archivos>`.
+**Compilar cada app en tu equipo** (para probar; lo que se publica lo construye siempre el workflow). Antes, una vez: `pnpm install` en la raíz y en `desktop/` y `mobile/` (`pnpm --dir desktop install`, `pnpm --dir mobile install`).
+
+| App                     | Orden (desde la raíz)                                  | Resultado                                                  | Notas                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Windows** (`.exe`)    | `pnpm build` y después `pnpm --dir desktop dist`       | `desktop/dist/Chatterly-<v>.exe` y `latest.yml`            | Instalador NSIS. Hay que compilarlo en Windows. Sin firma Authenticode (SmartScreen avisa).                                                |
+| **Linux** (`.AppImage`) | `pnpm build` y después `pnpm --dir desktop dist:linux` | `desktop/dist/Chatterly-<v>.AppImage` y `latest-linux.yml` | Hay que compilarlo en Linux (o WSL). El workflow lo hace en `ubuntu-latest`.                                                               |
+| **Android** (`.apk`)    | `pnpm --dir mobile apk`                                | `mobile/dist/Chatterly-<v>.apk` y `.apk.sha256`            | Hace todo: web, `cap sync`, Gradle, firma y comprobación del certificado. Ver el apartado 19 (rutas en `mobile/android/local.properties`). |
+| **Microsoft Store**     | `pnpm --dir desktop dist:store`                        | paquete de la Store                                        | Lo mismo que _Run workflow_ a mano.                                                                                                        |
+
+Con la web ya compilada (`pnpm build`), `dist.mjs` copia `frontend/dist` a `desktop/web` y ejecuta `electron-builder`; por eso cualquier cambio en la web exige repetir `pnpm build` antes. Estos instaladores locales **no llevan la firma Ed25519** de actualización (solo la añade el trabajo `release`): sirven para instalar y probar, no para publicar.
+
+**Cómo se nombran los archivos y las actualizaciones.** Todo sale de una sola palabra, la **etiqueta** (`CHATTERLY_LABEL`), que en una release es la versión (`2.33.0`) y en una beta es `<versión>-b<n>` (`2.33.0-b2`). La calcula el trabajo `prepare` (el servidor da el número de la beta) y la reciben todos los trabajos de compilación:
+
+| Qué                                                | Release                                                    | Beta                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
+| Windows                                            | `Chatterly-2.33.0.exe`                                     | `Chatterly-2.33.0-b2.exe`                                         |
+| Linux                                              | `Chatterly-2.33.0.AppImage`                                | `Chatterly-2.33.0-b2.AppImage`                                    |
+| Android                                            | `Chatterly-2.33.0.apk` + `.apk.sha256`                     | `Chatterly-2.33.0-b2.apk`                                         |
+| Manifiestos de actualización                       | `latest.yml`, `latest-linux.yml` (en la release de GitHub) | `beta.yml`, `beta-linux.yml`, `beta-android.yml` (en el servidor) |
+| Tag y título de la release                         | `v2.33.0` / "Chatterly v2.33.0"                            | no hay release en GitHub                                          |
+| Versión interna (la que ordena `electron-updater`) | `2.33.0`                                                   | `2.33.0-beta.2`                                                   |
+| `versionCode` de Android                           | `2.33.0` da `2330099`                                      | `2.33.0-b2` da `2330002`                                          |
+
+El nombre del instalador lo fija `artifactName` en `desktop/package.json` (`Chatterly-${env.CHATTERLY_LABEL}.${ext}`) y `electron-builder` lo escribe también dentro del `.yml`, así que la app siempre encuentra el archivo que le dicen. Sin `CHATTERLY_LABEL` se usa la versión de `package.json`. Para sacar una versión nueva se sube **a la vez** en todos los `package.json` (el de `mobile/` incluido) y en `version.ts` (apartado 2), no a mano en cada archivo de salida. Una beta no se escribe nunca en los `package.json` del repositorio: `desktop/scripts/beta-version.mjs` la pone solo en la copia de trabajo de la máquina de compilación. Para probar una beta en local: `CHATTERLY_LABEL=2.33.0-b2` antes de `pnpm --dir desktop dist`. El APK acepta la etiqueta directamente: `pnpm --dir mobile apk 2.33.0-b2` deja `mobile/dist/Chatterly-2.33.0-b2.apk` con esa versión dentro (también `versionCode` y la que muestra la app: `APP_LABEL` se cambia solo mientras se compila la web y se restaura después). Sin argumento usa la versión de `package.json`.
+
+**Publicar a mano** (con la CLI de GitHub, solo si el workflow no puede): `node desktop/scripts/release-notes.mjs <v> > notas.md`, `gh release create v<v> --target master --title "Chatterly <v>" --notes-file notas.md` y `gh release upload v<v> <archivos>`. Antes hay que firmar los manifiestos con `desktop/scripts/sign-update.mjs`, o las apps rechazarán la actualización.
 
 **Seguridad de las actualizaciones: lo que aún no está cubierto.** Una actualización se acepta porque viene de las Releases de este repositorio por https y coincide con el sha512 de `latest.yml`. Quien pueda escribir releases (o robe un token que pueda) podría publicar una actualización que cada app ofrecería a su dueño (que aún tendría que pulsar Descargar y Reiniciar). El arreglo completo es firmar el instalador y que la app compruebe la firma, o repartir por la Store. Mientras tanto: autenticación en dos pasos con llave de hardware en la cuenta de GitHub, el mínimo de personas con escritura y `contents: write` solo en los trabajos que lo necesitan. Electron se mantiene en una versión con soporte (trae su propio Chromium); antes de cada versión, `pnpm --dir desktop audit`.
 
@@ -304,13 +329,13 @@ Lo que hace: tipos de backend y frontend + que cada texto esté traducido; ataqu
 
 Cada sonido de la app es un archivo de `frontend/public/sounds/`, organizado por uso. **Para cambiar uno, sustituye el archivo por otro del mismo nombre** (OGG, MP3 y WAV valen; si cambia la extensión, cámbiala también en `frontend/src/app/core/sound-library.ts`, el único sitio que los lista). Empiezan a cargarse al abrir la página y el navegador los guarda una semana; son pequeños a propósito (OGG Vorbis: 4–6 KB un sonido de interfaz, 30–80 KB un tono de llamada, unos 300 KB en total). Los sonidos de la interfaz suenan bajos antes del volumen de ajustes (~−38 dB); si uno que añadas suena más fuerte, baja su `trim` en `sound-library.ts`.
 
-| Carpeta | Contenido |
-| --- | --- |
-| `ui/` | `message-received`, `message-sent`, `menu-open`, `toggle-switch`, `notice-success`, `notice-error` y `click-*` (el sonido de pulsar un botón, uno por estilo elegido en Ajustes > Sonidos; también es el "tic" de un deslizador) |
-| `call/` | `you-join`, `you-leave`, `user-joined`, `user-left`, `mic-mute`, `mic-unmute`, `headphones-deafen`, `headphones-undeafen` y `call` |
-| `ringtones/` | Tonos por defecto (`classic`, `old` —el del primer Chatterly—, `chime`, `christmas`, `halloween`, `newyear`, `arcade`); la pausa entre repeticiones es `gap` en `sound-library.ts`. `secret.ogg` es un tono de broma que no se puede elegir: una llamada suena con él una de cada diez mil (`SECRET_RING_CHANCE`) |
-| `auth/` | La banda sonora entera de cada animación de llegada: `intro`, `sign-in-unlock`, `sign-out-lock`, `sign-up-fireworks` |
-| `soundboard/` | Los seis efectos de la mesa de sonidos de una llamada: `air-horn`, `boing`, `sad-trombone`, `ta-da`, `rimshot`, `applause` (el resto son sonidos propios de la persona, en su dispositivo) |
+| Carpeta       | Contenido                                                                                                                                                                                                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui/`         | `message-received`, `message-sent`, `menu-open`, `toggle-switch`, `notice-success`, `notice-error` y `click-*` (el sonido de pulsar un botón, uno por estilo elegido en Ajustes > Sonidos; también es el "tic" de un deslizador)                                                                                  |
+| `call/`       | `you-join`, `you-leave`, `user-joined`, `user-left`, `mic-mute`, `mic-unmute`, `headphones-deafen`, `headphones-undeafen` y `call`                                                                                                                                                                                |
+| `ringtones/`  | Tonos por defecto (`classic`, `old` —el del primer Chatterly—, `chime`, `christmas`, `halloween`, `newyear`, `arcade`); la pausa entre repeticiones es `gap` en `sound-library.ts`. `secret.ogg` es un tono de broma que no se puede elegir: una llamada suena con él una de cada diez mil (`SECRET_RING_CHANCE`) |
+| `auth/`       | La banda sonora entera de cada animación de llegada: `intro`, `sign-in-unlock`, `sign-out-lock`, `sign-up-fireworks`                                                                                                                                                                                              |
+| `soundboard/` | Los seis efectos de la mesa de sonidos de una llamada: `air-horn`, `boing`, `sad-trombone`, `ta-da`, `rimshot`, `applause` (el resto son sonidos propios de la persona, en su dispositivo)                                                                                                                        |
 
 Origen y licencia: los cuatro clics `click-tap`, `click-switch`, `click-pluck` y `click-bubble` son de "Interface Sounds" de Kenney (<https://www.kenney.nl>), Creative Commons Zero (CC0). Todos los demás se generaron para este proyecto (sintetizados y renderizados) y los cubre la licencia del proyecto (`frontend/public/sounds/LICENSE.txt`).
 
@@ -336,24 +361,24 @@ Código de conducta: sé respetuoso (nada de insultos, acoso ni discriminación)
 
 ## 18. Problemas frecuentes
 
-| Síntoma | Causa y solución |
-| --- | --- |
-| La página carga pero nada funciona, la consola dice _CORS_ | `CORS_ORIGINS` debe ser exactamente la dirección del navegador, con `https://` y sin barra final; varias, separadas por comas. El WebSocket comprueba la misma lista. La app de escritorio usa `app://chatterly` |
-| El WebSocket se cierra al momento (1008, "origin not allowed") | Lo mismo: el origen no está en `CORS_ORIGINS` |
-| "La sesión caducó" todo el rato, o todos parecen tener la misma IP | Falta `TRUST_PROXY=1`: el backend ve a Caddy como único cliente y los límites castigan a todos |
-| El micrófono o la cámara nunca preguntan | La página no está en HTTPS (o la abriste por IP). Usa el dominio |
-| Las llamadas solo conectan entre personas de la misma red | Hay STUN pero no TURN, o sus puertos están cerrados (también en la Security List de Oracle) |
-| "Private call unavailable" | El relay está caído o no leyó su configuración: `docker compose logs --tail 50 turn` (un arranque sano muestra `Default realm: <tu dominio>`) |
-| _Frames rejected_ o "Securing…" para siempre | Los dos navegadores no se pusieron de acuerdo con las claves: recarga ambos; si se repite, mira la consola y `docker compose logs app` |
-| `502` de Caddy | El backend o el servidor web está caído: `docker compose ps` y `docker compose logs app` |
-| Tras actualizar no cambia nada | El navegador guarda archivos viejos: recarga forzada (Ctrl+Mayús+R) |
-| Electron arranca como Node: `Cannot read properties of undefined (reading 'enableSandbox')` | `ELECTRON_RUN_AS_NODE` está puesta en tu terminal (algunos editores lo hacen) |
-| `pnpm --dir desktop dist` dice que no hay compilación web o que las versiones difieren | Ejecuta antes `pnpm build` en la raíz; `desktop/package.json` y `frontend/package.json` deben tener la misma versión |
-| electron-builder avisa `Cannot create symbolic link` con `winCodeSign` | Aviso en Windows sin modo desarrollador; la compilación termina. Activa el _Modo desarrollador_ para silenciarlo |
-| La app instalada no inicia sesión | El servidor no lista `app://chatterly` en `CORS_ORIGINS` |
-| SmartScreen bloquea el instalador | No está firmado: _Más información_, _Ejecutar de todos modos_, o usa la Store |
-| La actualización no llega | La release no es pública, le falta el `.yml` de su canal, su versión no es mayor que la instalada, o la app no está en el canal beta |
-| El overlay no aparece sobre mi juego | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa |
+| Síntoma                                                                                     | Causa y solución                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| La página carga pero nada funciona, la consola dice _CORS_                                  | `CORS_ORIGINS` debe ser exactamente la dirección del navegador, con `https://` y sin barra final; varias, separadas por comas. El WebSocket comprueba la misma lista. La app de escritorio usa `app://chatterly` |
+| El WebSocket se cierra al momento (1008, "origin not allowed")                              | Lo mismo: el origen no está en `CORS_ORIGINS`                                                                                                                                                                    |
+| "La sesión caducó" todo el rato, o todos parecen tener la misma IP                          | Falta `TRUST_PROXY=1`: el backend ve a Caddy como único cliente y los límites castigan a todos                                                                                                                   |
+| El micrófono o la cámara nunca preguntan                                                    | La página no está en HTTPS (o la abriste por IP). Usa el dominio                                                                                                                                                 |
+| Las llamadas solo conectan entre personas de la misma red                                   | Hay STUN pero no TURN, o sus puertos están cerrados (también en la Security List de Oracle)                                                                                                                      |
+| "Private call unavailable"                                                                  | El relay está caído o no leyó su configuración: `docker compose logs --tail 50 turn` (un arranque sano muestra `Default realm: <tu dominio>`)                                                                    |
+| _Frames rejected_ o "Securing…" para siempre                                                | Los dos navegadores no se pusieron de acuerdo con las claves: recarga ambos; si se repite, mira la consola y `docker compose logs app`                                                                           |
+| `502` de Caddy                                                                              | El backend o el servidor web está caído: `docker compose ps` y `docker compose logs app`                                                                                                                         |
+| Tras actualizar no cambia nada                                                              | El navegador guarda archivos viejos: recarga forzada (Ctrl+Mayús+R)                                                                                                                                              |
+| Electron arranca como Node: `Cannot read properties of undefined (reading 'enableSandbox')` | `ELECTRON_RUN_AS_NODE` está puesta en tu terminal (algunos editores lo hacen)                                                                                                                                    |
+| `pnpm --dir desktop dist` dice que no hay compilación web o que las versiones difieren      | Ejecuta antes `pnpm build` en la raíz; `desktop/package.json` y `frontend/package.json` deben tener la misma versión                                                                                             |
+| electron-builder avisa `Cannot create symbolic link` con `winCodeSign`                      | Aviso en Windows sin modo desarrollador; la compilación termina. Activa el _Modo desarrollador_ para silenciarlo                                                                                                 |
+| La app instalada no inicia sesión                                                           | El servidor no lista `app://chatterly` en `CORS_ORIGINS`                                                                                                                                                         |
+| SmartScreen bloquea el instalador                                                           | No está firmado: _Más información_, _Ejecutar de todos modos_, o usa la Store                                                                                                                                    |
+| La actualización no llega                                                                   | La release no es pública, le falta el `.yml` de su canal, su versión no es mayor que la instalada, o la app no está en el canal beta                                                                             |
+| El overlay no aparece sobre mi juego                                                        | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa                                                    |
 
 ## 19. App de Android
 
@@ -411,7 +436,7 @@ Compilar el APK necesita **JDK 21** (Gradle 8.14 no corre con el JDK 25 que trae
 
 - **Cuándo**: con cada release **estable** (push a `master`), junto al instalador de Windows y el AppImage de Linux: `Chatterly-<v>.apk` y `Chatterly-<v>.apk.sha256`. Con cada **beta** (push a `beta`) el APK va al servidor de betas con su `beta-android.yml`, solo para los probadores. Hace falta que el servidor ejecute ya el código que admite esos nombres (llega con el despliegue de `master`); mientras no, la beta de escritorio se publica igual y el APK espera, con un aviso en la ejecución.
 - **Cómo** (`.github/workflows/desktop.yml`): el trabajo `android` compila el APK **sin firmar y sin ningún secreto** y lo comprueba (`mobile/test/mobile.mjs`: manifiesto fusionado, permisos, código, la web que lleva dentro). El trabajo `release`, el único con secretos, lo firma con `apksigner` (esquemas v2 y v3) y **se niega a publicarlo si el certificado no es exactamente** el de `mobile/release-certificate.sha256`. Si faltan los secretos, Windows y Linux se publican igual y el APK espera al siguiente push (aviso en la ejecución).
-- **Secretos** (Settings > Secrets and variables > Actions, entorno `update-signing`): `ANDROID_KEYSTORE_B64` (el archivo `.p12` en base64) y `ANDROID_KEYSTORE_PASSWORD`. El alias de la clave es `chatterly`.
+- **Secretos** (Settings > Secrets and variables > Actions; valen como secretos de repositorio o del entorno `update-signing`, el trabajo `release` ve los dos): `ANDROID_KEYSTORE_B64` (el archivo `.p12` en base64, sin saltos de línea: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("<p12>"))` en PowerShell) y `ANDROID_KEYSTORE_PASSWORD` (el contenido del archivo de la contraseña). El alias de la clave es `chatterly` y va fijo en el workflow. Borra el archivo base64 cuando lo hayas pegado.
 - **La clave** (RSA 4096, PKCS12, válida hasta 2053) está **fuera del repositorio**: `C:\Users\Jondals\chatterly-android-release.p12` y su contraseña en `chatterly-android-release-password.txt`, ambos con permisos solo para el usuario. ! Android solo instala una actualización firmada con la **misma clave**: si se pierde, nadie que tenga la app instalada podrá actualizarla (tendrá que desinstalar y perder sus datos locales); si alguien la roba, puede hacer pasar un APK suyo por una actualización. Guarda una copia **cifrada** de los dos archivos fuera de este equipo (gestor de contraseñas o disco cifrado) y no la reutilices para nada más (ni para las actualizaciones de escritorio, que tienen su propia clave Ed25519).
 - **Huella del certificado** (SHA-256): `81:44:EA:EA:E5:D7:7B:BA:BC:8B:5D:8F:18:D7:33:C1:71:CC:5C:9F:33:A4:B2:BC:04:77:42:0F:58:6E:07:B2`.
 - **Verificar un APK descargado**: `sha256sum Chatterly-<v>.apk` debe coincidir con `Chatterly-<v>.apk.sha256` (garantiza que el archivo llegó entero, **no** quién lo hizo: quien controle la release cambia los dos); `apksigner verify --print-certs Chatterly-<v>.apk` debe mostrar la huella de arriba (esto sí dice quién lo firmó). Una vez instalada, Android rechaza por sí mismo cualquier actualización firmada con otra clave (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`, comprobado en el emulador en los dos sentidos).

@@ -26,7 +26,7 @@
 #   STORE_PUBLISHER_DISPLAY_NAME, the three values of "Product identity" in Partner Center.
 # ! The installers are NOT signed yet, so Windows shows its SmartScreen warning on direct downloads. The Store route signs it.
 #
-# * Android (stable releases only: the beta server only takes the desktop files). The `android` job builds the APK UNSIGNED, with
+# * Android (stable: the APK goes to the release; beta: the APK and beta-android.yml go to the beta server). The `android` job builds the APK UNSIGNED, with
 #   no secret, and checks it (mobile/test/mobile.mjs). `release` signs it with apksigner and the keystore of the secrets
 #   ANDROID_KEYSTORE_B64 (the .p12 file in base64) and ANDROID_KEYSTORE_PASSWORD, refuses it unless its certificate is exactly
 #   the one in mobile/release-certificate.sha256 (Android only installs an update signed with the SAME key, so an APK signed with

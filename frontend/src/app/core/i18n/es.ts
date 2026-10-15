@@ -1416,12 +1416,18 @@ export const ES: Record<string, string> = {
   'Open the notifications (the bell) to update.':
     'Abre las notificaciones (la campana) para actualizar.',
   'Chatterly {v}': 'Chatterly {v}',
+  'Electron 44': 'Electron 44',
+  'Capacitor 8': 'Capacitor 8',
+  'Android': 'Android',
   'Download': 'Descargar',
   'Downloading… {n}%': 'Descargando… {n}%',
   'Restart and update': 'Reiniciar y actualizar',
   'Chatterly will close and open again with the new version.':
     'Chatterly se cerrará y se abrirá de nuevo con la versión nueva.',
   'The update could not be downloaded': 'No se pudo descargar la actualización',
+  'No Android beta has been published yet.': 'Todavía no se ha publicado ninguna beta de Android.',
+  'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.':
+    'La última beta es anterior a la versión instalada: Android solo la instala si antes desinstalas Chatterly.',
   'Updates': 'Actualizaciones',
   'Check for updates': 'Buscar actualizaciones',
   'Checking…': 'Buscando…',
