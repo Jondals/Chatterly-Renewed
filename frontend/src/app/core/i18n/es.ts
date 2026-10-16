@@ -120,7 +120,6 @@ export const ES: Record<string, string> = {
   'Pop-up notices': 'Avisos emergentes',
   'The small messages that appear in the corner, like Copied.':
     'Los mensajitos que salen en la esquina, como Copiado.',
-  'Only important': 'Solo importantes',
   'Solid color': 'Color sólido',
   'Background color': 'Color del fondo',
   'Base color': 'Color base',
@@ -141,8 +140,6 @@ export const ES: Record<string, string> = {
   'Shuffle': 'Aleatorio',
   'A different background is picked at random. Choose when it changes.':
     'Se elige un fondo distinto al azar. Elige cuándo cambia.',
-  'On every reload': 'En cada recarga',
-  'Every few minutes': 'Cada pocos minutos',
   'Change every': 'Cambiar cada',
   'Orb': 'Esfera',
   'Sleek': 'Elegante',
@@ -1117,7 +1114,6 @@ export const ES: Record<string, string> = {
     'Los grupos que tienes pasan al miembro más antiguo (un grupo sin nadie más se borra); de los demás simplemente sales.',
   'Who can see you online': 'Quién puede verte en línea',
   'Everybody': 'Todo el mundo',
-  'Friends only': 'Solo amigos',
   'Nobody': 'Nadie',
   'Your online status. Anybody who is not allowed sees you as offline, whatever you do.':
     'Tu estado en línea. Quien no tenga permiso te verá desconectado, hagas lo que hagas.',
@@ -1246,10 +1242,6 @@ export const ES: Record<string, string> = {
   'No category': 'Sin categoría',
   'End-to-end encryption': 'Cifrado de extremo a extremo',
   'Call data': 'Datos de la llamada',
-  'Introduction': 'Introducción',
-  'The animation that plays once each time you open the browser.':
-    'La animación que sale una vez cada vez que abres el navegador.',
-  'Watch it again': 'Verla otra vez',
   'Sent, encrypted': 'Enviados, cifrados',
   'Received, decrypted': 'Recibidos, descifrados',
   'Add the pack to my soundboard': 'Añadir el pack a mi tablero de sonidos',
@@ -1306,7 +1298,6 @@ export const ES: Record<string, string> = {
   'Save how your profile looks now (colors, effect, name animation, About me, pictures...) with a name, and bring it back in one press. You can share it in a chat.':
     'Guarda con un nombre cómo se ve tu perfil ahora (colores, efecto, animación del nombre, Sobre mí, imágenes...) y recupéralo con una pulsación. Puedes compartirlo en un chat.',
   'Name of the preset': 'Nombre del preajuste',
-  'Save what I have now': 'Guardar lo que tengo ahora',
   'You have no presets of this kind yet.': 'Todavía no tienes preajustes de este tipo.',
   'Update with what I have now': 'Actualizar con lo que tengo ahora',
   'Preset saved': 'Preajuste guardado',
@@ -1734,10 +1725,7 @@ export const ES: Record<string, string> = {
   'Performance': 'Rendimiento',
   'Calls in the background': 'Llamadas en segundo plano',
   'Power mode': 'Modo de energía',
-  'Stay connected with a quiet notification, so calls ring with the app minimized or the screen off. Off saves some battery, but calls only ring with the app open.':
-    'Sigue conectado con una notificación discreta, así las llamadas suenan con la app minimizada o la pantalla apagada. Desactivado ahorra algo de batería, pero las llamadas solo suenan con la app abierta.',
   'Maximum': 'Máximo',
-  'Battery saver': 'Ahorro de batería',
   'Saving battery now: the battery is low.': 'Ahorrando batería ahora: queda poca batería.',
   'Saving battery now: this device could not keep up with everything.':
     'Ahorrando batería ahora: este dispositivo no podía con todo.',
@@ -1756,9 +1744,6 @@ export const ES: Record<string, string> = {
   'Call moved to another device': 'La llamada pasó a otro dispositivo',
   'You are in this call on another device now.':
     'Ahora estás en esta llamada desde otro dispositivo.',
-  'Show it when the app starts': 'Mostrarla al abrir la app',
-  'Off: the app opens straight away (you can still watch it with the button above).':
-    'Desactivado: la app se abre directamente (puedes verla igualmente con el botón de arriba).',
   'Calls over the lock screen': 'Llamadas sobre la pantalla de bloqueo',
   'Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked.':
     'Android pide que lo permitas: así una llamada que suena ocupa la pantalla, como una llamada de teléfono, aunque el móvil esté bloqueado.',
@@ -1767,4 +1752,10 @@ export const ES: Record<string, string> = {
   'Timed': 'Periódico',
   'Saver': 'Ahorro',
   'Important': 'Importantes',
+  'Watch it': 'Verla',
+  'Intro when Chatterly opens': 'Intro al abrir Chatterly',
+  'The short animation of the logo before the app appears. Off: Chatterly opens straight away.':
+    'La animación corta del logo antes de que aparezca la app. Apagada: Chatterly se abre directamente.',
+  'Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open.':
+    'Mantiene Chatterly conectado con una notificación fija, para que las llamadas suenen con la app minimizada o la pantalla apagada. Apagado: sin notificación, y las llamadas solo suenan con la app abierta.',
 };

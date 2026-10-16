@@ -119,6 +119,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
                 [src]="src"
                 alt=""
                 draggable="false"
+                (contextmenu)="$event.preventDefault()"
                 class="anim-pop stk stk-live mt-1 h-36 w-36 object-contain drop-shadow-lg"
                 [attr.data-move]="att().move"
               />

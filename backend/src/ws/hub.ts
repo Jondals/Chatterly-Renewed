@@ -159,6 +159,8 @@ export class Hub {
 
   setStatus(userId: string, status: Presence): void {
     if (!this.clients.has(userId)) return;
+    // ! The same status again changes nothing: it is not sent to every friend again (a client could repeat it to flood them).
+    if ((this.statuses.get(userId) ?? 'online') === status) return;
     this.statuses.set(userId, status);
     this.broadcastPresence(userId);
   }

@@ -34,7 +34,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULTS = {
-  enabled: false,
+  // On by default, like the overlay of Discord: it only appears during a call.
+  enabled: true,
   hotkey: 'CommandOrControl+Shift+O',
   size: 'medium',
   opacity: 100,
@@ -76,6 +77,8 @@ let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
 let gameOpen = false;
+/** The person pressed the shortcut while the overlay waited for a game: it stays open until the call ends. */
+let forced = false;
 let watchTimer = null;
 
 /** Where the choices are kept. */
@@ -223,8 +226,8 @@ function viewConfig() {
     ...settings,
     editing,
     toast: spanish
-      ? 'Overlay de Chatterly activo · pulsa ' + keys + ' para abrirlo'
-      : 'Chatterly overlay is on · press ' + keys + ' to open it',
+      ? 'Overlay de Chatterly activo · ' + keys + ' para moverlo'
+      : 'Chatterly overlay is on · ' + keys + ' to move it',
     hint: spanish
       ? 'Arrastra para mover · esquina para el tamaño · Esc para terminar'
       : 'Drag to move · corner to resize · Esc to finish',
@@ -368,7 +371,9 @@ function updateWatch() {
 /** Opens or closes the window to match: it exists while the overlay is on, there are people to show and (if it waits for a game) one is open. */
 function sync() {
   updateWatch();
-  const wanted = settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen);
+  if (tiles.length === 0) forced = false;
+  const wanted =
+    settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen || forced);
   if (wanted) openWindow();
   else closeWindow();
   registerHotkey();
@@ -388,8 +393,18 @@ function setEditing(on) {
   publish();
 }
 
-/** The shortcut was pressed. */
+/**
+ * The shortcut was pressed: it moves the panel (or ends moving it). If the overlay was waiting for a registered game
+ * during a call, it opens it first, so the shortcut always shows something during a call.
+ */
 function onHotkey() {
+  if (!overlayWindow && tiles.length > 0 && settings.enabled) {
+    forced = true;
+    sync();
+    if (overlayWindow)
+      overlayWindow.webContents.once('did-finish-load', setEditing.bind(null, true));
+    return;
+  }
   setEditing(!editing);
 }
 
@@ -483,7 +498,11 @@ function handleSignalToPage(event, message) {
 function handleLayout(event, layout, finished) {
   if (!isOverlay(event)) return;
   settings = sanitizeSettings(
-    { x: layout && layout.x, y: layout && layout.y, scale: layout && layout.scale },
+    {
+      x: layout && layout.x,
+      y: layout && layout.y,
+      scale: layout && layout.scale,
+    },
     settings,
   );
   save();
@@ -524,4 +543,11 @@ function stop() {
   closeWindow();
 }
 
-module.exports = { start, stop, sanitizeSettings, sanitizeTiles, sanitizeSignal, DEFAULTS };
+module.exports = {
+  start,
+  stop,
+  sanitizeSettings,
+  sanitizeTiles,
+  sanitizeSignal,
+  DEFAULTS,
+};

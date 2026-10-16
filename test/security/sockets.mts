@@ -129,8 +129,45 @@ export async function checkSockets(): Promise<void> {
     }),
     'a signal addressed to somebody outside the room is not delivered to them',
   );
+  await checkFloods(alice, bob, dm, a, b);
   await checkOneDevicePerCall(port, alice, bob, dm, a, b);
   await app.close();
+}
+
+/** A client repeating "typing" or the same status cannot make the server flood the others with them. */
+async function checkFloods(
+  alice: { id: string },
+  bob: { id: string },
+  dm: string,
+  a: Awaited<ReturnType<typeof openSocket>>,
+  b: Awaited<ReturnType<typeof openSocket>>,
+): Promise<void> {
+  const typingOfBob = function (): number {
+    return a.frames.filter(function isTyping(f) {
+      return f['t'] === 'typing' && f['userId'] === bob.id;
+    }).length;
+  };
+  const typingBefore = typingOfBob();
+  for (let i = 0; i < 30; i++) b.send({ t: 'typing', channelId: dm });
+  await sleep(250);
+  check(typingOfBob() - typingBefore === 1, '30 "typing" in a row reach the others once');
+  const presenceOfAlice = function (): number {
+    return b.frames.filter(function isPresence(f) {
+      return f['t'] === 'presence' && f['userId'] === alice.id;
+    }).length;
+  };
+  a.send({ t: 'presence.set', status: 'dnd' });
+  await until(function changed() {
+    return presenceOfAlice() > 0;
+  });
+  const presenceBefore = presenceOfAlice();
+  for (let i = 0; i < 30; i++) a.send({ t: 'presence.set', status: 'dnd' });
+  await sleep(250);
+  check(
+    presenceOfAlice() === presenceBefore,
+    'the same status again is not sent to the friends again',
+  );
+  a.send({ t: 'presence.set', status: 'online' });
 }
 
 /**

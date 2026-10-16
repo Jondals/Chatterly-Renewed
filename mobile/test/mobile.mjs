@@ -93,6 +93,18 @@ function webBuild(work) {
   );
   fs.writeFileSync(path.join(fake, "index.html"), html);
   fs.writeFileSync(path.join(fake, "main-ABCDEFGH.js"), "");
+  // Like the real build: the lazy fonts, with the web emoji font that prepare-web.mjs takes out, and a name font it keeps.
+  fs.writeFileSync(
+    path.join(fake, "lazy-fonts-ABCDEFGH.css"),
+    '@font-face{font-family:"Noto Color Emoji";src:url(media/noto-color-emoji-0-400-normal-X.woff2) format("woff2")}' +
+      '@font-face{font-family:Pacifico;src:url(media/pacifico-Y.woff2) format("woff2")}',
+  );
+  fs.mkdirSync(path.join(fake, "media"), { recursive: true });
+  fs.writeFileSync(
+    path.join(fake, "media", "noto-color-emoji-0-400-normal-X.woff2"),
+    "x",
+  );
+  fs.writeFileSync(path.join(fake, "media", "pacifico-Y.woff2"), "y");
   return fake;
 }
 
@@ -166,6 +178,21 @@ function checkWebFolder(work) {
   );
   const html = fs.readFileSync(path.join(target, "index.html"), "utf8");
   const csp = cspOf(html);
+  if (!process.argv.includes("--web")) {
+    const fonts = fs.readFileSync(
+      path.join(target, "lazy-fonts-ABCDEFGH.css"),
+      "utf8",
+    );
+    check(
+      !fonts.includes("Noto Color Emoji") &&
+        fonts.includes("Pacifico") &&
+        !fs.existsSync(
+          path.join(target, "media", "noto-color-emoji-0-400-normal-X.woff2"),
+        ) &&
+        fs.existsSync(path.join(target, "media", "pacifico-Y.woff2")),
+      "the web emoji font is taken out (rules and files) and the other lazy fonts stay",
+    );
+  }
 
   check(
     (csp.get("connect-src") ?? []).join(" ") ===
@@ -1006,6 +1033,12 @@ function checkBuiltApk() {
     "the web app inside the APK talks to an https server and has the strict relay policy (" +
       (window.CHATTERLY_API ?? "no native-config.js") +
       ")",
+  );
+  check(
+    ![...files.keys()].some(function emojiFont(name) {
+      return /^assets\/public\/media\/noto-color-emoji-/.test(name);
+    }),
+    "the APK carries no web emoji font (the WebView draws it empty; Android has its own Noto)",
   );
   const connect = (cspOf(index).get("connect-src") ?? []).join(" ");
   check(

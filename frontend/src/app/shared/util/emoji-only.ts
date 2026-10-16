@@ -6,11 +6,20 @@
 
 /**
  * One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ; or a
- * flag (two regional letters); or a keycap (a digit, # or * with the keycap mark).
+ * flag (two regional letters, or a black flag with tag letters, like Scotland); or a keycap (a digit, # or * with the
+ * keycap mark).
  */
 const ONE =
-  /(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3)/u
+  /(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\u{1F3F4}[\u{E0061}-\u{E007A}]+\u{E007F}|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3)/u
     .source;
+
+/** Invisible marks that some keyboards leave around emoji (zero-width space, word joiner, text-style selector...). */
+const INVISIBLE = /[\u200B\u200C\u2060\uFE0E\uFEFF]/gu;
+
+/** The text without the invisible marks and the spaces around it. */
+function bare(text: string): string {
+  return text.replace(INVISIBLE, '').trim();
+}
 
 /** Only emoji, up to MAX_EMOJI of them, with any spaces between them. */
 const EMOJI = new RegExp('^' + ONE + '(?:\\s*' + ONE + ')*$', 'u');
@@ -24,7 +33,7 @@ const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 /** How many emoji (graphemes that are not spaces) a text has. */
 export function emojiCountOf(text: string): number {
   let count = 0;
-  for (const part of GRAPHEMES.segment(text.trim())) {
+  for (const part of GRAPHEMES.segment(bare(text))) {
     if (part.segment.trim()) {
       count++;
     }
@@ -34,7 +43,7 @@ export function emojiCountOf(text: string): number {
 
 /** True when the text (ignoring spaces) is only emoji: one to MAX_EMOJI of them. */
 export function isOnlyEmoji(text: string): boolean {
-  const trimmed = text.trim();
+  const trimmed = bare(text);
   return trimmed.length > 0 && EMOJI.test(trimmed) && emojiCountOf(trimmed) <= MAX_EMOJI;
 }
 

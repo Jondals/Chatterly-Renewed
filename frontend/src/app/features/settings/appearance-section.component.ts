@@ -446,48 +446,45 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
         />
       </app-setting-row>
       <app-setting-row
-        title="Introduction"
-        hint="The animation that plays once each time you open the browser."
+        title="Intro when Chatterly opens"
+        hint="The short animation of the logo before the app appears. Off: Chatterly opens straight away."
       >
-        <button type="button" class="btn btn-sm" (click)="replayIntro()">
-          <app-icon name="play" [size]="14" /> {{ 'Watch it again' | t }}
-        </button>
-      </app-setting-row>
-      <app-setting-row
-        title="Show it when the app starts"
-        hint="Off: the app opens straight away (you can still watch it with the button above)."
-      >
-        <app-toggle
-          [checked]="s.introOnStart()"
-          (checkedChange)="s.introOnStart.set($event)"
-          [label]="'Show it when the app starts' | t"
-        />
+        <div class="flex items-center gap-3">
+          <button type="button" class="btn btn-sm" (click)="replayIntro()">
+            <app-icon name="play" [size]="14" /> {{ 'Watch it' | t }}
+          </button>
+          <app-toggle
+            [checked]="s.introOnStart()"
+            (checkedChange)="s.introOnStart.set($event)"
+            [label]="'Intro when Chatterly opens' | t"
+          />
+        </div>
       </app-setting-row>
     </section>
 
-    <section class="settings-card">
-      <h2 class="settings-card-title">{{ 'Performance' | t }}</h2>
-      <app-setting-row title="Power mode" [hint]="powerHint()">
-        <app-segmented
-          [options]="powerModes"
-          [value]="s.powerMode()"
-          (valueChange)="setPowerMode($event)"
-        />
-      </app-setting-row>
-      @if (s.powerMode() === 'auto' && s.saving()) {
-        <p class="pb-3 text-xs text-amber">
-          {{
-            (s.batteryLow()
-              ? 'Saving battery now: the battery is low.'
-              : 'Saving battery now: this device could not keep up with everything.'
-            ) | t
-          }}
-        </p>
-      }
-      @if (android) {
+    @if (android) {
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'Performance' | t }}</h2>
+        <app-setting-row title="Power mode" [hint]="powerHint()">
+          <app-segmented
+            [options]="powerModes"
+            [value]="s.powerMode()"
+            (valueChange)="setPowerMode($event)"
+          />
+        </app-setting-row>
+        @if (s.powerMode() === 'auto' && s.saving()) {
+          <p class="pb-3 text-xs text-amber">
+            {{
+              (s.batteryLow()
+                ? 'Saving battery now: the battery is low.'
+                : 'Saving battery now: this device could not keep up with everything.'
+              ) | t
+            }}
+          </p>
+        }
         <app-setting-row
           title="Calls in the background"
-          hint="Stay connected with a quiet notification, so calls ring with the app minimized or the screen off. Off saves some battery, but calls only ring with the app open."
+          hint="Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open."
         >
           <app-toggle
             [checked]="s.backgroundCalls()"
@@ -509,8 +506,8 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
             </button>
           </app-setting-row>
         }
-      }
-    </section>
+      </section>
+    }
 
     <section class="settings-card">
       <h2 class="settings-card-title">{{ 'Interface' | t }}</h2>

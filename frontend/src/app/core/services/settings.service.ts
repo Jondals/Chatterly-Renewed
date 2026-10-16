@@ -318,8 +318,11 @@ export class SettingsService {
   readonly powerMode = persisted<'auto' | 'full' | 'saver'>('pref.powerMode', 'auto');
   /** Whether the introduction plays when the app (or the browser) starts. */
   readonly introOnStart = persisted('pref.introOnStart', true);
-  /** Android: stay connected in the background (a quiet notification) so calls ring with the app minimized. */
-  readonly backgroundCalls = persisted('pref.backgroundCalls', true);
+  /**
+   * Android: stay connected in the background (with a fixed notification) so calls ring with the app minimized. Off by
+   * default: the person did not want a notification only for being connected. ? A new key, so the old "on" is not kept.
+   */
+  readonly backgroundCalls = persisted('pref.keepConnected', false);
   /** The device could not keep up (few cores or little memory, or the frames of the page came slow). */
   readonly deviceWeak = signal(document.documentElement.dataset['weak'] === '1');
   /** The battery is low and not charging (read from the system when it says). */

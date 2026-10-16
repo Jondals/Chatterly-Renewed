@@ -31,7 +31,7 @@ const VIDEO_FPS = 24;
 
 const INITIAL: OverlayState = {
   settings: {
-    enabled: false,
+    enabled: true,
     hotkey: 'CommandOrControl+Shift+O',
     size: 'medium',
     opacity: 100,
@@ -134,9 +134,10 @@ export class OverlayService {
     const peers = this.call.peers();
     const avatars = this.avatars();
     const tiles: OverlayTile[] = [];
+    const alone = this.alone();
     for (const participant of this.call.participants()) {
       const isMe = participant.userId === me;
-      if (isMe && !settings.showSelf) {
+      if (isMe && !settings.showSelf && !alone) {
         continue;
       }
       const user = users.get(participant.userId);
@@ -155,6 +156,17 @@ export class OverlayService {
       });
     }
     return tiles;
+  }
+
+  /**
+   * True when nobody else is in the call. Then you see yourself in the overlay: otherwise it would have nobody to draw and
+   * would not appear at all.
+   */
+  private alone(): boolean {
+    const me = this.auth.userId;
+    return !this.call.participants().some(function other(participant) {
+      return participant.userId !== me;
+    });
   }
 
   /** The id of the stream that carries the camera of a person to the overlay ('' when they have no live camera). */
@@ -244,9 +256,14 @@ export class OverlayService {
     const wanted = new Map<string, MediaStreamTrack>();
     if (connected) {
       const me = this.auth.userId;
+      const alone = this.alone();
       for (const participant of this.call.participants()) {
         const camera =
-          participant.userId === me ? (showSelf ? local : null) : peers[participant.userId]?.camera;
+          participant.userId === me
+            ? showSelf || alone
+              ? local
+              : null
+            : peers[participant.userId]?.camera;
         const track = camera?.getVideoTracks().find(this.isLive);
         if (track) {
           wanted.set(participant.userId, track);

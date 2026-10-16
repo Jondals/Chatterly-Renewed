@@ -48,6 +48,11 @@ const EMOJI_FRESH_MS = 6000;
 /** Seconds of rest between the end of the show of a lone emoji and the next one. */
 const EMOJI_REST_MS = 5000;
 
+/** True for a file that is not a sticker (stickers cannot be saved). */
+function notSticker(file: ViewAttachment): boolean {
+  return !file.sticker;
+}
+
 @Component({
   selector: 'app-message-item',
   standalone: true,
@@ -328,7 +333,6 @@ export class MessageItemComponent {
   protected readonly settings = inject(SettingsService);
 
   protected readonly quick = QUICK_REACTIONS.slice(0, 3);
-  protected readonly plain = plainText;
   protected readonly editing = signal(false);
   protected readonly draft = signal('');
   protected readonly pickerOpen = signal(false);
@@ -581,9 +585,9 @@ export class MessageItemComponent {
           return void this.copy(plainText(m.text));
         }.bind(this),
       });
-    // Every file of the message can be kept: a GIF, a picture, a sticker, a voice note or any file (on the phone, in
-    // Downloads). With several files each one is named.
-    const files = m.attachments.slice(0, 6);
+    // Every file of the message can be kept: a GIF, a picture, a voice note or any file (on the phone, in Downloads).
+    // With several files each one is named. ! Stickers are not offered: they belong to whoever made them.
+    const files = m.attachments.filter(notSticker).slice(0, 6);
     for (const file of files) {
       items.push({
         label:

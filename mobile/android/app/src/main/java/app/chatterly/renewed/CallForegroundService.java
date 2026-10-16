@@ -2,10 +2,10 @@
  * mobile/android/app/src/main/java/app/chatterly/renewed/CallForegroundService.java
  * The one foreground service of the app, with one notification that changes with what the app is doing:
  *   - CALL: a call is on. The notification shows who the call is with (only on an unlocked phone), how long it has
- *     lasted (a chronometer of the system) and three buttons: mute, deafen and hang up. A tap opens the call.
- *   - LISTEN: no call, but the person chose to receive calls with the app in the background (Settings > Appearance >
- *     Performance, on by default). A quiet, minimized notification keeps the app connected, so a call rings with the
- *     app minimized or the screen off.
+ *     lasted and three buttons: mute, deafen and hang up (layout/notification_call.xml). A tap opens the call.
+ *   - LISTEN: no call, but the person turned on "Calls in the background" (Settings > Appearance > Performance, off by
+ *     default). A quiet, minimized notification keeps the app connected, so a call rings with the app minimized or the
+ *     screen off.
  *
  * * Why: since Android 9 an app in the background cannot use the microphone (it records silence), Android 14 requires a
  *   foreground service of type "microphone" started while the app is on screen to keep it, and an app in the background
@@ -26,8 +26,9 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
+import android.widget.RemoteViews;
 import androidx.core.app.NotificationCompat;
-import androidx.core.app.Person;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
@@ -177,44 +178,70 @@ public class CallForegroundService extends Service {
         return PendingIntent.getService(this, code, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    /** The notification of a call: who, how long, and mute / deafen / hang up. */
+    /**
+     * The notification of a call: who, how long, and mute / deafen / hang up.
+     * ? A view of our own instead of the call style of Android: the buttons that style draws can be given neither colors
+     *   nor corners, and they looked white on a dark phone. The texts use the notification styles of the system, so they
+     *   follow the light or dark phone, and the buttons use colors/*.xml (values-night for a dark phone).
+     */
     private Notification callNotification() {
         String state = deafened ? getString(R.string.state_deafened) : muted ? getString(R.string.state_muted) : "";
         String name = title == null || title.isEmpty() ? getString(R.string.call_in_progress) : title;
+        long since = startedAt > 0 ? startedAt : System.currentTimeMillis();
         // The lock screen gets this one: no name.
         Notification generic = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.call_in_progress))
             .setSmallIcon(R.drawable.ic_stat_chatterly)
             .setUsesChronometer(true)
-            .setWhen(startedAt > 0 ? startedAt : System.currentTimeMillis())
+            .setWhen(since)
             .setShowWhen(true)
             .build();
-        Person person = new Person.Builder().setName(name).setImportant(true).build();
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentText(state.isEmpty() ? getString(R.string.call_in_progress) : getString(R.string.call_in_progress) + " · " + state)
+            // The plain texts are for the accessibility services and the places that do not draw the view.
+            .setContentTitle(name)
+            .setContentText(state.isEmpty() ? getString(R.string.call_in_progress) : state)
             .setSmallIcon(R.drawable.ic_stat_chatterly)
             .setColor(0xFF2EF2B0)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
             .setSilent(true)
             .setOnlyAlertOnce(true)
-            .setUsesChronometer(true)
-            .setWhen(startedAt > 0 ? startedAt : System.currentTimeMillis())
-            .setShowWhen(true)
+            .setShowWhen(false)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(generic)
             .setContentIntent(openApp())
-            // The style of a phone call: the person, the red "hang up" button, and the call chip in the status bar.
-            .setStyle(NotificationCompat.CallStyle.forOngoingCall(person, button(ACTION_HANG_UP, 13)))
-            .addAction(R.drawable.ic_call_mic, getString(muted ? R.string.action_unmute : R.string.action_mute), button(ACTION_MUTE, 11))
-            .addAction(
-                R.drawable.ic_call_headphones,
-                getString(deafened ? R.string.action_undeafen : R.string.action_deafen),
-                button(ACTION_DEAFEN, 12)
-            )
+            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(callView(name, state, since))
+            .setCustomBigContentView(callView(name, state, since))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build();
+    }
+
+    /** The inside of the call notification (layout/notification_call.xml) with the current state. */
+    private RemoteViews callView(String name, String state, long since) {
+        RemoteViews view = new RemoteViews(getPackageName(), R.layout.notification_call);
+        view.setTextViewText(R.id.call_name, name);
+        // The chronometer counts from a moment of the clock since boot: the start of the call moved to that clock.
+        long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - since);
+        view.setChronometer(R.id.call_timer, base, null, true);
+        view.setTextViewText(R.id.call_state, state.isEmpty() ? "" : " · " + state);
+        view.setImageViewResource(R.id.call_mute, muted ? R.drawable.ic_call_mic_off : R.drawable.ic_call_mic);
+        view.setInt(R.id.call_mute, "setBackgroundResource", muted ? R.drawable.notification_button_on : R.drawable.notification_button);
+        view.setContentDescription(R.id.call_mute, getString(muted ? R.string.action_unmute : R.string.action_mute));
+        view.setOnClickPendingIntent(R.id.call_mute, button(ACTION_MUTE, 11));
+        view.setImageViewResource(R.id.call_deafen, deafened ? R.drawable.ic_call_headphones_off : R.drawable.ic_call_headphones);
+        view.setInt(
+            R.id.call_deafen,
+            "setBackgroundResource",
+            deafened ? R.drawable.notification_button_on : R.drawable.notification_button
+        );
+        view.setContentDescription(R.id.call_deafen, getString(deafened ? R.string.action_undeafen : R.string.action_deafen));
+        view.setOnClickPendingIntent(R.id.call_deafen, button(ACTION_DEAFEN, 12));
+        view.setContentDescription(R.id.call_hang_up, getString(R.string.action_hang_up));
+        view.setOnClickPendingIntent(R.id.call_hang_up, button(ACTION_HANG_UP, 13));
+        return view;
     }
 
     /** The notification while only connected: as small as Android allows (the person can hide it in the system settings). */

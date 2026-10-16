@@ -387,7 +387,6 @@ export class GeneralSectionComponent {
 
   private readonly injector = inject(EnvironmentInjector);
   protected readonly ringtones = RINGTONE_IDS;
-  protected readonly melodies = MELODIES;
   /** Stops the ringtone that is being previewed. */
   private stopPreview: (() => void) | null = null;
   /** The ringtone whose preview is playing. */

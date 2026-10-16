@@ -886,14 +886,14 @@ export class MessageInputComponent implements OnDestroy {
    * Changes the text of the box from the app (format, emoji, undo...) by setting the value directly on the
    * textarea before placing the caret: that way the caret stays where it belongs and does not jump to the end when redrawn.
    */
-  private applyText(texto: string, caret: number, guardar: boolean): void {
+  private applyText(texto: string, caret: number, guardar: boolean, focus = true): void {
     const el = this.box()?.nativeElement;
     if (guardar) this.recordHistory(true);
     this.text.set(texto);
     sessionStorage.setItem('draft.' + this.channelId(), texto);
     if (el) {
       el.value = texto;
-      el.focus();
+      if (focus) el.focus();
       el.selectionStart = el.selectionEnd = caret;
     }
     this.resize();
@@ -984,13 +984,22 @@ export class MessageInputComponent implements OnDestroy {
     this.wrap(gradientOpen(colors, this.i18n.lang()), GRADIENT_CLOSE);
   }
 
-  /** Inserts an emoji where the caret is. */
+  /**
+   * Inserts an emoji where the caret is. On a touch screen the box is not focused: that would open the keyboard over the
+   * picker. The keyboard opens when the person taps the box itself, and the picker stays open for more emoji.
+   */
   protected insert(emoji: string): void {
     const el = this.box()?.nativeElement;
     const value = this.text();
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
-    this.applyText(value.slice(0, start) + emoji + value.slice(end), start + emoji.length, true);
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    this.applyText(
+      value.slice(0, start) + emoji + value.slice(end),
+      start + emoji.length,
+      true,
+      !touch,
+    );
   }
 
   // ---- stickers & GIFs -----------------------------------------------------------------------

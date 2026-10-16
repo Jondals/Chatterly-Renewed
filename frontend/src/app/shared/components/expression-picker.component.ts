@@ -365,7 +365,13 @@ export class ExpressionPickerComponent {
   protected readonly scrolling = signal(false);
   private scrollTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly destroyRef = inject(DestroyRef);
+  /**
+   * The counts the "Frequently used" list is drawn from: read when the picker opens and NOT changed while it is open.
+   * ? Otherwise every pick moved the emoji around (or added that list at the top) under the finger, and the same emoji
+   *   could not be pressed twice in a row. The new counts are kept in `counts` and show the next time.
+   */
   private readonly freq = signal<Record<string, number>>(this.readFreq());
+  private counts: Record<string, number> = { ...this.freq() };
 
   /** Every emoji by its character: the grid has one listener, and finds the emoji of a cell from here. */
   private readonly byUnicode = computed(
@@ -656,10 +662,9 @@ export class ExpressionPickerComponent {
   /** Picks an emoji: it is sent to the box and counted so the most used ones come first. */
   protected pickEmoji(e: EmojiEntry): void {
     const emoji = this.show(e);
-    const next = { ...this.freq(), [e.unicode]: (this.freq()[e.unicode] ?? 0) + 1 };
-    this.freq.set(next);
+    this.counts = { ...this.counts, [e.unicode]: (this.counts[e.unicode] ?? 0) + 1 };
     try {
-      localStorage.setItem(FREQ_KEY, JSON.stringify(next));
+      localStorage.setItem(FREQ_KEY, JSON.stringify(this.counts));
     } catch {
       /* ignore */
     }

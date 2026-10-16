@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  mobile/android/app/src/main/res/values/colors.xml
+  The colors of the call notification on a light phone (values-night has the dark ones). ! Set by hand: the buttons that Android draws by itself in a call
+  notification looked white on a dark phone.
+-->
+<resources>
+    <color name="notification_button">#E4E7EB</color>
+    <color name="notification_icon">#1F2328</color>
+    <color name="notification_button_on">#FAD4D4</color>
+    <color name="notification_icon_on">#B42318</color>
+    <color name="notification_hang_up">#E5484D</color>
+</resources>

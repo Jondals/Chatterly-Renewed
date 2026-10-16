@@ -31,7 +31,7 @@ const DEVICE_ONLY = new Set([
   'pref.ringtoneName',
   'pref.clickName',
   'pref.powerMode',
-  'pref.backgroundCalls',
+  'pref.keepConnected',
 ]);
 
 /** The most a single setting may weigh when it is JSON (a big one is a file and stays where it is). */

@@ -1,7 +1,8 @@
 /**
  * src/app/features/voice/device-menu.component.ts
- * The little arrow next to the microphone and the camera buttons of a call (like in Discord): it opens a list of the
- * devices, the one in use is marked, and choosing one switches to it at once, without leaving the call.
+ * The little arrow next to the microphone, headphones and camera buttons of a call (like in Discord): it opens a list of the
+ * devices, the one in use is marked, and choosing one switches to it at once, without leaving the call. In the Android app
+ * the arrow of the headphones chooses where the voice sounds (phone, speaker, headphones or Bluetooth).
  */
 import {
   Component,
@@ -20,6 +21,8 @@ import { IconComponent } from '../../shared/components/icon.component';
 import { openBackgroundPicker } from './background-picker.component';
 import { closeOnBack } from '../../core/services/back.service';
 import { listenWhile } from '../../shared/util/listen-while';
+import { NativeCallService } from '../../core/services/native-call.service';
+import type { AudioRoute } from '../../core/native-bridge';
 
 /** One device of the list. */
 interface Device {
@@ -67,6 +70,26 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
                 <app-icon name="check" [size]="15" class="text-accent" />
               }
             </button>
+          }
+        } @else if (kind() === 'speakers' && native.available) {
+          <!-- Android: where the voice sounds (the phone at the ear, the speaker, a headset). -->
+          <div class="label px-2.5 pb-1 pt-1.5">{{ 'Audio output' | t }}</div>
+          @for (route of native.routes(); track route.id) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="device-item"
+              [attr.aria-checked]="native.currentRoute() === route.id"
+              (click)="chooseRoute(route)"
+            >
+              <app-icon [name]="routeIcon(route)" [size]="15" />
+              <span class="min-w-0 flex-1 truncate">{{ native.routeLabel(route) }}</span>
+              @if (native.currentRoute() === route.id) {
+                <app-icon name="check" [size]="15" class="text-accent" />
+              }
+            </button>
+          } @empty {
+            <p class="px-2.5 pb-1 pt-1 text-[0.6875rem] text-dim">{{ 'No other output' | t }}</p>
           }
         } @else if (kind() === 'speakers') {
           <div class="label px-2.5 pb-1 pt-1.5">{{ 'Speakers' | t }}</div>
@@ -156,6 +179,8 @@ export class DeviceMenuComponent implements OnDestroy {
 
   protected readonly settings = inject(SettingsService);
   private readonly call = inject(CallService);
+  /** Android: the outputs of the voice of a call. */
+  protected readonly native = inject(NativeCallService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(EnvironmentInjector);
 
@@ -209,9 +234,29 @@ export class DeviceMenuComponent implements OnDestroy {
   protected toggle(): void {
     const next = !this.open();
     this.open.set(next);
-    if (next) {
+    if (next && this.kind() === 'speakers' && this.native.available) {
+      // A headset may have been plugged in since the last look.
+      void this.native.refreshRoutes();
+    } else if (next) {
       void this.refresh();
     }
+  }
+
+  /** Android: sends the voice to an output and closes the list. */
+  protected chooseRoute(route: AudioRoute): void {
+    this.open.set(false);
+    void this.native.setRoute(route);
+  }
+
+  /** Android: the icon of an output of the voice. */
+  protected routeIcon(route: AudioRoute): string {
+    const icons: Record<AudioRoute['kind'], string> = {
+      earpiece: 'smartphone',
+      speaker: 'volume-2',
+      wired: 'headphones',
+      bluetooth: 'bluetooth',
+    };
+    return icons[route.kind];
   }
 
   /** Reads the devices. The names are empty until the browser has given permission, so they get a number then. */

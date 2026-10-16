@@ -917,6 +917,11 @@ button:disabled,
 .stk {
   transform-origin: 50% 62%;
 }
+/* A sticker in a message cannot be saved: no "save image" menu of the browser or of a long press, and no dragging out. */
+.stk-live {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
 .stk[data-move='0'] {
   --stk: stk-0;
 }

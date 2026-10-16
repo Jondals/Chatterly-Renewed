@@ -12,6 +12,8 @@ import type { Client, Presence } from './hub';
 
 const PRESENCE_VALUES: Presence[] = ['online', 'idle', 'dnd', 'invisible'];
 const MAX_SIGNAL_BYTES = 48 * 1024;
+/** The shortest time between two "typing" of one connection in one channel that are passed on (the others show it for 4 s). */
+const TYPING_MS = 2000;
 
 /**
  * Whether a page was served from the same address that opens the socket (a browser cannot forge the Host header, so
@@ -48,6 +50,9 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
     });
   };
   hub.onRoomChange = announceRoom;
+
+  /** When each connection last said it was typing in each channel: it is passed on at most once every TYPING_MS. */
+  const lastTyping = new WeakMap<Client, Map<string, number>>();
 
   app.get('/ws', { websocket: true }, function (socket: WebSocket, req) {
     // ! Cross-site WebSocket hijacking guard. Non-browser clients send no Origin.
@@ -174,6 +179,12 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
         const channel =
           typeof msg['channelId'] === 'string' ? getChannel(db, msg['channelId']) : undefined;
         if (!channel || !canAccessChannel(db, channel, userId)) return;
+        // ! Throttled: a client repeating "typing" must not make the server send it to the whole group many times a second.
+        const seen = lastTyping.get(client) ?? new Map<string, number>();
+        lastTyping.set(client, seen);
+        const now = Date.now();
+        if (now - (seen.get(channel.id) ?? 0) < TYPING_MS) return;
+        seen.set(channel.id, now);
         hub.sendToMany(
           channelAudience(db, channel),
           { t: 'typing', channelId: channel.id, userId },

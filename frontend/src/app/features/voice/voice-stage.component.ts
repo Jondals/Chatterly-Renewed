@@ -71,14 +71,11 @@ interface Tile {
   code: string | null;
 }
 
-import { NativeCallService } from '../../core/services/native-call.service';
-import type { AudioRoute } from '../../core/native-bridge';
 import { DockableDirective, type DockPlace } from '../../shared/util/dockable.directive';
 import { UserFontDirective } from '../../shared/util/user-font.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
 import { fontClassOf } from '../../shared/util/user-font.directive';
 import { decibels } from '../../shared/util/audio-level';
-import { closeOnBack } from '../../core/services/back.service';
 /** Where the music card goes in each place of the stage (the bottom ones are lifted by a style when somebody is pinned). */
 const MUSIC_PLACES: Record<DockPlace, string> = {
   tl: 'left-3 top-3',
@@ -503,41 +500,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     </button>
                     <app-device-menu kind="speakers" />
                   </div>
-                  @if (nativeCall.available) {
-                    <!-- Android: where the voice sounds (the phone at the ear, the speaker, a headset). -->
-                    <div class="relative">
-                      <button
-                        class="btn btn-icon h-12 w-12 tip"
-                        [class.btn-active]="routesOpen()"
-                        [attr.data-tip]="'Audio output' | t"
-                        type="button"
-                        (click)="toggleRoutes()"
-                      >
-                        <app-icon [name]="currentRouteIcon()" [size]="20" />
-                      </button>
-                      @if (routesOpen()) {
-                        <div
-                          class="panel anim-pop absolute bottom-full left-1/2 z-30 mb-2 flex min-w-[12rem] -translate-x-1/2 flex-col gap-0.5 p-1.5"
-                        >
-                          @for (r of nativeCall.routes(); track r.id) {
-                            <button
-                              type="button"
-                              class="nav-item min-h-11"
-                              [class.active]="nativeCall.currentRoute() === r.id"
-                              (click)="pickRoute(r)"
-                            >
-                              <app-icon [name]="routeIcon(r)" [size]="16" />
-                              <span class="truncate">{{ nativeCall.routeLabel(r) }}</span>
-                            </button>
-                          } @empty {
-                            <span class="px-3 py-2 text-xs text-muted">{{
-                              'No other output' | t
-                            }}</span>
-                          }
-                        </div>
-                      }
-                    </div>
-                  }
                   <span class="mx-1 h-8 w-px bg-white/10"></span>
                   <div class="flex items-stretch gap-0.5">
                     <button
@@ -1629,9 +1591,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
   `,
 })
 export class VoiceStageComponent {
-  /** The back key of the phone closes it (see BackService). */
-  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
-
   private readonly environment = inject(EnvironmentInjector);
 
   /** Opens the window of the camera (background, mirror and adjustments, with a live preview). */
@@ -1891,20 +1850,6 @@ export class VoiceStageComponent {
   protected readonly desktop = isDesktopApp();
   /** The Android app: its WebView cannot capture the screen (no getDisplayMedia), so the button only explains why. */
   protected readonly android = ANDROID_APP;
-  /** Android: the notification of the call, and where its voice sounds. */
-  protected readonly nativeCall = inject(NativeCallService);
-  /** The menu of the outputs of the voice is open. */
-  protected readonly routesOpen = signal(false);
-  /** The icon of the output the voice uses now. */
-  protected readonly currentRouteIcon = computed(
-    function (this: VoiceStageComponent) {
-      const id = this.nativeCall.currentRoute();
-      const route = this.nativeCall.routes().find(function same(r) {
-        return r.id === id;
-      });
-      return route ? this.routeIcon(route) : 'volume-2';
-    }.bind(this),
-  );
   /** The Android app can share the screen through its own plugin (pictures drawn on a canvas); see android-screen.ts. */
   protected readonly androidShare = androidScreenAvailable();
   protected readonly shareSurfaces: {
@@ -3134,32 +3079,6 @@ export class VoiceStageComponent {
     }.bind(this),
   );
 
-  /** Opens or closes the menu of the outputs of the voice (reading them again: a headset may have been plugged in). */
-  protected toggleRoutes(): void {
-    const open = !this.routesOpen();
-    this.routesOpen.set(open);
-    if (open) {
-      void this.nativeCall.refreshRoutes();
-    }
-  }
-
-  /** Sends the voice to an output and closes the menu. */
-  protected pickRoute(route: AudioRoute): void {
-    this.routesOpen.set(false);
-    void this.nativeCall.setRoute(route);
-  }
-
-  /** The icon of an output of the voice. */
-  protected routeIcon(route: AudioRoute): string {
-    const icons: Record<AudioRoute['kind'], string> = {
-      earpiece: 'smartphone',
-      speaker: 'volume-2',
-      wired: 'headphones',
-      bluetooth: 'bluetooth',
-    };
-    return icons[route.kind];
-  }
-
   /** Whether the person of a tile is speaking (a shared screen or an activity never is). */
   protected speakingOf(t: Tile): boolean {
     return t.kind !== 'screen' && !!t.user && this.call.speaking().has(t.user.id);
@@ -3305,15 +3224,5 @@ export class VoiceStageComponent {
     if (kind === 'echo') this.settings.echoCancellation.set(value);
     if (kind === 'agc') this.settings.autoGain.set(value);
     void this.call.changeInputDevice();
-  }
-
-  /** Whether it is open for the back key. */
-  private backOpen(): boolean {
-    return this.routesOpen();
-  }
-
-  /** The back key closes it. */
-  private backClose(): void {
-    this.routesOpen.set(false);
   }
 }
