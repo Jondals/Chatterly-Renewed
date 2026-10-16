@@ -32,7 +32,27 @@ export async function step04(world) {
     ((await download.getAttribute('href')) ?? '').endsWith('/api/download/windows'),
     'the button on top downloads the app that fits this device (Windows here)',
   );
+  // Nothing may move when another system is chosen (the note under the buttons only fades in).
+  const place = function () {
+    return a.evaluate(function () {
+      const box = (selector) => {
+        const r = document.querySelector(selector).getBoundingClientRect();
+        return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(',');
+      };
+      return ['app-landing a.btn-primary[href*="/api/download/"]', 'app-landing button[aria-pressed]'].map(box).join('|');
+    });
+  };
+  await a.waitForTimeout(1500); // the page is whole (the first picture of the HTML has given way to the live one)
+  const before = await place();
   await a.click('app-landing button[aria-pressed]:has-text("Android")');
+  await a.waitForTimeout(400);
+  const afterAndroid = await place();
+  check(afterAndroid === before, 'choosing another system moves nothing on the page (' + before + ' -> ' + afterAndroid + ')');
+  await a.click('app-landing button[aria-pressed]:has-text("iOS")');
+  await a.waitForTimeout(400);
+  check((await place()) === before, 'not even for the systems with a note (iOS)');
+  await a.click('app-landing button[aria-pressed]:has-text("Android")');
+  await a.waitForTimeout(300);
   check(
     ((await download.getAttribute('href')) ?? '').endsWith('/api/download/android') &&
       (await a.locator('app-landing button[aria-pressed="true"]').count()) === 1,

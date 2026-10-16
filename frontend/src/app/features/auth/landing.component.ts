@@ -55,6 +55,7 @@ import { APP_LABEL, APP_NAME } from '../../version';
           <a routerLink="/" class="flex items-center gap-3" [attr.aria-label]="name">
             <img src="favicon.svg" alt="" class="h-10 w-10 rounded-xl" />
             <span class="text-lg font-bold tracking-tight">{{ name }}</span>
+            <span class="chip chip-accent !text-[0.625rem]">v{{ version }}</span>
           </a>
           <nav class="flex items-center gap-2">
             @if (auth.isAuthenticated()) {
@@ -93,8 +94,7 @@ import { APP_LABEL, APP_NAME } from '../../version';
           <div class="mt-9 flex flex-wrap items-center gap-3">
             @if (selected(); as app) {
               <a
-                class="btn !h-12 min-w-[17rem] justify-center gap-2 !px-6 text-base"
-                [class.btn-primary]="!auth.isAuthenticated()"
+                class="btn btn-primary !h-12 w-80 max-w-full justify-center gap-2 !px-6 text-base"
                 [href]="url(app)"
                 rel="noopener noreferrer"
               >
@@ -103,8 +103,7 @@ import { APP_LABEL, APP_NAME } from '../../version';
               </a>
             } @else {
               <a
-                class="btn !h-12 min-w-[17rem] justify-center gap-2 !px-6 text-base"
-                [class.btn-primary]="!auth.isAuthenticated()"
+                class="btn btn-primary !h-12 w-80 max-w-full justify-center gap-2 !px-6 text-base"
                 [href]="releases"
                 rel="noopener noreferrer"
               >
@@ -114,7 +113,6 @@ import { APP_LABEL, APP_NAME } from '../../version';
             <button
               type="button"
               class="btn !h-12 gap-2 !px-6 text-base"
-              [class.btn-primary]="auth.isAuthenticated()"
               [disabled]="busy()"
               (click)="openInBrowser()"
             >
@@ -137,16 +135,13 @@ import { APP_LABEL, APP_NAME } from '../../version';
           @if (error()) {
             <p class="mt-2 text-xs text-amber" role="alert">{{ error() }}</p>
           }
-          <!-- The line is always there with the room of two lines: choosing another system must not move anything. -->
-          <p class="mt-3 min-h-[2.25rem] text-xs text-dim">{{ selected()?.note ?? '' | t }}</p>
-          <p class="mt-2 text-xs text-dim">
-            {{ 'Version' | t }} {{ version }}
-            @if (!auth.isAuthenticated()) {
-              ·
-              <a class="underline hover:text-fg" routerLink="/register">{{
-                'Create account' | t
-              }}</a>
-            }
+          <!-- The line always has its room (it only fades): choosing another system must not move anything. -->
+          <p
+            class="mt-3 h-9 overflow-hidden text-xs text-dim transition-opacity duration-300"
+            [class.opacity-0]="!selected()?.note"
+            aria-live="polite"
+          >
+            {{ selected()?.note ?? '' | t }}
           </p>
 
           <section class="mt-14" [attr.aria-label]="'Choose your system' | t">
