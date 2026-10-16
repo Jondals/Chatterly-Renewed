@@ -11,7 +11,7 @@
   </head>
   <body>
     <div id="toast" class="toast" hidden></div>
-    <!-- While editing (like the overlay of Discord): the screen dims and a bar on top changes the panel. -->
+    <!-- Unlocked (like the overlay of Discord): the screen dims, every widget shows with its title and its pin. -->
     <div id="backdrop" class="backdrop" hidden></div>
     <div id="bar" class="bar" hidden>
       <b id="title" class="title"></b>
@@ -23,12 +23,12 @@
       <button id="only" type="button" class="chip"></button>
       <button id="names" type="button" class="chip"></button>
       <span id="hint" class="hint"></span>
-      <button id="done" type="button" class="done"></button>
     </div>
-    <div id="panel" class="panel">
-      <div id="tiles" class="tiles"></div>
-      <span id="grip" class="grip" hidden></span>
+    <div id="close" class="close" hidden>
+      <button id="done" type="button" class="close-button"></button>
+      <span id="keys" class="close-keys"></span>
     </div>
+    <div id="widgets"></div>
     <script src="overlay.js"></script>
   </body>
 </html>

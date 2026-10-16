@@ -145,6 +145,15 @@ const PAGE = 50;
  * Decrypts and holds the conversation history. Plaintext exists only here, in memory: the server
  * stores and relays ciphertext, signatures and encrypted attachment blobs.
  */
+/** The text of a message without its marks of format, on one line (for a preview). */
+function plainPreview(text: string): string {
+  return text
+    .replace(/[*_~`|>]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 140);
+}
+
 @Injectable({ providedIn: 'root' })
 export class MessageStore {
   private readonly api = inject(ApiService);
@@ -165,6 +174,13 @@ export class MessageStore {
   private started = false;
   private localId = 0;
 
+  /** The last message that arrived from somebody else while its chat was not in view (the overlay shows it). */
+  readonly lastIncoming = signal<{
+    seq: number;
+    ref: ChannelRef;
+    senderId: string;
+    text: string;
+  } | null>(null);
   readonly unread = signal<Record<string, number>>({});
   /** The conversation currently on screen (used to suppress notifications). */
   readonly viewing = signal<string | null>(null);
@@ -763,6 +779,15 @@ export class MessageStore {
   private afterIncoming(ref: ChannelRef, view: ViewMessage): void {
     const visible = this.viewing() === view.channelId && !document.hidden;
     if (visible) return;
+    // The overlay of the desktop app shows it over the game too (see OverlayService).
+    this.lastIncoming.set({
+      seq: (this.lastIncoming()?.seq ?? 0) + 1,
+      ref,
+      senderId: view.senderId,
+      text: view.undecryptable
+        ? '🔒'
+        : plainPreview(view.text) || (view.attachments.length ? '📎' : ''),
+    });
     this.unread.update(function (u) {
       return { ...u, [view.channelId]: (u[view.channelId] ?? 0) + 1 };
     });

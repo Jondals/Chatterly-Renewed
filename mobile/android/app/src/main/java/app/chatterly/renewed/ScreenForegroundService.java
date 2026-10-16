@@ -46,7 +46,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Process;
-import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import androidx.core.app.NotificationCompat;
@@ -59,12 +58,16 @@ public class ScreenForegroundService extends Service {
 
     /** Who receives the pictures and the end of the capture (the plugin; null when the page is gone). */
     interface Listener {
-        void onFrame(String jpegBase64, int width, int height);
+        /** A picture: a JPEG of the given size (the array is the listener's to keep). */
+        void onFrame(byte[] jpeg, int width, int height);
 
         void onStopped();
 
-        /** A piece of the shared sound: 16-bit PCM, mono, 48 kHz, little endian, in base64. */
-        void onAudio(String pcmBase64);
+        /** A piece of the shared sound: 16-bit PCM, mono, 48 kHz, little endian (the array is the listener's to keep). */
+        void onAudio(byte[] pcm);
+
+        /** The sound comes as pure silence for a few seconds: the apps on screen do not let their sound be captured. */
+        void onSilent();
     }
 
     /** The channel of the notification while the screen is shared (quiet). */
@@ -78,9 +81,11 @@ public class ScreenForegroundService extends Service {
     static final String EXTRA_QUALITY = "quality";
     static final String EXTRA_AUDIO = "audio";
 
-    /** The sound sent to the page: mono, 48 kHz, 16-bit, in pieces of 100 ms. */
+    /** The sound sent to the page: mono, 48 kHz, 16-bit, in pieces of 50 ms (smaller pieces: less delay, steadier playing). */
     private static final int AUDIO_RATE = 48000;
-    private static final int AUDIO_PIECE = AUDIO_RATE / 10;
+    private static final int AUDIO_PIECE = AUDIO_RATE / 20;
+    /** How many pieces of pure silence in a row mean "this sound cannot be captured" (4 s). */
+    private static final int SILENT_PIECES = 80;
 
     /** The plugin that listens. Static because a service has no other way to know it; set before the service starts. */
     static volatile Listener listener;
@@ -171,7 +176,7 @@ public class ScreenForegroundService extends Service {
         int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
         longSide = Math.max(480, Math.min(1920, intent.getIntExtra(EXTRA_LONG_SIDE, 1280)));
         boolean withSound = intent.getBooleanExtra(EXTRA_AUDIO, false);
-        int fps = Math.max(1, Math.min(30, intent.getIntExtra(EXTRA_FPS, 12)));
+        int fps = Math.max(1, Math.min(30, intent.getIntExtra(EXTRA_FPS, 30)));
         jpegQuality = Math.max(30, Math.min(90, intent.getIntExtra(EXTRA_QUALITY, 60)));
         minGapMs = 1000L / fps;
         if (grant == null) {
@@ -339,6 +344,8 @@ public class ScreenForegroundService extends Service {
     /** Reads the sound until the capture ends and hands each piece to the page. */
     private void readSound(AudioRecord recorder) {
         byte[] piece = new byte[AUDIO_PIECE * 2];
+        int silent = 0;
+        boolean told = false;
         while (!stopping.get()) {
             int filled = 0;
             while (filled < piece.length && !stopping.get()) {
@@ -350,7 +357,19 @@ public class ScreenForegroundService extends Service {
             }
             Listener target = listener;
             if (target != null && filled == piece.length) {
-                target.onAudio(Base64.encodeToString(piece, Base64.NO_WRAP));
+                boolean quiet = true;
+                for (int i = 0; i < piece.length && quiet; i++) {
+                    quiet = piece[i] == 0;
+                }
+                silent = quiet ? silent + 1 : 0;
+                if (silent >= SILENT_PIECES && !told) {
+                    told = true;
+                    target.onSilent();
+                }
+                if (!quiet) {
+                    told = false;
+                }
+                target.onAudio(piece.clone());
             }
         }
     }
@@ -385,7 +404,7 @@ public class ScreenForegroundService extends Service {
             }
             lastFrameAt = now;
             waitingForAck.set(true);
-            target.onFrame(Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP), width, height);
+            target.onFrame(bytes.toByteArray(), width, height);
         } catch (RuntimeException skipped) {
             // A picture that cannot be read is skipped; the next one comes in a moment.
         } finally {

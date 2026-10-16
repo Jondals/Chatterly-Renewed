@@ -1,7 +1,8 @@
 /**
  * src/app/features/voice/person-menu.component.ts
  * The menu of a right click (or a long press on a phone) on a person of a call: their volume for this device (0 to
- * 200 %), the volume of the screen they share when it has sound, and hiding their tile.
+ * 200 %), the volume of the screen they share when it has sound, and hiding their tile. On the tile of a shared screen (a
+ * stream) it is the menu of that stream: its volume first, without having to find the person.
  *
  * It opens right next to the cursor, in the top layer of the browser (so no container with a transform or a hidden
  * overflow can move or clip it), it can be dragged by its title and it closes with a press anywhere else, with Escape or
@@ -124,6 +125,45 @@ const CURSOR_GAP = 4;
         </div>
         <div class="my-1 h-px bg-white/8"></div>
       }
+      @if (stream() && !canAdjust()) {
+        <!-- The tile of a stream: its own volume is what a right click is for. -->
+        <div class="px-2.5 pb-2 pt-1.5">
+          <div class="mb-1.5 flex items-center justify-between text-xs text-muted">
+            <span class="flex items-center gap-1.5"
+              ><app-icon name="monitor" [size]="14" /> {{ 'Stream volume' | t }}</span
+            >
+            <b class="font-mono text-fg">{{ streamPercent() }}%</b>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="200"
+            step="5"
+            class="w-full accent-[var(--accent)]"
+            [attr.aria-label]="'Stream volume' | t"
+            [disabled]="!call.screenSound()[userId()]"
+            [value]="streamPercent()"
+            (input)="call.setScreenVolume(userId(), +$any($event.target).value)"
+            (dblclick)="call.setScreenVolume(userId(), 100)"
+          />
+          @if (call.screenSound()[userId()]) {
+            <div class="mt-0.5 flex justify-between text-[0.625rem] text-dim">
+              <span>0%</span>
+              <button
+                type="button"
+                class="hover:text-fg"
+                (click)="call.setScreenVolume(userId(), streamPercent() === 0 ? 100 : 0)"
+              >
+                {{ (streamPercent() === 0 ? 'Unmute the stream' : 'Mute the stream') | t }}
+              </button>
+              <span>200%</span>
+            </div>
+          } @else {
+            <p class="mt-1 text-[0.6875rem] text-dim">{{ 'This stream has no sound.' | t }}</p>
+          }
+        </div>
+        <div class="my-1 h-px bg-white/8"></div>
+      }
       @if (canAdjust() && call.screenSound()[userId()]) {
         <!-- The sound of the screen they share (a stream, a game) has its own volume, apart from their voice. -->
         <div class="px-2.5 pb-2 pt-1.5">
@@ -170,6 +210,8 @@ export class PersonMenuComponent implements OnDestroy {
   readonly userId = input('');
   /** Whether the volume of this person can be changed (not for yourself). */
   readonly canAdjust = input(false);
+  /** The menu belongs to the tile of a screen someone else shares (its own volume). */
+  readonly stream = input(false);
   /** The person chose to hide the tile. */
   readonly hide = output<void>();
   /** The menu should go away. */

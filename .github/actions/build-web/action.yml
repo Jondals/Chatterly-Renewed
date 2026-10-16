@@ -36,6 +36,9 @@ runs:
           ~/.cache/ms-playwright
           ~/.cache/electron
           ~/.cache/electron-builder
+          ~/Library/Caches/electron
+          ~/Library/Caches/electron-builder
+          ~/Library/Caches/ms-playwright
         key: desktop-tools-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'desktop/pnpm-lock.yaml') }}
         restore-keys: desktop-tools-${{ runner.os }}-
     - name: Install

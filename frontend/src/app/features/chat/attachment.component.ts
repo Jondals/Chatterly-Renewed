@@ -22,6 +22,7 @@ import { saveFile } from '../../shared/util/save-file';
 import { SoundImportService } from './sound-import.service';
 import { formatBytes, formatDuration } from '../../shared/pipes/timestamp.pipe';
 import { IconComponent } from '../../shared/components/icon.component';
+import { ToBodyDirective } from '../../shared/util/to-body.directive';
 import { MessageStore, type ViewAttachment } from '../../store/message.store';
 
 /** The speeds of a voice note or an audio. */
@@ -34,7 +35,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
 @Component({
   selector: 'app-attachment',
   standalone: true,
-  imports: [IconComponent, TranslatePipe, DecimalPipe],
+  imports: [IconComponent, TranslatePipe, DecimalPipe, ToBodyDirective],
   styles: `
     .wave {
       cursor: var(--cur-pointer, pointer);
@@ -173,6 +174,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
           }
           @if (lightbox() && url()) {
             <div
+              appToBody
               class="anim-fade-in fixed inset-0 z-[95] flex cursor-zoom-out items-center justify-center bg-black/85 p-6 backdrop-blur"
               (click)="lightbox.set(false)"
             >

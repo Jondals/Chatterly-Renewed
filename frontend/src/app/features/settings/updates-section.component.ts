@@ -54,7 +54,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
           }
           @case ('ready') {
             <button type="button" class="btn btn-primary" (click)="update.install()">
-              <app-icon name="spin" [size]="16" /> {{ 'Restart and update' | t }}
+              <app-icon name="spin" [size]="16" /> {{ update.installLabel | t }}
             </button>
           }
           @case ('downloading') {

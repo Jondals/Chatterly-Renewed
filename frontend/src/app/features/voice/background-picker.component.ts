@@ -34,11 +34,10 @@ import {
 import { SettingsService } from '../../core/services/settings.service';
 import { ToastService } from '../../core/services/toast.service';
 import { VaultService, type VaultItem } from '../../core/services/vault.service';
-import { FoldComponent } from '../../shared/components/fold.component';
 import { GradientControlsComponent } from '../../shared/components/gradient-controls.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ModalComponent } from '../../shared/components/modal.component';
-import { ToggleComponent } from '../../shared/components/controls.component';
+import { SegmentedComponent, ToggleComponent } from '../../shared/components/controls.component';
 import type { GradientParts } from '../../shared/util/gradient';
 import { MediaStreamDirective } from '../../shared/util/media-stream.directive';
 
@@ -55,7 +54,7 @@ const BASIC = [
   imports: [
     ModalComponent,
     IconComponent,
-    FoldComponent,
+    SegmentedComponent,
     ToggleComponent,
     GradientControlsComponent,
     MediaStreamDirective,
@@ -94,12 +93,56 @@ const BASIC = [
               <span class="cs-hint">{{ 'Drag the picture to move the camera.' | t }}</span>
             }
           </div>
+          <!-- What is on now, and the quick switches, under the picture (the long lists are on the right). -->
+          <div class="cs-card cs-quick">
+            <div class="cs-summary">
+              <span class="chip chip-accent"
+                ><app-icon name="image" [size]="12" /> {{ currentName() | t }}</span
+              >
+              <span class="chip" [class.chip-accent]="adjusted()"
+                ><app-icon name="sparkles" [size]="12" />
+                {{ (adjusted() ? 'Adjusted' : 'Default settings') | t }}</span
+              >
+            </div>
+            <div class="cs-row">
+              <span class="min-w-0">
+                <b class="block text-[0.8125rem]">{{ 'Mirror' | t }}</b>
+                <span class="block text-[0.6875rem] text-muted">{{
+                  'Everybody sees you as in a mirror.' | t
+                }}</span>
+              </span>
+              <app-toggle
+                [checked]="settings.cameraMirror()"
+                (checkedChange)="setMirror($event)"
+                [label]="'Mirror' | t"
+              />
+            </div>
+            <div class="cs-actions">
+              <button
+                type="button"
+                class="btn btn-sm gap-1.5"
+                [disabled]="choice() === 'none'"
+                (click)="choose('none')"
+              >
+                <app-icon name="video-off" [size]="13" /> {{ 'No background' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm gap-1.5"
+                [disabled]="!adjusted()"
+                (click)="resetImage()"
+              >
+                <app-icon name="refresh" [size]="13" /> {{ 'Reset' | t }}
+              </button>
+            </div>
+          </div>
           @if (!supported) {
             <p class="mt-3 rounded-ui bg-amber-400/10 p-3 text-xs text-amber-200">
               {{ 'This browser cannot change the background of the camera.' | t }}
             </p>
           }
-          <p class="mt-3 text-[0.6875rem] text-dim">
+          <p class="cs-privacy">
+            <app-icon name="shield-check" [size]="13" class="shrink-0 text-accent" />
             {{
               'The effects are made on your device: nothing about your camera is sent to anyone to make them.'
                 | t
@@ -108,193 +151,191 @@ const BASIC = [
         </div>
 
         <div class="cs-options">
-          <app-fold [startOpen]="true">
-            <span foldTitle>{{ 'Background' | t }}</span>
-            <span foldHint>{{ currentName() | t }}</span>
-            <div class="cs-section">
-              <div class="cs-grid">
-                @for (b of basic; track b.id) {
-                  <button
-                    type="button"
-                    class="cs-tile"
-                    [class.is-on]="choice() === b.id"
-                    [attr.aria-pressed]="choice() === b.id"
-                    (click)="choose(b.id)"
-                  >
-                    <span class="cs-art" [attr.data-kind]="b.id"
-                      ><app-icon [name]="b.icon" [size]="22"
-                    /></span>
-                    <span class="cs-name">{{ b.name | t }}</span>
-                    <span class="pick-dot"></span>
-                  </button>
-                }
-                <button
-                  type="button"
-                  class="cs-tile"
-                  [class.is-on]="choice() === 'custom'"
-                  [attr.aria-pressed]="choice() === 'custom'"
-                  (click)="choose('custom')"
-                >
-                  <span class="cs-art" [style.background]="customCss()"
-                    ><app-icon name="palette" [size]="20" class="cs-art-icon"
-                  /></span>
-                  <span class="cs-name">{{ 'Custom' | t }}</span>
-                  <span class="pick-dot"></span>
-                </button>
-                @for (p of presets; track p.id) {
-                  <button
-                    type="button"
-                    class="cs-tile"
-                    [class.is-on]="choice() === 'preset:' + p.id"
-                    [attr.aria-pressed]="choice() === 'preset:' + p.id"
-                    (click)="choose('preset:' + p.id)"
-                  >
-                    <span
-                      class="cs-art"
-                      [style.background]="
-                        'linear-gradient(' + p.angle + 'deg,' + p.stops.join(',') + ')'
-                      "
-                    ></span>
-                    <span class="cs-name">{{ p.name | t }}</span>
-                    <span class="pick-dot"></span>
-                  </button>
-                }
-              </div>
-
-              @if (choice() === 'blur') {
-                <label class="cs-slider anim-fade-in">
-                  <span>{{ 'Strength' | t }}</span>
-                  <b>{{ settings.callBackgroundBlur() }}</b>
-                  <input
-                    type="range"
-                    min="2"
-                    max="40"
-                    [value]="settings.callBackgroundBlur()"
-                    (input)="setBlur(+$any($event.target).value)"
-                    [attr.aria-label]="'Strength' | t"
-                  />
-                </label>
-              }
-              @if (choice() !== 'none') {
-                <label class="cs-slider anim-fade-in">
-                  <span>{{ 'Soft edge' | t }}</span>
-                  <b>{{ settings.cameraEdgeSoftness() }}%</b>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40"
-                    [value]="settings.cameraEdgeSoftness()"
-                    (input)="setSoftness(+$any($event.target).value)"
-                    [attr.aria-label]="'Soft edge' | t"
-                  />
-                </label>
-              }
-              @if (choice() === 'custom') {
-                <div class="cs-custom anim-fade-in">
-                  <p class="mb-2 text-xs text-muted">
-                    {{
-                      'Choose your colors: one is a flat color, two or more make a gradient.' | t
-                    }}
+          <app-segmented [options]="tabs" [value]="tab()" (valueChange)="setTab($event)" />
+          <div class="cs-card">
+            @switch (tab()) {
+              @case ('library') {
+                <div class="cs-section">
+                  <p class="cs-lock">
+                    <app-icon name="lock" [size]="11" /> {{ 'Encrypted, only you can open it' | t }}
                   </p>
-                  <app-gradient-controls [parts]="customParts()" (changed)="setCustom($event)" />
-                </div>
-              }
-            </div>
-          </app-fold>
-
-          <app-fold>
-            <span foldTitle>{{ 'Your library' | t }}</span>
-            <span foldHint>{{ vault.items().length }}</span>
-            <div class="cs-section">
-              <p class="cs-lock">
-                <app-icon name="lock" [size]="11" /> {{ 'Encrypted, only you can open it' | t }}
-              </p>
-              <div class="cs-grid">
-                <button type="button" class="cs-tile cs-add" [disabled]="busy()" (click)="add()">
-                  <span class="cs-art"><app-icon name="plus" [size]="22" /></span>
-                  <span class="cs-name">{{ 'Add a file or GIF' | t }}</span>
-                </button>
-                @for (item of vault.items(); track item.id) {
-                  <div
-                    class="cs-tile anim-fade-in"
-                    role="button"
-                    tabindex="0"
-                    [class.is-on]="choice() === 'vault:' + item.id"
-                    [attr.aria-pressed]="choice() === 'vault:' + item.id"
-                    (click)="choose('vault:' + item.id)"
-                    (keydown.enter)="choose('vault:' + item.id)"
-                  >
-                    <span
-                      class="cs-art"
-                      [style.background-image]="'url(' + item.meta.thumb + ')'"
-                    ></span>
-                    <span class="cs-name">{{ item.meta.name }}</span>
-                    <span class="pick-dot"></span>
-                    <span class="cs-where" [attr.title]="whereTitle(item) | t">
-                      <app-icon
-                        [name]="item.where === 'account' ? 'globe' : 'monitor'"
-                        [size]="11"
-                      />
-                    </span>
+                  <div class="cs-grid">
                     <button
                       type="button"
-                      class="cs-remove"
-                      [attr.aria-label]="'Remove' | t"
-                      [attr.title]="'Remove' | t"
-                      (click)="remove(item, $event)"
+                      class="cs-tile cs-add"
+                      [disabled]="busy()"
+                      (click)="add()"
                     >
-                      <app-icon name="trash" [size]="12" />
+                      <span class="cs-art"><app-icon name="plus" [size]="22" /></span>
+                      <span class="cs-name">{{ 'Add a file or GIF' | t }}</span>
                     </button>
+                    @for (item of vault.items(); track item.id) {
+                      <div
+                        class="cs-tile anim-fade-in"
+                        role="button"
+                        tabindex="0"
+                        [class.is-on]="choice() === 'vault:' + item.id"
+                        [attr.aria-pressed]="choice() === 'vault:' + item.id"
+                        (click)="choose('vault:' + item.id)"
+                        (keydown.enter)="choose('vault:' + item.id)"
+                      >
+                        <span
+                          class="cs-art"
+                          [style.background-image]="'url(' + item.meta.thumb + ')'"
+                        ></span>
+                        <span class="cs-name">{{ item.meta.name }}</span>
+                        <span class="pick-dot"></span>
+                        <span class="cs-where" [attr.title]="whereTitle(item) | t">
+                          <app-icon
+                            [name]="item.where === 'account' ? 'globe' : 'monitor'"
+                            [size]="11"
+                          />
+                        </span>
+                        <button
+                          type="button"
+                          class="cs-remove"
+                          [attr.aria-label]="'Remove' | t"
+                          [attr.title]="'Remove' | t"
+                          (click)="remove(item, $event)"
+                        >
+                          <app-icon name="trash" [size]="12" />
+                        </button>
+                      </div>
+                    }
                   </div>
-                }
-              </div>
-              @if (vault.items().length === 0 && !vault.loading()) {
-                <p class="mt-2 text-xs text-dim">
-                  {{
-                    'Pictures and GIFs you add stay in your library, ready for the next call.' | t
-                  }}
-                </p>
+                  @if (vault.items().length === 0 && !vault.loading()) {
+                    <p class="mt-2 text-xs text-dim">
+                      {{
+                        'Pictures and GIFs you add stay in your library, ready for the next call.'
+                          | t
+                      }}
+                    </p>
+                  }
+                </div>
               }
-            </div>
-          </app-fold>
+              @case ('image') {
+                <div class="cs-section">
+                  @for (s of sliders; track s.key) {
+                    <label class="cs-slider">
+                      <span>{{ s.label | t }}</span>
+                      <b>{{ valueOf(s.key) }}{{ s.unit }}</b>
+                      <input
+                        type="range"
+                        [min]="s.min"
+                        [max]="s.max"
+                        [value]="valueOf(s.key)"
+                        (input)="setSlider(s.key, +$any($event.target).value)"
+                        [attr.aria-label]="s.label | t"
+                      />
+                    </label>
+                  }
+                  <button
+                    type="button"
+                    class="btn btn-sm mt-1 gap-1.5"
+                    [disabled]="!adjusted()"
+                    (click)="resetImage()"
+                  >
+                    <app-icon name="refresh" [size]="13" /> {{ 'Reset' | t }}
+                  </button>
+                </div>
+              }
+              @default {
+                <div class="cs-section">
+                  <div class="cs-grid">
+                    @for (b of basic; track b.id) {
+                      <button
+                        type="button"
+                        class="cs-tile"
+                        [class.is-on]="choice() === b.id"
+                        [attr.aria-pressed]="choice() === b.id"
+                        (click)="choose(b.id)"
+                      >
+                        <span class="cs-art" [attr.data-kind]="b.id"
+                          ><app-icon [name]="b.icon" [size]="22"
+                        /></span>
+                        <span class="cs-name">{{ b.name | t }}</span>
+                        <span class="pick-dot"></span>
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="cs-tile"
+                      [class.is-on]="choice() === 'custom'"
+                      [attr.aria-pressed]="choice() === 'custom'"
+                      (click)="choose('custom')"
+                    >
+                      <span class="cs-art" [style.background]="customCss()"
+                        ><app-icon name="palette" [size]="20" class="cs-art-icon"
+                      /></span>
+                      <span class="cs-name">{{ 'Custom' | t }}</span>
+                      <span class="pick-dot"></span>
+                    </button>
+                    @for (p of presets; track p.id) {
+                      <button
+                        type="button"
+                        class="cs-tile"
+                        [class.is-on]="choice() === 'preset:' + p.id"
+                        [attr.aria-pressed]="choice() === 'preset:' + p.id"
+                        (click)="choose('preset:' + p.id)"
+                      >
+                        <span
+                          class="cs-art"
+                          [style.background]="
+                            'linear-gradient(' + p.angle + 'deg,' + p.stops.join(',') + ')'
+                          "
+                        ></span>
+                        <span class="cs-name">{{ p.name | t }}</span>
+                        <span class="pick-dot"></span>
+                      </button>
+                    }
+                  </div>
 
-          <app-fold [startOpen]="true">
-            <span foldTitle>{{ 'Image' | t }}</span>
-            <span foldHint>{{ (adjusted() ? 'Adjusted' : 'Default settings') | t }}</span>
-            <div class="cs-section">
-              <div class="cs-row">
-                <span>{{ 'Mirror' | t }}</span>
-                <app-toggle
-                  [checked]="settings.cameraMirror()"
-                  (checkedChange)="setMirror($event)"
-                  [label]="'Mirror' | t"
-                />
-              </div>
-              <p class="cs-note">{{ 'Everybody sees you as in a mirror.' | t }}</p>
-              @for (s of sliders; track s.key) {
-                <label class="cs-slider">
-                  <span>{{ s.label | t }}</span>
-                  <b>{{ valueOf(s.key) }}{{ s.unit }}</b>
-                  <input
-                    type="range"
-                    [min]="s.min"
-                    [max]="s.max"
-                    [value]="valueOf(s.key)"
-                    (input)="setSlider(s.key, +$any($event.target).value)"
-                    [attr.aria-label]="s.label | t"
-                  />
-                </label>
+                  @if (choice() === 'blur') {
+                    <label class="cs-slider anim-fade-in">
+                      <span>{{ 'Strength' | t }}</span>
+                      <b>{{ settings.callBackgroundBlur() }}</b>
+                      <input
+                        type="range"
+                        min="2"
+                        max="40"
+                        [value]="settings.callBackgroundBlur()"
+                        (input)="setBlur(+$any($event.target).value)"
+                        [attr.aria-label]="'Strength' | t"
+                      />
+                    </label>
+                  }
+                  @if (choice() !== 'none') {
+                    <label class="cs-slider anim-fade-in">
+                      <span>{{ 'Soft edge' | t }}</span>
+                      <b>{{ settings.cameraEdgeSoftness() }}%</b>
+                      <input
+                        type="range"
+                        min="0"
+                        max="40"
+                        [value]="settings.cameraEdgeSoftness()"
+                        (input)="setSoftness(+$any($event.target).value)"
+                        [attr.aria-label]="'Soft edge' | t"
+                      />
+                    </label>
+                  }
+                  @if (choice() === 'custom') {
+                    <div class="cs-custom anim-fade-in">
+                      <p class="mb-2 text-xs text-muted">
+                        {{
+                          'Choose your colors: one is a flat color, two or more make a gradient.'
+                            | t
+                        }}
+                      </p>
+                      <app-gradient-controls
+                        [parts]="customParts()"
+                        (changed)="setCustom($event)"
+                      />
+                    </div>
+                  }
+                </div>
               }
-              <button
-                type="button"
-                class="btn btn-sm mt-1 gap-1.5"
-                [disabled]="!adjusted()"
-                (click)="resetImage()"
-              >
-                <app-icon name="refresh" [size]="13" /> {{ 'Reset' | t }}
-              </button>
-            </div>
-          </app-fold>
+            }
+          </div>
         </div>
       </div>
     </app-modal>
@@ -373,7 +414,40 @@ const BASIC = [
     .cs-options {
       display: grid;
       align-content: start;
-      gap: 0.6rem;
+      gap: 0.75rem;
+    }
+    /* The cards of this window are the cards of Settings: the same border, background and corners. */
+    .cs-card {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--r-lg, 14px);
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .cs-card > .cs-section {
+      padding-top: 0.9rem;
+    }
+    .cs-quick {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding: 0.8rem 0.9rem 0.9rem;
+    }
+    .cs-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .cs-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .cs-privacy {
+      display: flex;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+      font-size: 0.6875rem;
+      line-height: 1.45;
+      color: var(--dim, #7c8496);
     }
     .cs-section {
       display: grid;
@@ -540,6 +614,7 @@ const BASIC = [
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 0.75rem;
       font-size: 0.8125rem;
       font-weight: 600;
     }
@@ -562,6 +637,13 @@ class BackgroundPickerComponent {
   private readonly injector = inject(EnvironmentInjector);
 
   protected readonly basic = BASIC;
+  /** The tabs of the options: the background, the pictures of the library and the image. */
+  protected readonly tabs = [
+    { id: 'background', label: 'Background' },
+    { id: 'library', label: 'Your library' },
+    { id: 'image', label: 'Image' },
+  ];
+  protected readonly tab = signal('background');
   protected readonly presets = PRESET_BACKGROUNDS;
   protected readonly supported = canChangeCamera();
   protected readonly busy = signal(false);
@@ -755,6 +837,11 @@ class BackgroundPickerComponent {
       this.settings.callBackground.set('custom');
     }
     this.apply();
+  }
+
+  /** Shows another tab of the options. */
+  protected setTab(id: string): void {
+    this.tab.set(id);
   }
 
   /** Mirror on or off. */

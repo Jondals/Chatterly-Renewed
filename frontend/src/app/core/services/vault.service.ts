@@ -42,6 +42,31 @@ export interface VaultItem {
   where: 'account' | 'device';
 }
 
+/**
+ * A copy of something the person made on a device (a sticker pack, a preset), kept in the account so it is on every device
+ * and is not lost with one (see library-sync.service.ts). Its description is sealed like the one of a background; the server
+ * cannot tell a copy from a background.
+ */
+export interface BackupMeta {
+  kind: 'stickers' | 'preset';
+  /** The id of the pack or preset on the devices. */
+  ref: string;
+  name: string;
+  /** When the pack or preset was made (kept as it was on every device). */
+  createdAt: number;
+  /** SHA-256 of the packed bytes, in hex: two devices with the same copy see the same one. */
+  hash: string;
+}
+
+/** One copy in the account. */
+export interface BackupItem {
+  id: string;
+  size: number;
+  /** When this copy was uploaded. */
+  savedAt: number;
+  meta: BackupMeta;
+}
+
 /** The limits the server enforces (shown in Settings). */
 export interface VaultLimits {
   items: number;
@@ -102,6 +127,10 @@ export class VaultService {
   readonly inAccount = persisted<boolean>('sync.vault', true);
   /** Every item the person can use on this device. */
   readonly items = signal<VaultItem[]>([]);
+  /** The copies of sticker packs and presets in the account (not backgrounds: they are not in `items`). */
+  readonly backups = signal<BackupItem[]>([]);
+  /** True once the account list was read in this session (the copies can be compared with this device). */
+  readonly accountRead = signal(false);
   /** Bytes used on the account (encrypted size). */
   readonly used = signal(0);
   /** What the account allows. */
@@ -140,6 +169,8 @@ export class VaultService {
     this.sealedKeys.clear();
     this.opened.clear();
     this.items.set([]);
+    this.backups.set([]);
+    this.accountRead.set(false);
     this.used.set(0);
   }
 
@@ -193,26 +224,91 @@ export class VaultService {
       this.limits.set(answer.limits);
       const key = await this.key();
       const out: VaultItem[] = [];
+      const backups: BackupItem[] = [];
       this.sealedKeys.clear();
       for (const item of answer.items) {
         this.sealedKeys.set(item.id, item.key);
         try {
-          const meta = await openJson<VaultMeta>(key, item.meta, aad(item.id, 'meta'));
+          const meta = await openJson<VaultMeta | BackupMeta>(key, item.meta, aad(item.id, 'meta'));
+          const backup = this.cleanBackup(meta);
+          if (backup) {
+            backups.push({ id: item.id, size: item.size, savedAt: item.createdAt, meta: backup });
+            continue;
+          }
           out.push({
             id: item.id,
             size: item.size,
             createdAt: item.createdAt,
-            meta: this.cleanMeta(meta),
+            meta: this.cleanMeta(meta as VaultMeta),
             where: 'account',
           });
         } catch {
           // Damaged or not made for this identity: it is not shown.
         }
       }
+      this.backups.set(backups);
+      this.accountRead.set(true);
       return out;
     } catch {
       return [];
     }
+  }
+
+  /** The description of a copy of a pack or a preset, cleaned (null when the item is a background, or damaged). */
+  private cleanBackup(meta: VaultMeta | BackupMeta): BackupMeta | null {
+    const raw = meta as Partial<BackupMeta>;
+    if (raw.kind !== 'stickers' && raw.kind !== 'preset') {
+      return null;
+    }
+    const ref = String(raw.ref ?? '');
+    const hash = String(raw.hash ?? '');
+    if (!/^[\w-]{1,80}$/.test(ref) || !/^[0-9a-f]{64}$/.test(hash)) {
+      return null;
+    }
+    return {
+      kind: raw.kind,
+      ref,
+      name: String(raw.name ?? '').slice(0, 80),
+      createdAt: Math.max(0, Number(raw.createdAt) || 0),
+      hash,
+    };
+  }
+
+  /** Keeps a copy of a pack or a preset in the account. Returns the id of the new item. */
+  async addBackup(meta: BackupMeta, bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+    const id = crypto.randomUUID();
+    await this.addToAccount(id, bytes, meta);
+    return id;
+  }
+
+  /** The bytes of a copy in the account (downloaded and decrypted). */
+  async openBackup(item: BackupItem): Promise<Uint8Array<ArrayBuffer>> {
+    const sealedKey = this.sealedKeys.get(item.id);
+    if (!sealedKey) {
+      throw new Error('That copy is not in your account any more.');
+    }
+    const vault = await this.key();
+    const rawKey = await openBytes(vault, sealedKey, aad(item.id, 'key'));
+    const fileKey = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['decrypt']);
+    rawKey.fill(0);
+    const bytes = new Uint8Array(await this.api.download('/api/vault/' + item.id));
+    return new Uint8Array(await openWithKey(fileKey, bytes, aad(item.id, 'file')));
+  }
+
+  /** Removes a copy from the account (one that is already gone counts as removed). */
+  async removeBackup(id: string): Promise<void> {
+    try {
+      await this.api.delete('/api/vault/' + id);
+    } catch (error) {
+      if ((error as { status?: number }).status !== 404) {
+        throw error;
+      }
+    }
+  }
+
+  /** Reads the list of the account again (the copies too). */
+  async reloadAccount(): Promise<void> {
+    await this.refresh();
   }
 
   /** The items kept on this device. */
@@ -308,7 +404,7 @@ export class VaultService {
   private async addToAccount(
     id: string,
     bytes: Uint8Array<ArrayBuffer>,
-    meta: VaultMeta,
+    meta: VaultMeta | BackupMeta,
   ): Promise<void> {
     const fileKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
       'encrypt',
@@ -430,11 +526,14 @@ export class VaultService {
     await this.refresh();
   }
 
-  /** Removes everything that is on the account (what is only on this device stays). */
+  /**
+   * Removes every background that is on the account (what is only on this device stays, and so do the copies of the sticker
+   * packs and presets: they have their own switch).
+   */
   async removeAllFromAccount(): Promise<void> {
-    await this.api.delete('/api/vault');
     for (const item of this.items()) {
       if (item.where === 'account') {
+        await this.api.delete('/api/vault/' + item.id);
         this.opened.delete(item.id);
       }
     }

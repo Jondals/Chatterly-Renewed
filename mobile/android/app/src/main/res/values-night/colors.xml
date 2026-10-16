@@ -10,4 +10,6 @@
     <color name="notification_button_on">#4A2629</color>
     <color name="notification_icon_on">#FF8A80</color>
     <color name="notification_hang_up">#E5484D</color>
+    <color name="notification_hang_up_text">#FFFFFF</color>
+    <color name="notification_accent">#2EF2B0</color>
 </resources>

@@ -9,7 +9,10 @@
  *   - setSecure: whether screenshots of the app are blocked (FLAG_SECURE);
  *   - notifications: asks Android 13+ for permission to show notifications;
  *   - fullScreen / fullScreenSettings: whether a ringing call may fill the screen, and the page of Android to allow it;
- *   - takePendingAction: what a button of a notification asked while the page was not listening.
+ *   - takePendingAction: what a button of a notification asked while the page was not listening;
+ *   - takeRejoin / rejoined: the call a page kept after the app was swiped away hands over to this page (CallKeeper).
+ * ! A page that is not the current one (a page kept for a call that is handing it over) can no longer change the notification
+ *   or the service: only the page on screen does.
  * The buttons of the notifications reach the page as "action" events: mute, deafen, hangup, answer, decline, show.
  *
  * ! The page chooses only short texts (cut to 80 characters) and yes/no values; it cannot choose the buttons, the
@@ -96,6 +99,40 @@ public class CallServicePlugin extends Plugin {
         }
     }
 
+    /**
+     * The call a kept page handed over (see CallKeeper), once: { roomId } to join it, { waiting: true } while the kept page
+     * has not answered yet, or nothing.
+     */
+    @PluginMethod
+    public void takeRejoin(PluginCall call) {
+        JSObject answer = new JSObject();
+        if (CallKeeper.isWaiting()) {
+            answer.put("waiting", true);
+        } else {
+            String room = CallKeeper.takeRoom();
+            if (room != null) {
+                answer.put("roomId", room);
+            }
+        }
+        call.resolve(answer);
+    }
+
+    /** This page joined the call that was handed over: the kept page goes. */
+    @PluginMethod
+    public void rejoined(PluginCall call) {
+        CallKeeper.rejoined();
+        call.resolve();
+    }
+
+    /** True when this plugin belongs to the page on screen (a kept page that handed its call over is not). */
+    private boolean isCurrent(PluginCall call) {
+        if (current == this) {
+            return true;
+        }
+        call.resolve();
+        return false;
+    }
+
     /** The button pressed while the page was not listening, once (empty when there is none). */
     @PluginMethod
     public void takePendingAction(PluginCall call) {
@@ -107,6 +144,9 @@ public class CallServicePlugin extends Plugin {
     /** A call started: the notification with its buttons and the service that keeps the microphone. */
     @PluginMethod
     public void call(PluginCall call) {
+        if (!isCurrent(call)) {
+            return;
+        }
         if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             call.reject("The microphone is not allowed");
             return;
@@ -134,6 +174,9 @@ public class CallServicePlugin extends Plugin {
     /** The state of the call changed (muted, deafened, or its name): the notification follows. */
     @PluginMethod
     public void update(PluginCall call) {
+        if (!isCurrent(call)) {
+            return;
+        }
         if (call.getString("title") != null) {
             CallForegroundService.title = clip(call.getString("title"));
         }
@@ -152,6 +195,9 @@ public class CallServicePlugin extends Plugin {
     /** The call ended: the notification goes (or goes back to "connected"), and the sound goes back to normal. */
     @PluginMethod
     public void end(PluginCall call) {
+        if (!isCurrent(call)) {
+            return;
+        }
         CallForegroundService.inCall = false;
         CallForegroundService.refresh(getContext());
         AudioManager audio = audioManager();
@@ -169,6 +215,9 @@ public class CallServicePlugin extends Plugin {
     /** Stays connected in the background (on) so calls ring, or stops (off). Must be asked while the app is on screen. */
     @PluginMethod
     public void listen(PluginCall call) {
+        if (!isCurrent(call)) {
+            return;
+        }
         CallForegroundService.listening = Boolean.TRUE.equals(call.getBoolean("on", false));
         try {
             CallForegroundService.refresh(getContext());

@@ -34,6 +34,9 @@ const DEVICE_ONLY = new Set([
   'pref.clickName',
   'pref.powerMode',
   'pref.keepConnected',
+  'pref.keepOnSignOut',
+  // The update channel is the choice of each phone (a beta on one, the release on another); it must not follow the account.
+  'updates.androidBeta',
 ]);
 
 /** The most a single setting may weigh when it is JSON (a big one is a file and stays where it is). */

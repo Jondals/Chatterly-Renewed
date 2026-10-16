@@ -115,19 +115,22 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
     <div class="flex h-full min-h-0 flex-col overflow-hidden">
       @if (call.roomId()) {
         <app-page-header [title]="roomTitle()" icon="volume" [subtitle]="subtitle()">
+          <!-- The lock: a plain button like the others of the bar, coloured by the state of the encryption. -->
           <button
             type="button"
-            class="chip !px-3 !py-1.5 hover:brightness-125"
-            [class.chip-accent]="call.mediaEncryption() === 'active'"
-            [class.chip-amber]="call.mediaEncryption() === 'pending'"
-            [class.chip-red]="call.mediaEncryption() === 'failing'"
-            [attr.title]="encryptionTitle()"
+            class="btn btn-ghost tip"
+            data-tip-pos="bottom"
+            [class.btn-icon]="call.mediaEncryption() !== 'failing'"
+            [class.text-accent]="call.mediaEncryption() === 'active'"
+            [class.text-amber-300]="call.mediaEncryption() === 'pending'"
+            [class.btn-soft-danger]="call.mediaEncryption() === 'failing'"
+            [attr.data-tip]="encryptionTitle()"
             [attr.aria-label]="'End-to-end encryption' | t"
             (click)="verifyOpen.set(true)"
           >
             <app-icon
               [name]="call.mediaEncryption() === 'pending' ? 'shield' : 'lock'"
-              [size]="17"
+              [size]="18"
               [class.animate-pulse]="call.mediaEncryption() === 'pending'"
             />
             @if (call.mediaEncryption() === 'failing') {
@@ -169,6 +172,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   [label]="menu.label"
                   [userId]="menu.userId"
                   [canAdjust]="menu.canAdjust"
+                  [stream]="menu.stream"
                   (hide)="hideTile(menu.id)"
                   (closed)="tileMenu.set(null)"
                 />
@@ -821,7 +825,10 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
 
           @let tab = drawer() ?? 'stats';
           <div class="drawer-wrap" [class.is-open]="!!drawer()" [attr.inert]="drawer() ? null : ''">
-            <aside class="flex h-full flex-col border-l border-white/6 bg-ink-900">
+            <!-- The same surface as the rest of the call (the glass of the panel), a little darker: not a black slab on top. -->
+            <aside
+              class="flex h-full flex-col border-l border-white/8 bg-black/15 max-lg:bg-ink-900/92 max-lg:backdrop-blur-md"
+            >
               <div
                 class="flex shrink-0 items-center justify-between border-b border-white/6 px-4 py-2.5"
               >
@@ -1415,7 +1422,10 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
           </div>
         }
         @if (t.kind !== 'activity') {
-          <div class="absolute left-3 top-3 flex min-h-6 gap-1.5">
+          <!-- The state of the person and the delay to them, in one row: they never sit on top of each other. -->
+          <div
+            class="absolute left-3 top-3 flex min-h-6 max-w-[calc(100%-5.5rem)] flex-wrap items-center gap-1.5"
+          >
             @if (t.kind === 'screen') {
               <span class="chip chip-violet"
                 ><app-icon name="monitor" [size]="11" /> {{ 'Screen' | t }}</span
@@ -1426,6 +1436,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               }
               @if (t.deafened) {
                 <span class="state-badge"><app-icon name="headphones-off" [size]="13" /></span>
+              }
+              @if (!small && !t.local && t.rtt !== null) {
+                <span class="chip font-mono !py-0.5 text-[0.6875rem]">{{ t.rtt }} ms</span>
               }
             }
           </div>
@@ -1449,15 +1462,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               >
                 <app-icon name="maximize" [size]="14" />
               </button>
-            }
-          </div>
-          <div
-            class="absolute top-3 flex min-h-6 gap-1"
-            [class.right-3]="small"
-            [class.right-[5.4rem]]="!small"
-          >
-            @if (!small && !t.local && t.rtt !== null && t.kind !== 'screen') {
-              <span class="chip">{{ t.rtt }} ms</span>
             }
           </div>
           <div class="absolute inset-x-4 bottom-3.5 flex items-end justify-between gap-2">
@@ -2065,6 +2069,8 @@ export class VoiceStageComponent {
     label: string;
     userId: string;
     canAdjust: boolean;
+    /** The tile is a screen someone else shares: the menu is the one of that stream. */
+    stream: boolean;
     x: number;
     y: number;
   } | null>(null);
@@ -2119,6 +2125,7 @@ export class VoiceStageComponent {
       label: tile.user?.displayName ?? '',
       userId: tile.user?.id ?? '',
       canAdjust: !tile.local && !!tile.user && tile.kind !== 'screen',
+      stream: !tile.local && !!tile.user && tile.kind === 'screen',
       x: event.clientX,
       y: event.clientY,
     });

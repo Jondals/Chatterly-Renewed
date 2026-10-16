@@ -268,6 +268,12 @@ export class StickerStore {
     this.packs.set([...others, pack].sort(byCreation));
   }
 
+  /** Puts back a pack that came from the copy in the account (same id; it replaces the one of this device). */
+  async restore(pack: StickerPack): Promise<void> {
+    await this.load();
+    await this.save(pack);
+  }
+
   /** Deletes a whole pack. */
   async removePack(id: string): Promise<void> {
     await runInStore(LOCATION, 'readwrite', deletePack.bind(null, id));

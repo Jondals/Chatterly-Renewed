@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   mobile/android/app/src/main/res/layout/notification_call.xml
-  The inside of the call notification: who, how long, and the mute, deafen and hang up buttons. The texts use the styles of
-  the system notifications (they follow the light or dark phone); the buttons use colors/*.xml. Only views that a
-  notification may hold (RemoteViews): LinearLayout, TextView, Chronometer and ImageButton.
+  The call notification, folded: who, how long, and small mute, deafen and hang up buttons (the open notification is
+  notification_call_big.xml). The texts use the styles of the system notifications (they follow the light or dark phone); the
+  buttons use colors/*.xml. Only views that a notification may hold (RemoteViews): LinearLayout, TextView, Chronometer,
+  ImageView and ImageButton.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -47,28 +48,31 @@
 
     <ImageButton
         android:id="@+id/call_mute"
-        android:layout_width="44dp"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="10dp"
         android:background="@drawable/notification_button"
-        android:scaleType="center"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
         android:src="@drawable/ic_call_mic" />
 
     <ImageButton
         android:id="@+id/call_deafen"
-        android:layout_width="44dp"
-        android:layout_height="36dp"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/notification_button"
-        android:scaleType="center"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
         android:src="@drawable/ic_call_headphones" />
 
     <ImageButton
         android:id="@+id/call_hang_up"
-        android:layout_width="44dp"
-        android:layout_height="36dp"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
         android:layout_marginStart="6dp"
         android:background="@drawable/notification_button_end"
-        android:scaleType="center"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
         android:src="@drawable/ic_call_end" />
 </LinearLayout>

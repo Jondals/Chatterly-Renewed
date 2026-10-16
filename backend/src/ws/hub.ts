@@ -130,6 +130,23 @@ export class Hub {
     return n;
   }
 
+  /** Sends a message to every open connection (an announcement of the server). */
+  broadcast(message: unknown): void {
+    for (const set of this.clients.values()) for (const client of set) client.send(message);
+  }
+
+  /** How many people have at least one connection open. */
+  onlineCount(): number {
+    return this.clients.size;
+  }
+
+  /** How many calls are going on, and how many people are in them. */
+  callCounts(): { calls: number; people: number } {
+    let people = 0;
+    for (const room of this.rooms.values()) people += room.size;
+    return { calls: this.rooms.size, people };
+  }
+
   /** Sends a message to every connection of a person (their tabs and devices). */
   sendTo(userId: string, message: unknown): void {
     const set = this.clients.get(userId);

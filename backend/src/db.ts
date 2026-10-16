@@ -207,6 +207,23 @@ CREATE TABLE IF NOT EXISTS beta_testers (
   added_at  INTEGER NOT NULL
 );
 
+-- Choices of the server made by its administrators from the app (see routes/admin.ts): whether new accounts can be made,
+-- and the announcement shown to everybody. Plain values: nothing private.
+CREATE TABLE IF NOT EXISTS server_settings (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+
+-- What the administrators did (who, when, to whom): every one of them can read it, nobody can change it from the app.
+CREATE TABLE IF NOT EXISTS admin_audit (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  at         INTEGER NOT NULL,
+  actor_id   TEXT,
+  action     TEXT NOT NULL,
+  target_id  TEXT,
+  detail     TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS files (
   id           TEXT PRIMARY KEY,
   channel_id   TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -258,6 +275,10 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['guilds', 'icon_key_iv', "TEXT NOT NULL DEFAULT ''"],
   ['guilds', 'icon_key_data', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'server_tag', "TEXT NOT NULL DEFAULT ''"],
+  // An account suspended by an administrator (see routes/admin.ts): when, and the reason the person is told. It cannot sign
+  // in until it is restored; its data stays.
+  ['users', 'suspended_at', 'INTEGER'],
+  ['users', 'suspended_reason', "TEXT NOT NULL DEFAULT ''"],
 ];
 
 /**

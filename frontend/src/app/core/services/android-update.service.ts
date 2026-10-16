@@ -131,8 +131,20 @@ export class AndroidUpdateService {
     setTimeout(this.quietCheck.bind(this), 8000);
   }
 
-  /** The check of the start: says nothing unless a new version exists. */
+  /** How many times the check of the start waited for the server to say whether the account is a tester. */
+  private waits = 0;
+
+  /**
+   * The check of the start: says nothing unless a new version exists.
+   * ! On the beta channel it waits until the server said whether the account is still a tester: looking before that used
+   *   the Release channel and offered a phone that runs a beta to "change" to the older release.
+   */
   private async quietCheck(): Promise<void> {
+    if (this.beta() && !this.betaProgram.known() && this.waits < 12) {
+      this.waits++;
+      setTimeout(this.quietCheck.bind(this), 5000);
+      return;
+    }
     await this.check();
     if (this.status() === 'available') {
       this.toast.info(

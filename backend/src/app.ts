@@ -25,6 +25,7 @@ import { registerSettingsSyncRoutes } from './routes/settings-sync';
 import { registerVaultRoutes } from './routes/vault';
 import { registerBetaRoutes } from './routes/beta';
 import { registerBetaFileRoutes } from './routes/beta-files';
+import { registerAdminRoutes } from './routes/admin';
 import { registerGifRoutes } from './routes/gifs';
 import { registerPreviewRoutes } from './routes/preview';
 import { registerSocket } from './ws/socket';
@@ -201,6 +202,7 @@ export async function buildApp(overrides: Partial<AppConfig> = {}) {
   registerVaultRoutes(app, ctx);
   registerBetaRoutes(app, ctx);
   registerBetaFileRoutes(app, ctx);
+  registerAdminRoutes(app, ctx);
   registerGifRoutes(app, ctx);
   registerPreviewRoutes(app, ctx);
   registerSocket(app, ctx);

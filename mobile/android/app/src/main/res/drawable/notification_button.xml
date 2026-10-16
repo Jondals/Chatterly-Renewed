@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- mobile/android/app/src/main/res/drawable/notification_button.xml: the background of a button of the call notification. Small corners, as the person asked. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="6dp" />
+    <corners android:radius="8dp" />
     <solid android:color="@color/notification_button" />
 </shape>

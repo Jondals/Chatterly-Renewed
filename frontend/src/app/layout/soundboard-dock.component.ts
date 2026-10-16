@@ -550,7 +550,8 @@ export class SoundboardDockComponent {
   /** A press anywhere else closes the board (but not a press inside the windows that open from it). */
   @HostListener('document:mousedown', ['$event']) closeOutside(event: MouseEvent) {
     const target = event.target as Element;
-    if (!target.closest('app-sound-edit, app-context-menu, app-toast-host')) {
+    // A window (app-modal) is drawn at the end of <body> and carries data-portal: a press in it is not outside.
+    if (!target.closest('app-sound-edit, app-context-menu, app-toast-host, [data-portal]')) {
       this.ui.soundboardOpen.set(false);
     }
   }

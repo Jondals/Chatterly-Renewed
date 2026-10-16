@@ -1,8 +1,10 @@
 /**
  * desktop/src/graphics.cjs
  * How the desktop app uses the graphics card: hardware acceleration on or off, and which graphics layer (the "ANGLE backend")
- * draws the page: Direct3D 11, OpenGL or Vulkan on Windows (Metal and OpenGL on a Mac), or the one Chromium chooses ("auto",
- * the default and almost always the best). The person chooses in Settings; the choice is read when the app starts, so it
+ * draws the page: Direct3D 11, Direct3D 12, OpenGL or Vulkan on Windows (Metal and OpenGL on a Mac), or the one Chromium
+ * chooses ("auto", the default and almost always the best).
+ * ? Direct3D 12 is ANGLE's "D3D11 on 12" layer (d3d11on12): Chromium has no native Direct3D 12 backend; this one draws through
+ *   the Direct3D 12 driver, which helps on some cards whose Direct3D 11 driver is poor and does nothing on others. The person chooses in Settings; the choice is read when the app starts, so it
  * applies after a restart.
  *
  * ! Only values of a fixed list are ever written, read or turned into a Chromium switch: the file is checked on every read,
@@ -15,7 +17,7 @@ const path = require('node:path');
 
 /** The graphics layers the person may choose, by system (the first one, "auto", is always there). */
 const BACKENDS = {
-  win32: ['auto', 'd3d11', 'gl', 'vulkan'],
+  win32: ['auto', 'd3d11', 'd3d11on12', 'gl', 'vulkan'],
   darwin: ['auto', 'metal', 'gl'],
   linux: ['auto', 'gl', 'vulkan'],
 };

@@ -7,10 +7,13 @@
  *   removed from the app) and the people those administrators add in Settings > Administration.
  * * The server only keeps WHO is a tester (a row per person, erased with the account). It never sees which version they run.
  * ! A person who is not an administrator gets 404 on the management routes, as if they did not exist.
+ * ! Only an OWNER makes or unmakes administrators: an administrator account that is taken over cannot hand the server to
+ *   more accounts. Every change is written to the record of the administration (routes/admin.ts).
  */
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 import { callerId, usernameField } from '../validation';
+import { recordAdminAction } from './admin';
 
 /** What the administrator sees about one tester. */
 interface TesterRow {
@@ -50,6 +53,13 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
     return config.adminUsers.includes(username.toLowerCase());
   }
 
+  /** True when the account is one of the owners (ADMIN_USERS). */
+  function isCallerOwner(userId: string): boolean {
+    const row = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
+      { username: string } | undefined;
+    return row !== undefined && isOwner(row.username);
+  }
+
   /** True when the caller is an administrator of the server: an owner, or somebody an administrator added. */
   function isAdmin(userId: string): boolean {
     const row = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
@@ -65,7 +75,13 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
   app.get('/api/beta/me', auth, async function (req) {
     const id = me(req);
     const tester = db.prepare('SELECT 1 FROM beta_testers WHERE user_id = ?').get(id);
-    return { beta: Boolean(tester), admin: isAdmin(id) };
+    const row = db.prepare('SELECT username FROM users WHERE id = ?').get(id) as
+      { username: string } | undefined;
+    return {
+      beta: Boolean(tester),
+      admin: isAdmin(id),
+      owner: row !== undefined && isOwner(row.username),
+    };
   });
 
   /** Every tester, newest first (administrators only). */
@@ -129,15 +145,17 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
       },
     },
     async function (req, reply) {
-      if (!isAdmin(me(req))) return reply.code(404).send({ error: 'not_found' });
+      const actor = me(req);
+      if (!isAdmin(actor)) return reply.code(404).send({ error: 'not_found' });
+      if (!isCallerOwner(actor)) return reply.code(403).send({ error: 'owners_only' });
       const { username } = req.body as { username: string };
       const target = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as
         { id: string } | undefined;
       if (!target) return reply.code(404).send({ error: 'user_not_found' });
-      db.prepare('INSERT OR IGNORE INTO admins (user_id, added_at) VALUES (?, ?)').run(
-        target.id,
-        Date.now(),
-      );
+      const added = db
+        .prepare('INSERT OR IGNORE INTO admins (user_id, added_at) VALUES (?, ?)')
+        .run(target.id, Date.now()).changes;
+      if (added) recordAdminAction(db, actor, 'admin-add', target.id);
       return reply.code(201).send({ ok: true });
     },
   );
@@ -156,12 +174,15 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
       },
     },
     async function (req, reply) {
-      if (!isAdmin(me(req))) return reply.code(404).send({ error: 'not_found' });
+      const actor = me(req);
+      if (!isAdmin(actor)) return reply.code(404).send({ error: 'not_found' });
       const { userId } = req.params as { userId: string };
       const row = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as
         { username: string } | undefined;
       if (row && isOwner(row.username)) return reply.code(403).send({ error: 'owner_fixed' });
-      db.prepare('DELETE FROM admins WHERE user_id = ?').run(userId);
+      if (!isCallerOwner(actor)) return reply.code(403).send({ error: 'owners_only' });
+      const removed = db.prepare('DELETE FROM admins WHERE user_id = ?').run(userId).changes;
+      if (removed) recordAdminAction(db, actor, 'admin-remove', userId);
       return { ok: true };
     },
   );
@@ -182,15 +203,16 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
       },
     },
     async function (req, reply) {
-      if (!isAdmin(me(req))) return reply.code(404).send({ error: 'not_found' });
+      const actor = me(req);
+      if (!isAdmin(actor)) return reply.code(404).send({ error: 'not_found' });
       const { username } = req.body as { username: string };
       const target = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as
         { id: string } | undefined;
       if (!target) return reply.code(404).send({ error: 'user_not_found' });
-      db.prepare('INSERT OR IGNORE INTO beta_testers (user_id, added_at) VALUES (?, ?)').run(
-        target.id,
-        Date.now(),
-      );
+      const added = db
+        .prepare('INSERT OR IGNORE INTO beta_testers (user_id, added_at) VALUES (?, ?)')
+        .run(target.id, Date.now()).changes;
+      if (added) recordAdminAction(db, actor, 'tester-add', target.id);
       return reply.code(201).send({ ok: true });
     },
   );
@@ -209,9 +231,11 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
       },
     },
     async function (req, reply) {
-      if (!isAdmin(me(req))) return reply.code(404).send({ error: 'not_found' });
+      const actor = me(req);
+      if (!isAdmin(actor)) return reply.code(404).send({ error: 'not_found' });
       const { userId } = req.params as { userId: string };
-      db.prepare('DELETE FROM beta_testers WHERE user_id = ?').run(userId);
+      const removed = db.prepare('DELETE FROM beta_testers WHERE user_id = ?').run(userId).changes;
+      if (removed) recordAdminAction(db, actor, 'tester-remove', userId);
       return { ok: true };
     },
   );

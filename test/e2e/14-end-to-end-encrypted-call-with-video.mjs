@@ -14,10 +14,10 @@ export async function step14(world) {
   await b.waitForSelector('text=Incoming encrypted call', { timeout: 10000 });
   await b.click('button[aria-label=Accept]');
   await b.waitForURL('**/voice');
-  await a.waitForSelector('button.chip[title="End-to-end encrypted"]', {
+  await a.waitForSelector('button[data-tip="End-to-end encrypted"]', {
     timeout: 40000,
   });
-  await b.waitForSelector('button.chip[title="End-to-end encrypted"]', {
+  await b.waitForSelector('button[data-tip="End-to-end encrypted"]', {
     timeout: 40000,
   });
   await a.waitForTimeout(4500);
@@ -78,8 +78,8 @@ export async function step14(world) {
     (await a.locator('app-person-menu').count()) === 0,
     'a press anywhere else closes the menu of a person',
   );
-  await a.click('button.chip[title="End-to-end encrypted"]');
-  await b.click('button.chip[title="End-to-end encrypted"]');
+  await a.click('button[data-tip="End-to-end encrypted"]');
+  await b.click('button[data-tip="End-to-end encrypted"]');
   await a.waitForSelector('text=Verify this call');
   const codeOf = async function (p) {
     return (await p.locator('[role=dialog] .font-mono.tracking-widest').first().innerText()).trim();
@@ -336,9 +336,9 @@ export async function step14(world) {
   // on, while the other person keeps seeing the video move. The pictures of the library are kept (encrypted) in the account.
   await a.locator('app-device-menu button').nth(2).click();
   await a.click('app-device-menu [role=menuitem]:has-text("Camera background")');
-  await a.waitForSelector('app-background-picker .cs-tile');
+  await a.waitForSelector('[role=dialog]:has(.cs-layout) .cs-tile');
   const tile = function (name) {
-    return 'app-background-picker .cs-tile:has(.cs-name:text-is("' + name + '"))';
+    return '[role=dialog]:has(.cs-layout) .cs-tile:has(.cs-name:text-is("' + name + '"))';
   };
   const background = function () {
     return a.evaluate(function () {
@@ -352,13 +352,13 @@ export async function step14(world) {
   // the preview of the window shows the camera that the others get
   check(
     await a.evaluate(function () {
-      const video = document.querySelector('app-background-picker video');
+      const video = document.querySelector('[role=dialog]:has(.cs-layout) video');
       return !!video && video.videoWidth > 0;
     }),
     'the window of the camera has a live preview',
   );
   // the mirror reaches the others: it is part of the video that is sent
-  await a.click('app-background-picker .cs-row [role=switch]');
+  await a.click('[role=dialog]:has(.cs-layout) .cs-row [role=switch]');
   await a.waitForTimeout(700);
   check(
     (await a.evaluate(function () {
@@ -367,20 +367,20 @@ export async function step14(world) {
     'the mirror is turned on',
   );
   await movingVideo(b, 'Bob keeps seeing the camera of Alice move with the mirror on');
-  await a.click('app-background-picker .cs-row [role=switch]');
+  await a.click('[role=dialog]:has(.cs-layout) .cs-row [role=switch]');
   await a.waitForTimeout(500);
   await a.click(tile('Aurora'));
   await a.waitForTimeout(600);
   check((await background()) === '"preset:aurora"', 'a ready-made background is chosen');
   await movingVideo(b, 'Bob keeps seeing the camera of Alice move with a ready-made background');
-  await a.click('app-background-picker .fold-head:has-text("Your library")');
+  await a.click('[role=dialog]:has(.cs-layout) [role=radio]:has-text("Your library")');
   await a.waitForTimeout(600);
   const backgroundChooser = a.waitForEvent('filechooser');
-  await a.click('app-background-picker .cs-add');
+  await a.click('[role=dialog]:has(.cs-layout) .cs-add');
   await a.waitForSelector('.isrc-drop');
   await a.click('.isrc-drop');
   (await backgroundChooser).setFiles(world.pngPath);
-  await a.waitForSelector('app-background-picker .cs-remove', {
+  await a.waitForSelector('[role=dialog]:has(.cs-layout) .cs-remove', {
     state: 'attached',
     timeout: 20000,
   });
@@ -390,6 +390,7 @@ export async function step14(world) {
   );
   await movingVideo(b, 'Bob keeps seeing the camera of Alice move with a picture of her library');
   await shot(a, '14b-camera-background');
+  await a.click('[role=dialog]:has(.cs-layout) [role=radio]:has-text("Background")');
   await a.click(tile('None'));
   await a.keyboard.press('Escape');
   await a.waitForSelector('app-background-picker', { state: 'detached', timeout: 5000 });
@@ -512,7 +513,7 @@ export async function step14(world) {
   await a.click('[data-tip="Voice call"]');
   await b.waitForSelector('text=Incoming encrypted call', { timeout: 15000 });
   await b.click('button[aria-label=Accept]');
-  const encryptedChip = 'button.chip[title="End-to-end encrypted"]';
+  const encryptedChip = 'button[data-tip="End-to-end encrypted"]';
   let shownAsEncrypted = false;
   const deadline = Date.now() + 45000;
   let closedA = false;

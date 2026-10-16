@@ -9,13 +9,16 @@ import { DialogService } from '../../core/services/dialog.service';
 import { SettingsSyncService, type SyncMode } from '../../core/services/settings-sync.service';
 import { ToastService } from '../../core/services/toast.service';
 import { VaultService } from '../../core/services/vault.service';
+import { LibrarySyncService } from '../../core/services/library-sync.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 
 /** The settings of the account. */
 @Component({
   selector: 'app-sync-section',
   standalone: true,
-  imports: [IconComponent, TranslatePipe],
+  imports: [IconComponent, TranslatePipe, SettingRowComponent, ToggleComponent],
   template: `
     <!-- what this is, in two lines, and how it is going -->
     <div class="mb-6 flex gap-3 rounded-ui border border-accent/25 bg-accent/8 p-4 text-sm">
@@ -73,6 +76,60 @@ import { IconComponent } from '../../shared/components/icon.component';
             | t
         }}
       </p>
+    </section>
+
+    <section class="settings-card">
+      <h2 class="settings-card-title">{{ 'Stickers and presets' | t }}</h2>
+      <app-setting-row
+        title="Keep a copy in my account"
+        hint="Your sticker packs and presets reach every device you sign in on, and come back if this device loses them. Encrypted here first: the server keeps something it cannot read."
+      >
+        <app-toggle
+          [checked]="library.enabled()"
+          (checkedChange)="library.enabled.set($event)"
+          [label]="'Keep a copy in my account' | t"
+        />
+      </app-setting-row>
+      @if (library.enabled()) {
+        <div class="flex flex-wrap items-center gap-2 pb-3 text-xs">
+          @switch (library.status()) {
+            @case ('working') {
+              <span class="chip">{{ 'Syncing…' | t }}</span>
+            }
+            @case ('synced') {
+              <span class="chip chip-accent">{{
+                'Your stickers and presets are in your account.' | t
+              }}</span>
+            }
+            @case ('full') {
+              <span class="chip chip-amber">{{
+                'Your account is full: what does not fit stays on this device.' | t
+              }}</span>
+            }
+            @case ('error') {
+              <span class="chip chip-amber">{{
+                'Could not reach your account. It is tried again with the next change.' | t
+              }}</span>
+            }
+            @default {
+              <span class="chip">{{ 'Waiting for your account…' | t }}</span>
+            }
+          }
+          <button type="button" class="btn btn-sm gap-1.5" (click)="library.syncNow()">
+            <app-icon name="refresh" [size]="13" /> {{ 'Sync now' | t }}
+          </button>
+        </div>
+      }
+      <app-setting-row
+        title="Keep them on this device when I sign out"
+        hint="Signing out then erases only your session and your keys. If another account signs in here, everything is erased first."
+      >
+        <app-toggle
+          [checked]="settings.keepOnSignOut()"
+          (checkedChange)="settings.keepOnSignOut.set($event)"
+          [label]="'Keep them on this device when I sign out' | t"
+        />
+      </app-setting-row>
     </section>
 
     <section class="settings-card">
@@ -204,6 +261,8 @@ import { IconComponent } from '../../shared/components/icon.component';
 export class SyncSectionComponent {
   protected readonly sync = inject(SettingsSyncService);
   protected readonly vault = inject(VaultService);
+  protected readonly library = inject(LibrarySyncService);
+  protected readonly settings = inject(SettingsService);
   private readonly toast = inject(ToastService);
   protected readonly places: {
     id: string;

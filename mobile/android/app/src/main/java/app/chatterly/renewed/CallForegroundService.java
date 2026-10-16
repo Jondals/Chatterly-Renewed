@@ -79,6 +79,8 @@ public class CallForegroundService extends Service {
      */
     static void refresh(Context context) {
         if (!inCall && !listening) {
+            // A page kept only for the call is not needed any more.
+            CallKeeper.release();
             context.stopService(new Intent(context, CallForegroundService.class));
             return;
         }
@@ -152,9 +154,16 @@ public class CallForegroundService extends Service {
         super.onDestroy();
     }
 
-    /** The page lives in the task: when the person swipes the app away, there is nothing left to keep alive. */
+    /**
+     * The person swiped the app away. ! During a call the call goes on, like in Discord: its page is kept (CallKeeper) and this
+     * service keeps the app alive with the notification of the call. Without a call there is nothing left to keep alive.
+     */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
+        if (inCall && CallKeeper.has()) {
+            super.onTaskRemoved(rootIntent);
+            return;
+        }
         inCall = false;
         listening = false;
         stopForeground(STOP_FOREGROUND_REMOVE);
@@ -213,33 +222,50 @@ public class CallForegroundService extends Service {
             .setPublicVersion(generic)
             .setContentIntent(openApp())
             .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(callView(name, state, since))
-            .setCustomBigContentView(callView(name, state, since))
+            .setCustomContentView(callView(name, state, since, false))
+            .setCustomBigContentView(callView(name, state, since, true))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build();
     }
 
-    /** The inside of the call notification (layout/notification_call.xml) with the current state. */
-    private RemoteViews callView(String name, String state, long since) {
-        RemoteViews view = new RemoteViews(getPackageName(), R.layout.notification_call);
+    /**
+     * The inside of the call notification with the current state: folded (layout/notification_call.xml, small buttons) or
+     * open (layout/notification_call_big.xml, wide buttons with their names).
+     */
+    private RemoteViews callView(String name, String state, long since, boolean open) {
+        RemoteViews view = new RemoteViews(
+            getPackageName(),
+            open ? R.layout.notification_call_big : R.layout.notification_call
+        );
         view.setTextViewText(R.id.call_name, name);
         // The chronometer counts from a moment of the clock since boot: the start of the call moved to that clock.
         long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - since);
         view.setChronometer(R.id.call_timer, base, null, true);
         view.setTextViewText(R.id.call_state, state.isEmpty() ? "" : " · " + state);
-        view.setImageViewResource(R.id.call_mute, muted ? R.drawable.ic_call_mic_off : R.drawable.ic_call_mic);
+        int muteIcon = muted ? R.drawable.ic_call_mic_off : R.drawable.ic_call_mic;
+        int deafenIcon = deafened ? R.drawable.ic_call_headphones_off : R.drawable.ic_call_headphones;
+        String muteText = getString(muted ? R.string.action_unmute : R.string.action_mute);
+        String deafenText = getString(deafened ? R.string.action_undeafen : R.string.action_deafen);
+        if (open) {
+            view.setImageViewResource(R.id.call_mute_icon, muteIcon);
+            view.setTextViewText(R.id.call_mute_label, muteText);
+            view.setImageViewResource(R.id.call_deafen_icon, deafenIcon);
+            view.setTextViewText(R.id.call_deafen_label, deafenText);
+        } else {
+            view.setImageViewResource(R.id.call_mute, muteIcon);
+            view.setImageViewResource(R.id.call_deafen, deafenIcon);
+        }
         view.setInt(R.id.call_mute, "setBackgroundResource", muted ? R.drawable.notification_button_on : R.drawable.notification_button);
-        view.setContentDescription(R.id.call_mute, getString(muted ? R.string.action_unmute : R.string.action_mute));
-        view.setOnClickPendingIntent(R.id.call_mute, button(ACTION_MUTE, 11));
-        view.setImageViewResource(R.id.call_deafen, deafened ? R.drawable.ic_call_headphones_off : R.drawable.ic_call_headphones);
         view.setInt(
             R.id.call_deafen,
             "setBackgroundResource",
             deafened ? R.drawable.notification_button_on : R.drawable.notification_button
         );
-        view.setContentDescription(R.id.call_deafen, getString(deafened ? R.string.action_undeafen : R.string.action_deafen));
-        view.setOnClickPendingIntent(R.id.call_deafen, button(ACTION_DEAFEN, 12));
+        view.setContentDescription(R.id.call_mute, muteText);
+        view.setContentDescription(R.id.call_deafen, deafenText);
         view.setContentDescription(R.id.call_hang_up, getString(R.string.action_hang_up));
+        view.setOnClickPendingIntent(R.id.call_mute, button(ACTION_MUTE, 11));
+        view.setOnClickPendingIntent(R.id.call_deafen, button(ACTION_DEAFEN, 12));
         view.setOnClickPendingIntent(R.id.call_hang_up, button(ACTION_HANG_UP, 13));
         return view;
     }

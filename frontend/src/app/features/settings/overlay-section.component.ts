@@ -1,7 +1,8 @@
 /**
  * src/app/features/settings/overlay-section.component.ts
- * Settings - Game overlay (desktop app only): the people of your call drawn over the game you are playing. Here the person
- * turns it on, chooses the shortcut that lets them move and resize the panel, what it shows and how it looks.
+ * Settings - Game overlay (desktop app only): your call drawn over the game you are playing, in widgets like the overlay of
+ * Discord (the call controls, the people, the cameras, the activity, the streams and the messages). Here the person turns it
+ * on, chooses the shortcut that unlocks it, what it shows and how it looks.
  */
 import { Component, computed, inject, signal } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
@@ -34,7 +35,7 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
     <section class="settings-card">
       <app-setting-row
         title="Show my call over my game"
-        hint="Draws the cameras and the pictures of the people in your call, and who is talking, over the games you play. It never reads or changes the game."
+        hint="Draws your call over the games you play: who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game."
       >
         <app-toggle
           [checked]="settings().enabled"
@@ -42,6 +43,22 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
           [label]="'Show my call over my game' | t"
         />
       </app-setting-row>
+      <div class="my-3 grid gap-2 rounded-ui bg-white/[.04] p-3 text-xs text-muted sm:grid-cols-2">
+        @for (w of widgetHelp; track w.title) {
+          <span class="flex items-start gap-2"
+            ><app-icon [name]="w.icon" [size]="14" class="mt-0.5 shrink-0 text-accent" />
+            <span
+              ><b class="text-fg">{{ w.title | t }}</b> · {{ w.text | t }}</span
+            ></span
+          >
+        }
+      </div>
+      <p class="text-xs text-muted">
+        {{
+          'Press the shortcut to unlock it: drag every widget where you want it and pin the ones that must stay while you play. A click outside, Esc or the cross give the mouse back to the game.'
+            | t
+        }}
+      </p>
       <p class="mt-3 text-xs text-dim">
         {{
           'It appears over games in window or borderless mode. A game in exclusive full screen owns the monitor and nothing can be drawn over it: choose borderless in its video options.'
@@ -195,6 +212,16 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
           [label]="'Only the people who are talking' | t"
         />
       </app-setting-row>
+      <app-setting-row
+        title="The text of the messages"
+        hint="The notifications show what the message says. Off: only who wrote it and where."
+      >
+        <app-toggle
+          [checked]="settings().notifyText"
+          (checkedChange)="overlay.set({ notifyText: $event })"
+          [label]="'The text of the messages' | t"
+        />
+      </app-setting-row>
       <app-setting-row title="Show myself" hint="Adds your own camera or picture to the panel.">
         <app-toggle
           [checked]="settings().showSelf"
@@ -228,6 +255,15 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 })
 export class OverlaySectionComponent {
   protected readonly overlay = inject(OverlayService);
+  /** What each widget of the overlay is. */
+  protected readonly widgetHelp = [
+    { icon: 'phone', title: 'Call', text: 'Mute, deafen, camera, screen and hang up.' },
+    { icon: 'volume', title: 'Voice', text: 'Who is in the call, who talks and who is live.' },
+    { icon: 'video', title: 'Video', text: 'The cameras, yours too.' },
+    { icon: 'activity', title: 'Activity', text: 'The game you registered and for how long.' },
+    { icon: 'monitor', title: 'Streams', text: 'The screens they share, with their volume.' },
+    { icon: 'bell', title: 'Notifications', text: 'The messages you get, to open them.' },
+  ];
   private readonly i18n = inject(I18nService);
 
   /** The windows that are open, once the person asked to see them (null until then). */

@@ -7,6 +7,7 @@
 import {
   Component,
   ElementRef,
+  computed,
   EnvironmentInjector,
   HostListener,
   inject,
@@ -32,6 +33,13 @@ interface Device {
 
 /** Which devices the arrow offers: the microphones, the speakers, or the cameras. */
 export type DeviceKind = 'mic' | 'speakers' | 'video';
+
+/**
+ * The one list that is open now, of all the arrows of the page (the call page and the floating panel have their own).
+ * ! Only one at a time: opening the microphones closes the speakers. A press outside used to be the only thing that closed
+ *   them, and a tap on a phone (or a press stopped by another element) could leave two lists open on top of each other.
+ */
+const openList = signal<object | null>(null);
 
 @Component({
   selector: 'app-device-menu',
@@ -184,7 +192,8 @@ export class DeviceMenuComponent implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(EnvironmentInjector);
 
-  protected readonly open = signal(false);
+  /** True while this list is the open one. */
+  protected readonly open = computed(this.isOpen.bind(this));
   protected readonly inputs = signal<Device[]>([]);
   protected readonly outputs = signal<Device[]>([]);
   protected readonly cameras = signal<Device[]>([]);
@@ -195,9 +204,21 @@ export class DeviceMenuComponent implements OnDestroy {
     navigator.mediaDevices?.addEventListener?.('devicechange', this.onDeviceChange);
   }
 
-  /** Stops listening for devices. */
+  /** Stops listening for devices (and closes the list if it was the open one). */
   ngOnDestroy(): void {
     navigator.mediaDevices?.removeEventListener?.('devicechange', this.onDeviceChange);
+    this.setOpen(false);
+  }
+
+  /** True while this list is the open one. */
+  private isOpen(): boolean {
+    return openList() === this;
+  }
+
+  /** Opens this list (closing any other one) or closes it. */
+  private setOpen(on: boolean): void {
+    if (on) openList.set(this);
+    else if (openList() === this) openList.set(null);
   }
 
   /** While open, a press anywhere else closes the list. */
@@ -211,14 +232,14 @@ export class DeviceMenuComponent implements OnDestroy {
   /** A press anywhere else closes the list. */
   onOutside(event: Event): void {
     if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
-      this.open.set(false);
+      this.setOpen(false);
     }
   }
 
   /** Escape closes the list. */
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    this.open.set(false);
+    this.setOpen(false);
   }
 
   /** The name of what the arrow opens (for screen readers). */
@@ -233,7 +254,7 @@ export class DeviceMenuComponent implements OnDestroy {
   /** Opens or closes the list (reading the devices when it opens). */
   protected toggle(): void {
     const next = !this.open();
-    this.open.set(next);
+    this.setOpen(next);
     if (next && this.kind() === 'speakers' && this.native.available) {
       // A headset may have been plugged in since the last look.
       void this.native.refreshRoutes();
@@ -244,7 +265,7 @@ export class DeviceMenuComponent implements OnDestroy {
 
   /** Android: sends the voice to an output and closes the list. */
   protected chooseRoute(route: AudioRoute): void {
-    this.open.set(false);
+    this.setOpen(false);
     void this.native.setRoute(route);
   }
 
@@ -295,7 +316,7 @@ export class DeviceMenuComponent implements OnDestroy {
 
   /** Closes the list and opens the window of the camera backgrounds. */
   protected openBackground(): void {
-    this.open.set(false);
+    this.setOpen(false);
     openBackgroundPicker(this.injector);
   }
 
@@ -312,6 +333,6 @@ export class DeviceMenuComponent implements OnDestroy {
 
   /** The back key closes it. */
   private backClose(): void {
-    this.open.set(false);
+    this.setOpen(false);
   }
 }

@@ -17,6 +17,8 @@ import { SocketService } from '../core/services/socket.service';
 import { UiService } from '../core/services/ui.service';
 import { SpinlyPanelComponent } from '../features/spinly/spinly-panel.component';
 import { VoiceStageComponent } from '../features/voice/voice-stage.component';
+import { LibrarySyncService } from '../core/services/library-sync.service';
+import { AnnouncementBarComponent } from './announcement-bar.component';
 import { GuildModalsComponent } from '../features/guild/guild-modals.component';
 import { preloadEmojiData } from '../shared/util/emoji-data';
 import { GuildStore } from '../store/guild.store';
@@ -53,6 +55,7 @@ const EMOJI_WARM_UP_MS = 6000;
     GuildModalsComponent,
     SpinlyPanelComponent,
     VoiceStageComponent,
+    AnnouncementBarComponent,
   ],
   template: `
     <div
@@ -89,6 +92,7 @@ const EMOJI_WARM_UP_MS = 6000;
       <app-call-dock />
     }
     <app-incoming-call />
+    <app-announcement-bar />
     @defer (on idle) {
       <app-guild-modals />
     }
@@ -108,6 +112,8 @@ export class MainLayoutComponent implements OnInit {
   private readonly shortcuts = inject(ShortcutsService);
   /** Shares the own name font with friends and opens theirs (it works by itself once it exists). */
   private readonly nameFonts = inject(NameFontShareService);
+  /** Keeps the copies of the sticker packs and presets in the account (it works by itself once it exists). */
+  private readonly librarySync = inject(LibrarySyncService);
 
   private readonly router = inject(Router);
   /** True while the page of the call is the one on screen. */

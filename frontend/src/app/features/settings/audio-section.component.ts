@@ -284,6 +284,7 @@ export class AudioSectionComponent implements OnDestroy {
     const names: Record<string, string> = {
       auto: 'Automatic (recommended)',
       d3d11: 'Direct3D 11',
+      d3d11on12: 'Direct3D 12',
       gl: 'OpenGL',
       vulkan: 'Vulkan',
       metal: 'Metal',

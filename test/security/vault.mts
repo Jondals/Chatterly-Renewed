@@ -111,7 +111,8 @@ export async function checkVault(): Promise<void> {
   const insert = app.ctx.db.prepare(
     'INSERT INTO vault_items (id, owner_id, size, created_at, key_iv, key_ct, meta_iv, meta_ct) VALUES (?,?,?,?,?,?,?,?)',
   );
-  for (let i = 0; i < 39; i++) {
+  // 150 items in all (camera backgrounds and the copies of sticker packs and presets): one is already there.
+  for (let i = 0; i < 149; i++) {
     insert.run(
       randomUUID(),
       alice.id,
@@ -133,7 +134,7 @@ export async function checkVault(): Promise<void> {
     'and the limit of one person does not touch another',
   );
   app.ctx.db.prepare('DELETE FROM vault_items WHERE owner_id = ? AND id <> ?').run(alice.id, id);
-  app.ctx.db.prepare('UPDATE vault_items SET size = ? WHERE id = ?').run(159 * 1024 * 1024, id);
+  app.ctx.db.prepare('UPDATE vault_items SET size = ? WHERE id = ?').run(399 * 1024 * 1024, id);
   check(
     (await send(alice, randomUUID(), randomBytes(2 * 1024 * 1024))).statusCode === 413,
     'and a limit of bytes in all',

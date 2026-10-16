@@ -204,7 +204,10 @@ function auditSource() {
     'overlay:tiles',
     'overlay:signal',
     'overlay:windows',
+    'overlay:call',
+    'overlay:notify',
     'overlay:event',
+    'screen:refresh',
     'screen:pick',
     'screen:choose',
     'screen:cancel',
@@ -246,8 +249,8 @@ function auditSource() {
   );
   check(
     overlayChannels.sort().join(',') ===
-      'overlay:choose,overlay:layout,overlay:signal-out,overlay:stop-editing',
-    'the overlay window can only send its signalling, its layout, the choices of its bar and "editing ended"',
+      'overlay:action,overlay:choose,overlay:layout,overlay:signal-out,overlay:stop-editing',
+    'the overlay window can only send its signalling, its layout, the choices of its bar, one of its fixed actions and "editing ended"',
   );
   check(
     !overlayPreload.slice(overlayPreload.indexOf('exposeInMainWorld(')).includes('ipcRenderer') &&
@@ -261,7 +264,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:choose,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:call,overlay:choose,overlay:get,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );

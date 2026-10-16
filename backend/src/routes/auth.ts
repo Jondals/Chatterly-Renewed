@@ -19,6 +19,7 @@ import { refreshServerTag } from '../server-tag';
 import { hashAuthSecret, verifyAuthSecret, needsUpgrade } from '../security/password';
 import { deleteImage, imageFile, ownsImage } from './images';
 import { vaultFile } from './vault';
+import { registrationsOpen } from './admin';
 import {
   authSecretField,
   b64Field,
@@ -343,6 +344,10 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (!isValidP256Point(body.publicKeys.ecdh) || !isValidP256Point(body.publicKeys.ecdsa)) {
         return reply.code(400).send({ error: 'invalid_public_key' });
       }
+      // An administrator can close the sign-up (Settings > Administration); the owners of ADMIN_USERS can always make theirs.
+      if (!registrationsOpen(db) && !config.adminUsers.includes(body.username.toLowerCase())) {
+        return reply.code(403).send({ error: 'registrations_closed' });
+      }
       if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(body.username)) {
         return reply.code(409).send({ error: 'username_taken' });
       }
@@ -424,6 +429,12 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         return reply.code(401).send({ error: 'invalid_credentials' });
       }
       ctx.throttle.recordSuccess(username);
+      // ! Only after the password is proven: a person who does not know it cannot tell a suspended account from a wrong password.
+      if (row.suspended_at !== null && row.suspended_at !== undefined) {
+        return reply
+          .code(403)
+          .send({ error: 'account_suspended', reason: row.suspended_reason ?? '' });
+      }
       // A hash made before the pepper existed is made again now that the proof of the password is at hand.
       if (needsUpgrade(row.auth_hash)) {
         db.prepare('UPDATE users SET auth_hash = ? WHERE id = ?').run(

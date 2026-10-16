@@ -38,7 +38,12 @@ import { SocketService, type ServerEvent } from './socket.service';
 import { buildVoiceChain } from '../audio-chain';
 import { desktopBridge } from '../desktop-bridge';
 import { ANDROID_APP, STRICT_RELAY } from '../config';
-import { androidScreenAvailable, startAndroidScreen, stopAndroidScreen } from '../android-screen';
+import {
+  androidScreenAvailable,
+  onScreenSilent,
+  startAndroidScreen,
+  stopAndroidScreen,
+} from '../android-screen';
 import { SoundService, type SfxId } from './sound.service';
 import { ToastService } from './toast.service';
 
@@ -1084,6 +1089,16 @@ export class CallService {
    * `withSound` the sound of the other apps of the phone goes with it (Android 10+).
    */
   private async shareAndroidScreen(quality: string, withSound: boolean): Promise<void> {
+    // The apps on screen may forbid capturing their sound: the person is told instead of thinking the others hear it.
+    onScreenSilent(
+      function (this: CallService) {
+        this.toast.info(
+          'The others do not hear the sound of that app',
+          'Android lets each app forbid capturing its sound, and this one does. The picture is still shared.',
+          '🔇',
+        );
+      }.bind(this),
+    );
     try {
       const stream = await startAndroidScreen(quality, withSound);
       this.localScreen.set(stream);

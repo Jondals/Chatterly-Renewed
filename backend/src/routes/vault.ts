@@ -17,12 +17,12 @@ import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 import { callerId } from '../validation';
 
-/** The most items one person can keep. */
-const MAX_VAULT_ITEMS = 40;
+/** The most items one person can keep (camera backgrounds, and the copies of their sticker packs and presets). */
+const MAX_VAULT_ITEMS = 150;
 /** The most bytes (encrypted) one item may weigh. */
 const MAX_VAULT_ITEM_BYTES = 12 * 1024 * 1024;
 /** The most bytes (encrypted) one person may keep in all. */
-const MAX_VAULT_TOTAL_BYTES = 160 * 1024 * 1024;
+const MAX_VAULT_TOTAL_BYTES = 400 * 1024 * 1024;
 /** An AES-GCM file is its 12-byte nonce, the bytes and the 16-byte tag. */
 const MIN_ENCRYPTED_BYTES = 12 + 16 + 8;
 /** The largest sealed description (base64 characters): a name, a type and a small thumbnail. */

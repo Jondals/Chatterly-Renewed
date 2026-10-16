@@ -11,6 +11,8 @@ import type { RingtoneId } from '../ringtones';
 import type { SpinlyProfile } from '../../features/spinly/spinly-model';
 import { gradientCss, parseMulti, sortedStops } from '../../shared/util/gradient';
 import { persisted } from './persisted';
+import { ANDROID_APP } from '../config';
+import { isDesktopApp } from '../desktop-bridge';
 
 export type ThemeId =
   | 'midnight'
@@ -323,6 +325,12 @@ export class SettingsService {
    * default: the person did not want a notification only for being connected. ? A new key, so the old "on" is not kept.
    */
   readonly backgroundCalls = persisted('pref.keepConnected', false);
+  /**
+   * Signing out keeps on this device what the person made (stickers, sounds, presets, fonts, wallpaper, preferences); only
+   * the session and the keys go. On by default in the apps (a device of the person), off in a browser (it may be shared).
+   * ! Another account signing in here erases it all first (see device-wipe.ts).
+   */
+  readonly keepOnSignOut = persisted('pref.keepOnSignOut', ANDROID_APP || isDesktopApp());
   /** The device could not keep up (few cores or little memory, or the frames of the page came slow). */
   readonly deviceWeak = signal(document.documentElement.dataset['weak'] === '1');
   /** The battery is low and not charging (read from the system when it says). */

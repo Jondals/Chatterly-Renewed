@@ -36,6 +36,13 @@ import { GuildStore } from '../../store/guild.store';
 import { SocialStore } from '../../store/social.store';
 
 /** Calls of the Android app: notifications, ringing in the background, audio route and screenshots. */
+declare global {
+  interface Window {
+    /** Called by the app on a kept page when a new page takes its call (see handOver). */
+    chatterlyHandOver?: () => string;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class NativeCallService {
   private readonly call = inject(CallService);
@@ -102,6 +109,9 @@ export class NativeCallService {
     effect(this.followSecure.bind(this));
     void this.plugin.addListener('action', this.onActionOutside.bind(this));
     void this.plugin.takePendingAction().then(this.onActionOutside.bind(this));
+    // Swiping the app away keeps the call (CallKeeper.java): that kept page hands it over here, and this page takes it.
+    window.chatterlyHandOver = this.handOver.bind(this);
+    void this.takeRejoin(0);
     void this.plugin.notifications().catch(this.ignore);
     void this.checkFullScreen();
     inject(DestroyRef).onDestroy(this.stopAll.bind(this));
@@ -262,6 +272,55 @@ export class NativeCallService {
         }
         break;
     }
+  }
+
+  /**
+   * This page is a kept one and a new page of the app starts (the person opened it again after swiping it away): it stops
+   * renewing the session and gives the id of its call, which the new page joins (the server moves the place of the person
+   * there without taking them out of the call).
+   */
+  private handOver(): string {
+    this.auth.freeze();
+    return this.call.inCall() ? (this.call.roomId() ?? '') : '';
+  }
+
+  /** Asks whether a kept page handed a call over, and joins it (a few tries while the kept page answers). */
+  private async takeRejoin(attempt: number): Promise<void> {
+    if (!this.plugin?.takeRejoin) return;
+    try {
+      const answer = await this.plugin.takeRejoin();
+      if (answer.waiting && attempt < 10) {
+        setTimeout(this.takeRejoinLater.bind(this, attempt + 1), 500);
+        return;
+      }
+      if (answer.roomId) {
+        await this.waitForSession();
+        this.zone.run(this.rejoin.bind(this, answer.roomId));
+      }
+    } catch {
+      /* an older app: nothing was handed over */
+    }
+  }
+
+  private takeRejoinLater(attempt: number): void {
+    void this.takeRejoin(attempt);
+  }
+
+  /** Waits (up to 20 s) until somebody is signed in: the call cannot be joined before. */
+  private async waitForSession(): Promise<void> {
+    for (let i = 0; i < 40 && !this.auth.isAuthenticated(); i++) {
+      await new Promise(function wait(resolve) {
+        setTimeout(resolve, 500);
+      });
+    }
+  }
+
+  /** Joins the call that was handed over and tells the app (the kept page goes). */
+  private async rejoin(roomId: string): Promise<void> {
+    if (!this.auth.isAuthenticated()) return;
+    await this.router.navigateByUrl('/voice');
+    await this.call.join(roomId);
+    void this.plugin?.rejoined?.().catch(this.ignore);
   }
 
   /** Joins the call that was answered from the notification. */

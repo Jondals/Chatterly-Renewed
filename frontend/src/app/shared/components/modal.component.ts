@@ -1,18 +1,19 @@
 /**
  * src/app/shared/components/modal.component.ts
- * Generic modal window.
+ * Generic modal window. It is drawn at the end of <body> (see ToBodyDirective), so it always covers the whole app.
  */
 import { Component, HostListener, input, output } from '@angular/core';
 import { IconComponent } from './icon.component';
 import { closeOnBack } from '../../core/services/back.service';
+import { ToBodyDirective } from '../util/to-body.directive';
 
 @Component({
   selector: 'app-modal',
   standalone: true,
-  imports: [IconComponent],
+  imports: [IconComponent, ToBodyDirective],
   template: `
     <div
-      animate.leave="leave-fade"
+      appToBody="leave-fade"
       class="anim-fade-in fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
       (mousedown)="onBackdrop($event)"
       role="presentation"

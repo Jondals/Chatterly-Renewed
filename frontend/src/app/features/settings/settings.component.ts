@@ -12,6 +12,7 @@ import { ArrivalService } from '../../core/services/arrival.service';
 import { CallService } from '../../core/services/call.service';
 import { SocketService } from '../../core/services/socket.service';
 import { UiService } from '../../core/services/ui.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { GuildStore } from '../../store/guild.store';
 import { MessageStore } from '../../store/message.store';
@@ -268,6 +269,7 @@ export class SettingsComponent {
   private readonly guilds = inject(GuildStore);
   private readonly messages = inject(MessageStore);
   private readonly call = inject(CallService);
+  private readonly settingsService = inject(SettingsService);
 
   protected readonly closing = signal(false);
   /** On a phone: the list of sections is showing instead of a section. */
@@ -368,7 +370,7 @@ export class SettingsComponent {
     this.social.reset();
     this.guilds.reset();
     this.messages.reset();
-    await this.auth.logout();
+    await this.auth.logout(true, this.settingsService.keepOnSignOut());
     window.location.assign('/login');
   }
 }

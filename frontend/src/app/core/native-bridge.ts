@@ -46,6 +46,10 @@ export interface CallPlugin {
   audioRoutes(): Promise<{ routes: AudioRoute[]; current: string }>;
   setAudioRoute(options: { id: string }): Promise<void>;
   takePendingAction(): Promise<CallAction>;
+  /** The call a page kept after the app was swiped away hands over to this page (CallKeeper.java). */
+  takeRejoin?(): Promise<{ roomId?: string; waiting?: boolean }>;
+  /** This page joined the call that was handed over: the kept page can go. */
+  rejoined?(): Promise<void>;
   addListener(event: 'action', listener: (action: CallAction) => void): Promise<ListenerHandle>;
 }
 
@@ -82,7 +86,13 @@ interface ListenerHandle {
 
 /** The plugin of the Android app that captures the screen and sends it to the page as pictures. */
 export interface ScreenPlugin {
-  start(options: { longSide: number; fps: number; quality: number; audio: boolean }): Promise<void>;
+  /** Resolves with `binary: true` when the pictures come over the binary channel (window.chatterlyScreen). */
+  start(options: {
+    longSide: number;
+    fps: number;
+    quality: number;
+    audio: boolean;
+  }): Promise<{ binary?: boolean } | void>;
   ack(): Promise<void>;
   stop(): Promise<void>;
   addListener(
@@ -91,6 +101,8 @@ export interface ScreenPlugin {
   ): Promise<ListenerHandle>;
   addListener(event: 'stopped', listener: () => void): Promise<ListenerHandle>;
   addListener(event: 'audio', listener: (piece: { data: string }) => void): Promise<ListenerHandle>;
+  /** The shared sound comes as pure silence: the apps on screen do not let it be captured. */
+  addListener(event: 'silent', listener: () => void): Promise<ListenerHandle>;
 }
 
 /** The shape of `window.Capacitor` that is read here (the native bridge of Capacitor puts it on the page). */

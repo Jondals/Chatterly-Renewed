@@ -13,6 +13,8 @@
  *   phone is locked the call is shown over the lock screen, as a phone call is.
  * * A page that stops answering (its renderer is stuck for about 10 s) is ended and the screen starts again, and a renderer
  *   that dies takes the screen with it instead of the whole app: the app reloads instead of staying frozen.
+ * * Swiping the app away during a call does not end the call (see CallKeeper): the page of this screen is kept alive, and a
+ *   new screen takes the call over when the person opens the app again.
  */
 package app.chatterly.renewed;
 
@@ -53,6 +55,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(UpdatePlugin.class);
         registerPlugin(ScreenSharePlugin.class);
         registerPlugin(FilesPlugin.class);
+        // A page kept from a screen that was swiped away during a call hands its call over to the page that starts now.
+        CallKeeper.handOver();
         super.onCreate(savedInstanceState);
         WebView view = getBridge().getWebView();
         view.setWebChromeClient(new SecureWebChromeClient(getBridge()));
@@ -106,6 +110,11 @@ public class MainActivity extends BridgeActivity {
         @Override
         public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
             unresponsive = 0;
+            if (isDestroyed()) {
+                // The page of a screen that is gone (kept for a call): there is nothing to start again.
+                CallKeeper.release();
+                return true;
+            }
             runOnUiThread(
                 new Runnable() {
                     @Override
@@ -157,6 +166,24 @@ public class MainActivity extends BridgeActivity {
         } else {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
+    }
+
+    /**
+     * The screen goes away. During a call, when it goes for good (swiped away from the recent apps, not turned), its page is kept
+     * so the call goes on (CallKeeper): the bridge is taken from Capacitor first, so it does not destroy the page.
+     */
+    @Override
+    public void onDestroy() {
+        if (
+            isFinishing() &&
+            !isChangingConfigurations() &&
+            CallForegroundService.inCall &&
+            bridge != null &&
+            CallKeeper.keep(bridge)
+        ) {
+            bridge = null;
+        }
+        super.onDestroy();
     }
 
     /** Leaving the screen ends the permission to show over the lock screen: the next time the lock screen is normal. */

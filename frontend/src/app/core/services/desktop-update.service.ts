@@ -171,6 +171,13 @@ export class DesktopUpdateService {
   }
 
   /** Closes the app, installs the downloaded version and opens it again. */
+  /**
+   * What the install button says: on a Mac the app is not signed by Apple, so the person installs the downloaded disk image
+   * themselves (see desktop/src/updater.cjs); everywhere else the app restarts and updates.
+   */
+  readonly installLabel =
+    desktopBridge()?.platform === 'darwin' ? 'Open the installer' : 'Restart and update';
+
   install(): void {
     this.run(this.bridge?.install());
   }

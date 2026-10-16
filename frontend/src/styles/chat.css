@@ -913,6 +913,16 @@ button:disabled,
   animation: none !important;
 }
 
+/* On a phone (a finger) the text of a message is not marked: a long press opens the menu of the message, and Copy is there.
+   Marking text with a finger fought with that press, and a tap on a message started selecting it. */
+@media (pointer: coarse) {
+  app-message-item .selectable {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 /* A sticker moves under the pointer (the pickers, so fifty of them never run at once) and, as `stk-live`, all the time (a message). */
 .stk {
   transform-origin: 50% 62%;

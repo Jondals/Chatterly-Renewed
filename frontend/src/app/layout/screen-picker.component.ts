@@ -5,6 +5,7 @@
  */
 import { Component, HostListener, inject } from '@angular/core';
 import { TranslatePipe } from '../core/i18n/i18n.service';
+import { IconComponent } from '../shared/components/icon.component';
 import { ScreenPickerService } from '../core/services/screen-picker.service';
 import { closeOnBack } from '../core/services/back.service';
 
@@ -12,7 +13,7 @@ import { closeOnBack } from '../core/services/back.service';
 @Component({
   selector: 'app-screen-picker',
   standalone: true,
-  imports: [TranslatePipe],
+  imports: [TranslatePipe, IconComponent],
   template: `
     @if (picker.request()) {
       <div
@@ -72,6 +73,14 @@ import { closeOnBack } from '../core/services/back.service';
               </p>
             }
           </div>
+          @if (picker.tab() === 'window') {
+            <p class="text-xs text-dim">
+              {{
+                'A minimized window cannot be shared and does not show here: restore it and press Refresh.'
+                  | t
+              }}
+            </p>
+          }
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex cursor-pointer items-center gap-2 text-sm">
               <input
@@ -81,9 +90,16 @@ import { closeOnBack } from '../core/services/back.service';
               />
               {{ 'Share the sound of the computer' | t }}
             </label>
-            <button type="button" class="btn btn-sm" (click)="picker.cancel()">
-              {{ 'Cancel' | t }}
-            </button>
+            <span class="flex gap-2">
+              @if (picker.canRefresh) {
+                <button type="button" class="btn btn-sm gap-1.5" (click)="picker.refresh()">
+                  <app-icon name="refresh" [size]="13" /> {{ 'Refresh' | t }}
+                </button>
+              }
+              <button type="button" class="btn btn-sm" (click)="picker.cancel()">
+                {{ 'Cancel' | t }}
+              </button>
+            </span>
           </div>
         </div>
       </div>

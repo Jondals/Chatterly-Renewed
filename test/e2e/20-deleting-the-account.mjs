@@ -21,14 +21,21 @@ export async function step20(world) {
   // Something of the person on the device besides the keys: a sticker in its own database.
   await c.evaluate(function keepSticker() {
     return new Promise(function opened(resolve, reject) {
+      // ! The app may have made this database already (the copies of the stickers in the account read it at start): the
+      //   record goes to its own store of packs.
       const request = indexedDB.open('chatterly-renewed-stickers', 1);
       request.onupgradeneeded = function create() {
-        request.result.createObjectStore('test-stickers');
+        request.result.createObjectStore('packs', { keyPath: 'id' });
       };
       request.onerror = reject;
       request.onsuccess = function put() {
-        const tx = request.result.transaction('test-stickers', 'readwrite');
-        tx.objectStore('test-stickers').put('private sticker', 'one');
+        const tx = request.result.transaction('packs', 'readwrite');
+        tx.objectStore('packs').put({
+          id: 'test-pack',
+          name: 'private sticker',
+          createdAt: 0,
+          items: [],
+        });
         tx.oncomplete = function done() {
           request.result.close();
           resolve(undefined);

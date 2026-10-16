@@ -81,6 +81,14 @@ function setOverlayTiles(tiles) {
 function overlayWindows() {
   return ipcRenderer.invoke('overlay:windows');
 }
+/** The state of the call for the controls of the overlay, and the screens other people share. The shell checks the shape. */
+function setOverlayCall(payload) {
+  return ipcRenderer.invoke('overlay:call', payload);
+}
+/** A message that arrived, for the notifications of the overlay (who, where, a short text). The shell checks the shape. */
+function notifyOverlay(notice) {
+  return ipcRenderer.invoke('overlay:notify', notice);
+}
 function signalOverlay(message) {
   return ipcRenderer.invoke('overlay:signal', message);
 }
@@ -115,6 +123,10 @@ function choosePick(sourceId, audio) {
 }
 function cancelPick() {
   return ipcRenderer.invoke('screen:cancel');
+}
+/** Reads the list of screens and windows again (a window that was minimized has been restored). */
+function refreshPick() {
+  return ipcRenderer.invoke('screen:refresh');
 }
 
 /** Calls `callback(state)` each time the update changes. Returns the function that stops listening. */
@@ -164,12 +176,20 @@ contextBridge.exposeInMainWorld(
       setBetaToken,
       onState,
     }),
-    screen: Object.freeze({ setSurface, onPick, choose: choosePick, cancel: cancelPick }),
+    screen: Object.freeze({
+      setSurface,
+      onPick,
+      choose: choosePick,
+      cancel: cancelPick,
+      refresh: refreshPick,
+    }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
     overlay: Object.freeze({
       get: getOverlay,
       set: setOverlay,
       setTiles: setOverlayTiles,
+      setCall: setOverlayCall,
+      notify: notifyOverlay,
       signal: signalOverlay,
       windows: overlayWindows,
       onEvent: onOverlayEvent,
