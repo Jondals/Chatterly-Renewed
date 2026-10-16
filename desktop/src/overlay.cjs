@@ -14,8 +14,9 @@
  *   games", it opens when a window whose name contains one of the registered names is open (the list of open windows is read
  *   every few seconds, without pictures: Electron cannot tell which window has the focus), and a small notice in the overlay
  *   says which keys open it.
- * * Editing: a keyboard shortcut (chosen in Settings > Game overlay) lets the mouse reach the window for a moment, so the
- *   panel can be dragged and resized; the focus goes back to the game when it ends.
+ * * Editing (like the overlay of Discord): a keyboard shortcut (chosen in Settings > Game overlay) dims the screen and
+ *   lets the mouse reach the window, so the panel can be dragged and resized and a bar on top changes its size, who is
+ *   shown and the names; the same shortcut, Esc or Done give the focus back to the game.
  * * The choices are kept in overlay.json in the profile folder and are checked on every read and write.
  * ! Only the main page of the app may use the commands, and only fixed shapes are accepted (see sanitize*): a page that lies
  *   can draw its own names and pictures in the overlay and nothing else.
@@ -42,7 +43,9 @@ const DEFAULTS = {
   onlySpeaking: false,
   showSelf: false,
   showNames: true,
-  hideFromCapture: true,
+  // ! Off by default: on Windows, excluding the transparent overlay window from captures could leave it invisible on the
+  //   screen too (a window that took the clicks and showed nothing). The person can still turn it on.
+  hideFromCapture: false,
   display: 'primary',
   mode: 'always',
   games: [],
@@ -65,6 +68,8 @@ const AVATAR = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 const MAX_TILES = 16;
 const MAX_AVATAR_CHARS = 60000;
 const MAX_SIGNAL_CHARS = 30000;
+/** The version of overlay.json. Files of an older version get "hide from captures" off once (see DEFAULTS). */
+const FILE_VERSION = 2;
 
 let settings = { ...DEFAULTS };
 let mainWindow = null;
@@ -133,7 +138,10 @@ function cleanGames(list) {
 /** Reads the choices of the person (the defaults when there is none or the file is damaged). */
 function load() {
   try {
-    return sanitizeSettings(JSON.parse(fs.readFileSync(fileOf(), 'utf8')), DEFAULTS);
+    const raw = JSON.parse(fs.readFileSync(fileOf(), 'utf8'));
+    const loaded = sanitizeSettings(raw, DEFAULTS);
+    if (!raw || raw.version !== FILE_VERSION) loaded.hideFromCapture = false;
+    return loaded;
   } catch (error) {
     return { ...DEFAULTS };
   }
@@ -143,7 +151,7 @@ function load() {
 function save() {
   if (quiet) return;
   try {
-    fs.writeFileSync(fileOf(), JSON.stringify(settings), 'utf8');
+    fs.writeFileSync(fileOf(), JSON.stringify({ ...settings, version: FILE_VERSION }), 'utf8');
   } catch (error) {
     // The choices simply are not kept this time.
   }
@@ -229,8 +237,29 @@ function viewConfig() {
       ? 'Overlay de Chatterly activo · ' + keys + ' para moverlo'
       : 'Chatterly overlay is on · ' + keys + ' to move it',
     hint: spanish
-      ? 'Arrastra para mover · esquina para el tamaño · Esc para terminar'
-      : 'Drag to move · corner to resize · Esc to finish',
+      ? 'Arrastra el panel para moverlo · la esquina para el tamaño · ' +
+        keys +
+        ' o Esc para cerrar'
+      : 'Drag the panel to move it · the corner to resize it · ' + keys + ' or Esc to close',
+    labels: spanish
+      ? {
+          title: 'Overlay de Chatterly',
+          small: 'Pequeño',
+          medium: 'Mediano',
+          large: 'Grande',
+          onlySpeaking: 'Solo quien habla',
+          showNames: 'Nombres',
+          done: 'Hecho',
+        }
+      : {
+          title: 'Chatterly overlay',
+          small: 'Small',
+          medium: 'Medium',
+          large: 'Large',
+          onlySpeaking: 'Only who talks',
+          showNames: 'Names',
+          done: 'Done',
+        },
   };
 }
 
@@ -510,6 +539,17 @@ function handleLayout(event, layout, finished) {
   else publish();
 }
 
+/** The person changed a choice from the bar of the overlay while editing (only the size, who is shown and the names). */
+function handleChoose(event, patch) {
+  if (!isOverlay(event) || !editing || !patch || typeof patch !== 'object') return;
+  settings = sanitizeSettings(
+    { size: patch.size, onlySpeaking: patch.onlySpeaking, showNames: patch.showNames },
+    settings,
+  );
+  save();
+  publish();
+}
+
 /** The person ended editing with the mouse (Esc or the button of the overlay). */
 function handleStopEditing(event) {
   if (isOverlay(event)) setEditing(false);
@@ -533,6 +573,7 @@ function start(window, isAppAddressFn, userDataPath, quietMode) {
   ipcMain.on('overlay:signal-out', handleSignalToPage);
   ipcMain.on('overlay:layout', handleLayout);
   ipcMain.on('overlay:stop-editing', handleStopEditing);
+  ipcMain.on('overlay:choose', handleChoose);
   registerHotkey();
 }
 

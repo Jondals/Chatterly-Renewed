@@ -16,8 +16,6 @@ export class UiService {
   readonly soundboardOpen = signal(false);
   /** The last page that was not the call (where "minimize the call" goes back to). */
   readonly lastPage = signal('/direct');
-  /** The chat that is open now (a direct conversation or a channel), so a sound can be sent to it. Null when none. */
-  readonly chatChannelId = signal<string | null>(null);
   /** Where the button that opened the soundboard is (it opens upward from there); null opens it as a window. */
   readonly soundboardAnchor = signal<DOMRect | null>(null);
   /** Person whose profile is shown in the profile window (null = closed). */

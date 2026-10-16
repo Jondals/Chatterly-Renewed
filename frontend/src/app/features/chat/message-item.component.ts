@@ -81,6 +81,10 @@ function notSticker(file: ViewAttachment): boolean {
       [class.mt-3]="!compact()"
       (contextmenu)="openMenu($event)"
       (click)="onTap($event)"
+      (pointerenter)="hovered.set(true)"
+      (pointerleave)="hovered.set(false)"
+      (focusin)="hovered.set(true)"
+      (focusout)="onFocusOut($event)"
     >
       <!-- on a phone the picture goes inline with the name (22 px): no empty column on the left of every message -->
       <div class="w-9 shrink-0 pt-0.5 max-sm:hidden">
@@ -252,10 +256,17 @@ function notSticker(file: ViewAttachment): boolean {
         </div>
       </div>
 
-      @if (!m.pending && !m.failed && !editing() && settings.messageActions()) {
+      <!-- ? Built only while the message is under the pointer, tapped or focused: a long chat no longer keeps a hidden
+           bar of buttons in every message (about 25 elements each). -->
+      @if (
+        !m.pending &&
+        !m.failed &&
+        !editing() &&
+        settings.messageActions() &&
+        (hovered() || tapped() || pickerOpen())
+      ) {
         <div
-          class="msg-actions absolute -top-4 z-10 hidden items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl group-hover:flex group-focus-within:flex"
-          [class.!flex]="tapped()"
+          class="msg-actions absolute -top-4 z-10 flex items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl"
           [class.right-4]="!(bubbles() && mine())"
           [class.left-4]="bubbles() && mine()"
         >
@@ -333,6 +344,16 @@ export class MessageItemComponent {
   protected readonly settings = inject(SettingsService);
 
   protected readonly quick = QUICK_REACTIONS.slice(0, 3);
+  /** The pointer is over the message, or the focus is inside it (its bar of buttons shows). */
+  protected readonly hovered = signal(false);
+
+  /** The focus left the message (not to an element inside it): the bar of buttons goes. */
+  protected onFocusOut(event: FocusEvent): void {
+    const next = event.relatedTarget as Node | null;
+    if (!next || !this.host.nativeElement.contains(next)) {
+      this.hovered.set(false);
+    }
+  }
   protected readonly editing = signal(false);
   protected readonly draft = signal('');
   protected readonly pickerOpen = signal(false);

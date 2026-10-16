@@ -88,35 +88,115 @@ body {
   content: '🔇';
   margin-left: 4px;
 }
-.edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: rgba(6, 7, 11, 0.92);
-  color: #e8eaf2;
-  font-size: 12px;
-}
-.edit[hidden] {
-  display: none;
-}
-.edit button {
-  margin-left: auto;
-  border: 0;
-  border-radius: 8px;
-  padding: 4px 12px;
-  background: #2ef2b0;
-  color: #06070b;
-  font-weight: 700;
-  cursor: pointer;
-}
+/* The corner that resizes the panel (only while editing). */
 .grip {
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: 18px;
+  height: 18px;
   border-right: 3px solid #2ef2b0;
   border-bottom: 3px solid #2ef2b0;
   cursor: nwse-resize;
+}
+.grip[hidden] {
+  display: none;
+}
+
+/* Editing: the screen dims so it is clear the mouse is in the overlay, not in the game. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 5, 9, 0.55);
+  animation: fade 0.18s ease-out;
+}
+.backdrop[hidden],
+.bar[hidden] {
+  display: none;
+}
+.bar {
+  position: fixed;
+  z-index: 2;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 40px);
+  padding: 8px 10px 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(14, 16, 22, 0.96);
+  color: #e8eaf2;
+  font-size: 13px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+  animation: fade 0.18s ease-out;
+}
+.title {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.title::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #2ef2b0;
+  vertical-align: 1px;
+}
+.group {
+  display: flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.bar button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: transparent;
+  color: #b9bfcc;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.bar button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.bar button[aria-pressed='true'] {
+  background: rgba(46, 242, 176, 0.16);
+  color: #2ef2b0;
+}
+.chip {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.hint {
+  color: #8a91a1;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bar .done {
+  background: #2ef2b0;
+  color: #06070b;
+  font-weight: 700;
+}
+.bar .done:hover {
+  background: #5ff6c4;
+  color: #06070b;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 .toast {
   position: fixed;

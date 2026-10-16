@@ -53,6 +53,12 @@ import {
 } from '../../shared/util/rich-text';
 import { ApiService } from '../../core/services/api.service';
 import { UiService } from '../../core/services/ui.service';
+import {
+  SoundboardStore,
+  soundAsFile,
+  type CustomSound,
+} from '../../core/services/soundboard.store';
+import { SettingsService } from '../../core/services/settings.service';
 import { MessageStore, type OutgoingFile, type ViewMessage } from '../../store/message.store';
 import { PresetShareComponent } from './preset-share.component';
 
@@ -505,88 +511,164 @@ const GRADIENTS = [
             </button>
             @if (plusOpen()) {
               <div
-                class="anim-pop absolute bottom-12 right-0 z-30 w-72 origin-bottom-right overflow-hidden rounded-ui-lg border border-white/10 bg-ink-800 shadow-2xl"
+                class="anim-pop absolute bottom-12 right-0 z-30 w-80 max-w-[calc(100vw-1.5rem)] origin-bottom-right overflow-hidden rounded-ui-lg border border-white/10 bg-ink-800 shadow-2xl"
                 (mousedown)="$event.stopPropagation()"
               >
-                <div
-                  class="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
-                >
-                  {{ 'Add to your message' | t }}
-                </div>
-                <div class="grid grid-cols-3 gap-1.5 px-2.5 pb-1 pt-1.5">
-                  <button
-                    type="button"
-                    class="sb-tile anim-fade-up"
-                    style="--d: 0ms"
-                    (click)="plusOpen.set(false); photo.click()"
-                  >
-                    <span class="menu-icon !h-10 !w-10 bg-sky/15 text-sky"
-                      ><app-icon name="image" [size]="19"
-                    /></span>
-                    <span class="text-[0.6875rem] font-semibold">{{ 'Photo or video' | t }}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="sb-tile anim-fade-up"
-                    style="--d: 30ms"
-                    (click)="plusOpen.set(false); file.click()"
-                  >
-                    <span class="menu-icon !h-10 !w-10 bg-violet/15 text-violet"
-                      ><app-icon name="paperclip" [size]="19"
-                    /></span>
-                    <span class="text-[0.6875rem] font-semibold">{{ 'File' | t }}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="sb-tile anim-fade-up"
-                    style="--d: 60ms"
-                    (click)="plusOpen.set(false); startRecording()"
-                  >
-                    <span class="menu-icon !h-10 !w-10 bg-coral/15 text-coral"
-                      ><app-icon name="mic" [size]="19"
-                    /></span>
-                    <span class="text-[0.6875rem] font-semibold">{{ 'Voice note' | t }}</span>
-                  </button>
-                </div>
-                <p class="px-4 pb-2 pt-1 text-[0.6875rem] leading-snug text-dim">
-                  {{
-                    'Encrypted before they leave your device. Up to 10 MB each. You can also paste or drop them in the chat.'
-                      | t
-                  }}
-                </p>
-                <div class="mx-3 border-t border-white/6"></div>
-                <div class="p-1.5">
-                  <button
-                    type="button"
-                    class="menu-card anim-fade-up"
-                    style="--d: 90ms"
-                    (click)="plusOpen.set(false); openSpinly()"
-                  >
-                    <span class="menu-icon !bg-white/5"><app-spinly-logo [size]="28" /></span>
-                    <span class="min-w-0 flex-1"
-                      ><b class="block text-sm">Spinly</b
-                      ><span class="block text-xs text-muted">{{
-                        'A wheel or tournament everybody can run' | t
-                      }}</span></span
+                @if (plusView() === 'sounds') {
+                  <!-- Your sounds: one press sends it; whoever gets it can add it to their soundboard. -->
+                  <div class="flex items-center gap-1.5 px-2 pb-1 pt-2">
+                    <button
+                      type="button"
+                      class="btn btn-icon btn-sm btn-ghost"
+                      [attr.aria-label]="'Back' | t"
+                      (click)="plusView.set('main')"
                     >
-                  </button>
-                  <button
-                    type="button"
-                    class="menu-card anim-fade-up"
-                    style="--d: 120ms"
-                    (click)="plusOpen.set(false); presetShareOpen.set(true)"
-                  >
-                    <span class="menu-icon bg-violet/15 text-violet"
-                      ><app-icon name="palette" [size]="18"
-                    /></span>
-                    <span class="min-w-0 flex-1"
-                      ><b class="block text-sm">{{ 'Share a preset' | t }}</b
-                      ><span class="block text-xs text-muted">{{
-                        'Your profile or the look of the app, to import with one button' | t
-                      }}</span></span
+                      <app-icon name="arrow-left" [size]="15" />
+                    </button>
+                    <span
+                      class="text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
+                      >{{ 'Send a sound' | t }}</span
                     >
-                  </button>
-                </div>
+                  </div>
+                  @if (soundCategories().length) {
+                    <div class="flex gap-1.5 overflow-x-auto px-2.5 pb-1.5">
+                      <button
+                        type="button"
+                        class="chip shrink-0 !px-2.5 !py-1"
+                        [class.chip-accent]="soundCategory() === null"
+                        (click)="soundCategory.set(null)"
+                      >
+                        {{ 'All' | t }}
+                      </button>
+                      @for (c of soundCategories(); track c.id) {
+                        <button
+                          type="button"
+                          class="chip shrink-0 !px-2.5 !py-1"
+                          [class.chip-accent]="soundCategory() === c.id"
+                          (click)="soundCategory.set(c.id)"
+                        >
+                          {{ c.name }}
+                        </button>
+                      }
+                    </div>
+                  }
+                  <div
+                    class="grid max-h-64 grid-cols-3 gap-1.5 overflow-y-auto px-2.5 pb-2.5 pt-0.5"
+                  >
+                    @for (clip of shownSounds(); track clip.id) {
+                      <button type="button" class="sb-tile" (click)="sendSound(clip)">
+                        @if (clip.emoji) {
+                          <span class="emoji-glyph text-2xl leading-none">{{ clip.emoji }}</span>
+                        } @else {
+                          <app-icon name="music" [size]="20" class="text-amber" />
+                        }
+                        <span class="w-full truncate text-[0.6875rem]">{{ clip.name }}</span>
+                      </button>
+                    } @empty {
+                      <p class="col-span-3 px-1 py-3 text-xs leading-snug text-dim">
+                        {{ 'You have no sounds yet. Add them in the soundboard of a call.' | t }}
+                      </p>
+                    }
+                  </div>
+                  @if (soundCategory() && shownSounds().length > 1) {
+                    <div class="px-2.5 pb-2.5">
+                      <button type="button" class="btn btn-sm w-full" (click)="sendSoundPack()">
+                        <app-icon name="send" [size]="13" /> {{ 'Send the category as a pack' | t }}
+                      </button>
+                    </div>
+                  }
+                } @else {
+                  <div
+                    class="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
+                  >
+                    {{ 'Add to your message' | t }}
+                  </div>
+                  <div class="grid grid-cols-4 gap-1.5 px-2.5 pb-1 pt-1.5">
+                    <button
+                      type="button"
+                      class="sb-tile anim-fade-up"
+                      style="--d: 0ms"
+                      (click)="plusOpen.set(false); photo.click()"
+                    >
+                      <span class="menu-icon !h-10 !w-10 bg-sky/15 text-sky"
+                        ><app-icon name="image" [size]="19"
+                      /></span>
+                      <span class="text-[0.6875rem] font-semibold">{{ 'Photo or video' | t }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="sb-tile anim-fade-up"
+                      style="--d: 30ms"
+                      (click)="plusOpen.set(false); file.click()"
+                    >
+                      <span class="menu-icon !h-10 !w-10 bg-violet/15 text-violet"
+                        ><app-icon name="paperclip" [size]="19"
+                      /></span>
+                      <span class="text-[0.6875rem] font-semibold">{{ 'File' | t }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="sb-tile anim-fade-up"
+                      style="--d: 60ms"
+                      (click)="plusOpen.set(false); startRecording()"
+                    >
+                      <span class="menu-icon !h-10 !w-10 bg-coral/15 text-coral"
+                        ><app-icon name="mic" [size]="19"
+                      /></span>
+                      <span class="text-[0.6875rem] font-semibold">{{ 'Voice note' | t }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="sb-tile anim-fade-up"
+                      style="--d: 90ms"
+                      (click)="openSounds()"
+                    >
+                      <span class="menu-icon !h-10 !w-10 bg-amber/15 text-amber"
+                        ><app-icon name="waveform" [size]="19"
+                      /></span>
+                      <span class="text-[0.6875rem] font-semibold">{{ 'Sounds' | t }}</span>
+                    </button>
+                  </div>
+                  <p class="px-4 pb-2 pt-1 text-[0.6875rem] leading-snug text-dim">
+                    {{
+                      'Encrypted before they leave your device. Up to 10 MB each. You can also paste or drop them in the chat.'
+                        | t
+                    }}
+                  </p>
+                  <div class="mx-3 border-t border-white/6"></div>
+                  <div class="p-1.5">
+                    <button
+                      type="button"
+                      class="menu-card anim-fade-up"
+                      style="--d: 90ms"
+                      (click)="plusOpen.set(false); openSpinly()"
+                    >
+                      <span class="menu-icon !bg-white/5"><app-spinly-logo [size]="28" /></span>
+                      <span class="min-w-0 flex-1"
+                        ><b class="block text-sm">Spinly</b
+                        ><span class="block text-xs text-muted">{{
+                          'A wheel or tournament everybody can run' | t
+                        }}</span></span
+                      >
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-card anim-fade-up"
+                      style="--d: 120ms"
+                      (click)="plusOpen.set(false); presetShareOpen.set(true)"
+                    >
+                      <span class="menu-icon bg-violet/15 text-violet"
+                        ><app-icon name="palette" [size]="18"
+                      /></span>
+                      <span class="min-w-0 flex-1"
+                        ><b class="block text-sm">{{ 'Share a preset' | t }}</b
+                        ><span class="block text-xs text-muted">{{
+                          'Your profile or the look of the app, to import with one button' | t
+                        }}</span></span
+                      >
+                    </button>
+                  </div>
+                }
               </div>
             }
           </div>
@@ -649,6 +731,27 @@ export class MessageInputComponent implements OnDestroy {
     this.spinly.composeForChat(this.channelId());
   }
   protected readonly plusOpen = signal(false);
+  /** What the "+" menu shows: its buttons, or the sounds of the person to send one. */
+  protected readonly plusView = signal<'main' | 'sounds'>('main');
+  /** The category of sounds shown in that list (null: all of them). */
+  protected readonly soundCategory = signal<string | null>(null);
+  private readonly soundboard = inject(SoundboardStore);
+  private readonly appSettings = inject(SettingsService);
+  /** The categories of sounds of the person. */
+  protected readonly soundCategories = computed(
+    function (this: MessageInputComponent) {
+      return this.appSettings.soundCategories();
+    }.bind(this),
+  );
+  /** The sounds of the list: all, or the ones of the chosen category. */
+  protected readonly shownSounds = computed(
+    function (this: MessageInputComponent) {
+      const category = this.soundCategory();
+      return this.soundboard.clips().filter(function inCategory(clip) {
+        return category === null || clip.category === category;
+      });
+    }.bind(this),
+  );
   /** Whether the window to send a preset is open. */
   protected readonly presetShareOpen = signal(false);
 
@@ -697,6 +800,7 @@ export class MessageInputComponent implements OnDestroy {
     this.toolbar.set(false);
     this.pickerOpen.set(false);
     this.plusOpen.set(false);
+    this.plusView.set('main');
     if (wasOpen) return;
     if (which === 'toolbar') this.toolbar.set(true);
     else if (which === 'picker') this.pickerOpen.set(true);
@@ -745,14 +849,6 @@ export class MessageInputComponent implements OnDestroy {
   private recStart = 0;
 
   constructor() {
-    // The soundboard sends sounds to the chat that is open.
-    effect(
-      function announce(this: MessageInputComponent) {
-        const id = this.channelId();
-        untracked(this.ui.chatChannelId.set.bind(this.ui.chatChannelId, id));
-      }.bind(this),
-    );
-    inject(DestroyRef).onDestroy(this.ui.chatChannelId.set.bind(this.ui.chatChannelId, null));
     // Switching conversations keeps the draft per channel.
     effect(
       function (this: MessageInputComponent) {
@@ -1030,6 +1126,39 @@ export class MessageInputComponent implements OnDestroy {
       });
     } catch (error) {
       this.toast.error(this.i18n.t('Could not send the GIF'), describeError(error));
+    }
+  }
+
+  /** Shows the sounds of the person in the "+" menu (they are read from this device the first time). */
+  protected openSounds(): void {
+    void this.soundboard.load();
+    this.plusView.set('sounds');
+  }
+
+  /** Sends one sound of the person: whoever gets it can add it to their soundboard. */
+  protected sendSound(clip: CustomSound): void {
+    this.plusOpen.set(false);
+    this.plusView.set('main');
+    void this.sendDirect(soundAsFile(clip));
+  }
+
+  /** Sends all the sounds of the chosen category as a pack: whoever gets it adds all of them with one button. */
+  protected async sendSoundPack(): Promise<void> {
+    const category = this.soundCategories().find(
+      function same(this: MessageInputComponent, entry: { id: string }) {
+        return entry.id === this.soundCategory();
+      }.bind(this),
+    );
+    const files = this.shownSounds().map(function toFile(clip) {
+      return soundAsFile(clip, category?.name ?? '');
+    });
+    this.plusOpen.set(false);
+    this.plusView.set('main');
+    try {
+      await this.store.send(this.channelId(), { text: '', files });
+      this.sent.emit();
+    } catch (error) {
+      this.toast.error(this.i18n.t('Message not sent'), describeError(error));
     }
   }
 

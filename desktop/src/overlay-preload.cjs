@@ -1,7 +1,8 @@
 /**
  * desktop/src/overlay-preload.cjs
  * The only things the overlay window can do: hear the choices, the people and the signalling of the local video connection
- * from the main process, and send back its own signalling, the place where the person left the panel and "editing ended".
+ * from the main process, and send back its own signalling, the place where the person left the panel, a few choices of
+ * the editing bar (size, who is shown, names) and "editing ended".
  * ! No generic IPC and no Node here (desktop/test/desktop.mjs checks the list).
  */
 'use strict';
@@ -35,8 +36,11 @@ function saveLayout(layout, finished) {
 function stopEditing() {
   ipcRenderer.send('overlay:stop-editing');
 }
+function choose(patch) {
+  ipcRenderer.send('overlay:choose', patch);
+}
 
 contextBridge.exposeInMainWorld(
   'chatterlyOverlay',
-  Object.freeze({ onConfig, onTiles, onSignal, signal, saveLayout, stopEditing }),
+  Object.freeze({ onConfig, onTiles, onSignal, signal, saveLayout, stopEditing, choose }),
 );

@@ -14,10 +14,14 @@ let announced = false;
 
 const panel = document.getElementById('panel');
 const list = document.getElementById('tiles');
-const edit = document.getElementById('edit');
+const backdrop = document.getElementById('backdrop');
+const bar = document.getElementById('bar');
 const hint = document.getElementById('hint');
 const done = document.getElementById('done');
 const grip = document.getElementById('grip');
+const only = document.getElementById('only');
+const names = document.getElementById('names');
+const sizeButtons = bar.querySelectorAll('[data-size]');
 
 let config = null;
 let tiles = [];
@@ -86,8 +90,14 @@ function render() {
   style.setProperty('--scale', String(config.scale));
   style.setProperty('--opacity', String(config.opacity / 100));
   panel.classList.toggle('editing', config.editing);
-  edit.hidden = !config.editing;
-  hint.textContent = config.hint;
+  backdrop.hidden = !config.editing;
+  bar.hidden = !config.editing;
+  grip.hidden = !config.editing;
+  if (config.editing) {
+    drawBar();
+    // The notice of the start would sit under the bar.
+    document.getElementById('toast').hidden = true;
+  }
   const shown = tiles.filter(function isShown(tile) {
     return config.editing || !config.onlySpeaking || tile.speaking;
   });
@@ -109,6 +119,31 @@ function render() {
     }
   }
   place();
+}
+
+/** The bar of the editing mode: the texts in the language of the app and which choices are on. */
+function drawBar() {
+  const labels = config.labels;
+  document.getElementById('title').textContent = labels.title;
+  hint.textContent = config.hint;
+  done.textContent = labels.done;
+  only.textContent = labels.onlySpeaking;
+  only.setAttribute('aria-pressed', String(config.onlySpeaking));
+  names.textContent = labels.showNames;
+  names.setAttribute('aria-pressed', String(config.showNames));
+  for (const button of sizeButtons) {
+    button.textContent = labels[button.dataset.size];
+    button.setAttribute('aria-pressed', String(config.size === button.dataset.size));
+  }
+}
+
+/** A button of the bar: a size, or turning "only who talks" or the names on or off. */
+function onBarClick(event) {
+  const button = event.target.closest('button');
+  if (!button || !config) return;
+  if (button.dataset.size) window.chatterlyOverlay.choose({ size: button.dataset.size });
+  else if (button === only) window.chatterlyOverlay.choose({ onlySpeaking: !config.onlySpeaking });
+  else if (button === names) window.chatterlyOverlay.choose({ showNames: !config.showNames });
 }
 
 /** Tells the app where the panel is now (as fractions of the screen) and how big. */
@@ -167,7 +202,7 @@ let drag = null;
 
 /** The pointer went down on the panel (to move it) or on the corner (to resize it). */
 function onPointerDown(event) {
-  if (!config || !config.editing || event.target === done) return;
+  if (!config || !config.editing) return;
   const rect = panel.getBoundingClientRect();
   drag = {
     resize: event.target === grip,
@@ -243,5 +278,6 @@ panel.addEventListener('pointerdown', onPointerDown);
 panel.addEventListener('pointermove', onPointerMove);
 panel.addEventListener('pointerup', onPointerUp);
 done.addEventListener('click', onDone);
+bar.addEventListener('click', onBarClick);
 window.addEventListener('keydown', onKey);
 window.addEventListener('resize', place);

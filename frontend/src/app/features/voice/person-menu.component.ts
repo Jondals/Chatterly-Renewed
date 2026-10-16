@@ -1,6 +1,7 @@
 /**
  * src/app/features/voice/person-menu.component.ts
- * The menu of a right click on a person of a call: their volume for this device (0 to 200 %) and hiding their tile.
+ * The menu of a right click (or a long press on a phone) on a person of a call: their volume for this device (0 to
+ * 200 %), the volume of the screen they share when it has sound, and hiding their tile.
  *
  * It opens right next to the cursor, in the top layer of the browser (so no container with a transform or a hidden
  * overflow can move or clip it), it can be dragged by its title and it closes with a press anywhere else, with Escape or
@@ -123,6 +124,29 @@ const CURSOR_GAP = 4;
         </div>
         <div class="my-1 h-px bg-white/8"></div>
       }
+      @if (canAdjust() && call.screenSound()[userId()]) {
+        <!-- The sound of the screen they share (a stream, a game) has its own volume, apart from their voice. -->
+        <div class="px-2.5 pb-2 pt-1.5">
+          <div class="mb-1.5 flex items-center justify-between text-xs text-muted">
+            <span class="flex items-center gap-1.5"
+              ><app-icon name="monitor" [size]="14" /> {{ 'Stream volume' | t }}</span
+            >
+            <b class="font-mono text-fg">{{ streamPercent() }}%</b>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="200"
+            step="5"
+            class="w-full accent-[var(--accent)]"
+            [attr.aria-label]="'Stream volume' | t"
+            [value]="streamPercent()"
+            (input)="call.setScreenVolume(userId(), +$any($event.target).value)"
+            (dblclick)="call.setScreenVolume(userId(), 100)"
+          />
+        </div>
+        <div class="my-1 h-px bg-white/8"></div>
+      }
       <button
         type="button"
         class="flex w-full items-center gap-2.5 rounded-ui px-3 py-2 text-left text-sm hover:bg-white/8"
@@ -153,7 +177,7 @@ export class PersonMenuComponent implements OnDestroy {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly settings = inject(SettingsService);
-  private readonly call = inject(CallService);
+  protected readonly call = inject(CallService);
 
   /** Where the menu is now (it moves when it is dragged). */
   protected readonly place = signal({ x: -9999, y: -9999 });
@@ -165,6 +189,11 @@ export class PersonMenuComponent implements OnDestroy {
   /** Opens in the top layer, next to the cursor, and starts listening for a press outside. */
   constructor() {
     afterNextRender(this.open.bind(this));
+  }
+
+  /** The volume of the screen the person shares, in percent (100 when it was never changed). */
+  protected streamPercent(): number {
+    return this.settings.screenVolumes()[this.userId()] ?? 100;
   }
 
   /** The volume of the person in percent (100 when it was never changed). */

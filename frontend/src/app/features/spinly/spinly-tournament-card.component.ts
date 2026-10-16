@@ -7,7 +7,6 @@
 import {
   Component,
   DestroyRef,
-  HostListener,
   computed,
   effect,
   inject,
@@ -31,6 +30,7 @@ import {
 } from './spinly-engine';
 import { SpinlyWheelComponent, type WheelOrder, type WheelSector } from './spinly-wheel.component';
 import { isTypingOrBlocked } from './spinly-wheel-card.component';
+import { listenWhile } from '../../shared/util/listen-while';
 
 /** Pause after a spin stops before the next one starts (ms). */
 const PAUSE_MS = 900;
@@ -864,7 +864,19 @@ export class SpinlyTournamentCardComponent implements OnInit {
   }
 
   /** The space bar spins the next duel, unless the person is typing or a window is open. */
-  @HostListener('window:keydown', ['$event'])
+  /** Only the cards that can be spun with the space bar listen to the keyboard (not every card of the history). */
+  private readonly spaceKey = listenWhile(
+    this.listensForSpace.bind(this),
+    window,
+    'keydown',
+    this.onSpace.bind(this) as (event: Event) => void,
+  );
+
+  /** Whether this card spins with the space bar now. */
+  private listensForSpace(): boolean {
+    return this.spaceSpins();
+  }
+
   protected onSpace(event: KeyboardEvent): void {
     if (event.code !== 'Space') {
       return;

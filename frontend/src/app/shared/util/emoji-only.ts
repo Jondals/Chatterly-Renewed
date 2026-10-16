@@ -21,11 +21,8 @@ function bare(text: string): string {
   return text.replace(INVISIBLE, '').trim();
 }
 
-/** Only emoji, up to MAX_EMOJI of them, with any spaces between them. */
+/** Only emoji, as many as there are, with any spaces between them. */
 const EMOJI = new RegExp('^' + ONE + '(?:\\s*' + ONE + ')*$', 'u');
-
-/** Above this many emoji the message is drawn as normal text (a wall of emoji is a text, not a sticker). */
-const MAX_EMOJI = 80;
 
 /** Splits a text into what a person sees as characters (an emoji with its skin tone or a family is one). */
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -41,10 +38,10 @@ export function emojiCountOf(text: string): number {
   return count;
 }
 
-/** True when the text (ignoring spaces) is only emoji: one to MAX_EMOJI of them. */
+/** True when the text (ignoring spaces) is only emoji, however many: it never gets a bubble. */
 export function isOnlyEmoji(text: string): boolean {
   const trimmed = bare(text);
-  return trimmed.length > 0 && EMOJI.test(trimmed) && emojiCountOf(trimmed) <= MAX_EMOJI;
+  return trimmed.length > 0 && EMOJI.test(trimmed);
 }
 
 /** The kinds of emoji that have their own little animation when they are alone in a message (the first one counts). */

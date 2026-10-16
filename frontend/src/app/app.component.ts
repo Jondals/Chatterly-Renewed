@@ -65,6 +65,12 @@ function weightOf(target: HTMLElement): PressWeight {
 }
 
 /** The application shell. */
+/** True when some text of the page is selected. */
+function hasSelection(): boolean {
+  const selection = window.getSelection();
+  return !!selection && !selection.isCollapsed && selection.toString().trim() !== '';
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -125,6 +131,8 @@ export class AppComponent {
   private readonly wheelHandler = this.onWheel.bind(this);
   /** The pending long press of a finger, and where it started. */
   private press: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null;
+  /** Whether text was already selected when the finger went down (then a long press is for copying it). */
+  private selectedAtPress = false;
 
   constructor() {
     // The cursor engine, the tooltips and the uploaded fonts are not needed for the first paint: they load right after it.
@@ -144,6 +152,8 @@ export class AppComponent {
     // ! Not passive: the page must not scroll while the wheel turns over a slider.
     document.addEventListener('wheel', this.wheelHandler, { passive: false });
     document.addEventListener('pointerdown', this.onFingerDown.bind(this), { passive: true });
+    // ! Capture: it runs before the menus of the app, so it can leave the phone its own copy and paste menu.
+    document.addEventListener('contextmenu', this.onContextMenu.bind(this), { capture: true });
     document.addEventListener('pointermove', this.onFingerMove.bind(this), { passive: true });
     document.addEventListener('pointerup', this.cancelPress.bind(this), { passive: true });
     document.addEventListener('pointercancel', this.cancelPress.bind(this), { passive: true });
@@ -203,19 +213,42 @@ export class AppComponent {
     }
   }
 
-  /** The browser's own context menu is blocked everywhere (the app has its own menus). */
-  @HostListener('document:contextmenu', ['$event'])
-  onContextMenu(event: Event): void {
-    event.preventDefault();
+  /**
+   * The browser's own context menu is blocked (the app has its own menus), except on a phone where the system menu is the
+   * one that copies and pastes: a long press in a text box (Paste, Select all...) or on text that was already selected
+   * (Copy, Share...). Then the menus of the app do not open.
+   */
+  private onContextMenu(event: Event): void {
     // A phone that sent the event by itself (Android) does not need ours.
     if (event.isTrusted) {
       this.cancelPress();
     }
+    if (event.isTrusted && this.wantsSystemMenu(event.target)) {
+      event.stopPropagation();
+      return;
+    }
+    event.preventDefault();
+  }
+
+  /** True for a long press of a finger in a text box, or on text that was selected before the finger went down. */
+  private wantsSystemMenu(target: EventTarget | null): boolean {
+    if (!window.matchMedia('(pointer: coarse)').matches || !(target instanceof Element)) {
+      return false;
+    }
+    if (
+      target.closest(
+        'textarea, [contenteditable="true"], input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="email"], input[type="password"]',
+      )
+    ) {
+      return true;
+    }
+    return this.selectedAtPress && hasSelection();
   }
 
   /** A finger went down: if it stays still for a moment it counts as a right click. */
   private onFingerDown(event: PointerEvent): void {
     this.cancelPress();
+    this.selectedAtPress = hasSelection();
     if (event.pointerType !== 'touch') {
       return;
     }

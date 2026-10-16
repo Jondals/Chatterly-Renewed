@@ -5,7 +5,7 @@
  * * The Android WebView cannot capture the screen, so the system captures it (ScreenForegroundService) and the page
  *   gets the pictures as "frame" events (a JPEG in base64 and its size), draws them on a canvas and sends the canvas to
  *   the call as a video. A "stopped" event tells the page that the capture ended (the person tapped stop in the
- *   status bar, or the system ended it).
+ *   status bar, or the system ended it). With "audio" (Android 10+) the sound of the other apps comes as "audio" events.
  * ! The page chooses only the size and the pace of the pictures, inside fixed limits (checked again in the service);
  *   the system always asks the person first with its own dialog, every time. This app's own window is blocked from
  *   capture (FLAG_SECURE), so sharing shows the other apps, never the conversations of Chatterly.
@@ -43,6 +43,13 @@ public class ScreenSharePlugin extends Plugin {
         public void onStopped() {
             notifyListeners("stopped", new JSObject());
         }
+
+        @Override
+        public void onAudio(String pcmBase64) {
+            JSObject piece = new JSObject();
+            piece.put("data", pcmBase64);
+            notifyListeners("audio", piece);
+        }
     };
 
     /** Asks the person (system dialog) to allow capturing the screen; the capture starts when they accept. */
@@ -76,6 +83,7 @@ public class ScreenSharePlugin extends Plugin {
         service.putExtra(ScreenForegroundService.EXTRA_LONG_SIDE, clamp(call.getInt("longSide", 1280), 480, 1920));
         service.putExtra(ScreenForegroundService.EXTRA_FPS, clamp(call.getInt("fps", 12), 1, 30));
         service.putExtra(ScreenForegroundService.EXTRA_QUALITY, clamp(call.getInt("quality", 60), 30, 90));
+        service.putExtra(ScreenForegroundService.EXTRA_AUDIO, Boolean.TRUE.equals(call.getBoolean("audio", false)));
         ScreenForegroundService.listener = toPage;
         try {
             ContextCompat.startForegroundService(getContext(), service);

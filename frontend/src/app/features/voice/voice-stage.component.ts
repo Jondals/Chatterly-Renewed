@@ -539,32 +539,36 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           <div>
                             <b class="block text-sm">{{ 'Share your screen' | t }}</b>
                             <span class="block text-xs text-muted">{{
-                              (desktop
-                                ? 'A screen is shared at once; for a window you pick which one next.'
-                                : 'The browser will ask you to confirm what to show.'
+                              (android
+                                ? 'Android asks next what to share: the whole screen or one app.'
+                                : desktop
+                                  ? 'A screen is shared at once; for a window you pick which one next.'
+                                  : 'The browser will ask you to confirm what to show.'
                               ) | t
                             }}</span>
                           </div>
                         </div>
-                        <div class="label mb-1.5">{{ 'What to share' | t }}</div>
-                        <div
-                          class="grid gap-2"
-                          [class.grid-cols-3]="!desktop"
-                          [class.grid-cols-2]="desktop"
-                        >
-                          @for (option of surfaceChoices; track option.id) {
-                            <button
-                              type="button"
-                              class="sb-tile"
-                              [class.is-hit]="settings.screenShare().surface === option.id"
-                              (click)="setShare({ surface: option.id })"
-                            >
-                              <app-icon [name]="option.icon" [size]="20" />
-                              <span class="text-[0.6875rem]">{{ option.label | t }}</span>
-                            </button>
-                          }
-                        </div>
-                        <div class="label mb-1.5 mt-3.5">{{ 'Quality' | t }}</div>
+                        @if (!android) {
+                          <div class="label mb-1.5">{{ 'What to share' | t }}</div>
+                          <div
+                            class="mb-3.5 grid gap-2"
+                            [class.grid-cols-3]="!desktop"
+                            [class.grid-cols-2]="desktop"
+                          >
+                            @for (option of surfaceChoices; track option.id) {
+                              <button
+                                type="button"
+                                class="sb-tile"
+                                [class.is-hit]="settings.screenShare().surface === option.id"
+                                (click)="setShare({ surface: option.id })"
+                              >
+                                <app-icon [name]="option.icon" [size]="20" />
+                                <span class="text-[0.6875rem]">{{ option.label | t }}</span>
+                              </button>
+                            }
+                          </div>
+                        }
+                        <div class="label mb-1.5">{{ 'Quality' | t }}</div>
                         <div class="grid grid-cols-3 gap-2">
                           @for (option of shareQualities; track option.id) {
                             <button
@@ -1878,9 +1882,9 @@ export class VoiceStageComponent {
   ];
 
   /**
-   * The button of the screen: stops sharing. To start, in the desktop app it opens the menu (what to share, quality, sound:
-   * nothing else asks for them there); in a browser it starts at once, as the browser asks what to show (the menu is on the
-   * right click).
+   * The button of the screen: stops sharing. To start, in the desktop app and the Android app it opens the menu (what to
+   * share, quality, sound: nothing else asks for them there); in a browser it starts at once, as the browser asks what to
+   * show (the menu is on the right click).
    */
   protected screenClick(): void {
     if (this.android && !this.androidShare) {
@@ -1895,7 +1899,9 @@ export class VoiceStageComponent {
       void this.call.toggleScreen();
       return;
     }
-    if (this.desktop) {
+    // The desktop app and the Android app open the menu first (what to share, quality, sound); then the picker of the
+    // app or the dialog of Android asks what to show.
+    if (this.desktop || this.android) {
       const open = !this.shareOpen();
       this.closeOthers();
       this.shareOpen.set(open);
@@ -1909,8 +1915,7 @@ export class VoiceStageComponent {
   /** The right click on the button of the screen opens its options (quality, sound, what to offer). */
   protected shareOptions(event: Event): void {
     event.preventDefault();
-    // The Android app has nothing to choose here: the system asks what to share.
-    if (this.call.screenOn() || this.android) {
+    if (this.call.screenOn()) {
       return;
     }
     const open = !this.shareOpen();

@@ -130,8 +130,41 @@ export async function checkSockets(): Promise<void> {
     'a signal addressed to somebody outside the room is not delivered to them',
   );
   await checkFloods(alice, bob, dm, a, b);
+  await checkSettingsNotice(app, alice, a, b);
   await checkOneDevicePerCall(port, alice, bob, dm, a, b);
   await app.close();
+}
+
+/** Saving the settings tells the other devices of the same person (only the version), and nobody else. */
+async function checkSettingsNotice(
+  app: Awaited<ReturnType<typeof makeApp>>,
+  alice: Awaited<ReturnType<typeof signUp>>,
+  a: Awaited<ReturnType<typeof openSocket>>,
+  b: Awaited<ReturnType<typeof openSocket>>,
+): Promise<void> {
+  const saved = await call(app, alice, 'PUT', '/api/me/settings', {
+    iv: 'AAAAAAAAAAAAAAAA',
+    ciphertext: 'A'.repeat(32),
+    base: 0,
+  });
+  const version = saved.json().updatedAt;
+  check(
+    await until(function told() {
+      return a.frames.some(function isNotice(f) {
+        return f['t'] === 'settings.changed' && f['updatedAt'] === version;
+      });
+    }),
+    'a device of the person hears that the settings changed (with the new version only)',
+  );
+  check(
+    a.frames.every(function noBlob(f) {
+      return f['t'] !== 'settings.changed' || !('ciphertext' in f);
+    }) &&
+      !b.frames.some(function isNotice(f) {
+        return f['t'] === 'settings.changed';
+      }),
+    'the notice carries no settings and reaches nobody else',
+  );
 }
 
 /** A client repeating "typing" or the same status cannot make the server flood the others with them. */

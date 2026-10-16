@@ -26,7 +26,6 @@ import { SoundboardStore, type CustomSound } from '../core/services/soundboard.s
 import { SOUNDBOARD, SoundService, type SfxId } from '../core/services/sound.service';
 import { ToastService } from '../core/services/toast.service';
 import { UiService } from '../core/services/ui.service';
-import { MessageStore, type OutgoingFile } from '../store/message.store';
 import { IconComponent } from '../shared/components/icon.component';
 
 /** What a tile of the soundboard is: an effect of the app or a sound of the person. */
@@ -164,9 +163,6 @@ const CATEGORY_NAME_MAX = 20;
       @if (category(); as c) {
         <div class="flex items-center gap-2 border-b border-white/8 px-5 py-2 text-xs text-muted">
           <span class="min-w-0 flex-1 truncate font-semibold text-fg">{{ c.name }}</span>
-          <button type="button" class="btn btn-sm btn-ghost gap-1" (click)="sharePack(c.id)">
-            <app-icon name="send" [size]="12" /> {{ 'Share as a pack' | t }}
-          </button>
           <button type="button" class="btn btn-sm btn-ghost gap-1" (click)="renameCategory(c.id)">
             <app-icon name="edit" [size]="12" /> {{ 'Rename' | t }}
           </button>
@@ -245,15 +241,6 @@ const CATEGORY_NAME_MAX = 20;
                       >
                         <app-icon name="edit" [size]="11" />
                       </button>
-                      <button
-                        type="button"
-                        class="sb-act absolute bottom-1 left-1 hidden h-5 w-5 items-center justify-center rounded-full bg-black/70 text-muted group-hover:flex"
-                        (click)="shareClip(tile.clip)"
-                        [attr.aria-label]="'Send to the chat' | t"
-                        [attr.title]="'Send to the chat' | t"
-                      >
-                        <app-icon name="send" [size]="11" />
-                      </button>
                       @if (settings.soundCategories().length) {
                         <button
                           type="button"
@@ -308,7 +295,6 @@ export class SoundboardDockComponent {
   private readonly dialog = inject(DialogService);
   private readonly menu = inject(ContextMenuService);
   private readonly injector = inject(EnvironmentInjector);
-  private readonly messages = inject(MessageStore);
   /** The tab shown: 'all' or the id of a category. */
   protected readonly current = signal('all');
   /** The sound that was just played (it lights up for a moment). */
@@ -535,62 +521,6 @@ export class SoundboardDockComponent {
       }
     }
     this.menu.open(event, items);
-  }
-
-  /** A sound of the person as a file of a message, marked for the soundboard of whoever receives it. */
-  private fileOf(clip: CustomSound, pack?: string): OutgoingFile {
-    const type = clip.blob.type || 'audio/wav';
-    const extension = type.includes('mpeg') ? '.mp3' : type.includes('ogg') ? '.ogg' : '.wav';
-    return {
-      data: clip.blob,
-      name: clip.name + extension,
-      mime: type,
-      soundboard: true,
-      emoji: clip.emoji,
-      pack,
-    };
-  }
-
-  /** Sends a message with these sounds to the chat that is open (or says there is none). */
-  private async sendToChat(files: OutgoingFile[]): Promise<void> {
-    const channel = this.ui.chatChannelId();
-    if (!channel || files.length === 0) {
-      this.toast.error(this.i18n.t('Open a chat to send it there.'));
-      return;
-    }
-    try {
-      await this.messages.send(channel, { text: '', files });
-      this.toast.success(this.i18n.t('Sent to the chat'));
-    } catch (e) {
-      this.toast.error(
-        this.i18n.t('Message not sent'),
-        this.i18n.t(e instanceof Error ? e.message : 'Unknown error'),
-      );
-    }
-  }
-
-  /** Sends one sound to the chat: the people who get it can add it to their soundboard. */
-  protected shareClip(clip: CustomSound): Promise<void> {
-    return this.sendToChat([this.fileOf(clip)]);
-  }
-
-  /** Sends all the sounds of a category as a pack: whoever gets it adds all of them with one button. */
-  protected sharePack(categoryId: string): Promise<void> {
-    const category = this.settings.soundCategories().find(function same(entry) {
-      return entry.id === categoryId;
-    });
-    const pack = category?.name ?? '';
-    const files = this.store
-      .clips()
-      .filter(function inCategory(clip) {
-        return clip.category === categoryId;
-      })
-      .map(
-        function toFile(this: SoundboardDockComponent, clip: CustomSound) {
-          return this.fileOf(clip, pack);
-        }.bind(this),
-      );
-    return this.sendToChat(files);
   }
 
   /** Width of the board when it opens from the button of the call. */

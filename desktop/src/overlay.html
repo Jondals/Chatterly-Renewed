@@ -11,13 +11,23 @@
   </head>
   <body>
     <div id="toast" class="toast" hidden></div>
+    <!-- While editing (like the overlay of Discord): the screen dims and a bar on top changes the panel. -->
+    <div id="backdrop" class="backdrop" hidden></div>
+    <div id="bar" class="bar" hidden>
+      <b id="title" class="title"></b>
+      <div class="group" role="radiogroup">
+        <button type="button" data-size="small"></button>
+        <button type="button" data-size="medium"></button>
+        <button type="button" data-size="large"></button>
+      </div>
+      <button id="only" type="button" class="chip"></button>
+      <button id="names" type="button" class="chip"></button>
+      <span id="hint" class="hint"></span>
+      <button id="done" type="button" class="done"></button>
+    </div>
     <div id="panel" class="panel">
       <div id="tiles" class="tiles"></div>
-      <div id="edit" class="edit" hidden>
-        <span id="hint"></span>
-        <button id="done" type="button">OK</button>
-        <span id="grip" class="grip"></span>
-      </div>
+      <span id="grip" class="grip" hidden></span>
     </div>
     <script src="overlay.js"></script>
   </body>

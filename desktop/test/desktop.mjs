@@ -245,8 +245,9 @@ function auditSource() {
     },
   );
   check(
-    overlayChannels.sort().join(',') === 'overlay:layout,overlay:signal-out,overlay:stop-editing',
-    'the overlay window can only send its signalling, its layout and "editing ended"',
+    overlayChannels.sort().join(',') ===
+      'overlay:choose,overlay:layout,overlay:signal-out,overlay:stop-editing',
+    'the overlay window can only send its signalling, its layout, the choices of its bar and "editing ended"',
   );
   check(
     !overlayPreload.slice(overlayPreload.indexOf('exposeInMainWorld(')).includes('ipcRenderer') &&
@@ -260,7 +261,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:choose,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );

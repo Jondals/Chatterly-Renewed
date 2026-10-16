@@ -117,45 +117,55 @@ function toWav(buffer: AudioBuffer, from: number, to: number): Blob {
           }}
         </p>
       }
-      <div class="mt-3 grid grid-cols-2 gap-3 text-xs text-muted">
-        <label class="flex flex-col gap-1">
-          {{ 'Start' | t }}
+      <div class="mt-3 grid grid-cols-2 gap-4 text-xs text-muted">
+        <label class="flex flex-col gap-1.5">
+          <span class="flex justify-between"
+            >{{ 'Start' | t }} <b class="font-mono text-fg">{{ start().toFixed(2) }} s</b></span
+          >
           <input
             type="range"
+            class="ui-range"
             min="0"
             [max]="duration()"
             step="0.01"
             [value]="start()"
+            [style.--p.%]="percentOf(start())"
             [attr.aria-label]="'Start' | t"
             (input)="onStart($event)"
           />
         </label>
-        <label class="flex flex-col gap-1">
-          {{ 'End' | t }}
+        <label class="flex flex-col gap-1.5">
+          <span class="flex justify-between"
+            >{{ 'End' | t }} <b class="font-mono text-fg">{{ end().toFixed(2) }} s</b></span
+          >
           <input
             type="range"
+            class="ui-range"
             min="0"
             [max]="duration()"
             step="0.01"
             [value]="end()"
+            [style.--p.%]="percentOf(end())"
             [attr.aria-label]="'End' | t"
             (input)="onEnd($event)"
           />
         </label>
       </div>
-      <div class="mt-4 flex items-center gap-2">
+      <div class="label mb-1.5 mt-4">{{ 'Name and emoji' | t }}</div>
+      <div class="flex items-center gap-2">
         <button
           type="button"
-          class="btn btn-icon"
+          class="btn btn-icon btn-primary"
           [attr.aria-label]="(playing() ? 'Stop' : 'Play') | t"
           (click)="toggle()"
         >
           <app-icon [name]="playing() ? 'stop' : 'play'" [size]="16" />
         </button>
         <input
-          class="input w-16 text-center text-xl"
+          class="input emoji-glyph w-14 text-center text-xl"
           type="text"
           maxlength="8"
+          placeholder="🎵"
           [value]="emoji()"
           [attr.aria-label]="'Emoji' | t"
           (input)="onEmoji($event)"
@@ -169,11 +179,12 @@ function toWav(buffer: AudioBuffer, from: number, to: number): Blob {
           (input)="onName($event)"
         />
       </div>
-      <div class="mt-2 flex flex-wrap gap-1.5">
+      <div class="mt-2.5 grid grid-cols-10 gap-1">
         @for (option of emojis; track option) {
           <button
             type="button"
-            class="btn btn-sm btn-ghost !px-2 text-lg"
+            class="emoji-pick"
+            [class.is-on]="emoji() === option"
             (click)="emoji.set(option)"
           >
             <span class="emoji-glyph">{{ option }}</span>
@@ -189,18 +200,43 @@ function toWav(buffer: AudioBuffer, from: number, to: number): Blob {
     </app-modal>
   `,
   styles: `
+    .emoji-pick {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border-radius: calc(var(--r) * 0.6);
+      font-size: 1.15rem;
+      transition:
+        background-color 0.18s var(--ease-suave),
+        transform 0.18s var(--ease-suave);
+    }
+    .emoji-pick:hover {
+      background: rgba(255, 255, 255, 0.07);
+      transform: scale(1.08);
+    }
+    .emoji-pick.is-on {
+      background: color-mix(in oklab, var(--accent) 16%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+    }
     .sound-wave {
       display: block;
       width: 100%;
       height: 84px;
+      border: 1px solid var(--line);
       border-radius: var(--r, 10px);
-      background: #0b0d12;
+      background: var(--ink-900);
       cursor: ew-resize;
       touch-action: none;
     }
   `,
 })
 class SoundEditComponent implements AfterViewInit, OnDestroy {
+  /** Where a moment of the sound is along the sliders, in percent (it paints the filled part of the slider). */
+  protected percentOf(seconds: number): number {
+    const total = this.duration();
+    return total > 0 ? (seconds / total) * 100 : 0;
+  }
+
   /** The sound to edit (the original file when it was cut before). */
   readonly source = input.required<Blob>();
   /** What the sound had before (when it is edited, not new). */

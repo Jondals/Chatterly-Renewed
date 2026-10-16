@@ -1246,8 +1246,6 @@ export const ES: Record<string, string> = {
   'Received, decrypted': 'Recibidos, descifrados',
   'Add the pack to my soundboard': 'Añadir el pack a mi tablero de sonidos',
   '{n} sounds added to your soundboard': '{n} sonidos añadidos a tu tablero de sonidos',
-  'Share as a pack': 'Compartir como pack',
-  'Open a chat to send it there.': 'Abre un chat para enviarlo ahí.',
   'Sent to the chat': 'Enviado al chat',
   'Playback speed': 'Velocidad de reproducción',
   'Your voice goes as it comes out of the microphone.': 'Tu voz sale tal como sale del micrófono.',
@@ -1663,8 +1661,8 @@ export const ES: Record<string, string> = {
   'Everybody else disappears until they speak. Cameras and pictures keep the game clear.':
     'El resto desaparece hasta que hable. Así las cámaras y las fotos no tapan el juego.',
   'Adds your own camera or picture to the panel.': 'Añade tu propia cámara o foto al panel.',
-  "Your friends' cameras do not appear if you record your game or share your screen.":
-    'Las cámaras de tus amigos no salen si grabas tu juego o compartes tu pantalla.',
+  "Your friends' cameras do not appear if you record your game or share your screen. On some computers Windows then hides the overlay from your own screen too: if you do not see it, turn this off.":
+    'Las cámaras de tus amigos no salen si grabas tu juego o compartes tu pantalla. En algunos equipos Windows también oculta entonces el overlay de tu propia pantalla: si no lo ves, apágalo.',
   'Small': 'Pequeño',
   'Large': 'Grande',
   'The main screen': 'La pantalla principal',
@@ -1758,4 +1756,12 @@ export const ES: Record<string, string> = {
     'La animación corta del logo antes de que aparezca la app. Apagada: Chatterly se abre directamente.',
   'Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open.':
     'Mantiene Chatterly conectado con una notificación fija, para que las llamadas suenen con la app minimizada o la pantalla apagada. Apagado: sin notificación, y las llamadas solo suenan con la app abierta.',
+  'Back': 'Atrás',
+  'Send a sound': 'Enviar un sonido',
+  'You have no sounds yet. Add them in the soundboard of a call.':
+    'Aún no tienes sonidos. Añádelos en el tablero de sonidos de una llamada.',
+  'Send the category as a pack': 'Enviar la categoría como paquete',
+  'Android asks next what to share: the whole screen or one app.':
+    'Después Android pregunta qué compartir: la pantalla entera o una app.',
+  'Name and emoji': 'Nombre y emoji',
 };

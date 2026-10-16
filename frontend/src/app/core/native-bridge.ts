@@ -82,7 +82,7 @@ interface ListenerHandle {
 
 /** The plugin of the Android app that captures the screen and sends it to the page as pictures. */
 export interface ScreenPlugin {
-  start(options: { longSide: number; fps: number; quality: number }): Promise<void>;
+  start(options: { longSide: number; fps: number; quality: number; audio: boolean }): Promise<void>;
   ack(): Promise<void>;
   stop(): Promise<void>;
   addListener(
@@ -90,6 +90,7 @@ export interface ScreenPlugin {
     listener: (frame: { data: string; width: number; height: number }) => void,
   ): Promise<ListenerHandle>;
   addListener(event: 'stopped', listener: () => void): Promise<ListenerHandle>;
+  addListener(event: 'audio', listener: (piece: { data: string }) => void): Promise<ListenerHandle>;
 }
 
 /** The shape of `window.Capacitor` that is read here (the native bridge of Capacitor puts it on the page). */

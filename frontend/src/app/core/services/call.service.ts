@@ -1027,7 +1027,7 @@ export class CallService {
       video.displaySurface = choice.surface;
     }
     if (androidScreenAvailable()) {
-      await this.shareAndroidScreen(choice.quality);
+      await this.shareAndroidScreen(choice.quality, choice.audio);
       return;
     }
     try {
@@ -1079,10 +1079,13 @@ export class CallService {
     }
   }
 
-  /** The Android app: the system captures the screen (after asking) and the pictures become the video of the call. */
-  private async shareAndroidScreen(quality: string): Promise<void> {
+  /**
+   * The Android app: the system captures the screen (after asking) and the pictures become the video of the call; with
+   * `withSound` the sound of the other apps of the phone goes with it (Android 10+).
+   */
+  private async shareAndroidScreen(quality: string, withSound: boolean): Promise<void> {
     try {
-      const stream = await startAndroidScreen(quality);
+      const stream = await startAndroidScreen(quality, withSound);
       this.localScreen.set(stream);
       this.screenOn.set(true);
       this.lightenCameraFx(true);

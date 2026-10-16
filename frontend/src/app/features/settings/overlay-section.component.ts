@@ -208,7 +208,7 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
       <h2 class="settings-card-title">{{ 'Privacy' | t }}</h2>
       <app-setting-row
         title="Hide it from recordings and shared screens"
-        hint="Your friends' cameras do not appear if you record your game or share your screen."
+        hint="Your friends' cameras do not appear if you record your game or share your screen. On some computers Windows then hides the overlay from your own screen too: if you do not see it, turn this off."
       >
         <app-toggle
           [checked]="settings().hideFromCapture"

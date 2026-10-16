@@ -38,7 +38,7 @@ const INITIAL: OverlayState = {
     onlySpeaking: false,
     showSelf: false,
     showNames: true,
-    hideFromCapture: true,
+    hideFromCapture: false,
     display: 'primary',
     mode: 'always',
     games: [],
