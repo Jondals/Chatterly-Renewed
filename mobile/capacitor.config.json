@@ -18,5 +18,9 @@
       "style": "DARK",
       "insetsHandling": "css"
     }
+  },
+  "ios": {
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false
   }
 }

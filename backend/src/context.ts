@@ -12,4 +12,6 @@ export interface AppContext {
   config: AppConfig;
   hub: Hub;
   throttle: LoginThrottle;
+  /** Erases an account and everything of it (set by the routes of the accounts): used by an owner of the server. */
+  eraseAccount?: (userId: string) => void;
 }

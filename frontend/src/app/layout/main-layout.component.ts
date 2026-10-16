@@ -2,7 +2,7 @@
  * src/app/layout/main-layout.component.ts
  * Structure of the private area: side bars, content and the realtime services.
  */
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -19,6 +19,7 @@ import { SpinlyPanelComponent } from '../features/spinly/spinly-panel.component'
 import { VoiceStageComponent } from '../features/voice/voice-stage.component';
 import { LibrarySyncService } from '../core/services/library-sync.service';
 import { AnnouncementBarComponent } from './announcement-bar.component';
+import { GuestBarComponent } from './guest-bar.component';
 import { GuildModalsComponent } from '../features/guild/guild-modals.component';
 import { preloadEmojiData } from '../shared/util/emoji-data';
 import { GuildStore } from '../store/guild.store';
@@ -41,6 +42,7 @@ const EMOJI_WARM_UP_MS = 6000;
  * layer (socket + stores) exactly once per session.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-main-layout',
   standalone: true,
   imports: [
@@ -56,6 +58,7 @@ const EMOJI_WARM_UP_MS = 6000;
     SpinlyPanelComponent,
     VoiceStageComponent,
     AnnouncementBarComponent,
+    GuestBarComponent,
   ],
   template: `
     <div
@@ -93,6 +96,7 @@ const EMOJI_WARM_UP_MS = 6000;
     }
     <app-incoming-call />
     <app-announcement-bar />
+    <app-guest-bar />
     @defer (on idle) {
       <app-guild-modals />
     }

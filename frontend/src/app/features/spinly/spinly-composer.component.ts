@@ -14,6 +14,7 @@ import {
   signal,
   viewChild,
   type OnInit,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { SpinlyService } from '../../core/services/spinly.service';
@@ -111,6 +112,7 @@ interface Entry {
 
 /** The window to make or edit a wheel or a tournament. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-composer',
   standalone: true,
   imports: [

@@ -2,11 +2,12 @@
  * src/app/shared/components/banner.component.ts
  * Profile banner: an image plus a color or gradient layer with opacity.
  */
-import { Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { bannerLayer } from '../util/banner';
 
 /** Profile banner: the uploaded picture with the (optional) colour or gradient layer on top at its own opacity. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-banner',
   standalone: true,
   template: `

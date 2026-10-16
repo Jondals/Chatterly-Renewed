@@ -17,6 +17,7 @@ import {
   output,
   signal,
   type OnDestroy,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
@@ -28,6 +29,7 @@ import { closeOnBack } from '../../core/services/back.service';
 const CURSOR_GAP = 4;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-person-menu',
   standalone: true,
   imports: [IconComponent, TranslatePipe],
@@ -75,7 +77,7 @@ const CURSOR_GAP = 4;
   template: `
     <div
       class="bar"
-      [class.is-moving]="moving"
+      [class.is-moving]="moving()"
       [attr.title]="'Drag to move' | t"
       (pointerdown)="startMove($event)"
       (pointermove)="move($event)"
@@ -223,7 +225,7 @@ export class PersonMenuComponent implements OnDestroy {
 
   /** Where the menu is now (it moves when it is dragged). */
   protected readonly place = signal({ x: -9999, y: -9999 });
-  protected moving = false;
+  protected readonly moving = signal(false);
   private grab = { x: 0, y: 0 };
   private readonly onOutside = this.outside.bind(this);
   private readonly onKey = this.keydown.bind(this);
@@ -291,14 +293,14 @@ export class PersonMenuComponent implements OnDestroy {
 
   /** The title was pressed: the menu follows the pointer from now on. */
   protected startMove(event: PointerEvent): void {
-    this.moving = true;
+    this.moving.set(true);
     this.grab = { x: event.clientX - this.place().x, y: event.clientY - this.place().y };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   }
 
   /** The menu moves with the pointer, never leaving the screen. */
   protected move(event: PointerEvent): void {
-    if (!this.moving) return;
+    if (!this.moving()) return;
     const el = this.host.nativeElement;
     this.place.set({
       x: Math.min(Math.max(0, event.clientX - this.grab.x), window.innerWidth - el.offsetWidth),
@@ -308,7 +310,7 @@ export class PersonMenuComponent implements OnDestroy {
 
   /** The pointer is let go. */
   protected endMove(event: PointerEvent): void {
-    this.moving = false;
+    this.moving.set(false);
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
   }
 

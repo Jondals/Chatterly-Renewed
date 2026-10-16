@@ -13,6 +13,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { ServerTagPickerComponent } from './server-tag-picker.component';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
@@ -88,6 +89,7 @@ import { NAME_FX, NameFxDirective } from '../../shared/util/name-fx.directive';
 import { PresetsComponent } from './presets.component';
 import { TopLayerDirective } from '../../shared/util/top-layer.directive';
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-profile-section',
   standalone: true,
   host: { class: 'block' },

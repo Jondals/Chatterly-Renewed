@@ -24,7 +24,7 @@ const GIVE_UP_MS = 4000;
 /** The mark that says the introduction already played in this session of the browser. */
 const INTRO_SEEN = 'chatterly.introSeen';
 /** The setting "show the introduction when the app starts" (Settings > Appearance), read here before the settings exist. */
-export const INTRO_ON_START = 'chatterly.pref.introOnStart';
+const INTRO_ON_START = 'chatterly.pref.introOnStart';
 
 /** Plays the arrival animations and says when the page underneath can change. */
 @Injectable({ providedIn: 'root' })

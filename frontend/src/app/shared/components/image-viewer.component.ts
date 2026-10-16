@@ -2,13 +2,14 @@
  * src/app/shared/components/image-viewer.component.ts
  * A picture shown big over the page: a press anywhere or Esc closes it.
  */
-import { Component, HostListener, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { ViewerService } from '../../core/services/viewer.service';
 import { closeOnBack } from '../../core/services/back.service';
 
 /** The big picture of a profile picture. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-image-viewer',
   standalone: true,
   imports: [TranslatePipe],

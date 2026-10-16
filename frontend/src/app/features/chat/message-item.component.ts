@@ -16,6 +16,7 @@ import {
   input,
   output,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -57,6 +58,7 @@ function notSticker(file: ViewAttachment): boolean {
 const LONG_PRESS_MS = 450;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-message-item',
   standalone: true,
   imports: [
@@ -83,10 +85,6 @@ const LONG_PRESS_MS = 450;
       [class.flex-row-reverse]="bubbles() && mine()"
       [class.mt-3]="!compact()"
       (contextmenu)="openMenu($event)"
-      (pointerdown)="pressStart($event)"
-      (pointermove)="pressMove($event)"
-      (pointerup)="pressEnd()"
-      (pointercancel)="pressEnd()"
       (pointerenter)="hovered.set(true)"
       (pointerleave)="hovered.set(false)"
       (focusin)="hovered.set(true)"
@@ -553,8 +551,8 @@ export class MessageItemComponent {
   private pressAt: { x: number; y: number } | null = null;
 
   /** On a screen without hover, holding a message (not a link, button or picture) shows its actions. */
-  protected pressStart(event: PointerEvent): void {
-    if (event.pointerType === 'mouse' || !window.matchMedia('(hover: none)').matches) {
+  private pressStart(event: PointerEvent): void {
+    if (event.pointerType === 'mouse') {
       return;
     }
     const target = event.target as Element | null;
@@ -567,7 +565,7 @@ export class MessageItemComponent {
   }
 
   /** A finger that moves is scrolling, not holding. */
-  protected pressMove(event: PointerEvent): void {
+  private pressMove(event: PointerEvent): void {
     if (
       this.pressAt &&
       Math.hypot(event.clientX - this.pressAt.x, event.clientY - this.pressAt.y) > 10
@@ -576,10 +574,27 @@ export class MessageItemComponent {
     }
   }
 
-  protected pressEnd(): void {
+  private pressEnd(): void {
     clearTimeout(this.pressTimer);
     this.pressAt = null;
   }
+
+  /**
+   * ! Listened to natively and only on a screen without hover: a handler in the template would run change detection on every
+   * move of the pointer over every message of a long chat.
+   */
+  private readonly listenPress = (function (this: MessageItemComponent) {
+    if (!window.matchMedia('(hover: none)').matches) return;
+    const node = this.host.nativeElement;
+    const down = this.pressStart.bind(this);
+    const move = this.pressMove.bind(this);
+    const end = this.pressEnd.bind(this);
+    node.addEventListener('pointerdown', down, { passive: true });
+    node.addEventListener('pointermove', move, { passive: true });
+    node.addEventListener('pointerup', end, { passive: true });
+    node.addEventListener('pointercancel', end, { passive: true });
+    inject(DestroyRef).onDestroy(this.pressEnd.bind(this));
+  }).call(this);
 
   private longPress(): void {
     this.pressAt = null;

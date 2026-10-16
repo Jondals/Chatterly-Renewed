@@ -13,11 +13,13 @@ import {
   output,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { GifService, type GifResult } from '../../core/services/gif.service';
 
 /** One GIF of a list of results. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gif-thumb',
   standalone: true,
   template: `

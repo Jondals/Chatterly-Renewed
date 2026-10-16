@@ -3,7 +3,7 @@
  * Settings - Updates in the Android app: the installed version, look for a new one, download it and open the installer
  * of Android, and the update channel (Release or Beta) for testers. Nothing is downloaded or installed without a press.
  */
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   AndroidUpdateService,
@@ -30,6 +30,7 @@ const HEADLINES: Record<AndroidUpdateStatus, string> = {
 
 /** Settings > Updates (Android app). */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-android-updates-section',
   standalone: true,
   imports: [IconComponent, SelectComponent, SettingRowComponent, TranslatePipe],

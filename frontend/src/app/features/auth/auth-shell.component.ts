@@ -2,7 +2,7 @@
  * src/app/features/auth/auth-shell.component.ts
  * Frame of the sign-in and register pages: particle background, brand and card. It stays alive when switching between both forms.
  */
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -12,6 +12,7 @@ import { APP_NAME, APP_LABEL } from '../../version';
 
 /** Shared frame for login/register: brand on the left and the form card on the right. It stays alive while you switch between both forms, so nothing reloads. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-auth-shell',
   standalone: true,
   imports: [

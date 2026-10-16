@@ -3,7 +3,7 @@
  * Side bar: friends, direct messages or the channels of the group, and the user panel with its menu.
  */
 import { ChannelLabelPipe } from '../shared/util/channel-label.pipe';
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -38,6 +38,7 @@ import { UserFontDirective } from '../shared/util/user-font.directive';
 import { NameFxDirective } from '../shared/util/name-fx.directive';
 import { fontClassOf } from '../shared/util/user-font.directive';
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-context-sidebar',
   standalone: true,
   imports: [

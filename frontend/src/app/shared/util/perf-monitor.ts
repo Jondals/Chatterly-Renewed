@@ -48,7 +48,14 @@ export function watchFramePerformance(): void {
   function onFrame(now: number): void {
     const gap = now - last;
     last = now;
-    if (document.hidden || gap > PAUSE_GAP_MS || now - startedAt < SETTLE_MS) {
+    // ! The first page of the web (a scrolling page over the animated background) is not judged: lag there said nothing about the app,
+    // and a device flagged as slow loses the lights and the blur of everything that comes next, the sign-in animation included.
+    if (
+      document.hidden ||
+      gap > PAUSE_GAP_MS ||
+      now - startedAt < SETTLE_MS ||
+      document.querySelector('app-landing')
+    ) {
       // The tab was in the background: start the window again, nothing is judged.
       windowStart = now;
       frames = 0;

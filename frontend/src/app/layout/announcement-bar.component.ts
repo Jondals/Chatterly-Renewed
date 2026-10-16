@@ -4,12 +4,13 @@
  * cross to hide it. An administrator writes it in Settings > Administration > Server.
  * ! The text is drawn as text (interpolation), never as markup.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { AnnouncementService } from '../core/services/announcement.service';
 import { IconComponent } from '../shared/components/icon.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-announcement-bar',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

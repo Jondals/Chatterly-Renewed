@@ -14,6 +14,7 @@ import {
   input,
   output,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { pickFile } from '../../core/file-picker';
@@ -35,6 +36,7 @@ const SEARCH_DELAY_MS = 350;
 
 /** The window to choose where a picture comes from. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-image-source',
   standalone: true,
   imports: [ModalComponent, IconComponent, GifThumbComponent, TranslatePipe],

@@ -4,7 +4,7 @@
  * editor (a marker for each color, up to five, which can be chosen and dragged along it), with the color of the chosen
  * marker, its place, the buttons to add or remove colors, and the angle.
  */
-import { Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { gradientCss, sortedStops, type GradientParts, type Stop } from '../util/gradient';
 import { ColorPickerComponent } from './color-picker.component';
@@ -12,6 +12,7 @@ import { IconComponent } from './icon.component';
 
 /** Edits the colors and the angle of a gradient and reports every change. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gradient-controls',
   standalone: true,
   imports: [ColorPickerComponent, IconComponent, TranslatePipe],

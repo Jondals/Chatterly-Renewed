@@ -18,6 +18,16 @@ export async function step21(world) {
     const r = await fetch(API + route);
     check(r.status === 401, `${route} without a session answers 401`);
   }
+  // The downloads of the first page are public: a redirect to the latest release (or to the list of releases), never anything else.
+  for (const app of ['windows', 'mac', 'linux', 'android', 'ios']) {
+    const r = await fetch(API + '/api/download/' + app, { redirect: 'manual' });
+    const to = r.headers.get('location') ?? '';
+    check(
+      r.status === 302 && /^https:\/\/github\.com\/Jondals\/ChatterlyRenewed\/releases(\/|$)/.test(to),
+      `/api/download/${app} sends to the releases of the project (${r.status} ${to.slice(0, 60)})`,
+    );
+  }
+  check((await fetch(API + '/api/download/beos')).status === 404, 'an unknown app has no download');
   const pre = await fetch(API + '/api/friends', {
     method: 'OPTIONS',
     headers: {

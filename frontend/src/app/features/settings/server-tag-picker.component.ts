@@ -2,7 +2,7 @@
  * src/app/features/settings/server-tag-picker.component.ts
  * In My profile: the person chooses which of the tags of their groups to show next to their name (or none).
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import type { User } from '../../core/models';
 import { ApiService } from '../../core/services/api.service';
@@ -13,6 +13,7 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
 
 /** Chooses the tag of a group to show. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-server-tag-picker',
   standalone: true,
   imports: [ServerTagComponent, TranslatePipe],

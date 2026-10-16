@@ -15,6 +15,7 @@ import {
   signal,
   untracked,
   type OnInit,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { SoundService } from '../../core/services/sound.service';
@@ -37,6 +38,7 @@ const PAUSE_MS = 900;
 
 /** The tournament of a chat message or of the call. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-tournament-card',
   standalone: true,
   imports: [IconComponent, SpinlyWheelComponent, TranslatePipe],

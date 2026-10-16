@@ -44,6 +44,8 @@ export interface ServerTag {
 
 export interface User {
   id: string;
+  /** A guest (the web only): an account to try the app, erased when the person leaves. Only in the own user. */
+  guest?: boolean;
   username: string;
   displayName: string;
   /** Real name while a nickname is being shown instead (only on the client). */

@@ -2,7 +2,7 @@
  * src/app/features/settings/about-section.component.ts
  * Settings - About: the animated signature, the version and a summary of how data is protected.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { linkCrypto, type TextPart } from '../../core/crypto-docs';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { UiService } from '../../core/services/ui.service';
@@ -18,6 +18,7 @@ import { APP_NAME, APP_LABEL } from '../../version';
  * the version data and the technology used, in the same style as the rest of the settings.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-about-section',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

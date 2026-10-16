@@ -2,7 +2,7 @@
  * src/app/features/settings/stickers-section.component.ts
  * Settings - Stickers: manage packs and import the WhatsApp ones.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { StickerStore, type StickerPack } from '../../core/services/sticker.store';
 import { ToastService } from '../../core/services/toast.service';
@@ -12,6 +12,7 @@ import { CollapseComponent } from '../../shared/components/collapse.component';
 
 /** Manage sticker packs (stored only on this device) and import WhatsApp stickers. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-stickers-section',
   standalone: true,
   imports: [CollapseComponent, IconComponent, TranslatePipe],

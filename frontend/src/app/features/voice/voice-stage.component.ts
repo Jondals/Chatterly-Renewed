@@ -4,7 +4,7 @@
  */
 import { screenQualities, screenQuality } from '../../core/screen-quality';
 import { isDesktopApp } from '../../core/desktop-bridge';
-import { ANDROID_APP } from '../../core/config';
+import { ANDROID_APP, IOS_APP } from '../../core/config';
 import { androidScreenAvailable } from '../../core/android-screen';
 import { parseMusicLink } from '../../shared/util/music-link';
 import { FoldComponent } from '../../shared/components/fold.component';
@@ -21,6 +21,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
@@ -88,6 +89,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-voice-stage',
   standalone: true,
   imports: [
@@ -522,7 +524,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                     <button
                       class="btn btn-icon h-12 w-12 tip"
                       [class.btn-active]="call.screenOn() || shareOpen()"
-                      [class.opacity-40]="android && !androidShare"
+                      [class.opacity-40]="(android && !androidShare) || ios"
                       [attr.data-tip]="(call.screenOn() ? 'Stop sharing' : 'Share your screen') | t"
                       type="button"
                       (mousedown)="$event.stopPropagation()"
@@ -1858,6 +1860,8 @@ export class VoiceStageComponent {
   protected readonly desktop = isDesktopApp();
   /** The Android app: its WebView cannot capture the screen (no getDisplayMedia), so the button only explains why. */
   protected readonly android = ANDROID_APP;
+  /** The iPhone app: its web view cannot capture the screen either, and it has no plugin for it. */
+  protected readonly ios = IOS_APP;
   /** The Android app can share the screen through its own plugin (pictures drawn on a canvas); see android-screen.ts. */
   protected readonly androidShare = androidScreenAvailable();
   protected readonly shareSurfaces: {
@@ -1882,6 +1886,14 @@ export class VoiceStageComponent {
    * show (the menu is on the right click).
    */
   protected screenClick(): void {
+    if (this.ios) {
+      this.toast.info(
+        'Screen sharing is not available on iPhone',
+        'The iPhone web view cannot capture the screen. Share it from the web or the desktop app.',
+        '🖥️',
+      );
+      return;
+    }
     if (this.android && !this.androidShare) {
       this.toast.info(
         'Screen sharing is not available on Android',

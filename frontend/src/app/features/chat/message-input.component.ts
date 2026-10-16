@@ -19,6 +19,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DirectoryService } from '../../core/services/directory.service';
@@ -72,6 +73,7 @@ const GRADIENTS = [
 
 /** Composer: formatted/coloured text, emoji · GIF · sticker picker, files, voice notes and replies. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-message-input',
   standalone: true,
   imports: [

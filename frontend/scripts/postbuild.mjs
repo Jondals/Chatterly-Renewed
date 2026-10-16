@@ -40,7 +40,7 @@ const TYPES = {
 };
 
 /** Pages that get a snapshot: the sign-in and the registration pages (the root address shows sign-in). */
-const PAGES = ['login', 'register'];
+const PAGES = ['welcome', 'login', 'register'];
 
 /** Languages the app is translated into: one snapshot is stored for each. */
 const LANGUAGES = [
@@ -60,9 +60,12 @@ function chunksOf(selector, already) {
     return name.endsWith('.js');
   });
   const start = files.find(function hasPage(name) {
+    const text = fs.readFileSync(path.join(DIST, name), 'utf8');
+    // The selector is written with double quotes or with backticks, depending on how the build minified the file.
     return (
-      fs.readFileSync(path.join(DIST, name), 'utf8').includes('selector:"' + selector + '"') ||
-      fs.readFileSync(path.join(DIST, name), 'utf8').includes('"' + selector + '"')
+      text.includes('selector:"' + selector + '"') ||
+      text.includes('"' + selector + '"') ||
+      text.includes('`' + selector + '`')
     );
   });
   const found = new Set();
@@ -93,7 +96,9 @@ let SESSION_SCRIPT =
   "try{var p=JSON.parse(localStorage.getItem('chatterly.pref.language')||'\"auto\"');" +
   "var l=p==='auto'?(navigator.language||'en').slice(0,2).toLowerCase():p;" +
   "var q=location.pathname;document.documentElement.dataset.snap=l==='es'?'es':'en';" +
-  "document.documentElement.dataset.page=q==='/register'?'register':(q==='/'||q==='/login')?'login':'';" +
+  // The apps (desktop, Android, iPhone) open the root address into the sign-in; a browser shows the first page of the web.
+  "var n=window.CHATTERLY_NATIVE||window.chatterlyDesktop;" +
+  "document.documentElement.dataset.page=q==='/register'?'register':q==='/login'?'login':q==='/'?(n?'login':'welcome'):'';" +
   "if(localStorage.getItem('chatterly.session'))document.documentElement.classList.add('has-session');" +
   // The accent color the person chose is applied from the first paint (the first layer and the animations use it).
   "var h=document.documentElement,a=JSON.parse(localStorage.getItem('chatterly.pref.accent')||'null');" +
@@ -133,8 +138,9 @@ async function takeSnapshot(page, locale) {
   const browser = await chromium.launch();
   try {
     const tab = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: locale });
-    await tab.goto('http://127.0.0.1:' + port + '/' + page);
-    await tab.waitForSelector('form');
+    // The first page of the web is the root address; the sign-in and registration pages have their own.
+    await tab.goto('http://127.0.0.1:' + port + '/' + (page === 'welcome' ? '' : page));
+    await tab.waitForSelector(page === 'welcome' ? 'app-landing h1' : 'form');
     await tab.evaluate(function waitForFonts() {
       return document.fonts.ready;
     });
@@ -182,6 +188,7 @@ function addSessionScript(html) {
     },
   );
   const lists = {
+    welcome: chunksOf('app-landing', asked),
     login: chunksOf('app-login', asked),
     register: chunksOf('app-register', asked),
   };
@@ -211,22 +218,24 @@ function allowDataScripts(html) {
     : html;
 }
 
-/** Asks for the main font (Inter) right away: the text of the first paint is drawn with it and does not change afterwards. */
+/**
+ * Asks for the fonts of the first paint right away: Inter (the text) and Open Sans (the headlines of the first page). The first
+ * paint is drawn with them and does not change afterwards, so the page does not jump when they arrive.
+ */
 function preloadFont(html) {
   const media = path.join(DIST, 'media');
-  const font = fs.existsSync(media)
-    ? fs.readdirSync(media).find(function isInter(name) {
-        return /^inter-latin-wght-normal.*\.woff2$/.test(name);
-      })
-    : null;
-  return font
-    ? html.replace(
-        '<style>',
-        '<link rel="preload" as="font" type="font/woff2" crossorigin href="/media/' +
-          font +
-          '"/><style>',
-      )
-    : html;
+  const files = fs.existsSync(media) ? fs.readdirSync(media) : [];
+  let links = '';
+  for (const family of ['open-sans']) {
+    const font = files.find(function isFamily(name) {
+      return new RegExp('^' + family + '-latin-wght-normal.*\.woff2$').test(name);
+    });
+    if (font) {
+      links +=
+        '<link rel="preload" as="font" type="font/woff2" crossorigin href="/media/' + font + '"/>';
+    }
+  }
+  return links ? html.replace('<style>', links + '<style>') : html;
 }
 
 /**

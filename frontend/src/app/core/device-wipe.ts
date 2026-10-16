@@ -27,11 +27,14 @@ const OWNER_KEY = 'chatterly.device.owner';
 /** The databases of the account itself: the identity keys and the key of the session vault. */
 const ACCOUNT_DATABASES = ['chatterly-renewed-keys', 'chatterly-renewed-vault'];
 
+/** The announcements of the administrators that this device hid (see AnnouncementService): the one thing that survives the wipe. */
+const HIDDEN_ANNOUNCEMENTS_KEY = 'chatterly.announcement.dismissed';
+
 /** What localStorage keeps of the session itself (the rest is the preferences of the person). */
 const SESSION_STORAGE_KEYS = ['chatterly.session', 'chatterly.activeGuild'];
 
 /** Every database the app opens (also the ones a browser without indexedDB.databases() would not list). */
-export const LOCAL_DATABASES = [
+const LOCAL_DATABASES = [
   'chatterly-renewed-keys',
   'chatterly-renewed-vault',
   'chatterly-renewed-library',
@@ -86,7 +89,10 @@ async function databaseNames(): Promise<string[]> {
 export async function wipeDeviceData(): Promise<void> {
   await Promise.all((await databaseNames()).map(deleteDatabase));
   try {
+    // What announcement of the administrators was hidden is not private, and must not come back after signing out.
+    const hiddenAnnouncements = localStorage.getItem(HIDDEN_ANNOUNCEMENTS_KEY);
     localStorage.clear();
+    if (hiddenAnnouncements !== null) localStorage.setItem(HIDDEN_ANNOUNCEMENTS_KEY, hiddenAnnouncements);
     sessionStorage.clear();
   } catch {
     /* storage switched off by the browser: there is nothing to erase */

@@ -5,7 +5,7 @@
  * landing point comes from the shared seed. A spin that was already there when the card appeared is shown as a
  * finished result; one that arrives afterwards is played.
  */
-import { Component, computed, inject, input, output, signal, type OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, type OnInit } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { SoundService } from '../../core/services/sound.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -45,6 +45,7 @@ export interface WheelRun {
 
 /** The wheel of a chat message or of the call. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-wheel-card',
   standalone: true,
   imports: [IconComponent, SpinlyWheelComponent, TranslatePipe],

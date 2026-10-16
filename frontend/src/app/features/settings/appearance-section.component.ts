@@ -2,7 +2,7 @@
  * src/app/features/settings/appearance-section.component.ts
  * Settings - Appearance: theme, background, accent, typeface, bubbles, motion and cursors.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ArrivalService } from '../../core/services/arrival.service';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { SelectComponent, type SelectOption } from '../../shared/components/select.component';
@@ -108,6 +108,7 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
 ];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-appearance-section',
   standalone: true,
   imports: [

@@ -3,7 +3,7 @@
  * Settings - Sync: the settings of the person on their account (see settings-sync.service.ts). On this device they can follow
  * the account or stay only here, and they can keep several sets of settings and choose which one this device follows.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { SettingsSyncService, type SyncMode } from '../../core/services/settings-sync.service';
@@ -16,6 +16,7 @@ import { SettingRowComponent, ToggleComponent } from '../../shared/components/co
 
 /** The settings of the account. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sync-section',
   standalone: true,
   imports: [IconComponent, TranslatePipe, SettingRowComponent, ToggleComponent],

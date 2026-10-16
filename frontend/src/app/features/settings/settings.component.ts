@@ -2,7 +2,7 @@
  * src/app/features/settings/settings.component.ts
  * The settings window with its list of sections and its opening and closing animation.
  */
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { map } from 'rxjs';
@@ -87,7 +87,7 @@ const UPDATES_ENTRY: SectionEntry = {
 /** Only the desktop app can show the overlay over a game, so only it has this section. */
 const OVERLAY_ENTRY: SectionEntry = {
   id: 'overlay',
-  label: 'Game overlay',
+  label: 'Overlay',
   icon: 'monitor',
   tone: 'bg-violet/15 text-violet',
 };
@@ -102,6 +102,7 @@ const ADMIN_ENTRY: SectionEntry = {
 
 /** Full-screen settings with a section list on the left. Closes with Esc or the ✕ button. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-settings',
   standalone: true,
   imports: [

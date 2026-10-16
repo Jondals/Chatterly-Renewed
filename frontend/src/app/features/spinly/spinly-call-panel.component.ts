@@ -4,7 +4,7 @@
  * it as many times as they like, edit it, start the tournament over or send the result to the chat, and every change
  * reaches everybody at once (end-to-end encrypted like the rest of the call).
  */
-import { Component, computed, inject, input, signal, type OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal, type OnInit } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { SpinlyService } from '../../core/services/spinly.service';
@@ -18,6 +18,7 @@ import { SpinlyWheelCardComponent, type WheelRun } from './spinly-wheel-card.com
 
 /** The shared wheel or tournament of the call. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-call-panel',
   standalone: true,
   imports: [

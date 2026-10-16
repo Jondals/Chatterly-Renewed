@@ -4,7 +4,7 @@
  * run is a hidden reaction on the message, so it reaches everybody at the same moment and the server's random id of
  * it decides the result for all. After that the result stays in the message and nothing can be spun again.
  */
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -18,6 +18,7 @@ import { SpinlyWheelCardComponent, type WheelRun } from './spinly-wheel-card.com
 
 /** The card of a wheel or tournament message. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-message',
   standalone: true,
   imports: [IconComponent, SpinlyTournamentCardComponent, SpinlyWheelCardComponent, TranslatePipe],

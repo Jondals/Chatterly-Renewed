@@ -16,6 +16,7 @@ import {
   computed,
   inject,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../core/i18n/i18n.service';
 import { CallService } from '../core/services/call.service';
@@ -52,6 +53,7 @@ const CATEGORY_NAME_MAX = 20;
 
 /** A floating soundboard available anywhere. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-soundboard-dock',
   standalone: true,
   imports: [IconComponent, NgTemplateOutlet, TranslatePipe],

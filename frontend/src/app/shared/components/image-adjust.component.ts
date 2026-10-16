@@ -18,6 +18,7 @@ import {
   output,
   signal,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import {
@@ -37,6 +38,7 @@ const MAX_ZOOM = 4;
 
 /** The window to adjust a picture. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-image-adjust',
   standalone: true,
   imports: [ModalComponent, TranslatePipe],

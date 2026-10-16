@@ -11,6 +11,7 @@ import {
   output,
   resource,
   type ResourceLoaderParams,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { DirectoryService } from '../../core/services/directory.service';
@@ -24,6 +25,7 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 
 /** Lets two people compare a short number out-of-band to prove nobody swapped their keys. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-safety-modal',
   standalone: true,
   imports: [ModalComponent, AvatarComponent, IconComponent, TranslatePipe],

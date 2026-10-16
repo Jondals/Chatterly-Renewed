@@ -2,15 +2,17 @@
  * src/app/features/auth/login.component.ts
  * Sign-in form.
  */
-import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
+import { isWebTab } from '../../core/web-tab';
 import { AuthService } from '../../core/services/auth.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { describeError } from '../../shared/util/errors';
 import { ArrivalService } from '../../core/services/arrival.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-login',
   standalone: true,
   host: { class: 'auth-page auth-page-left block' },
@@ -92,13 +94,22 @@ import { ArrivalService } from '../../core/services/arrival.service';
         'Create an account' | t
       }}</a>
     </p>
+    @if (web) {
+      <p class="mt-2 text-center text-xs text-dim">
+        <a routerLink="/" class="underline hover:text-fg">{{ 'Download the app or try it as a guest' | t }}</a>
+      </p>
+    }
   `,
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly i18n = inject(I18nService);
   private readonly arrival = inject(ArrivalService);
+
+  /** The web (not an app): it has the first page, with the download and the guest mode. */
+  protected readonly web = isWebTab();
 
   readonly username = signal('');
   readonly password = signal('');
@@ -117,7 +128,10 @@ export class LoginComponent {
       await this.auth.login(this.username().trim(), this.password());
       // The transition covers the change of page: the app opens behind it.
       await this.arrival.play('login', this.auth.user()?.displayName ?? '');
-      await this.router.navigateByUrl('/direct');
+      // From the first page of the web the person comes back to it, now in their own theme, and opens the app from there.
+      await this.router.navigateByUrl(
+        this.route.snapshot.queryParamMap.get('from') === 'welcome' ? '/' : '/direct',
+      );
     } catch (error) {
       this.error.set(this.i18n.t(describeError(error)));
       this.shake.set(true);

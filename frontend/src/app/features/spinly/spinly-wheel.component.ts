@@ -15,6 +15,7 @@ import {
   output,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { SoundService } from '../../core/services/sound.service';
 import { isLightColor } from './spinly-engine';
@@ -150,6 +151,7 @@ function ringOfLights(count: number, radius: number): Light[] {
 
 /** A wheel that turns where it is told to. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-wheel',
   standalone: true,
   template: `

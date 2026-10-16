@@ -2,12 +2,13 @@
  * src/app/shared/components/toast-host.component.ts
  * Container of the notices and of the confirmation and text dialogs.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ToastService } from '../../core/services/toast.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-toast-host',
   standalone: true,
   imports: [TranslatePipe],

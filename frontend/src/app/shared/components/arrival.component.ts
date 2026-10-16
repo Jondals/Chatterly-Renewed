@@ -15,6 +15,7 @@ import {
   input,
   signal,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { ArrivalService, type ArrivalKind } from '../../core/services/arrival.service';
@@ -52,6 +53,7 @@ function followCover(part: string, element: Element | null): void {
 
 /** The animation of an arrival. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-arrival',
   standalone: true,
   imports: [TranslatePipe],

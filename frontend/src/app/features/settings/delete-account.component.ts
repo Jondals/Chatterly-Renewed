@@ -2,7 +2,7 @@
  * src/app/features/settings/delete-account.component.ts
  * The "Delete account" card of My profile and the window that asks for the username and the password before erasing it.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -10,6 +10,7 @@ import { ModalComponent } from '../../shared/components/modal.component';
 import { describeError } from '../../shared/util/errors';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-delete-account',
   standalone: true,
   imports: [IconComponent, ModalComponent, TranslatePipe],

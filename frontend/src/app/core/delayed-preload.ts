@@ -9,7 +9,7 @@ import type { PreloadingStrategy, Route } from '@angular/router';
 import { Observable, of, switchMap, timer } from 'rxjs';
 
 /** Milliseconds to wait before preloading when nobody is signed in. */
-const SIGNED_OUT_DELAY = 4000;
+const SIGNED_OUT_DELAY = 12000;
 
 /** Preloads every lazy route, later when nobody is signed in. */
 @Injectable({ providedIn: 'root' })

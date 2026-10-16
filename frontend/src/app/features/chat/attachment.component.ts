@@ -14,6 +14,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { PresetService } from '../../core/services/preset.service';
@@ -33,6 +34,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
  * checked against the SHA-256 that travelled inside the E2EE message before anything is shown.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-attachment',
   standalone: true,
   imports: [IconComponent, TranslatePipe, DecimalPipe, ToBodyDirective],

@@ -2,7 +2,7 @@
  * src/app/layout/incoming-call.component.ts
  * Incoming call notice with accept and decline.
  */
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { CallService } from '../core/services/call.service';
@@ -14,6 +14,7 @@ import { UserFontDirective } from '../shared/util/user-font.directive';
 import { NameFxDirective } from '../shared/util/name-fx.directive';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-incoming-call',
   standalone: true,
   imports: [

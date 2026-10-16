@@ -30,6 +30,8 @@ const SOUNDS = {
   toggleSwitch: { file: 'ui/toggle-switch.ogg' },
   noticeSuccess: { file: 'ui/notice-success.ogg' },
   noticeError: { file: 'ui/notice-error.ogg' },
+  // the announcement of the administrators (adminSound.ogg)
+  adminNotice: { file: 'ui/adminSound.ogg' },
   // ---- the sound of pressing a button, one per style (ui/)
   clickSoft: { file: 'ui/click-soft.ogg' },
   clickDrop: { file: 'ui/click-drop.ogg' },
@@ -84,6 +86,7 @@ export const ESSENTIAL_SOUNDS: readonly SoundId[] = [
   'toggleSwitch',
   'noticeSuccess',
   'noticeError',
+  'adminNotice',
   'clickSoft',
   'clickDrop',
   'clickGlass',

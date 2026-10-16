@@ -1,7 +1,7 @@
 /**
  * mobile/scripts/prepare-web.mjs
  * Copies the built web app (pnpm build at the root) into mobile/web, the folder that Capacitor packs inside the APK, and
- * makes the changes that only the Android app needs:
+ * makes the changes that only the native apps need (Android, and iOS with `--platform ios`):
  *   1. native-config.js: the address of the API and the native policy (calls ONLY through the relay over TLS). It is a
  *      file inside the APK, loaded before the app, so no server can change it.
  *   2. The viewport without viewport-fit=cover: the WebView is kept out of the bars of the system (see below), and
@@ -23,8 +23,17 @@ import path from 'node:path';
 /** The public server: the default address of the API. */
 const DEFAULT_API = 'https://chatterlyrenewed.duckdns.org';
 
-/** The folder of the Android app. */
+/** The folder of the native apps. */
 const MOBILE = path.resolve(import.meta.dirname, '..');
+
+/** The app this web folder is for: Android (the default) or iOS. */
+const PLATFORM = process.argv.includes('--platform')
+  ? process.argv[process.argv.indexOf('--platform') + 1]
+  : 'android';
+if (PLATFORM !== 'android' && PLATFORM !== 'ios') {
+  console.error('--platform must be android or ios, not ' + PLATFORM);
+  process.exit(1);
+}
 
 /** Reads `--name value` from the command line, or the fallback. */
 function argument(name, fallback) {
@@ -117,12 +126,12 @@ function nativeConfig(api) {
     "'use strict';",
     'window.CHATTERLY_API = ' + JSON.stringify(api) + ';',
     "Object.defineProperty(window, 'CHATTERLY_NATIVE', {",
-    "  value: Object.freeze({ platform: 'android', strictRelay: true }),",
+    "  value: Object.freeze({ platform: '" + PLATFORM + "', strictRelay: true }),",
     '  writable: false,',
     '  configurable: false,',
     '});',
     '// The styles that only the Android app uses hang from this mark (html[data-platform="android"]).',
-    "document.documentElement.setAttribute('data-platform', 'android');",
+    "document.documentElement.setAttribute('data-platform', '" + PLATFORM + "');",
     '',
   ].join('\n');
 }
@@ -202,8 +211,10 @@ function main() {
   // keeps cover, for the notch of phones in the browser.
   const viewport = /(<meta\s+name="viewport"\s+content="[^"]*?),\s*viewport-fit=cover([^"]*")/i;
   if (!viewport.test(html))
-    fail('index.html has no viewport-fit=cover to take out: update this script.');
-  html = html.replace(viewport, '$1$2');
+    fail('index.html has no viewport-fit=cover: update this script.');
+  // ! Only Android: on iOS the page goes under the status bar and the home indicator, and it keeps cover so env(safe-area-inset-*)
+  // gives the real insets (the styles of the app already use them).
+  if (PLATFORM === 'android') html = html.replace(viewport, '$1$2');
 
   fs.rmSync(target, { recursive: true, force: true });
   fs.cpSync(source, target, { recursive: true });
@@ -211,7 +222,15 @@ function main() {
   fs.writeFileSync(path.join(target, 'native-config.js'), nativeConfig(api));
   dropEmojiFont(target);
   console.log(
-    'Web build ' + webVersion + ' prepared for Android in ' + target + ' (API ' + api + ')',
+    'Web build ' +
+      webVersion +
+      ' prepared for ' +
+      (PLATFORM === 'ios' ? 'iOS' : 'Android') +
+      ' in ' +
+      target +
+      ' (API ' +
+      api +
+      ')',
   );
 }
 

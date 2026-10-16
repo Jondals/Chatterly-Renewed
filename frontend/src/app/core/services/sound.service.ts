@@ -28,6 +28,7 @@ import { ANDROID_APP } from '../config';
 
 /** The sounds of the interface and of the calls. */
 export type UiSound =
+  | 'admin'
   | 'message'
   | 'send'
   | 'join'
@@ -62,6 +63,7 @@ export const SOUNDBOARD: { id: SfxId; label: string; icon: string; sound: SoundI
 
 /** Which file each sound of the interface and of the calls plays. */
 const UI_FILES: Record<Exclude<UiSound, 'click'>, SoundId> = {
+  admin: 'adminNotice',
   message: 'messageReceived',
   send: 'messageSent',
   join: 'userJoined',

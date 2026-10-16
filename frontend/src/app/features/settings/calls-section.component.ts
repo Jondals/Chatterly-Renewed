@@ -3,7 +3,7 @@
  * Settings - Calls: everything about calls in one place - what rings, how a shared screen starts, and (Android) how calls reach
  * the phone. The devices, the microphone and the camera stay in Voice & video.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { ANDROID_APP } from '../../core/config';
 import { NativeCallService } from '../../core/services/native-call.service';
@@ -18,6 +18,7 @@ import { GeneralSectionComponent } from './general-section.component';
 
 /** The settings of calls. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-calls-section',
   standalone: true,
   imports: [

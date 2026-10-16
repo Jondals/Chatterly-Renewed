@@ -550,6 +550,8 @@ export async function step17(world) {
     (await a.locator('button:has-text("boom") .emoji-glyph').innerText()) === '🔥',
     'soundboard: own sound uploaded, cut, renamed and with an emoji',
   );
+  // ! The first window is still fading out for a moment: wait until it is gone, or the next steps would act on it.
+  await a.waitForSelector(editor, { state: 'detached' });
   await a.hover('button:has-text("boom")');
   await a.click('button[aria-label="Edit the sound"]');
   await a.waitForSelector(editor + ' canvas.sound-wave');

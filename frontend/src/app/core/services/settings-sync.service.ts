@@ -66,7 +66,7 @@ interface SettingsBlob {
 const MAX_VERIFIED = 5000;
 
 /** The verified contacts of a blob, keeping only well-formed entries (a damaged copy gives an empty list). */
-export function cleanVerified(raw: unknown): Record<string, string> {
+function cleanVerified(raw: unknown): Record<string, string> {
   const clean: Record<string, string> = {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return clean;

@@ -45,6 +45,8 @@
   display: none;
 }
 
+html[data-snap='en'][data-page='welcome'] .boot-snapshot[lang='en'][data-page='welcome'],
+html[data-snap='es'][data-page='welcome'] .boot-snapshot[lang='es'][data-page='welcome'],
 html[data-snap='en'][data-page='login'] .boot-snapshot[lang='en'][data-page='login'],
 html[data-snap='es'][data-page='login'] .boot-snapshot[lang='es'][data-page='login'],
 html[data-snap='en'][data-page='register'] .boot-snapshot[lang='en'][data-page='register'],

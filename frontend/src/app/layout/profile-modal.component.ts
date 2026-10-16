@@ -2,7 +2,7 @@
  * src/app/layout/profile-modal.component.ts
  * Window with the profile card of another user (opened by pressing their name in a message).
  */
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
 import { DirectoryService } from '../core/services/directory.service';
@@ -13,6 +13,7 @@ import { SocialStore } from '../store/social.store';
 
 /** Shows the profile of the chosen user and closes with Esc or by pressing outside. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-profile-modal',
   standalone: true,
   imports: [ModalComponent, ProfileCardComponent],

@@ -3,7 +3,7 @@
  * Settings - Language and Sounds & notifications: the interface language, the time format, the sound volumes,
  * the click sound, the soundboard, the pop-up notices and the desktop notifications.
  */
-import { Component, DestroyRef, EnvironmentInjector, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EnvironmentInjector, inject, input, signal } from '@angular/core';
 import { I18nService, LANGUAGES, TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   SettingsService,
@@ -44,6 +44,7 @@ const FLAGS: Record<string, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-general-section',
   standalone: true,
   imports: [

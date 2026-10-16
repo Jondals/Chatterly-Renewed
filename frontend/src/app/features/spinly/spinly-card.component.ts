@@ -3,13 +3,14 @@
  * The card a Spinly result shows as inside a chat message: the winner (or champion) in big letters and the
  * options (or podium) below it.
  */
-import { Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import type { SpinlyResult } from './spinly-result';
 
 /** Chat card for a wheel result or a tournament champion. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-card',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

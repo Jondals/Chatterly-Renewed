@@ -16,6 +16,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { DirectoryService } from '../../core/services/directory.service';
@@ -42,6 +43,7 @@ function dayLabel(ts: number, i18n: I18nService): string {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-message-list',
   standalone: true,
   imports: [MessageItemComponent, IconComponent, TranslatePipe],

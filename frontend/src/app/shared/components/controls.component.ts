@@ -2,11 +2,12 @@
  * src/app/shared/components/controls.component.ts
  * Small controls of the settings: switch, segmented selector and setting row.
  */
-import { Component, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 
 /** Animated on/off switch. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-toggle',
   standalone: true,
   template: `
@@ -34,6 +35,7 @@ export class ToggleComponent {
 
 /** A row of mutually exclusive options. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-segmented',
   standalone: true,
   imports: [TranslatePipe],
@@ -67,6 +69,7 @@ export class SegmentedComponent {
 
 /** Label + hint on the left, control on the right. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-setting-row',
   standalone: true,
   imports: [TranslatePipe],

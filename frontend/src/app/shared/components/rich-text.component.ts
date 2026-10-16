@@ -2,13 +2,14 @@
  * src/app/shared/components/rich-text.component.ts
  * Draws formatted text (bold, color, code) without using HTML.
  */
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import type { Segment } from '../util/rich-text';
 import { IconComponent } from './icon.component';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 
 /** Renders parsed message segments (recursive for colour/gradient spans). Pure bindings: no innerHTML. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-rich-text',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

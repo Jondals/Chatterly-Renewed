@@ -3,7 +3,7 @@
  * The menu to choose what to share, inside the app (desktop app only): two tabs (the whole screen or a window), the list with a
  * picture of each, a box to share the sound of the computer too, and Cancel. Esc or a click outside closes it.
  */
-import { Component, HostListener, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { IconComponent } from '../shared/components/icon.component';
 import { ScreenPickerService } from '../core/services/screen-picker.service';
@@ -11,6 +11,7 @@ import { closeOnBack } from '../core/services/back.service';
 
 /** The menu to choose a screen or a window to share. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-screen-picker',
   standalone: true,
   imports: [TranslatePipe, IconComponent],

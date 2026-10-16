@@ -20,7 +20,7 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 /** A file name without folders or characters that systems refuse, with an extension that matches its type. */
-export function safeFileName(name: string, mime: string): string {
+function safeFileName(name: string, mime: string): string {
   let clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || 'chatterly-file';
   const extension = EXTENSIONS[mime];
   if (extension && !clean.toLowerCase().endsWith(extension) && !/\.[a-z0-9]{2,5}$/i.test(clean)) {

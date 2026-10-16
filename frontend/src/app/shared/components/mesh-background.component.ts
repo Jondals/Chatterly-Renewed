@@ -2,7 +2,7 @@
  * src/app/shared/components/mesh-background.component.ts
  * Animated backgrounds (CSS scenes) and the shuffle mode that keeps changing them.
  */
-import { Component, OnDestroy, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, effect, inject, input, signal, untracked } from '@angular/core';
 import { SettingsService, type BackgroundId } from '../../core/services/settings.service';
 import { WallpaperStore } from '../../core/services/wallpaper.store';
 import { ParticleNetworkComponent } from './particle-network.component';
@@ -13,6 +13,7 @@ import { ParticleNetworkComponent } from './particle-network.component';
  * the edge of the shapes instead. Used full-screen by the app and small as the picker preview in Settings.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-bg-scene',
   standalone: true,
   imports: [ParticleNetworkComponent],
@@ -808,6 +809,7 @@ const BARAJA: BackgroundId[] = [
  * load the page and, when asked, changes it every few minutes with a soft fade.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-mesh-background',
   standalone: true,
   imports: [BackgroundSceneComponent],

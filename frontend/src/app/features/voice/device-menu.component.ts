@@ -14,6 +14,7 @@ import {
   input,
   signal,
   type OnDestroy,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
@@ -42,6 +43,7 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
 const openList = signal<object | null>(null);
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-device-menu',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

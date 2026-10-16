@@ -235,6 +235,11 @@ CREATE TABLE IF NOT EXISTS files (
 
 /** Columns added after 1.0.0; applied to databases created by older versions. */
 const MIGRATIONS: [table: string, column: string, definition: string][] = [
+  // The session of a device is found by a hash of a random id that the device made for itself (see issueTokens): signing in
+  // again on the same device replaces its old session instead of leaving one more open.
+  ['sessions', 'device_hash', 'TEXT'],
+  // A guest (web only): an account made to try the app, erased when the person leaves or after a few hours (see auth.ts).
+  ['users', 'guest', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'pronouns', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'avatar_image', 'TEXT'],
   ['users', 'banner_image', 'TEXT'],
