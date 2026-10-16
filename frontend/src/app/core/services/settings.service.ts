@@ -305,9 +305,10 @@ export class SettingsService {
   /** What the person shared last time, to offer it again in the menu of sharing the screen. */
   readonly screenShare = persisted<{
     surface: 'any' | 'monitor' | 'window' | 'browser';
-    quality: 'standard' | 'high' | 'max';
+    /** A `ScreenQuality` (see screen-quality.ts); an older version saved standard, high or max. */
+    quality: string;
     audio: boolean;
-  }>('pref.screenShare', { surface: 'any', quality: 'high', audio: true });
+  }>('pref.screenShare', { surface: 'any', quality: '1080-30', audio: true });
   /** How much the interface animates: nothing, short transitions, or everything. Apart from the motion of the background. */
   readonly animations = persisted<'off' | 'quick' | 'full'>('pref.animations', initialAnimations());
   /**

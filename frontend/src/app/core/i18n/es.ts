@@ -1083,6 +1083,9 @@ export const ES: Record<string, string> = {
   'A window': 'Una ventana',
   'A tab': 'Una pestaña',
   '720p · 30': '720p · 30',
+  '720p · 60': '720p · 60',
+  '2K · 30': '2K · 30',
+  '2K · 60': '2K · 60',
   'Light': 'Ligera',
   '1080p · 30': '1080p · 30',
   'Balanced': 'Equilibrada',
@@ -1341,8 +1344,19 @@ export const ES: Record<string, string> = {
     'Lo que cambies aquí se guarda en tu cuenta y llega a tus otros dispositivos.',
   'Nothing is sent or received: this device keeps its own settings.':
     'No se envía ni se recibe nada: este dispositivo guarda sus propios ajustes.',
-  'Never copied: the microphone, the speakers, the camera and the files you uploaded (fonts, cursors). They stay on each device.':
-    'Nunca se copian: el micrófono, los altavoces, la cámara y los archivos que subiste (fuentes, cursores). Se quedan en cada dispositivo.',
+  'Never copied: the microphone, the speakers, the camera, fonts and cursors. They stay on each device.':
+    'Nunca se copian: el micrófono, los altavoces, la cámara, las fuentes y los cursores. Se quedan en cada dispositivo.',
+  'Sharing the screen': 'Compartir pantalla',
+  'Ring and sounds': 'Tono y sonidos',
+  'On this phone': 'En este móvil',
+  'The size and the pictures per second of the screen you share. More is sharper and smoother, and uses more data.':
+    'El tamaño y las imágenes por segundo de la pantalla que compartes. Más es más nítido y fluido, y gasta más datos.',
+  'The sound of what you share, when it can be captured.':
+    'El sonido de lo que compartes, cuando se puede capturar.',
+  'What is synced': 'Qué se sincroniza',
+  'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.':
+    'Ajustes, stickers, preajustes, tus sonidos y fondos de cámara. Se cifran primero en este dispositivo: el servidor solo guarda algo que no puede leer.',
+  'Everything is in your account.': 'Todo está en tu cuenta.',
   'Knockout tournament': 'Torneo de eliminación',
   'players': 'jugadores',
   'duels': 'duelos',

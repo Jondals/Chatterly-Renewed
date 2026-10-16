@@ -2,6 +2,7 @@
  * src/app/features/voice/voice-stage.component.ts
  * Call screen: participant tiles, controls, shared music and statistics.
  */
+import { screenQualities, screenQuality } from '../../core/screen-quality';
 import { isDesktopApp } from '../../core/desktop-bridge';
 import { ANDROID_APP } from '../../core/config';
 import { androidScreenAvailable } from '../../core/android-screen';
@@ -573,16 +574,15 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           </div>
                         }
                         <div class="label mb-1.5">{{ 'Quality' | t }}</div>
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-2 gap-2">
                           @for (option of shareQualities; track option.id) {
                             <button
                               type="button"
-                              class="sb-tile !min-h-[3.2rem]"
-                              [class.is-hit]="settings.screenShare().quality === option.id"
+                              class="sb-tile !min-h-[2.6rem]"
+                              [class.is-hit]="chosenQuality() === option.id"
                               (click)="setShare({ quality: option.id })"
                             >
                               <b class="text-xs">{{ option.label }}</b>
-                              <span class="text-[0.625rem] text-muted">{{ option.hint | t }}</span>
                             </button>
                           }
                         </div>
@@ -1875,16 +1875,7 @@ export class VoiceStageComponent {
       return !(this.desktop && option.id === 'browser');
     }.bind(this),
   );
-  protected readonly shareQualities: {
-    id: 'standard' | 'high' | 'max';
-    label: string;
-    hint: string;
-  }[] = [
-    { id: 'standard', label: '720p · 30', hint: 'Light' },
-    { id: 'high', label: '1080p · 30', hint: 'Balanced' },
-    { id: 'max', label: '1080p · 60', hint: 'Smooth' },
-  ];
-
+  protected readonly shareQualities = screenQualities(ANDROID_APP);
   /**
    * The button of the screen: stops sharing. To start, in the desktop app and the Android app it opens the menu (what to
    * share, quality, sound: nothing else asks for them there); in a browser it starts at once, as the browser asks what to
@@ -1928,6 +1919,11 @@ export class VoiceStageComponent {
   }
 
   /** Remembers a change of what is going to be shared. */
+  /** The quality chosen, whatever an older version saved. */
+  protected chosenQuality(): string {
+    return screenQuality(this.settings.screenShare().quality, ANDROID_APP).id;
+  }
+
   protected setShare(change: Partial<ReturnType<SettingsService['screenShare']>>): void {
     this.settings.screenShare.update(function merge(current) {
       return { ...current, ...change };

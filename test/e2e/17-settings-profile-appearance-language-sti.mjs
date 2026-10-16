@@ -484,7 +484,8 @@ export async function step17(world) {
   await shot(a, '05-apariencia');
   check(true, 'theme, background and rounding changed');
 
-  await a.click('a:has-text("Sounds")');
+  // The ringtone and the soundboard live in Settings > Calls.
+  await a.click('a:has-text("Calls")');
   await a.click('button[aria-expanded]:has-text("Call ringtone")');
   await a.waitForTimeout(600);
   check(

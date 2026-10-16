@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-mobile",
-  "version": "2.34.0",
+  "version": "2.34.1",
   "description": "Chatterly-Renewed Android app (Capacitor): the same end-to-end encrypted web app, packed inside the APK.",
   "private": true,
   "license": "ISC",

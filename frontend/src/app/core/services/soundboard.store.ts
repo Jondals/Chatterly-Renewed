@@ -93,8 +93,22 @@ export class SoundboardStore {
   /** Keeps a sound that was prepared (checked and cut) in the window that edits sounds. */
   async save(clip: CustomSound): Promise<void> {
     await runInStore(LOCATION, 'readwrite', writeClip.bind(null, await packBlobs(clip)));
-    this.clips.set([...this.clips(), clip]);
+    this.clips.set(this.withClip(clip));
     this.warm([clip]);
+  }
+
+  /** The clips with this one added, or in place of the one with its id. */
+  private withClip(clip: CustomSound): CustomSound[] {
+    const others = this.clips().filter(function other(entry) {
+      return entry.id !== clip.id;
+    });
+    return [...others, clip].sort(byCreation);
+  }
+
+  /** Puts back a sound that came from the copy in the account (same id; it replaces the one of this device). */
+  async restore(clip: CustomSound): Promise<void> {
+    await this.load();
+    await this.save(clip);
   }
 
   /** Decodes the clips in the background so that the first press of each one already sounds. */

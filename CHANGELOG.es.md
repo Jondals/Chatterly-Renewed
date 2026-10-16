@@ -2,6 +2,15 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.34.1
+
+- **Un apartado solo para llamadas.** Ajustes > Llamadas reúne lo de las llamadas: el tono de llamada y la apertura del tablero de sonidos (antes en Sonidos y notificaciones; su volumen ya está en el propio tablero), con qué empieza el menú de compartir pantalla (calidad y sonido) y, en Android, las llamadas en segundo plano y sobre la pantalla de bloqueo (antes en Apariencia). Los dispositivos, el micrófono y la cámara siguen en Voz y vídeo.
+- **Calidad de compartir pantalla a tu gusto.** Se elige el tamaño y las imágenes por segundo: 720p, 1080p y, en el ordenador, 2K, cada uno a 30 o a 60 (en Ajustes > Llamadas y en el menú de compartir). Lo que tenías elegido sigue valiendo. En Android, las calidades de 60 mandan hasta 60 imágenes por segundo; solo se envía una imagen a la vez, así que un móvil más lento manda menos en vez de ir a tirones.
+- **Sincronización más sencilla y completa.** Ajustes > Sincronización tiene una sola elección para este dispositivo (seguir mi cuenta o solo este dispositivo) que vale para todo: los ajustes, los stickers, los preajustes, tus sonidos del panel y los fondos de cámara. Debajo, el estado, el espacio usado y un botón para sincronizar ya; las configuraciones quedan plegadas.
+- **Tus sonidos subidos llegan a todos tus dispositivos.** Los sonidos del panel de sonidos (con su nombre, emoji, categoría y el corte) se guardan en tu cuenta cifrados de extremo a extremo, como los stickers; borrar uno en un dispositivo lo borra en los demás.
+- **GIFs que cargan siempre y más rápido.** Los GIFs se piden con más a la vez, se vuelven a pedir solos si fallan (y se pulsa la miniatura para reintentar), y el servidor da vistas previas en WebP (un tercio del peso) y ya no rechaza las miniaturas de una página al desplazarte deprisa (necesita el backend nuevo).
+- **Móvil: las acciones de un mensaje salen al mantenerlo pulsado.** Un toque en un mensaje ya no abre su barra de acciones: se muestra al mantener pulsado (con una vibración corta), y desaparece al tocar fuera.
+
 ## 2.34.0
 
 - **Un overlay de juego nuevo, como el de Discord.** Tu llamada encima del juego en widgets que colocas donde quieras: los controles de la llamada (silenciar, ensordecer, cámara, pantalla, colgar, cuánto dura y el ping), las personas del canal de voz (quién habla, quién está silenciado, quién está EN DIRECTO), las cámaras (también la tuya, ahora activada por defecto), la actividad (el juego registrado que está abierto y cuánto llevas), las pantallas que comparten (con su volumen) y los mensajes que te llegan. El atajo (Ctrl+Mayús+O) lo desbloquea: la pantalla se oscurece, cada widget enseña su título y una chincheta (un widget fijado se queda mientras juegas), se arrastran uno a uno y los botones funcionan; un clic fuera, Esc, la X o volver a Chatterly devuelven el ratón al juego. Ya nunca se queda los clics del juego: el estilo "dejar pasar el ratón" de la ventana se vuelve a poner tras mostrarla o cambiar su tamaño. Probado en la app de escritorio real con cámara.

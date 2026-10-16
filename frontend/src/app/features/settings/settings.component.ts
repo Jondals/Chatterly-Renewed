@@ -22,6 +22,7 @@ import { AdminSectionComponent } from './admin-section.component';
 import { OverlaySectionComponent } from './overlay-section.component';
 import { AppearanceSectionComponent } from './appearance-section.component';
 import { AudioSectionComponent } from './audio-section.component';
+import { CallsSectionComponent } from './calls-section.component';
 import { GeneralSectionComponent } from './general-section.component';
 import { SyncSectionComponent } from './sync-section.component';
 import { IntegrationsSectionComponent } from './integrations-section.component';
@@ -57,6 +58,7 @@ const GROUPS: SectionEntry[][] = [
       tone: 'bg-amber/15 text-amber',
     },
     { id: 'audio', label: 'Voice & video', icon: 'mic', tone: 'bg-coral/15 text-coral' },
+    { id: 'calls', label: 'Calls', icon: 'phone', tone: 'bg-emerald/15 text-emerald' },
     { id: 'stickers', label: 'Stickers', icon: 'sticker', tone: 'bg-sky/15 text-sky' },
     { id: 'language', label: 'Language', icon: 'globe', tone: 'bg-emerald/15 text-emerald' },
     { id: 'sync', label: 'Sync', icon: 'refresh', tone: 'bg-sky/15 text-sky' },
@@ -109,6 +111,7 @@ const ADMIN_ENTRY: SectionEntry = {
     AppearanceSectionComponent,
     GeneralSectionComponent,
     AudioSectionComponent,
+    CallsSectionComponent,
     StickersSectionComponent,
     ShortcutsSectionComponent,
     SecuritySectionComponent,
@@ -220,6 +223,9 @@ const ADMIN_ENTRY: SectionEntry = {
               }
               @case ('audio') {
                 <app-audio-section class="anim-fade-up block" />
+              }
+              @case ('calls') {
+                <app-calls-section class="anim-fade-up block" />
               }
               @case ('shortcuts') {
                 <app-shortcuts-section class="anim-fade-up block" />

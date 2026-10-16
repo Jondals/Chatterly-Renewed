@@ -192,7 +192,7 @@ public class ScreenSharePlugin extends Plugin {
         service.putExtra(ScreenForegroundService.EXTRA_RESULT_CODE, result.getResultCode());
         service.putExtra(ScreenForegroundService.EXTRA_PROJECTION, result.getData());
         service.putExtra(ScreenForegroundService.EXTRA_LONG_SIDE, clamp(call.getInt("longSide", 1280), 480, 1920));
-        service.putExtra(ScreenForegroundService.EXTRA_FPS, clamp(call.getInt("fps", 30), 1, 30));
+        service.putExtra(ScreenForegroundService.EXTRA_FPS, clamp(call.getInt("fps", 30), 1, 60));
         service.putExtra(ScreenForegroundService.EXTRA_QUALITY, clamp(call.getInt("quality", 60), 30, 90));
         service.putExtra(ScreenForegroundService.EXTRA_AUDIO, Boolean.TRUE.equals(call.getBoolean("audio", false)));
         ScreenForegroundService.listener = toPage;

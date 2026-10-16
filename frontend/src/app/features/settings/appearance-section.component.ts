@@ -44,7 +44,6 @@ import {
 } from '../../shared/components/controls.component';
 import { ACCENTS, THEMES } from '../../core/theme-data';
 import { ANDROID_APP } from '../../core/config';
-import { NativeCallService } from '../../core/services/native-call.service';
 import { PresetsComponent } from './presets.component';
 
 const FONTS: { id: FontId; label: string; css: string }[] = [
@@ -481,30 +480,6 @@ const TRAILS: { id: TrailType | 'off'; label: string; hint: string }[] = [
               ) | t
             }}
           </p>
-        }
-        <app-setting-row
-          title="Calls in the background"
-          hint="Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open."
-        >
-          <app-toggle
-            [checked]="s.backgroundCalls()"
-            (checkedChange)="s.backgroundCalls.set($event)"
-            [label]="'Calls in the background' | t"
-          />
-        </app-setting-row>
-        @if (!nativeCall.fullScreenAllowed()) {
-          <app-setting-row
-            title="Calls over the lock screen"
-            hint="Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked."
-          >
-            <button
-              type="button"
-              class="btn btn-sm btn-primary"
-              (click)="nativeCall.openFullScreenSettings()"
-            >
-              {{ 'Allow' | t }}
-            </button>
-          </app-setting-row>
         }
       </section>
     }
@@ -1017,7 +992,6 @@ export class AppearanceSectionComponent {
   /** The Android app: it has the setting of calls in the background. */
   protected readonly android = ANDROID_APP;
   /** Android: the permission of calls over the lock screen. */
-  protected readonly nativeCall = inject(NativeCallService);
   protected readonly powerModes = [
     { id: 'auto', label: 'Automatic' },
     { id: 'full', label: 'Maximum' },

@@ -2,6 +2,15 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.34.1
+
+- **A section just for calls.** Settings > Calls gathers what is about calls: the call ringtone and the opening of the soundboard (before in Sounds & notifications; its volume is in the soundboard itself), what the menu of sharing the screen starts with (quality and sound) and, on Android, calls in the background and over the lock screen (before in Appearance). Devices, microphone and camera stay in Voice & video.
+- **Screen-sharing quality as you like it.** You choose the size and the pictures per second: 720p, 1080p and, on a computer, 2K, each at 30 or 60 (in Settings > Calls and in the sharing menu). What you had chosen still works. On Android the 60 qualities send up to 60 pictures per second; only one picture is in flight, so a slower phone sends fewer instead of stuttering.
+- **Simpler and more complete sync.** Settings > Sync has one choice for this device (follow my account, or only this device) that covers everything: settings, stickers, presets, the sounds of your soundboard and camera backgrounds. Below it, the status, the space used and a button to sync now; the configurations are folded away.
+- **The sounds you upload reach all your devices.** The sounds of the soundboard (with their name, emoji, category and cut) are kept in your account end-to-end encrypted, like the stickers; deleting one on a device deletes it on the others.
+- **GIFs that always load, faster.** More GIFs are asked for at once, a failed one is asked again by itself (and pressing its thumbnail retries), and the server sends WebP previews (a third of the weight) and no longer rejects the thumbnails of a page when you scroll fast (needs the new backend).
+- **Phone: the actions of a message appear when you hold it.** A tap on a message no longer opens its bar of actions: it shows when you hold the message (with a short vibration), and goes away when you tap elsewhere.
+
 ## 2.34.0
 
 - **A new game overlay, like the one of Discord.** Your call over your game in widgets you place where you want: the call controls (mute, deafen, camera, screen, hang up, how long and the ping), the people of the voice channel (who talks, who is muted, who is LIVE), the cameras (yours too, now on by default), the activity (the registered game that is open and for how long), the screens they share (with their volume) and the messages you get. The shortcut (Ctrl+Shift+O) unlocks it: the screen dims, every widget shows its title and a pin (a pinned widget stays while you play), they are dragged one by one and the buttons work; a click outside, Esc, the cross or going back to Chatterly give the mouse back to the game. It never keeps the clicks of the game: the "let the mouse through" style of the window is set again after it is shown or resized. Checked in the real desktop app with a camera.

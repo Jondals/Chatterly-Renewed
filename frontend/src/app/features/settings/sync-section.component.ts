@@ -72,34 +72,28 @@ import { SettingRowComponent, ToggleComponent } from '../../shared/components/co
       </div>
       <p class="pb-3 text-xs text-dim">
         {{
-          'Never copied: the microphone, the speakers, the camera and the files you uploaded (fonts, cursors). They stay on each device.'
+          'Never copied: the microphone, the speakers, the camera, fonts and cursors. They stay on each device.'
             | t
         }}
       </p>
     </section>
 
-    <section class="settings-card">
-      <h2 class="settings-card-title">{{ 'Stickers and presets' | t }}</h2>
-      <app-setting-row
-        title="Keep a copy in my account"
-        hint="Your sticker packs and presets reach every device you sign in on, and come back if this device loses them. Encrypted here first: the server keeps something it cannot read."
-      >
-        <app-toggle
-          [checked]="library.enabled()"
-          (checkedChange)="library.enabled.set($event)"
-          [label]="'Keep a copy in my account' | t"
-        />
-      </app-setting-row>
-      @if (library.enabled()) {
+    @if (sync.mode() === 'account') {
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'What is synced' | t }}</h2>
+        <p class="pb-3 text-xs text-muted">
+          {{
+            'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.'
+              | t
+          }}
+        </p>
         <div class="flex flex-wrap items-center gap-2 pb-3 text-xs">
           @switch (library.status()) {
             @case ('working') {
               <span class="chip">{{ 'Syncing…' | t }}</span>
             }
             @case ('synced') {
-              <span class="chip chip-accent">{{
-                'Your stickers and presets are in your account.' | t
-              }}</span>
+              <span class="chip chip-accent">{{ 'Everything is in your account.' | t }}</span>
             }
             @case ('full') {
               <span class="chip chip-amber">{{
@@ -119,44 +113,7 @@ import { SettingRowComponent, ToggleComponent } from '../../shared/components/co
             <app-icon name="refresh" [size]="13" /> {{ 'Sync now' | t }}
           </button>
         </div>
-      }
-      <app-setting-row
-        title="Keep them on this device when I sign out"
-        hint="Signing out then erases only your session and your keys. If another account signs in here, everything is erased first."
-      >
-        <app-toggle
-          [checked]="settings.keepOnSignOut()"
-          (checkedChange)="settings.keepOnSignOut.set($event)"
-          [label]="'Keep them on this device when I sign out' | t"
-        />
-      </app-setting-row>
-    </section>
-
-    <section class="settings-card">
-      <h2 class="settings-card-title">{{ 'Your library (camera backgrounds)' | t }}</h2>
-      <p class="pb-3 text-xs text-muted">
-        {{
-          'The pictures and GIFs you add for your camera. In your account they are encrypted on this device before they are sent, with a key only your identity has: the server only keeps something it cannot read, and neither the server nor anybody else can open them.'
-            | t
-        }}
-      </p>
-      <div class="grid gap-2 pb-3 sm:grid-cols-2">
-        @for (place of places; track place.id) {
-          <button
-            type="button"
-            class="choice-card !items-start text-left"
-            [class.is-on]="vault.inAccount() === place.account"
-            (click)="setPlace(place.account)"
-          >
-            <span class="flex items-center gap-2 text-sm font-semibold">
-              <app-icon [name]="place.icon" [size]="15" /> {{ place.label | t }}
-            </span>
-            <span class="text-xs font-normal text-muted">{{ place.hint | t }}</span>
-          </button>
-        }
-      </div>
-      <div class="space-y-3 pb-3">
-        <div>
+        <div class="pb-3">
           <div class="mb-1 flex justify-between text-xs text-muted">
             <span>{{ 'In your account' | t }}</span>
             <span class="font-mono">{{ usedText() }}</span>
@@ -168,32 +125,40 @@ import { SettingRowComponent, ToggleComponent } from '../../shared/components/co
             ></div>
           </div>
         </div>
-        @if (deviceCount() > 0 && vault.inAccount()) {
+        @if (deviceCount() > 0) {
           <div
-            class="flex flex-wrap items-center gap-2 rounded-ui bg-white/[.04] px-3 py-2 text-xs text-muted"
+            class="mb-3 flex flex-wrap items-center gap-2 rounded-ui bg-white/[.04] px-3 py-2 text-xs text-muted"
           >
-            <span class="min-w-0 flex-1">{{
-              'Some backgrounds are only on this device.' | t
-            }}</span>
+            <span class="min-w-0 flex-1">{{ 'Some backgrounds are only on this device.' | t }}</span>
             <button type="button" class="btn btn-sm" (click)="moveToAccount()">
               {{ 'Move them to my account' | t }}
             </button>
           </div>
         }
+        <app-setting-row
+          title="Keep them on this device when I sign out"
+          hint="Signing out then erases only your session and your keys. If another account signs in here, everything is erased first."
+        >
+          <app-toggle
+            [checked]="settings.keepOnSignOut()"
+            (checkedChange)="settings.keepOnSignOut.set($event)"
+            [label]="'Keep them on this device when I sign out' | t"
+          />
+        </app-setting-row>
         <button
           type="button"
-          class="btn btn-sm btn-soft-danger gap-1.5"
+          class="btn btn-sm btn-soft-danger mt-3 gap-1.5"
           [disabled]="accountCount() === 0"
           (click)="removeAll()"
         >
           <app-icon name="trash" [size]="13" /> {{ 'Remove everything from my account' | t }}
         </button>
-      </div>
-    </section>
+      </section>
+    }
 
     @if (sync.mode() === 'account') {
-      <section class="settings-card">
-        <h2 class="settings-card-title">{{ 'Configurations' | t }}</h2>
+      <details class="settings-card">
+        <summary class="settings-card-title cursor-pointer">{{ 'Configurations' | t }}</summary>
         <p class="pb-2 text-xs text-muted">
           {{
             'A configuration is a full copy of your settings with a name, for example "Computer" and "Phone". Each device uses one: what you change here changes that one. Press another to make this device use it.'
@@ -254,7 +219,7 @@ import { SettingRowComponent, ToggleComponent } from '../../shared/components/co
             <app-icon name="plus" [size]="14" /> {{ 'New configuration from these settings' | t }}
           </button>
         </div>
-      </section>
+      </details>
     }
   `,
 })
@@ -264,28 +229,6 @@ export class SyncSectionComponent {
   protected readonly library = inject(LibrarySyncService);
   protected readonly settings = inject(SettingsService);
   private readonly toast = inject(ToastService);
-  protected readonly places: {
-    id: string;
-    account: boolean;
-    label: string;
-    hint: string;
-    icon: string;
-  }[] = [
-    {
-      id: 'account',
-      account: true,
-      label: 'Keep it in my account',
-      hint: 'Encrypted, and on every device you sign in on.',
-      icon: 'lock',
-    },
-    {
-      id: 'device',
-      account: false,
-      label: 'Only this device',
-      hint: 'Nothing is sent: what you add stays here.',
-      icon: 'monitor',
-    },
-  ];
   private readonly dialog = inject(DialogService);
   private readonly i18n = inject(I18nService);
   protected readonly modes: { id: SyncMode; label: string; hint: string; icon: string }[] = [
@@ -337,11 +280,6 @@ export class SyncSectionComponent {
     return Math.min(100, (this.vault.used() / this.vault.limits().totalBytes) * 100);
   }
 
-  /** Chooses where the next pictures of the library are kept. */
-  protected setPlace(account: boolean): void {
-    this.vault.inAccount.set(account);
-  }
-
   /** Moves what is only on this device to the account. */
   protected async moveToAccount(): Promise<void> {
     const moved = await this.vault.moveDeviceToAccount();
@@ -367,8 +305,11 @@ export class SyncSectionComponent {
     }
   }
 
-  /** Chooses whether this device follows the account. */
+  /** Chooses whether this device follows the account, for everything at once. */
   protected setMode(mode: SyncMode): void {
+    // One choice for everything: the settings, the stickers, presets and sounds, and the camera backgrounds.
+    this.library.enabled.set(mode === 'account');
+    this.vault.inAccount.set(mode === 'account');
     void this.sync.setMode(mode);
   }
 

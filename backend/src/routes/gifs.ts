@@ -27,6 +27,8 @@ interface GifPage {
 
 interface GiphyImage {
   url?: string;
+  /** The same picture as WebP: about a third of the weight of the GIF. */
+  webp?: string;
   width?: string;
   height?: string;
 }
@@ -48,6 +50,8 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
   const doFetch = config.fetch ?? fetch;
   const auth = { onRequest: [app.authenticate] };
   const limit = { config: { rateLimit: { max: 90, timeWindow: 60_000 } } };
+  // ! A page of results asks for 24 previews at once: with the limit of the searches, scrolling fast made some answer 429 and never load.
+  const mediaLimit = { config: { rateLimit: { max: 600, timeWindow: 60_000 } } };
 
   /** Whether the GIF service is configured (a key of Giphy). */
   function enabled(): boolean {
@@ -88,7 +92,7 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
         return {
           id: 'g' + r.id,
           title: r.title ?? '',
-          preview: small?.url ?? '',
+          preview: small?.webp ?? small?.url ?? '',
           url: full?.url ?? small?.url ?? '',
           width: Number(small?.width) || 200,
           height: Number(small?.height) || 200,
@@ -175,7 +179,7 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
     '/api/gifs/media',
     {
       ...auth,
-      ...limit,
+      ...mediaLimit,
       schema: {
         querystring: {
           type: 'object',
@@ -206,7 +210,7 @@ export function registerGifRoutes(app: FastifyInstance, ctx: AppContext): void {
         if (bytes.length > MAX_GIF_BYTES) return reply.code(413).send({ error: 'gif_too_large' });
         return reply
           .header('Content-Type', type.split(';')[0]!)
-          .header('Cache-Control', 'private, max-age=86400')
+          .header('Cache-Control', 'private, max-age=604800, immutable')
           .send(bytes);
       } catch {
         return reply.code(502).send({ error: 'gif_provider_error' });
