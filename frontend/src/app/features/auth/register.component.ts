@@ -5,6 +5,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
+import { warmApp } from '../../core/warm-app';
 import { AuthService } from '../../core/services/auth.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { describeError, passwordScore } from '../../shared/util/errors';
@@ -25,7 +26,12 @@ const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
       {{ 'Your keys are generated here, in this browser.' | t }}
     </p>
 
-    <form class="mt-6 space-y-4" (submit)="submit($event)" [class.anim-shake]="shake()">
+    <form
+      class="mt-6 space-y-4"
+      (submit)="submit($event)"
+      (focusin)="warm()"
+      [class.anim-shake]="shake()"
+    >
       <label class="block">
         <span class="label">{{ 'Username' | t }}</span>
         <input
@@ -158,6 +164,11 @@ export class RegisterComponent {
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private readonly arrival = inject(ArrivalService);
+
+  /** Starts loading the app while the person fills the form (see warm-app.ts). */
+  protected warm(): void {
+    warmApp();
+  }
 
   readonly username = signal('');
   readonly displayName = signal('');

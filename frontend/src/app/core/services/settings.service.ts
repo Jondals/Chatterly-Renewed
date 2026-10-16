@@ -308,7 +308,12 @@ export class SettingsService {
     /** A `ScreenQuality` (see screen-quality.ts); an older version saved standard, high or max. */
     quality: string;
     audio: boolean;
-  }>('pref.screenShare', { surface: 'any', quality: '1080-30', audio: true });
+  }>('pref.screenShare', {
+    surface: 'any',
+    // A phone starts light (720p at 30); a computer at 1080p.
+    quality: ANDROID_APP || IOS_APP ? '720-30' : '1080-30',
+    audio: true,
+  });
   /** How much the interface animates: nothing, short transitions, or everything. Apart from the motion of the background. */
   readonly animations = persisted<'off' | 'quick' | 'full'>('pref.animations', initialAnimations());
   /**
@@ -323,9 +328,10 @@ export class SettingsService {
   readonly introOnStart = persisted('pref.introOnStart', true);
   /**
    * Android: stay connected in the background (with a fixed notification) so calls ring with the app minimized. Off by
-   * default: the person did not want a notification only for being connected. ? A new key, so the old "on" is not kept.
+   * default: the person did not want a notification only for being connected. ? A new key (it was pref.keepConnected, which an
+   * old version also copied to the account, and every device that signed in got the "on" back), so everybody starts off.
    */
-  readonly backgroundCalls = persisted('pref.keepConnected', false);
+  readonly backgroundCalls = persisted('pref.listenInBackground', false);
   /**
    * Signing out keeps on this device what the person made (stickers, sounds, presets, fonts, wallpaper, preferences); only
    * the session and the keys go. On by default in the apps (a device of the person), off in a browser (it may be shared).

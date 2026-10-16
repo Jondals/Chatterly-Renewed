@@ -68,9 +68,8 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
-/* the sounds: every one has the same size, and the grid keeps its height when the category changes */
+/* the sounds: every one has the same size (the whole list keeps its height when the category changes: see the dock) */
 .sb-grid {
-  min-height: 14rem;
   align-content: start;
 }
 .sb-tile {

@@ -5,6 +5,7 @@
 import { DecimalPipe } from '@angular/common';
 import {
   Component,
+  DestroyRef,
   ElementRef,
   OnDestroy,
   computed,
@@ -386,13 +387,18 @@ export class AttachmentComponent implements OnDestroy {
     }.bind(this),
   );
 
+  /** True once the attachment is near the screen: a long chat does not download and decrypt every picture at once. */
+  private readonly near = signal(false);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   constructor() {
     effect(this.checkOwned.bind(this));
-    // Images and audio load eagerly; plain files wait for the user.
+    this.watchScreen();
+    // Images and audio load when they come near the screen; plain files wait for the user.
     effect(
       function (this: AttachmentComponent) {
         const att = this.att();
-        if (att.kind === 'file') return;
+        if (att.kind === 'file' || !this.near()) return;
         untracked(
           function (this: AttachmentComponent) {
             this.store.attachmentUrl(att).then(
@@ -409,6 +415,29 @@ export class AttachmentComponent implements OnDestroy {
         );
       }.bind(this),
     );
+  }
+
+  /** Says when the attachment is within a screen or so of what is visible (and stops looking after that). */
+  private watchScreen(): void {
+    if (typeof IntersectionObserver === 'undefined') {
+      this.near.set(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      function (this: AttachmentComponent, entries: IntersectionObserverEntry[]): void {
+        if (
+          entries.some(function visible(entry) {
+            return entry.isIntersecting;
+          })
+        ) {
+          this.near.set(true);
+          observer.disconnect();
+        }
+      }.bind(this),
+      { rootMargin: '800px 0px' },
+    );
+    observer.observe(this.host.nativeElement);
+    inject(DestroyRef).onDestroy(observer.disconnect.bind(observer));
   }
 
   /** Looks whether the preset of this message is already in the library of the person (and again when the library changes). */

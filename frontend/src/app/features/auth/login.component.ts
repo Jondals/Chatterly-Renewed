@@ -6,6 +6,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { isWebTab } from '../../core/web-tab';
+import { warmApp } from '../../core/warm-app';
 import { AuthService } from '../../core/services/auth.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { describeError } from '../../shared/util/errors';
@@ -24,6 +25,7 @@ import { ArrivalService } from '../../core/services/arrival.service';
     <form
       class="mt-6 space-y-4"
       (submit)="submit($event)"
+      (focusin)="warm()"
       [class.anim-shake]="shake()"
       autocomplete="on"
     >
@@ -110,6 +112,11 @@ export class LoginComponent {
 
   /** The web (not an app): it has the first page, with the download and the guest mode. */
   protected readonly web = isWebTab();
+
+  /** Starts loading the app while the person fills the form (see warm-app.ts). */
+  protected warm(): void {
+    warmApp();
+  }
 
   readonly username = signal('');
   readonly password = signal('');

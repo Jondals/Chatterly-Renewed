@@ -24,12 +24,16 @@ export async function step04(world) {
   await a.goto(WEB + '/');
   await a.waitForSelector('app-landing h1', { timeout: 10000 });
   check(
+    (await a.locator('app-landing a[href]').count()) === 0,
+    'the first page has no links (the browser would show their address at the bottom)',
+  );
+  check(
     (await a.locator('app-landing button[aria-pressed]').count()) === 5,
     'the first page lets you choose among the five apps',
   );
-  const download = a.locator('app-landing a.btn-primary[href*="/api/download/"]');
+  const download = a.locator('app-landing button[data-download]');
   check(
-    ((await download.getAttribute('href')) ?? '').endsWith('/api/download/windows'),
+    (await download.getAttribute('data-download')) === 'windows',
     'the button on top downloads the app that fits this device (Windows here)',
   );
   // Nothing may move when another system is chosen (the note under the buttons only fades in).
@@ -39,7 +43,7 @@ export async function step04(world) {
         const r = document.querySelector(selector).getBoundingClientRect();
         return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(',');
       };
-      return ['app-landing a.btn-primary[href*="/api/download/"]', 'app-landing button[aria-pressed]'].map(box).join('|');
+      return ['app-landing button[data-download]', 'app-landing button[aria-pressed]'].map(box).join('|');
     });
   };
   await a.waitForTimeout(1500); // the page is whole (the first picture of the HTML has given way to the live one)
@@ -54,7 +58,7 @@ export async function step04(world) {
   await a.click('app-landing button[aria-pressed]:has-text("Android")');
   await a.waitForTimeout(300);
   check(
-    ((await download.getAttribute('href')) ?? '').endsWith('/api/download/android') &&
+    (await download.getAttribute('data-download')) === 'android' &&
       (await a.locator('app-landing button[aria-pressed="true"]').count()) === 1,
     'choosing another system below changes the button on top',
   );
@@ -69,7 +73,7 @@ export async function step04(world) {
   await phonePage.goto(WEB + '/');
   await phonePage.waitForSelector('app-landing h1', { timeout: 10000 });
   check(
-    ((await phonePage.locator('app-landing a.btn-primary[href*="/api/download/"]').getAttribute('href')) ?? '').endsWith('/api/download/ios'),
+    (await phonePage.locator('app-landing button[data-download]').getAttribute('data-download')) === 'ios',
     'an iPhone is offered the iOS app',
   );
   check(

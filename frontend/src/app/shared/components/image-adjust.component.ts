@@ -4,6 +4,8 @@
  * move it, scroll or use the slider to zoom, and see exactly what will be kept (a circle for square pictures, a wide
  * frame for banners). It is loaded only when a picture is chosen, and opened by `adjustImage`.
  */
+import { I18nService } from '../../core/i18n/i18n.service';
+import { ToastService } from '../../core/services/toast.service';
 import {
   ApplicationRef,
   AfterViewInit,
@@ -371,8 +373,18 @@ export async function prepareImage(
   file: Blob,
   target: { width: number; height: number },
 ): Promise<Blob | null> {
-  if (file.size <= ANIMATED_MAX_BYTES && (await isAnimated(file))) {
-    return file;
+  if (await isAnimated(file)) {
+    if (file.size <= ANIMATED_MAX_BYTES) {
+      return file;
+    }
+    // ! Said, not silent: a picture that moves but is too big is saved as a still one, and the person must know why it does not move.
+    injector
+      .get(ToastService)
+      .info(
+        injector.get(I18nService).t('This picture is too big to keep moving'),
+        injector.get(I18nService).t('Pictures that move can weigh up to 8 MB: this one is saved still.'),
+        '🖼️',
+      );
   }
   return adjustImage(injector, file, target);
 }

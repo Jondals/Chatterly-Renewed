@@ -726,6 +726,17 @@ async function start() {
 
   const ses = session.defaultSession;
   if (webDir) bundle.install(ses, webDir, serverUrl.origin);
+  // ! YouTube does not play in a frame whose referrer is not an http(s) address ("error 153"), and the page of the installed app is
+  //   app://chatterly. The frame of its player (listen and watch together in a call) is asked for with the address of the server as
+  //   its referrer, as a browser on the web would send it. Nothing else changes, and only that one kind of request.
+  ses.webRequest.onBeforeSendHeaders(
+    { urls: ['https://www.youtube-nocookie.com/*', 'https://www.youtube.com/*'] },
+    function onPlayerRequest(details, callback) {
+      const headers = { ...details.requestHeaders };
+      if (details.resourceType === 'subFrame') headers['Referer'] = serverUrl.origin + '/';
+      callback({ requestHeaders: headers });
+    },
+  );
   ipcMain.handle('screen:surface', onScreenSurface);
   ipcMain.handle('screen:choose', onPickChoose);
   ipcMain.handle('screen:cancel', onPickCancel);

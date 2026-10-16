@@ -102,6 +102,11 @@ public class ScreenForegroundService extends Service {
     private long lastFrameAt;
     private long minGapMs = 100;
     private int jpegQuality = 60;
+    /** The quality the page asked for: the one the encoder goes back to when the phone has room again. */
+    private int baseQuality = 60;
+    /** How many pictures in a row took longer to make than the pace allows (or much less): the quality follows it. */
+    private int slowStreak = 0;
+    private int fastStreak = 0;
     private Bitmap padded;
     private int longSide = 1280;
     private int frameWidth;
@@ -178,6 +183,7 @@ public class ScreenForegroundService extends Service {
         boolean withSound = intent.getBooleanExtra(EXTRA_AUDIO, false);
         int fps = Math.max(1, Math.min(60, intent.getIntExtra(EXTRA_FPS, 30)));
         jpegQuality = Math.max(30, Math.min(90, intent.getIntExtra(EXTRA_QUALITY, 60)));
+        baseQuality = jpegQuality;
         // A little less than the exact gap: the pictures of a 60 Hz screen arrive a millisecond early or late, and 60 would become 30.
         minGapMs = Math.max(1L, 1000L / fps - 2L);
         if (grant == null) {
@@ -403,6 +409,7 @@ public class ScreenForegroundService extends Service {
             if (picture != padded) {
                 picture.recycle();
             }
+            adaptQuality(System.currentTimeMillis() - now);
             lastFrameAt = now;
             waitingForAck.set(true);
             target.onFrame(bytes.toByteArray(), width, height);
@@ -412,6 +419,29 @@ public class ScreenForegroundService extends Service {
             if (image != null) {
                 image.close();
             }
+        }
+    }
+
+    /**
+     * A phone that cannot make the pictures as fast as the pace asks makes them lighter (a lower JPEG quality takes less time to
+     * encode and to send and decode), and goes back up when it has room again. Without this a slow phone sent few, heavy pictures.
+     */
+    private void adaptQuality(long encodeMs) {
+        if (encodeMs > minGapMs + minGapMs / 5) {
+            fastStreak = 0;
+            if (++slowStreak >= 6 && jpegQuality > 36) {
+                jpegQuality = Math.max(36, jpegQuality - 6);
+                slowStreak = 0;
+            }
+        } else if (encodeMs < minGapMs / 2) {
+            slowStreak = 0;
+            if (++fastStreak >= 90 && jpegQuality < baseQuality) {
+                jpegQuality = Math.min(baseQuality, jpegQuality + 4);
+                fastStreak = 0;
+            }
+        } else {
+            slowStreak = 0;
+            fastStreak = 0;
         }
     }
 

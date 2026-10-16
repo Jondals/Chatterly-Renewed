@@ -24,11 +24,7 @@ import { DialogService } from '../../core/services/dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { describeError } from '../../shared/util/errors';
 import { IconComponent } from '../../shared/components/icon.component';
-import {
-  SegmentedComponent,
-  SettingRowComponent,
-  ToggleComponent,
-} from '../../shared/components/controls.component';
+import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 
 /** The tabs of the administration. */
 type AdminTab = 'overview' | 'people' | 'server' | 'record';
@@ -55,7 +51,7 @@ const ACTIONS: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-section',
   standalone: true,
-  imports: [IconComponent, TranslatePipe, SegmentedComponent, SettingRowComponent, ToggleComponent],
+  imports: [IconComponent, TranslatePipe, SettingRowComponent, ToggleComponent],
   styles: `
     .ad-tabs {
       position: sticky;
@@ -167,7 +163,21 @@ const ACTIONS: Record<string, string> = {
   `,
   template: `
     <div class="ad-tabs">
-      <app-segmented [options]="tabs" [value]="tab()" (valueChange)="open($event)" />
+      <div class="grid grid-cols-4 gap-1 rounded-ui bg-black/30 p-1" role="tablist">
+        @for (t of tabs; track t.id) {
+          <button
+            type="button"
+            role="tab"
+            class="btn btn-sm min-w-0 justify-center !px-1"
+            [class.btn-primary]="tab() === t.id"
+            [class.btn-ghost]="tab() !== t.id"
+            [attr.aria-selected]="tab() === t.id"
+            (click)="open(t.id)"
+          >
+            <span class="truncate">{{ t.label | t }}</span>
+          </button>
+        }
+      </div>
     </div>
 
     @if (admin.unavailable()) {
@@ -271,11 +281,21 @@ const ACTIONS: Record<string, string> = {
             </button>
           </form>
           <div class="pb-3">
-            <app-segmented
-              [options]="filters"
-              [value]="filter()"
-              (valueChange)="setFilter($event)"
-            />
+            <div class="grid grid-cols-2 gap-1 rounded-ui bg-black/30 p-1 sm:grid-cols-4" role="radiogroup">
+              @for (f of filters; track f.id) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="btn btn-sm min-w-0 justify-center !px-2"
+                  [class.btn-primary]="filter() === f.id"
+                  [class.btn-ghost]="filter() !== f.id"
+                  [attr.aria-checked]="filter() === f.id"
+                  (click)="setFilter(f.id)"
+                >
+                  <span class="truncate">{{ f.label | t }}</span>
+                </button>
+              }
+            </div>
           </div>
         </section>
         <section class="settings-card">
@@ -457,10 +477,26 @@ const ACTIONS: Record<string, string> = {
             [value]="announcement()"
             (input)="announcement.set($any($event.target).value)"
           ></textarea>
-          <div class="flex flex-wrap items-center gap-2 py-3">
-            <app-segmented [options]="tones" [value]="tone()" (valueChange)="setTone($event)" />
-            <span class="flex-1"></span>
-            <span class="font-mono text-[0.6875rem] text-dim">{{ announcement().length }}/300</span>
+          <div class="mt-1 flex items-center justify-between gap-2 text-[0.6875rem] text-dim">
+            <span>{{ 'Tone' | t }}</span>
+            <span class="font-mono">{{ announcement().length }}/300</span>
+          </div>
+          <div class="mt-1.5 grid grid-cols-2 gap-1 rounded-ui bg-black/30 p-1" role="radiogroup">
+            @for (t of tones; track t.id) {
+              <button
+                type="button"
+                role="radio"
+                class="btn btn-sm min-w-0 justify-center"
+                [class.btn-primary]="tone() === t.id"
+                [class.btn-ghost]="tone() !== t.id"
+                [attr.aria-checked]="tone() === t.id"
+                (click)="setTone(t.id)"
+              >
+                {{ t.label | t }}
+              </button>
+            }
+          </div>
+          <div class="flex flex-wrap items-center justify-end gap-2 py-3">
             @if (admin.overview()?.announcement) {
               <button type="button" class="btn btn-sm" [disabled]="busy()" (click)="publish('')">
                 {{ 'Remove it' | t }}
@@ -468,7 +504,7 @@ const ACTIONS: Record<string, string> = {
             }
             <button
               type="button"
-              class="btn btn-sm btn-primary"
+              class="btn btn-sm btn-primary max-sm:flex-1"
               [disabled]="busy() || !announcement().trim()"
               (click)="publish(announcement())"
             >

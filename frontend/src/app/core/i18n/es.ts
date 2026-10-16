@@ -855,7 +855,6 @@ export const ES: Record<string, string> = {
   'TypeScript': 'TypeScript',
   'General chat': 'Chat general',
   'Account': 'Cuenta',
-  'Chatterly': 'Chatterly',
   'Zero knowledge': 'Conocimiento cero',
   'Your password and your keys never leave your device.':
     'Tu contraseña y tus claves nunca salen de tu dispositivo.',
@@ -1410,12 +1409,33 @@ export const ES: Record<string, string> = {
   'Choose your system': 'Elige tu sistema',
   'Back to the website': 'Volver a la web',
   'Your sessions': 'Tus sesiones',
-  'The devices where you are signed in. Close the ones you do not use or do not know: they have to sign in again.':
-    'Los dispositivos donde tienes la sesión iniciada. Cierra los que no uses o no conozcas: tendrán que iniciar sesión otra vez.',
+  'Every time you sign in on a device a session is made, and signing out deletes it. A session also stays open when you close the app or clear the browser without signing out: it ends by itself after 30 days. A device that signs in again replaces its own old session. Close here the ones you do not use or do not know: they have to sign in again.':
+    'Cada vez que inicias sesión en un dispositivo se crea una sesión, y cerrar sesión la borra. Una sesión también queda abierta si cierras la app o borras el navegador sin cerrar sesión: termina sola a los 30 días. Un dispositivo que vuelve a entrar sustituye su propia sesión anterior. Cierra aquí las que no uses o no conozcas: tendrán que iniciar sesión otra vez.',
   'This device': 'Este dispositivo',
   'Close all the other sessions': 'Cerrar todas las demás sesiones',
   'Every other device has to sign in again. This one stays open.':
     'Todos los demás dispositivos tendrán que iniciar sesión otra vez. Este sigue abierto.',
+  'This picture is too big to keep moving': 'Esta imagen es demasiado grande para seguir en movimiento',
+  'Pictures that move can weigh up to 8 MB: this one is saved still.':
+    'Las imágenes en movimiento pueden pesar hasta 8 MB: esta se guarda fija.',
+  'Tone': 'Tono',
+  'Releases': 'Versiones',
+  'Source code': 'Código fuente',
+  'Security': 'Seguridad',
+  'Open source (ISC licence) · No tracking': 'Código abierto (licencia ISC) · Sin rastreo',
+  'Chatterly': 'Chatterly',
+  'The text of the messages': 'El texto de los mensajes',
+  'The notifications show what the message says. Off: only who wrote it and where.':
+    'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
+  'The messages you get, to open them.': 'Los mensajes que te llegan, para abrirlos.',
+  'Install on iOS': 'Instalar en iOS',
+  'Install Chatterly on your iPhone': 'Instala Chatterly en tu iPhone',
+  'Open this page in Safari.': 'Abre esta página en Safari.',
+  'Tap Share, the square with an arrow.': 'Toca Compartir, el cuadrado con una flecha.',
+  'Choose "Add to Home Screen" and tap Add.': 'Elige «Añadir a pantalla de inicio» y toca Añadir.',
+  'It opens like any app, full screen. No store and nothing else to install.': 'Se abre como cualquier app, a pantalla completa. Sin tienda y sin instalar nada más.',
+  'I prefer the file (IPA, for advanced users)': 'Prefiero el archivo (IPA, para usuarios avanzados)',
+  'Got it': 'Entendido',
   'What is synced': 'Qué se sincroniza',
   'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.':
     'Ajustes, stickers, preajustes, tus sonidos y fondos de cámara. Se cifran primero en este dispositivo: el servidor solo guarda algo que no puede leer.',
@@ -1924,11 +1944,8 @@ export const ES: Record<string, string> = {
   'Took {target} out of the beta program': 'Sacó a {target} del programa beta',
   'Press the shortcut to unlock it: drag every widget where you want it and pin the ones that must stay while you play. A click outside, Esc or the cross give the mouse back to the game.':
     'Pulsa el atajo para desbloquearlo: arrastra cada widget donde quieras y fija los que deben verse mientras juegas. Un clic fuera, Esc o la X devuelven el ratón al juego.',
-  'The text of the messages': 'El texto de los mensajes',
   'Press the shortcut at any time to open it over whatever you are doing. In a call it also shows who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game.':
     'Pulsa el atajo en cualquier momento para abrirlo encima de lo que estés haciendo. En una llamada también enseña quién está y quién habla, las cámaras, las pantallas que comparten, los mensajes que te llegan y los botones de la llamada. Nunca lee ni cambia el juego.',
-  'The notifications show what the message says. Off: only who wrote it and where.':
-    'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
   'Mute, deafen, camera, screen and hang up.': 'Silenciar, ensordecer, cámara, pantalla y colgar.',
   'Who is in the call, who talks and who is live.':
     'Quién está en la llamada, quién habla y quién está en directo.',
@@ -1936,7 +1953,6 @@ export const ES: Record<string, string> = {
   'The game you registered and for how long.': 'El juego que registraste y cuánto llevas.',
   'Streams': 'Transmisiones',
   'The screens they share, with their volume.': 'Las pantallas que comparten, con su volumen.',
-  'The messages you get, to open them.': 'Los mensajes que te llegan, para abrirlos.',
   'Activity': 'Actividad',
   'Stickers and presets': 'Stickers y preajustes',
   'Keep a copy in my account': 'Guardar una copia en mi cuenta',
