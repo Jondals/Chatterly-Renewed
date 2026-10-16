@@ -154,7 +154,7 @@ export interface OverlaySettings {
 }
 
 /** The widgets of the overlay besides the video one. */
-export type OverlayWidgetId = 'notifications' | 'voice' | 'controls' | 'activity' | 'streams';
+type OverlayWidgetId = 'notifications' | 'voice' | 'controls' | 'activity' | 'streams';
 
 /** What the desktop app says about the overlay. */
 export interface OverlayState {
@@ -209,7 +209,7 @@ export interface OverlayStream {
 }
 
 /** A message that arrived, for the notifications widget. */
-export interface OverlayNotice {
+interface OverlayNotice {
   id: string;
   name: string;
   where: string;
@@ -225,7 +225,7 @@ export type OverlayAction =
   | { type: 'stream-volume'; id: string; volume: number };
 
 /** A message of the local video connection between the app and the overlay window. */
-export interface OverlaySignal {
+interface OverlaySignal {
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;

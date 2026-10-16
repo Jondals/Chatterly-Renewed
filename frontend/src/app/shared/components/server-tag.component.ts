@@ -3,7 +3,7 @@
  * The tag of a group ("server tag") next to the name of a person: a small pill with an icon and up to four letters, in the
  * color the owner of the group chose. The person decides in their profile whether to show it.
  */
-import { Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { ServerTag } from '../../core/models';
 
 /** The colors offered for a tag. */
@@ -22,6 +22,7 @@ export const TAG_COLORS = [
 
 /** A small pill with the tag of a group. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-server-tag',
   standalone: true,
   template: `

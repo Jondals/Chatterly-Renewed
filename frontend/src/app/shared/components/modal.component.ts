@@ -2,12 +2,13 @@
  * src/app/shared/components/modal.component.ts
  * Generic modal window. It is drawn at the end of <body> (see ToBodyDirective), so it always covers the whole app.
  */
-import { Component, HostListener, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, input, output } from '@angular/core';
 import { IconComponent } from './icon.component';
 import { closeOnBack } from '../../core/services/back.service';
 import { ToBodyDirective } from '../util/to-body.directive';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-modal',
   standalone: true,
   imports: [IconComponent, ToBodyDirective],

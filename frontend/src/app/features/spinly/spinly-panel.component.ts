@@ -4,7 +4,7 @@
  * leaving the conversation. It frames the real Spinly (nothing is copied here), shows its state, and lets the person
  * post the last result in the chat or open Spinly in its own window.
  */
-import { Component, ElementRef, HostListener, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, effect, inject, viewChild } from '@angular/core';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { SpinlyService } from '../../core/services/spinly.service';
@@ -16,6 +16,7 @@ import { closeOnBack } from '../../core/services/back.service';
 
 /** Large panel with the Spinly frame, opened from the "+" menu of the composer and from the call screen. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-panel',
   standalone: true,
   imports: [IconComponent, SpinlyComposerComponent, SpinlyLogoComponent, TranslatePipe],

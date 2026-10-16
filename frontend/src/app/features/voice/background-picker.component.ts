@@ -18,6 +18,7 @@ import {
   output,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import {
@@ -49,6 +50,7 @@ const BASIC = [
 
 /** The window of the camera. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-background-picker',
   standalone: true,
   imports: [

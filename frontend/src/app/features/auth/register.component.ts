@@ -2,7 +2,7 @@
  * src/app/features/auth/register.component.ts
  * Registration form: generates the keys in the browser and measures the strength of the password.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -14,6 +14,7 @@ const LABELS = ['Too short', 'Weak', 'Okay', 'Strong', 'Excellent'];
 const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-register',
   standalone: true,
   host: { class: 'auth-page auth-page-right block' },

@@ -34,11 +34,16 @@
 #   any other key must never be published), and attaches Chatterly-<v>.apk to the release.
 #
 # * macOS (`mac` job, on a Mac runner): one universal app (Intel and Apple Silicon) as Chatterly-<v>.dmg (what people install)
-#   and Chatterly-<v>.zip (listed in latest-mac.yml). It is signed AD HOC (not by Apple: that needs a paid account), so the first
+#   (the update downloads that same .dmg: there is no .zip). It is signed AD HOC (not by Apple: that needs a paid account), so the first
 #   time macOS asks to allow it in System Settings > Privacy & Security, and the app updates by downloading the .dmg the signed
 #   manifest lists and checking its sha512 (desktop/src/updater.cjs).
+# * iOS (`ios` job, on a Mac runner): Chatterly-<v>.ipa, attached to the release right under the APK. ! It is NOT signed (that needs a
+#   paid Apple Developer account): it is for sideloading with a tool that signs it with the person's own Apple ID (AltStore, Sideloadly),
+#   or for signing it later with a real certificate. It is built with `continue-on-error`: if it fails, the rest of the release is
+#   published anyway (the first iOS build ever runs here, and a Mac-only problem must not hold back Windows, Linux, macOS and Android).
+#   A beta builds it too (to see it works) but the beta server does not take iOS files.
 # * A release is published only when EVERY platform built well, all at once (the draft is made public at the end), and its files
-#   are uploaded in this order: Windows, Linux, macOS, Android, then the manifests.
+#   are uploaded in this order: Windows, Linux, macOS, Android, iOS, then the manifests.
 #
 # * To add a platform (iOS): copy the `linux` job, change `runs-on`, the build step and the file names, add a
 #   check for its files in `prepare` (an output like `linux`), and list the job in `release`'s `needs` (and its artifact in that job).
@@ -78,6 +83,7 @@ jobs:
       linux: ${{ steps.version.outputs.linux }}
       mac: ${{ steps.version.outputs.mac }}
       android: ${{ steps.version.outputs.android }}
+      ios: ${{ steps.version.outputs.ios }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -120,6 +126,7 @@ jobs:
             echo "mac=true" >> "$GITHUB_OUTPUT"
             # The Android beta goes to the beta server too (APK + beta-android.yml), only for the testers.
             echo "android=true" >> "$GITHUB_OUTPUT"
+            echo "ios=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null || true)
@@ -144,6 +151,11 @@ jobs:
           else
             echo "android=true" >> "$GITHUB_OUTPUT"
           fi
+          if echo "$ASSETS" | grep -qx "Chatterly-$LABEL.ipa"; then
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+          fi
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             NAME="v$LABEL"
             node desktop/scripts/release-notes.mjs "$VERSION" "$NAME" > release-notes.md
@@ -154,7 +166,7 @@ jobs:
   # The web app is built ONCE and both platforms carry that same build (it was built twice before).
   web:
     needs: prepare
-    if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.mac == 'true' || needs.prepare.outputs.android == 'true'
+    if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.mac == 'true' || needs.prepare.outputs.android == 'true' || needs.prepare.outputs.ios == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -274,7 +286,6 @@ jobs:
           name: dist-mac
           path: |
             desktop/dist/Chatterly-${{ needs.prepare.outputs.label }}.dmg
-            desktop/dist/Chatterly-${{ needs.prepare.outputs.label }}.zip
             desktop/dist/latest-mac.yml
             desktop/dist/beta-mac.yml
           if-no-files-found: error
@@ -335,11 +346,76 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  ios:
+    needs: [prepare, web]
+    if: needs.prepare.outputs.ios == 'true'
+    runs-on: macos-latest
+    # ! The first iOS build runs here: a problem of this job must never hold back the other platforms (see the header).
+    continue-on-error: true
+    permissions:
+      contents: read # the build gets no way to write anywhere
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-build
+          path: frontend/dist/frontend/browser
+      - name: Put the web app inside the iOS project (no token here)
+        run: |
+          pnpm --dir mobile install --frozen-lockfile
+          node mobile/scripts/prepare-web.mjs --platform ios
+          pnpm --dir mobile exec cap sync ios
+      - name: Build the app, unsigned (no token here)
+        env:
+          LABEL: ${{ needs.prepare.outputs.label }}
+        working-directory: mobile/ios/App
+        run: |
+          # The number the system reads is the version without the beta mark; the build number grows with every run.
+          BASE="${LABEL%%-*}"
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Chatterly.xcarchive" \
+            MARKETING_VERSION="$BASE" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive
+      - name: Make the IPA (a zip with Payload/App.app) and check it
+        env:
+          LABEL: ${{ needs.prepare.outputs.label }}
+        run: |
+          APP="$RUNNER_TEMP/Chatterly.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          # Nothing that is a key or a secret may travel inside the app.
+          if find "$APP" \( -name '.env' -o -name '*.p12' -o -name '*.pem' -o -name '*.key' -o -name '*.mobileprovision' \) | grep -q .; then
+            echo "A key or a profile is inside the app"; exit 1
+          fi
+          grep -q 'platform: "ios"\|platform: .ios.' "$APP/public/native-config.js"
+          mkdir -p mobile/dist/Payload
+          cp -R "$APP" mobile/dist/Payload/
+          (cd mobile/dist && zip -qry "Chatterly-$LABEL.ipa" Payload && rm -rf Payload)
+          ls -l mobile/dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-ios
+          path: mobile/dist/Chatterly-${{ needs.prepare.outputs.label }}.ipa
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     # Signs the manifests and publishes: a stable release in GitHub, a beta in the Chatterly server. The only job with secrets, and
     # it runs only after every platform that had to be built has finished well.
-    needs: [prepare, web, windows, linux, mac, android]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && !contains(needs.*.result, 'failure') }}
+    needs: [prepare, web, windows, linux, mac, android, ios]
+    # The iOS job is left out of this check on purpose: its failure does not stop the rest (see the header of this file).
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.web.result != 'failure' && needs.windows.result != 'failure' && needs.linux.result != 'failure' && needs.mac.result != 'failure' && needs.android.result != 'failure' }}
     runs-on: ubuntu-latest
     environment: update-signing
     permissions:
@@ -349,7 +425,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.mac == 'true' || needs.prepare.outputs.android == 'true'
+        if: needs.prepare.outputs.windows == 'true' || needs.prepare.outputs.linux == 'true' || needs.prepare.outputs.mac == 'true' || needs.prepare.outputs.android == 'true' || needs.prepare.outputs.ios == 'true'
         with:
           pattern: dist-*
           merge-multiple: true
@@ -374,7 +450,7 @@ jobs:
           CHANNEL=latest
           if [ "$BETA" = true ]; then CHANNEL=beta; fi
           mkdir out
-          for FILE in dist/*.exe dist/*.AppImage dist/*.dmg dist/*.zip; do cp "$FILE" out/; done
+          for FILE in dist/*.exe dist/*.AppImage dist/*.dmg dist/*.ipa; do cp "$FILE" out/; done
           for FILE in dist/latest.yml dist/beta.yml; do if [ -f "$FILE" ]; then cp "$FILE" "out/$CHANNEL.yml"; fi; done
           for FILE in dist/latest-linux.yml dist/beta-linux.yml; do if [ -f "$FILE" ]; then cp "$FILE" "out/$CHANNEL-linux.yml"; fi; done
           for FILE in dist/latest-mac.yml dist/beta-mac.yml; do if [ -f "$FILE" ]; then cp "$FILE" "out/$CHANNEL-mac.yml"; fi; done
@@ -425,7 +501,7 @@ jobs:
             for FILE in out/*.exe out/*.AppImage; do send "$FILE"; done
             # macOS: a server that still runs an older version refuses these names; the other betas are published anyway.
             MAC_OK=true
-            for FILE in out/*.dmg out/*.zip; do send "$FILE" || MAC_OK=false; done
+            for FILE in out/*.dmg; do send "$FILE" || MAC_OK=false; done
             for FILE in out/*.yml; do
               if [ "$(basename "$FILE")" = beta-mac.yml ]; then
                 if [ "$MAC_OK" = true ]; then send "$FILE" || echo "::warning::The beta server did not take the macOS beta."; fi
@@ -447,9 +523,9 @@ jobs:
               fi
             done
           else
-            # Installers first, in this order (Windows, Linux, macOS, Android), then the manifests: an app that sees a manifest
+            # Installers first, in this order (Windows, Linux, macOS, Android, iOS), then the manifests: an app that sees a manifest
             # finds the installer it points to. The signature travels inside each manifest (last line).
-            for FILE in out/*.exe out/*.AppImage out/*.dmg out/*.zip out/*.apk out/*.yml; do
+            for FILE in out/*.exe out/*.AppImage out/*.dmg out/*.apk out/*.ipa out/*.yml; do
               gh release delete-asset "v$VERSION" "$(basename "$FILE")" --yes 2>/dev/null || true
               gh release upload "v$VERSION" "$FILE"
             done

@@ -158,6 +158,7 @@ function checkCapacitorConfig() {
     Object.keys(all).every(function allowed(name) {
       return [
         "@capacitor/android",
+        "@capacitor/ios",
         "@capacitor/core",
         "@capacitor/cli",
       ].includes(name);
@@ -1059,6 +1060,57 @@ function checkBuiltApk() {
   );
 }
 
+/** The iOS project: its permissions, its transport security and that it carries no key. */
+function checkIosProject() {
+  step("ios: project, permissions and transport security");
+  const plistPath = path.join(MOBILE, "ios", "App", "App", "Info.plist");
+  check(fs.existsSync(plistPath), "the iOS project exists (mobile/ios)");
+  const plist = fs.readFileSync(plistPath, "utf8");
+  check(
+    /NSCameraUsageDescription/.test(plist) &&
+      /NSMicrophoneUsageDescription/.test(plist),
+    "iOS says why it needs the camera and the microphone (calls)",
+  );
+  check(
+    !/NSAppTransportSecurity|NSAllowsArbitraryLoads/.test(plist),
+    "no exception to the transport security of iOS: only https",
+  );
+  check(
+    !/NSPhotoLibrary|NSLocation|NSContacts|NSBluetooth|NSCalendars/.test(plist),
+    "iOS asks for nothing but the camera and the microphone",
+  );
+  check(
+    /UIBackgroundModes[\s\S]*?<string>audio<\/string>/.test(plist),
+    "a call goes on with the app in the background (audio mode)",
+  );
+  const project = fs.readFileSync(
+    path.join(MOBILE, "ios", "App", "App.xcodeproj", "project.pbxproj"),
+    "utf8",
+  );
+  check(
+    /PRODUCT_BUNDLE_IDENTIFIER = app\.chatterly\.renewed;/.test(project),
+    "the iOS bundle id is the one of the Android app",
+  );
+  const web = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "frontend", "package.json"), "utf8"),
+  );
+  check(
+    project.includes("MARKETING_VERSION = " + web.version + ";"),
+    "the iOS project has the version of the web app (" + web.version + ")",
+  );
+  const config = JSON.parse(
+    fs.readFileSync(path.join(MOBILE, "capacitor.config.json"), "utf8"),
+  );
+  check(
+    config.ios?.limitsNavigationsToAppBoundDomains === false &&
+      config.server?.url === undefined,
+    "iOS also runs only the code inside the app (no server.url)",
+  );
+  skip(
+    "un Mac con Xcode y un iPhone (el IPA se compila en GitHub, sin firmar: ni xcodebuild ni el dispositivo se pueden probar aqui)",
+  );
+}
+
 /** Runs every check. */
 function main() {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "chatterly-mobile-"));
@@ -1066,6 +1118,7 @@ function main() {
     checkCapacitorConfig();
     checkWebFolder(work);
     checkAndroidProject();
+    checkIosProject();
     checkBuiltApk();
     skip(
       "un dispositivo Android real (la emulación no sustituye a un teléfono: radio, Bluetooth, batería, WebView del fabricante)",

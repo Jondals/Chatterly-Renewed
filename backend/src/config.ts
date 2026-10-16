@@ -49,7 +49,7 @@ export interface AppConfig {
   betaUploadToken: string;
 }
 
-const APP_VERSION = '2.34.0';
+const APP_VERSION = '2.35.0';
 
 /** ! The upload secret of the beta builds: used only when it is long enough, otherwise uploading stays off. */
 function uploadToken(value: string | undefined): string {

@@ -40,6 +40,26 @@ const RENEW_MARGIN = 30_000;
 type AuthResponse = { user: User } & Tokens;
 type LoginResponse = AuthResponse & { wrappedKeys: WrappedKeys };
 
+/** Where this device keeps the random id it made for itself. */
+const DEVICE_ID_KEY = 'chatterly.deviceId';
+
+/**
+ * A random id that this device makes once for itself (22 characters, nothing of the device in it). The server keeps only a
+ * hash of it, so signing in again on the same device replaces its old session instead of leaving one more open.
+ */
+function deviceId(): string | undefined {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id || !/^[A-Za-z0-9_-]{22,64}$/.test(id)) {
+      id = toB64(randomBytes(16)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * ! Zero-knowledge account handling. The password never leaves the browser: it is stretched with PBKDF2 and
  * split into an auth secret (sent over TLS, hashed again by the server) and a wrapping key (kept here) that
@@ -157,7 +177,12 @@ export class AuthService {
   }
 
   /** Creates an account: keys are generated here and only encrypted material is sent. */
-  async register(username: string, password: string, displayName?: string): Promise<void> {
+  async register(
+    username: string,
+    password: string,
+    displayName?: string,
+    guest = false,
+  ): Promise<void> {
     const kdfSalt = toB64(randomBytes(16));
     const { authSecret, wrappingKey } = await deriveSecrets(password, kdfSalt, KDF_ITERATIONS);
     const { identity, publicKeys, wrappedKeys } = await createIdentity(wrappingKey);
@@ -167,6 +192,8 @@ export class AuthService {
         username,
         displayName: displayName || undefined,
         authSecret,
+        deviceId: deviceId(),
+        guest: guest || undefined,
         kdfSalt,
         kdfIterations: KDF_ITERATIONS,
         publicKeys,
@@ -175,6 +202,41 @@ export class AuthService {
       false,
     );
     await this.startSession(response, identity);
+  }
+
+  /**
+   * Enters as a guest (the web only): an account with a random name and a random password that nobody ever sees, made to try
+   * the app. Nothing of it is kept: it is erased when the guest leaves (or closes the page) and, if that never happens, by the
+   * server after a few hours.
+   */
+  async enterAsGuest(): Promise<void> {
+    const letters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let name = 'guest-';
+    for (const byte of randomBytes(8)) name += letters[byte % letters.length];
+    const password = toB64(randomBytes(24));
+    await this.register(name, password, 'Guest', true);
+    this.watchGuest();
+  }
+
+  /** Whether the person in is a guest. */
+  readonly isGuest = computed(
+    function (this: AuthService) {
+      return this.user()?.guest === true;
+    }.bind(this),
+  );
+
+  private guestWatched = false;
+
+  /** A guest who closes the page (or leaves it for good) takes their account with them: the request goes on after the page. */
+  private watchGuest(): void {
+    if (this.guestWatched) return;
+    this.guestWatched = true;
+    window.addEventListener('pagehide', this.leaveGuestNow.bind(this));
+  }
+
+  private leaveGuestNow(event: PageTransitionEvent): void {
+    if (event.persisted || !this.isGuest() || !this.session) return;
+    void this.api.post('/api/me/guest/leave', undefined, true, true).catch(this.ignore);
   }
 
   /**
@@ -198,7 +260,7 @@ export class AuthService {
     const { authSecret, wrappingKey } = await deriveSecrets(password, kdf.salt, kdf.iterations);
     const response = await this.api.post<LoginResponse>(
       '/api/auth/login',
-      { username, authSecret },
+      { username, authSecret, deviceId: deviceId() },
       false,
     );
     const identity = await unlockIdentity(
@@ -216,7 +278,7 @@ export class AuthService {
     // The wrapped keys are fetched again through a verified sign in.
     const login = await this.api.post<LoginResponse>(
       '/api/auth/login',
-      { username, authSecret: oldSecrets.authSecret },
+      { username, authSecret: oldSecrets.authSecret, verifyOnly: true },
       false,
     );
     const newSalt = toB64(randomBytes(16));
@@ -244,7 +306,11 @@ export class AuthService {
     const kdf = await this.accountKdf(username);
     const secrets = await deriveSecrets(password, kdf.salt, kdf.iterations);
     // ! The password is checked through a sign in first: a wrong one must not look like an expired session (which signs out).
-    await this.api.post('/api/auth/login', { username, authSecret: secrets.authSecret }, false);
+    await this.api.post(
+      '/api/auth/login',
+      { username, authSecret: secrets.authSecret, verifyOnly: true },
+      false,
+    );
     this.erasing = true;
     try {
       await this.api.post('/api/me/delete', { authSecret: secrets.authSecret });
@@ -263,6 +329,12 @@ export class AuthService {
   async logout(callServer = true, keepPersonal = false): Promise<void> {
     const refresh = this.session?.refreshToken;
     const retryKey = this.session?.retryKey;
+    // A guest takes the account with them: it is erased now, and nothing of it stays on this device either.
+    if (callServer && this.isGuest()) {
+      await this.api.post('/api/me/guest/leave').catch(this.ignore);
+      keepPersonal = false;
+      callServer = false; // its session went with the account
+    }
     if (callServer && refresh) {
       await this.api
         .post(

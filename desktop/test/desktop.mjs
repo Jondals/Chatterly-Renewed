@@ -566,7 +566,7 @@ async function runningApp() {
   });
   check(tampered === true, 'the page cannot change the desktop API');
 
-  step('The in-game overlay: choices are checked, the window follows the call');
+  step('The overlay: choices are checked, the window follows the call');
   const overlayRun = await page.evaluate(async function () {
     const api = window.chatterlyDesktop.overlay;
     const bad = await api.set({

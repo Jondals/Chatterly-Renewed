@@ -31,6 +31,7 @@ import {
 import { AuthService } from './auth.service';
 import { DirectoryService } from './directory.service';
 import { ApiError, ApiService } from './api.service';
+import { screenQuality } from '../screen-quality';
 import { SettingsService } from './settings.service';
 import { CallBackgroundService } from './call-background.service';
 import { canChangeCamera, isNeutral, startCameraFx, type CameraFx } from './camera-fx';
@@ -194,12 +195,6 @@ const CAMERA_BITRATE: Record<string, number> = {
   '480': 700_000,
   '720': 1_500_000,
   '1080': 3_000_000,
-};
-/** The ceilings of a shared screen, by the quality chosen. */
-const SCREEN_BITRATE: Record<string, number> = {
-  standard: 2_500_000,
-  high: 5_000_000,
-  max: 8_000_000,
 };
 /** The lowest share of the ceiling the video goes down to when the line is full. */
 const MIN_VIDEO_SCALE = 0.12;
@@ -1017,12 +1012,7 @@ export class CallService {
       return;
     }
     const choice = this.settings.screenShare();
-    const sizes = {
-      standard: { width: 1280, height: 720, fps: 30 },
-      high: { width: 1920, height: 1080, fps: 30 },
-      max: { width: 1920, height: 1080, fps: 60 },
-    };
-    const size = sizes[choice.quality] ?? sizes.high;
+    const size = screenQuality(choice.quality, androidScreenAvailable());
     const video: MediaTrackConstraints & { displaySurface?: string } = {
       width: { ideal: size.width },
       height: { ideal: size.height },
@@ -1850,13 +1840,13 @@ export class CallService {
   }
 
   /**
-   * How the shared screen is sent depends on what is on it, and the browser cannot tell a game from a document. The "max" quality
-   * (60 fps) is for movement: the picture is kept moving and gets less sharp before it lags (maintain-framerate). The others are for
+   * How the shared screen is sent depends on what is on it, and the browser cannot tell a game from a document. The 60 fps
+   * qualities are for movement: the picture is kept moving and gets less sharp before it lags (maintain-framerate). The others are for
    * reading: text stays sharp (the frame rate drops first). A ceiling on the bitrate keeps a busy screen from filling the line,
    * which is what made it lag, since every frame is also encrypted.
    */
   private tuneScreenSender(sender: RTCRtpSender, track: MediaStreamTrack): void {
-    const motion = this.settings.screenShare().quality === 'max';
+    const motion = screenQuality(this.settings.screenShare().quality).fps >= 60;
     track.contentHint = motion ? 'motion' : 'detail';
     const params = sender.getParameters() as RTCRtpSendParameters & {
       degradationPreference?: string;
@@ -1871,7 +1861,7 @@ export class CallService {
 
   /** The highest bitrate of the shared screen, by the quality chosen. */
   private screenCeiling(): number {
-    return SCREEN_BITRATE[this.settings.screenShare().quality] ?? SCREEN_BITRATE['high']!;
+    return screenQuality(this.settings.screenShare().quality).bitrate;
   }
 
   /** The highest bitrate of the camera, by its height (lower with the battery saver). */

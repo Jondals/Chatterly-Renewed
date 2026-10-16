@@ -2,13 +2,14 @@
  * src/app/shared/components/page-header.component.ts
  * Page header with title, icon and actions.
  */
-import { Component, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { UiService } from '../../core/services/ui.service';
 import { NameColorDirective } from '../util/name-color.directive';
 import { IconComponent } from './icon.component';
 
 /** Slim header used by every page: mobile menu button, title, subtitle and an actions slot. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-page-header',
   standalone: true,
   imports: [IconComponent, NameColorDirective],

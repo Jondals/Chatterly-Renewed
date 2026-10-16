@@ -1,10 +1,10 @@
 /**
  * src/app/features/settings/overlay-section.component.ts
- * Settings - Game overlay (desktop app only): your call drawn over the game you are playing, in widgets like the overlay of
+ * Settings - Overlay (desktop app only): your call drawn over the game you are playing, in widgets like the overlay of
  * Discord (the call controls, the people, the cameras, the activity, the streams and the messages). Here the person turns it
  * on, chooses the shortcut that unlocks it, what it shows and how it looks.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import type { OverlaySettings, OverlaySize } from '../../core/desktop-bridge';
 import { OverlayService } from '../../core/services/overlay.service';
@@ -26,21 +26,22 @@ const DISPLAYS: { id: OverlaySettings['display']; label: string }[] = [
 /** A key that can end a shortcut: a letter, a digit or F1 to F12. */
 const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 
-/** Settings > Game overlay. */
+/** Settings > Overlay. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-overlay-section',
   standalone: true,
   imports: [IconComponent, SelectComponent, SettingRowComponent, ToggleComponent, TranslatePipe],
   template: `
     <section class="settings-card">
       <app-setting-row
-        title="Show my call over my game"
-        hint="Draws your call over the games you play: who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game."
+        title="Turn on the overlay"
+        hint="Press the shortcut at any time to open it over whatever you are doing. In a call it also shows who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game."
       >
         <app-toggle
           [checked]="settings().enabled"
           (checkedChange)="overlay.set({ enabled: $event })"
-          [label]="'Show my call over my game' | t"
+          [label]="'Turn on the overlay' | t"
         />
       </app-setting-row>
       <div class="my-3 grid gap-2 rounded-ui bg-white/[.04] p-3 text-xs text-muted sm:grid-cols-2">

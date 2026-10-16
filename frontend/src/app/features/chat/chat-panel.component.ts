@@ -11,6 +11,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { DirectoryService } from '../../core/services/directory.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -24,6 +25,7 @@ import { MessageListComponent } from './message-list.component';
  * Opening it marks the conversation as being viewed, which silences notifications for it.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-chat-panel',
   standalone: true,
   imports: [MessageListComponent, MessageInputComponent, IconComponent, TranslatePipe],

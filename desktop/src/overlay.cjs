@@ -1,6 +1,6 @@
 /**
  * desktop/src/overlay.cjs
- * The in-game overlay, like the one of Discord: widgets drawn in a transparent window that stays on top of the other windows,
+ * The overlay, like the one of Discord: widgets drawn in a transparent window that stays on top of the other windows,
  * so you see your call while you play. Desktop app only.
  *
  * * The widgets: the call controls (microphone, headphones, camera, screen, hang up), the people of the voice channel (who
@@ -114,6 +114,8 @@ let gameOpen = false;
 let activity = null;
 /** The person pressed the shortcut while the overlay waited for a game: it stays open until the call ends. */
 let forced = false;
+/** The person pressed the shortcut with nothing to show (no call): the overlay is open on its own until they lock it. */
+let summoned = false;
 let watchTimer = null;
 /** Esc is taken from the system while the overlay is unlocked (see setEscape). */
 let escapeRegistered = false;
@@ -399,7 +401,7 @@ function labelsFor(spanish, keys) {
           notifications: 'Aquí aparecen los mensajes que te lleguen',
           voice: 'Nadie en la llamada',
           video: 'Ninguna cámara encendida',
-          activity: 'Registra tu juego en Ajustes > Overlay de juego',
+          activity: 'Registra tu juego en Ajustes > Overlay',
           streams: 'Nadie comparte su pantalla',
         },
         playing: 'Jugando',
@@ -445,7 +447,7 @@ function labelsFor(spanish, keys) {
           notifications: 'Messages you get show up here',
           voice: 'Nobody in the call',
           video: 'No camera is on',
-          activity: 'Register your game in Settings > Game overlay',
+          activity: 'Register your game in Settings > Overlay',
           streams: 'Nobody is sharing their screen',
         },
         playing: 'Playing',
@@ -516,6 +518,7 @@ function openWindow() {
     ...(quiet ? { x: -32000, y: -32000 } : {}),
     show: false,
     transparent: true,
+    backgroundColor: '#00000000',
     frame: false,
     hasShadow: false,
     focusable: false,
@@ -546,6 +549,8 @@ function openWindow() {
   win.setContentProtection(settings.hideFromCapture);
   win.webContents.on('did-finish-load', onOverlayLoaded);
   win.once('ready-to-show', win.showInactive.bind(win));
+  // ! If the window never says it is ready (a transparent window can stay unpainted on some graphics drivers), it is shown anyway.
+  setTimeout(showIfHidden.bind(null, win), 1500);
   win.on('show', applyMouse);
   win.on('resize', applyMouse);
   win.on('closed', onOverlayClosed);
@@ -554,6 +559,11 @@ function openWindow() {
   // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
   win.on('page-title-updated', preventDefault);
   win.loadFile(path.join(__dirname, 'overlay.html'));
+}
+
+/** Shows a window that is still hidden (see openWindow). */
+function showIfHidden(win) {
+  if (!win.isDestroyed() && !win.isVisible()) win.showInactive();
 }
 
 function preventDefault(event) {
@@ -675,7 +685,8 @@ function sync() {
   updateWatch();
   if (tiles.length === 0) forced = false;
   const wanted =
-    settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen || forced);
+    settings.enabled &&
+    (summoned || (tiles.length > 0 && (settings.mode === 'always' || gameOpen || forced)));
   if (wanted) openWindow();
   else closeWindow();
   registerHotkey();
@@ -711,15 +722,21 @@ function setEditing(on) {
   if (on) overlayWindow.focus();
   else overlayWindow.blur();
   publish();
+  // Locked again: an overlay that was opened by the shortcut with nothing else to show goes away.
+  if (!on && summoned) {
+    summoned = false;
+    sync();
+  }
 }
 
 /**
- * The shortcut was pressed: it unlocks the overlay (or locks it). If the overlay was waiting for a registered game during a
- * call, it opens it first, so the shortcut always shows something during a call.
+ * The shortcut was pressed: it opens the overlay and unlocks it, at any time (in a call or not, in a game or not), and the next
+ * press locks it again. If the overlay was waiting for a registered game during a call, this opens it too.
  */
 function onHotkey() {
-  if (!overlayWindow && tiles.length > 0 && settings.enabled) {
-    forced = true;
+  if (!overlayWindow && settings.enabled) {
+    if (tiles.length > 0) forced = true;
+    else summoned = true;
     sync();
     if (overlayWindow)
       overlayWindow.webContents.once('did-finish-load', setEditing.bind(null, true));

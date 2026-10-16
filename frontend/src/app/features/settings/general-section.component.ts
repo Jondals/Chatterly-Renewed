@@ -3,7 +3,7 @@
  * Settings - Language and Sounds & notifications: the interface language, the time format, the sound volumes,
  * the click sound, the soundboard, the pop-up notices and the desktop notifications.
  */
-import { Component, DestroyRef, EnvironmentInjector, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EnvironmentInjector, inject, input, signal } from '@angular/core';
 import { I18nService, LANGUAGES, TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   SettingsService,
@@ -44,6 +44,7 @@ const FLAGS: Record<string, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-general-section',
   standalone: true,
   imports: [
@@ -109,139 +110,9 @@ const FLAGS: Record<string, string> = {
           'Missing a language? Translations live in one small file — contributions are welcome.' | t
         }}
       </p>
-    } @else {
+    } @else if (mode() === 'calls') {
       <section class="settings-card">
-        <h2 class="settings-card-title">{{ 'Volume' | t }}</h2>
-        <app-setting-row
-          title="Interface sounds"
-          hint="Message pings, join/leave tones and a soft click under every button."
-        >
-          <app-toggle
-            [checked]="s.sounds()"
-            (checkedChange)="s.sounds.set($event)"
-            [label]="'Interface sounds' | t"
-          />
-        </app-setting-row>
-        <app-setting-row
-          title="Music volume"
-          hint="The song shared in a call. Only YouTube can be controlled from here; Spotify uses its own player volume."
-        >
-          <div class="flex items-center gap-3">
-            <app-icon name="music" [size]="16" class="text-muted" /><input
-              type="range"
-              min="0"
-              max="100"
-              class="w-44 accent-[var(--accent)]"
-              [value]="s.musicVolume()"
-              (input)="s.musicVolume.set(+$any($event.target).value)"
-            /><span class="w-9 text-right font-mono text-xs text-muted"
-              >{{ s.musicVolume() }}%</span
-            >
-          </div>
-        </app-setting-row>
-        <app-setting-row
-          title="Effects volume"
-          hint="Message pings, button clicks, mute tones and the soundboard."
-        >
-          <div class="flex items-center gap-3">
-            <app-icon name="volume" [size]="16" class="text-muted" /><input
-              type="range"
-              min="0"
-              max="100"
-              class="w-44 accent-[var(--accent)]"
-              [value]="s.soundVolume()"
-              (input)="s.soundVolume.set(+$any($event.target).value)"
-              (change)="sound.play('success')"
-            /><span class="w-9 text-right font-mono text-xs text-muted"
-              >{{ s.soundVolume() }}%</span
-            >
-          </div>
-        </app-setting-row>
-        <app-setting-row
-          title="Notification volume"
-          hint="The ping of a message, the tones of people joining and leaving, and the ring of a call."
-        >
-          <div class="flex items-center gap-3">
-            <app-icon name="bell" [size]="16" class="text-muted" /><input
-              type="range"
-              min="0"
-              max="100"
-              class="w-44 accent-[var(--accent)]"
-              [value]="s.notificationVolume()"
-              (input)="s.notificationVolume.set(+$any($event.target).value)"
-              (change)="sound.play('message')"
-            /><span class="w-9 text-right font-mono text-xs text-muted"
-              >{{ s.notificationVolume() }}%</span
-            >
-          </div>
-        </app-setting-row>
-        <app-setting-row
-          title="Soundboard volume"
-          hint="How loud the effects of the soundboard are, for you and for the people in the call."
-        >
-          <div class="flex items-center gap-3">
-            <app-icon name="volume" [size]="16" class="text-muted" /><input
-              type="range"
-              min="0"
-              max="100"
-              class="w-44 accent-[var(--accent)]"
-              [value]="s.callEffectsVolume()"
-              (input)="s.callEffectsVolume.set(+$any($event.target).value)"
-            /><span class="w-9 text-right font-mono text-xs text-muted"
-              >{{ s.callEffectsVolume() }}%</span
-            >
-          </div>
-        </app-setting-row>
-      </section>
-      <section class="settings-card">
-        <h2 class="settings-card-title">{{ 'Sounds' | t }}</h2>
-        <div class="my-5">
-          <app-collapse title="Click sound" [summary]="clickLabel()">
-            <div class="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-4">
-              @for (c of clickStyles; track c.id) {
-                <button
-                  type="button"
-                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
-                  [class.border-accent]="s.clickStyle() === c.id"
-                  [class.bg-accent/10]="s.clickStyle() === c.id"
-                  [class.border-white/10]="s.clickStyle() !== c.id"
-                  (click)="setClick(c.id)"
-                >
-                  {{ c.label | t }}
-                </button>
-              }
-              @if (s.clickName()) {
-                <button
-                  type="button"
-                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
-                  [class.border-accent]="s.clickStyle() === 'custom'"
-                  [class.bg-accent/10]="s.clickStyle() === 'custom'"
-                  [class.border-white/10]="s.clickStyle() !== 'custom'"
-                  (click)="setClick('custom')"
-                >
-                  <span class="block truncate">{{ s.clickName() }}</span>
-                </button>
-              }
-              <button
-                type="button"
-                class="flex min-w-0 items-center justify-center gap-2 truncate rounded-ui border border-dashed border-white/15 px-3 py-2.5 text-sm font-medium text-muted hover:bg-white/5 hover:text-fg"
-                (click)="uploadClick()"
-              >
-                <app-icon name="upload" [size]="15" />
-                {{ (s.clickName() ? 'Change' : 'Upload yours') | t }}
-              </button>
-            </div>
-            <p class="mt-3 flex flex-wrap items-center gap-x-3 text-xs text-muted">
-              <span>{{ 'The sound of pressing a button. Try them!' | t }}</span>
-              <span class="text-dim">{{ 'Your own sound: up to 1 MB and 3 seconds' | t }}</span>
-              @if (s.clickName()) {
-                <button type="button" class="underline hover:text-fg" (click)="removeClick()">
-                  {{ 'Remove' | t }}
-                </button>
-              }
-            </p>
-          </app-collapse>
-        </div>
+        <h2 class="settings-card-title">{{ 'Ring and sounds' | t }}</h2>
         <div class="my-5">
           <app-collapse title="Call ringtone" [summary]="ringtoneLabel()">
             <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -317,6 +188,123 @@ const FLAGS: Record<string, string> = {
           </button>
         </app-setting-row>
       </section>
+    } @else {
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'Volume' | t }}</h2>
+        <app-setting-row
+          title="Interface sounds"
+          hint="Message pings, join/leave tones and a soft click under every button."
+        >
+          <app-toggle
+            [checked]="s.sounds()"
+            (checkedChange)="s.sounds.set($event)"
+            [label]="'Interface sounds' | t"
+          />
+        </app-setting-row>
+        <app-setting-row
+          title="Music volume"
+          hint="The song shared in a call. Only YouTube can be controlled from here; Spotify uses its own player volume."
+        >
+          <div class="flex items-center gap-3">
+            <app-icon name="music" [size]="16" class="text-muted" /><input
+              type="range"
+              min="0"
+              max="100"
+              class="w-44 accent-[var(--accent)]"
+              [value]="s.musicVolume()"
+              (input)="s.musicVolume.set(+$any($event.target).value)"
+            /><span class="w-9 text-right font-mono text-xs text-muted"
+              >{{ s.musicVolume() }}%</span
+            >
+          </div>
+        </app-setting-row>
+        <app-setting-row
+          title="Effects volume"
+          hint="Message pings, button clicks, mute tones and the soundboard."
+        >
+          <div class="flex items-center gap-3">
+            <app-icon name="volume" [size]="16" class="text-muted" /><input
+              type="range"
+              min="0"
+              max="100"
+              class="w-44 accent-[var(--accent)]"
+              [value]="s.soundVolume()"
+              (input)="s.soundVolume.set(+$any($event.target).value)"
+              (change)="sound.play('success')"
+            /><span class="w-9 text-right font-mono text-xs text-muted"
+              >{{ s.soundVolume() }}%</span
+            >
+          </div>
+        </app-setting-row>
+        <app-setting-row
+          title="Notification volume"
+          hint="The ping of a message, the tones of people joining and leaving, and the ring of a call."
+        >
+          <div class="flex items-center gap-3">
+            <app-icon name="bell" [size]="16" class="text-muted" /><input
+              type="range"
+              min="0"
+              max="100"
+              class="w-44 accent-[var(--accent)]"
+              [value]="s.notificationVolume()"
+              (input)="s.notificationVolume.set(+$any($event.target).value)"
+              (change)="sound.play('message')"
+            /><span class="w-9 text-right font-mono text-xs text-muted"
+              >{{ s.notificationVolume() }}%</span
+            >
+          </div>
+        </app-setting-row>
+      </section>
+      <section class="settings-card">
+        <h2 class="settings-card-title">{{ 'Sounds' | t }}</h2>
+        <div class="my-5">
+          <app-collapse title="Click sound" [summary]="clickLabel()">
+            <div class="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-4">
+              @for (c of clickStyles; track c.id) {
+                <button
+                  type="button"
+                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
+                  [class.border-accent]="s.clickStyle() === c.id"
+                  [class.bg-accent/10]="s.clickStyle() === c.id"
+                  [class.border-white/10]="s.clickStyle() !== c.id"
+                  (click)="setClick(c.id)"
+                >
+                  {{ c.label | t }}
+                </button>
+              }
+              @if (s.clickName()) {
+                <button
+                  type="button"
+                  class="min-w-0 truncate rounded-ui border px-2 py-2.5 text-sm font-medium hover:bg-white/5"
+                  [class.border-accent]="s.clickStyle() === 'custom'"
+                  [class.bg-accent/10]="s.clickStyle() === 'custom'"
+                  [class.border-white/10]="s.clickStyle() !== 'custom'"
+                  (click)="setClick('custom')"
+                >
+                  <span class="block truncate">{{ s.clickName() }}</span>
+                </button>
+              }
+              <button
+                type="button"
+                class="flex min-w-0 items-center justify-center gap-2 truncate rounded-ui border border-dashed border-white/15 px-3 py-2.5 text-sm font-medium text-muted hover:bg-white/5 hover:text-fg"
+                (click)="uploadClick()"
+              >
+                <app-icon name="upload" [size]="15" />
+                {{ (s.clickName() ? 'Change' : 'Upload yours') | t }}
+              </button>
+            </div>
+            <p class="mt-3 flex flex-wrap items-center gap-x-3 text-xs text-muted">
+              <span>{{ 'The sound of pressing a button. Try them!' | t }}</span>
+              <span class="text-dim">{{ 'Your own sound: up to 1 MB and 3 seconds' | t }}</span>
+              @if (s.clickName()) {
+                <button type="button" class="underline hover:text-fg" (click)="removeClick()">
+                  {{ 'Remove' | t }}
+                </button>
+              }
+            </p>
+          </app-collapse>
+        </div>
+      </section>
       <section class="settings-card">
         <h2 class="settings-card-title">{{ 'Notifications' | t }}</h2>
         <app-setting-row
@@ -363,7 +351,7 @@ export class GeneralSectionComponent {
     inject(DestroyRef).onDestroy(this.endPreview.bind(this));
   }
 
-  readonly mode = input.required<'language' | 'sounds'>();
+  readonly mode = input.required<'language' | 'sounds' | 'calls'>();
   protected readonly s = inject(SettingsService);
   protected readonly sound = inject(SoundService);
   protected readonly ui = inject(UiService);

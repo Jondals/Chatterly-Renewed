@@ -7,6 +7,8 @@ import { parseServerTag, type ServerTag } from './server-tag';
 
 export interface UserRow {
   id: string;
+  /** 1: a guest account (erased when the person leaves). */
+  guest?: number;
   username: string;
   display_name: string;
   auth_hash: string;
@@ -103,9 +105,10 @@ export function toPublicUser(row: UserRow): PublicUser {
 /** The user as the person themselves see it: the public profile plus their own privacy choices (nobody else gets those). */
 export function toSelfUser(
   row: UserRow,
-): PublicUser & { privacy: PrivacyChoices; nameFontImage: string | null } {
+): PublicUser & { privacy: PrivacyChoices; nameFontImage: string | null; guest: boolean } {
   return {
     ...toPublicUser(row),
+    guest: row.guest === 1,
     nameFontImage: row.name_font_image,
     privacy: {
       presenceVisibility: row.presence_visibility,

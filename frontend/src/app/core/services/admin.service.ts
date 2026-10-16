@@ -40,6 +40,14 @@ export interface AdminUser {
   owner: boolean;
 }
 
+/** One open session of an account (nothing about the device: the server does not keep it). */
+export interface AdminSession {
+  id: string;
+  createdAt: number;
+  expiresAt: number;
+  online: boolean;
+}
+
 /** One line of the record. */
 export interface AuditEntry {
   at: number;
@@ -101,6 +109,37 @@ export class AdminService {
   /** Closes every session of an account. */
   async signOut(userId: string): Promise<void> {
     await this.api.post('/api/admin/users/' + encodeURIComponent(userId) + '/sign-out', {});
+  }
+
+  /** The open sessions of an account. */
+  async sessionsOf(userId: string): Promise<AdminSession[]> {
+    const answer = await this.api.get<{ sessions: AdminSession[] }>(
+      '/api/admin/users/' + encodeURIComponent(userId) + '/sessions',
+    );
+    return answer.sessions;
+  }
+
+  /** Closes ONE session of an account; the others stay open. */
+  async closeSession(userId: string, sessionId: string): Promise<void> {
+    await this.api.post(
+      '/api/admin/users/' +
+        encodeURIComponent(userId) +
+        '/sessions/' +
+        encodeURIComponent(sessionId) +
+        '/close',
+      {},
+    );
+  }
+
+  /** Erases an account for good (owners only). */
+  async deleteAccount(userId: string): Promise<void> {
+    await this.api.delete('/api/admin/users/' + encodeURIComponent(userId));
+  }
+
+  /** Empties the record (owners only). */
+  async clearAudit(): Promise<void> {
+    await this.api.delete('/api/admin/audit');
+    this.audit.set([]);
   }
 
   /** Opens or closes the sign-up. */

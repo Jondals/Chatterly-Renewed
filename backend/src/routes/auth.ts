@@ -195,6 +195,9 @@ const wrappedKeysSchema = {
   properties: { ecdh: wrappedField, ecdsa: wrappedField },
 } as const;
 
+/** The random id that a device makes for itself (never a device name or an address): see issueTokens. */
+const deviceIdField = { type: 'string', pattern: '^[A-Za-z0-9_-]{22,64}$' } as const;
+
 const registerSchema = {
   body: {
     type: 'object',
@@ -204,6 +207,9 @@ const registerSchema = {
       username: usernameField,
       displayName: { type: 'string', minLength: 1, maxLength: 32 },
       authSecret: authSecretField,
+      deviceId: deviceIdField,
+      // A guest (the web only): a temporary account to try the app. Nothing of it is kept.
+      guest: { type: 'boolean' },
       kdfSalt: b64Field(16, 64),
       kdfIterations: { type: 'integer', maximum: 5_000_000 },
       publicKeys: {
@@ -218,6 +224,17 @@ const registerSchema = {
 } as const;
 
 const clean = cleanText;
+
+/** A guest session lasts this long without being used (the account is erased with it). */
+const GUEST_SESSION_MS = 2 * 60 * 60 * 1000;
+/** A guest account is erased this long after it was made, whatever it does. */
+const GUEST_LIFETIME_MS = 12 * 60 * 60 * 1000;
+/** The most guest accounts at the same time. */
+const MAX_GUESTS = 150;
+/** How often the guests that are over are erased. */
+const GUEST_SWEEP_MS = 10 * 60 * 1000;
+/** The name of a guest: `guest-` and eight letters or digits (a real account cannot be made with it). */
+const GUEST_NAME = /^guest-[a-z0-9]{8}$/;
 
 /** Does nothing (the answer of a file removal that nobody waits for). */
 function noop(): void {
@@ -253,6 +270,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
     sessionId: string = randomUUID(),
     renewing = false,
     nextToken?: string,
+    deviceId?: string,
   ) {
     const accessToken = app.jwt.sign(
       { sub: userId, sid: sessionId },
@@ -260,7 +278,10 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
     );
     const refreshToken = nextToken ?? randomBytes(32).toString('base64url');
     const now = Date.now();
-    const expiresAt = now + config.refreshTtlSec * 1000;
+    const guest = (db.prepare('SELECT guest FROM users WHERE id = ?').get(userId) as
+      | { guest: number }
+      | undefined)?.guest === 1;
+    const expiresAt = now + (guest ? GUEST_SESSION_MS : config.refreshTtlSec * 1000);
     if (renewing) {
       db.prepare('UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?').run(
         sha256(refreshToken),
@@ -268,9 +289,18 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         sessionId,
       );
     } else {
+      // ! One session per device: the device that signs in again (its old session was lost, or it never signed out) replaces
+      // its old one. The id is random, made by the device, and only its hash is kept: it says nothing about the device.
+      const deviceHash = deviceId ? sha256('device|' + deviceId) : null;
+      if (deviceHash) {
+        db.prepare('DELETE FROM sessions WHERE user_id = ? AND device_hash = ?').run(
+          userId,
+          deviceHash,
+        );
+      }
       db.prepare(
-        'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?,?,?,?,?)',
-      ).run(sessionId, userId, sha256(refreshToken), expiresAt, now);
+        'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, device_hash) VALUES (?,?,?,?,?,?)',
+      ).run(sessionId, userId, sha256(refreshToken), expiresAt, now, deviceHash);
     }
     // Opportunistic cleanup of dead sessions, and a limit of 20 open ones per person (the oldest close first).
     db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
@@ -330,6 +360,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         username: string;
         displayName?: string;
         authSecret: string;
+        deviceId?: string;
+        guest?: boolean;
         kdfSalt: string;
         kdfIterations: number;
         publicKeys: { ecdh: string; ecdsa: string };
@@ -348,6 +380,20 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (!registrationsOpen(db) && !config.adminUsers.includes(body.username.toLowerCase())) {
         return reply.code(403).send({ error: 'registrations_closed' });
       }
+      // ! The names that start with "guest-" are for guests only, and a guest can only have one of them.
+      if (GUEST_NAME.test(body.username.toLowerCase()) !== (body.guest === true)) {
+        return reply.code(400).send({ error: 'invalid_username' });
+      }
+      if (body.guest) {
+        // ! Only the web: the apps (desktop, Android, iPhone) send an origin of their own, and they have no guest mode.
+        if (/^(app|capacitor):\/\/|chatterly\.internal/i.test(String(req.headers.origin ?? ''))) {
+          return reply.code(403).send({ error: 'guest_web_only' });
+        }
+        const guests = db.prepare('SELECT COUNT(*) AS n FROM users WHERE guest = 1').get() as {
+          n: number;
+        };
+        if (guests.n >= MAX_GUESTS) return reply.code(503).send({ error: 'guests_busy' });
+      }
       if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(body.username)) {
         return reply.code(409).send({ error: 'username_taken' });
       }
@@ -357,8 +403,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       try {
         db.prepare(
           `INSERT INTO users (id, username, display_name, auth_hash, kdf_salt, kdf_iterations,
-           pub_ecdh, pub_ecdsa, wrapped_ecdh, wrapped_ecdsa, avatar_color, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+           pub_ecdh, pub_ecdsa, wrapped_ecdh, wrapped_ecdsa, avatar_color, created_at, guest, searchable)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         ).run(
           id,
           body.username,
@@ -372,12 +418,16 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
           body.wrappedKeys.ecdsa,
           colors[randomBytes(1)[0]! % colors.length],
           Date.now(),
+          body.guest ? 1 : 0,
+          body.guest ? 0 : 1,
         );
       } catch {
         return reply.code(409).send({ error: 'username_taken' });
       }
       const row = getUser(db, id)!;
-      return reply.code(201).send({ user: toSelfUser(row), ...issueTokens(id) });
+      return reply
+        .code(201)
+        .send({ user: toSelfUser(row), ...issueTokens(id, undefined, false, undefined, body.deviceId) });
     },
   );
 
@@ -396,6 +446,9 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
           properties: {
             username: { type: 'string', minLength: 1, maxLength: 64 },
             authSecret: authSecretField,
+            deviceId: deviceIdField,
+            // Only checks the password (to change it or to erase the account): no session is opened for it.
+            verifyOnly: { type: 'boolean' },
           },
         },
       },
@@ -404,9 +457,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
      * POST /api/auth/login: checks the proof of the password (slow hash, locked after several failures) and opens a session.
      */
     async function (req, reply) {
-      const { username, authSecret } = req.body as {
+      const { username, authSecret, deviceId, verifyOnly } = req.body as {
         username: string;
         authSecret: string;
+        deviceId?: string;
+        verifyOnly?: boolean;
       };
       const wait = ctx.throttle.retryAfter(username);
       if (wait > 0) {
@@ -442,10 +497,14 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
           row.id,
         );
       }
+      const wrappedKeys = { ecdh: row.wrapped_ecdh, ecdsa: row.wrapped_ecdsa };
+      // A check of the password (change of password, erasing the account) opens no session: it used to leave one more open
+      // every time, and nobody could close it.
+      if (verifyOnly) return { user: toSelfUser(row), wrappedKeys };
       return {
         user: toSelfUser(row),
-        wrappedKeys: { ecdh: row.wrapped_ecdh, ecdsa: row.wrapped_ecdsa },
-        ...issueTokens(row.id),
+        wrappedKeys,
+        ...issueTokens(row.id, undefined, false, undefined, deviceId),
       };
     },
   );
@@ -832,6 +891,137 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
     },
   );
 
+  /**
+   * Erases an account and everything of it (see the route /api/me/delete): its messages, files, pictures, friendships, direct
+   * conversations, keys and sessions. Used when a person erases theirs, when a guest leaves and when guests run out of time.
+   */
+  function eraseAccount(id: string): void {
+    // What is read now (whom to tell, what to remove from the disk) cannot be read once the rows are gone.
+    const column = function (sql: string, ...args: unknown[]): string[] {
+      return (db.prepare(sql).all(...args) as Record<string, string>[]).map(function first(r) {
+        return Object.values(r)[0]!;
+      });
+    };
+    const friends = column(
+      'SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END FROM friendships WHERE user_a = ? OR user_b = ?',
+      id,
+      id,
+      id,
+    );
+    const dmChannels = column('SELECT channel_id FROM dm_members WHERE user_id = ?', id);
+    const dmPeers = column(
+      `SELECT DISTINCT user_id FROM dm_members WHERE user_id != ? AND channel_id IN
+         (SELECT channel_id FROM dm_members WHERE user_id = ?)`,
+      id,
+      id,
+    );
+    const ownedGuilds = column('SELECT id FROM guilds WHERE owner_id = ?', id);
+    // A group with other members is handed to the member who has been in it the longest; one with nobody else goes.
+    const heirs = new Map<string, string>();
+    for (const guild of ownedGuilds) {
+      const heir = db
+        .prepare(
+          `SELECT user_id FROM guild_members WHERE guild_id = ? AND user_id <> ?
+            ORDER BY joined_at, user_id LIMIT 1`,
+        )
+        .get(guild, id) as { user_id: string } | undefined;
+      if (heir) heirs.set(guild, heir.user_id);
+    }
+    const abandonedGuilds = ownedGuilds.filter(function noHeir(guild) {
+      return !heirs.has(guild);
+    });
+    const joinedGuilds = column(
+      "SELECT guild_id FROM guild_members WHERE user_id = ? AND role != 'owner'",
+      id,
+    );
+    const peersOf = function (guilds: string[]): string[] {
+      return guilds.flatMap(function members(guild) {
+        return column(
+          'SELECT user_id FROM guild_members WHERE guild_id = ? AND user_id != ?',
+          guild,
+          id,
+        );
+      });
+    };
+    const inheritedMembers = peersOf([...heirs.keys()]);
+    const joinedMembers = peersOf(joinedGuilds);
+    const doomedChannels = [
+      ...dmChannels,
+      ...abandonedGuilds.flatMap(function channels(guild) {
+        return column('SELECT id FROM channels WHERE guild_id = ?', guild);
+      }),
+    ];
+    const files = [
+      ...column('SELECT id FROM files WHERE uploader_id = ?', id),
+      ...doomedChannels.flatMap(function filesOf(channel) {
+        return column('SELECT id FROM files WHERE channel_id = ?', channel);
+      }),
+    ];
+    // ? The icon of a group that goes to somebody else stays with the group: it changes hands instead of being erased.
+    const keptIcons = [...heirs.keys()].flatMap(function iconOf(guild) {
+      return column(
+        'SELECT icon_image FROM guilds WHERE id = ? AND icon_image IS NOT NULL',
+        guild,
+      );
+    });
+    const images = column('SELECT id FROM images WHERE owner_id = ?', id).filter(
+      function erased(image) {
+        return !keptIcons.includes(image);
+      },
+    );
+    const vaultItems = column('SELECT id FROM vault_items WHERE owner_id = ?', id);
+    db.transaction(function erase() {
+      for (const channel of dmChannels)
+        db.prepare('DELETE FROM channels WHERE id = ?').run(channel);
+      for (const [guild, heir] of heirs) {
+        db.prepare('UPDATE guilds SET owner_id = ?, needs_rotation = 1 WHERE id = ?').run(
+          heir,
+          guild,
+        );
+        db.prepare(
+          "UPDATE guild_members SET role = 'owner' WHERE guild_id = ? AND user_id = ?",
+        ).run(guild, heir);
+        db.prepare(
+          'UPDATE images SET owner_id = ? WHERE id = (SELECT icon_image FROM guilds WHERE id = ?)',
+        ).run(heir, guild);
+      }
+      for (const guild of abandonedGuilds)
+        db.prepare('DELETE FROM guilds WHERE id = ?').run(guild);
+      // The people of the groups keep the envelopes that this person wrapped for them: the public key goes into the
+      // ? envelope (it is public) because the row of the person goes now, and the owner is asked to renew the key.
+      db.prepare(
+        `UPDATE guild_keys SET wrapper_pub = (SELECT pub_ecdh FROM users WHERE id = ?)
+           WHERE wrapper_id = ? AND wrapper_pub IS NULL`,
+      ).run(id, id);
+      for (const guild of joinedGuilds)
+        db.prepare('UPDATE guilds SET needs_rotation = 1 WHERE id = ?').run(guild);
+      db.prepare('DELETE FROM reactions WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM messages WHERE sender_id = ?').run(id);
+      db.prepare('DELETE FROM files WHERE uploader_id = ?').run(id);
+      db.prepare('DELETE FROM guild_keys WHERE user_id = ?').run(id);
+      // Everything else that hangs from the person (friendships, memberships, tags, receipts, sessions, pictures) goes with it.
+      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    })();
+
+    for (const file of files) fs.rm(path.join(config.uploadDir, file), { force: true }, noop);
+    for (const image of images) fs.rm(imageFile(ctx, image), { force: true }, noop);
+    for (const item of vaultItems) fs.rm(vaultFile(ctx, item), { force: true }, noop);
+    ctx.hub.dropUser(id);
+    ctx.hub.sendToMany([...friends, ...dmPeers], { t: 'friends.update' });
+    for (const guild of joinedGuilds)
+      ctx.hub.sendToMany(joinedMembers, {
+        t: 'guild.update',
+        guildId: guild,
+      });
+    for (const guild of heirs.keys())
+      ctx.hub.sendToMany(inheritedMembers, {
+        t: 'guild.update',
+        guildId: guild,
+      });
+  }
+
+  ctx.eraseAccount = eraseAccount;
+
   app.post(
     '/api/me/delete',
     {
@@ -873,129 +1063,110 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       }
       ctx.throttle.recordSuccess(lockKey);
 
-      // What is read now (whom to tell, what to remove from the disk) cannot be read once the rows are gone.
-      const column = function (sql: string, ...args: unknown[]): string[] {
-        return (db.prepare(sql).all(...args) as Record<string, string>[]).map(function first(r) {
-          return Object.values(r)[0]!;
-        });
-      };
-      const friends = column(
-        'SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END FROM friendships WHERE user_a = ? OR user_b = ?',
-        id,
-        id,
-        id,
-      );
-      const dmChannels = column('SELECT channel_id FROM dm_members WHERE user_id = ?', id);
-      const dmPeers = column(
-        `SELECT DISTINCT user_id FROM dm_members WHERE user_id != ? AND channel_id IN
-           (SELECT channel_id FROM dm_members WHERE user_id = ?)`,
-        id,
-        id,
-      );
-      const ownedGuilds = column('SELECT id FROM guilds WHERE owner_id = ?', id);
-      // A group with other members is handed to the member who has been in it the longest; one with nobody else goes.
-      const heirs = new Map<string, string>();
-      for (const guild of ownedGuilds) {
-        const heir = db
-          .prepare(
-            `SELECT user_id FROM guild_members WHERE guild_id = ? AND user_id <> ?
-              ORDER BY joined_at, user_id LIMIT 1`,
-          )
-          .get(guild, id) as { user_id: string } | undefined;
-        if (heir) heirs.set(guild, heir.user_id);
-      }
-      const abandonedGuilds = ownedGuilds.filter(function noHeir(guild) {
-        return !heirs.has(guild);
-      });
-      const joinedGuilds = column(
-        "SELECT guild_id FROM guild_members WHERE user_id = ? AND role != 'owner'",
-        id,
-      );
-      const peersOf = function (guilds: string[]): string[] {
-        return guilds.flatMap(function members(guild) {
-          return column(
-            'SELECT user_id FROM guild_members WHERE guild_id = ? AND user_id != ?',
-            guild,
-            id,
-          );
-        });
-      };
-      const inheritedMembers = peersOf([...heirs.keys()]);
-      const joinedMembers = peersOf(joinedGuilds);
-      const doomedChannels = [
-        ...dmChannels,
-        ...abandonedGuilds.flatMap(function channels(guild) {
-          return column('SELECT id FROM channels WHERE guild_id = ?', guild);
-        }),
-      ];
-      const files = [
-        ...column('SELECT id FROM files WHERE uploader_id = ?', id),
-        ...doomedChannels.flatMap(function filesOf(channel) {
-          return column('SELECT id FROM files WHERE channel_id = ?', channel);
-        }),
-      ];
-      // ? The icon of a group that goes to somebody else stays with the group: it changes hands instead of being erased.
-      const keptIcons = [...heirs.keys()].flatMap(function iconOf(guild) {
-        return column(
-          'SELECT icon_image FROM guilds WHERE id = ? AND icon_image IS NOT NULL',
-          guild,
-        );
-      });
-      const images = column('SELECT id FROM images WHERE owner_id = ?', id).filter(
-        function erased(image) {
-          return !keptIcons.includes(image);
-        },
-      );
-      const vaultItems = column('SELECT id FROM vault_items WHERE owner_id = ?', id);
-      db.transaction(function erase() {
-        for (const channel of dmChannels)
-          db.prepare('DELETE FROM channels WHERE id = ?').run(channel);
-        for (const [guild, heir] of heirs) {
-          db.prepare('UPDATE guilds SET owner_id = ?, needs_rotation = 1 WHERE id = ?').run(
-            heir,
-            guild,
-          );
-          db.prepare(
-            "UPDATE guild_members SET role = 'owner' WHERE guild_id = ? AND user_id = ?",
-          ).run(guild, heir);
-          db.prepare(
-            'UPDATE images SET owner_id = ? WHERE id = (SELECT icon_image FROM guilds WHERE id = ?)',
-          ).run(heir, guild);
-        }
-        for (const guild of abandonedGuilds)
-          db.prepare('DELETE FROM guilds WHERE id = ?').run(guild);
-        // The people of the groups keep the envelopes that this person wrapped for them: the public key goes into the
-        // ? envelope (it is public) because the row of the person goes now, and the owner is asked to renew the key.
-        db.prepare(
-          `UPDATE guild_keys SET wrapper_pub = (SELECT pub_ecdh FROM users WHERE id = ?)
-             WHERE wrapper_id = ? AND wrapper_pub IS NULL`,
-        ).run(id, id);
-        for (const guild of joinedGuilds)
-          db.prepare('UPDATE guilds SET needs_rotation = 1 WHERE id = ?').run(guild);
-        db.prepare('DELETE FROM reactions WHERE user_id = ?').run(id);
-        db.prepare('DELETE FROM messages WHERE sender_id = ?').run(id);
-        db.prepare('DELETE FROM files WHERE uploader_id = ?').run(id);
-        db.prepare('DELETE FROM guild_keys WHERE user_id = ?').run(id);
-        // Everything else that hangs from the person (friendships, memberships, tags, receipts, sessions, pictures) goes with it.
-        db.prepare('DELETE FROM users WHERE id = ?').run(id);
-      })();
-
-      for (const file of files) fs.rm(path.join(config.uploadDir, file), { force: true }, noop);
-      for (const image of images) fs.rm(imageFile(ctx, image), { force: true }, noop);
-      for (const item of vaultItems) fs.rm(vaultFile(ctx, item), { force: true }, noop);
-      ctx.hub.dropUser(id);
-      ctx.hub.sendToMany([...friends, ...dmPeers], { t: 'friends.update' });
-      for (const guild of joinedGuilds)
-        ctx.hub.sendToMany(joinedMembers, {
-          t: 'guild.update',
-          guildId: guild,
-        });
-      for (const guild of heirs.keys())
-        ctx.hub.sendToMany(inheritedMembers, {
-          t: 'guild.update',
-          guildId: guild,
-        });
+      eraseAccount(id);
       return reply.code(204).send();
     },
   );
+
+  /** GET /api/me/sessions: the open sessions of the person (when each opened, when it ends, which is this one, which are connected). */
+  app.get('/api/me/sessions', { onRequest: [app.authenticate] }, async function (req) {
+    const id = userId(req);
+    const current = (req.user as { sid: string }).sid;
+    const rows = db
+      .prepare(
+        'SELECT id, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20',
+      )
+      .all(id, Date.now()) as { id: string; created_at: number; expires_at: number }[];
+    return {
+      sessions: rows.map(function describe(row) {
+        return {
+          id: row.id,
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+          current: row.id === current,
+          online: ctx.hub.isSessionOnline(id, row.id),
+        };
+      }),
+    };
+  });
+
+  /** POST /api/me/sessions/close-others: closes every session of the person except the one that asks. */
+  app.post(
+    '/api/me/sessions/close-others',
+    { onRequest: [app.authenticate], ...authLimit },
+    async function (req, reply) {
+      const id = userId(req);
+      const current = (req.user as { sid: string }).sid;
+      db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(id, current);
+      ctx.hub.closeSessions(id, current);
+      return reply.code(204).send();
+    },
+  );
+
+  /** POST /api/me/sessions/:id/close: closes one session of the person (not the one that asks: that is signing out). */
+  app.post(
+    '/api/me/sessions/:sessionId/close',
+    {
+      onRequest: [app.authenticate],
+      ...authLimit,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['sessionId'],
+          properties: { sessionId: { type: 'string', pattern: '^[0-9a-f-]{36}$' } },
+        },
+      },
+    },
+    async function (req, reply) {
+      const id = userId(req);
+      const { sessionId } = req.params as { sessionId: string };
+      if (sessionId === (req.user as { sid: string }).sid) {
+        return reply.code(400).send({ error: 'this_session' });
+      }
+      const done = db.prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').run(sessionId, id);
+      if (done.changes === 0) return reply.code(404).send({ error: 'session_not_found' });
+      ctx.hub.closeSession(id, sessionId);
+      return reply.code(204).send();
+    },
+  );
+
+  /**
+   * POST /api/me/guest/leave: a guest leaves and their account is erased at once (nothing of a guest is kept). Only a guest can
+   * use it: the account of anybody else needs the proof of the password (/api/me/delete).
+   */
+  app.post(
+    '/api/me/guest/leave',
+    { onRequest: [app.authenticate], ...authLimit },
+    async function (req, reply) {
+      const id = userId(req);
+      const row = getUser(db, id);
+      if (!row || row.guest !== 1) return reply.code(403).send({ error: 'not_a_guest' });
+      eraseAccount(id);
+      return reply.code(204).send();
+    },
+  );
+
+  // The guests that are over (their last session ended, or they were made too long ago) are erased now and then, so a tab that
+  // was closed without leaving cannot keep an account for longer than a few hours.
+  const sweepGuests = function sweepGuests(): void {
+    const now = Date.now();
+    const old = db
+      .prepare(
+        `SELECT id FROM users WHERE guest = 1 AND (created_at < ?
+           OR NOT EXISTS (SELECT 1 FROM sessions s WHERE s.user_id = users.id AND s.expires_at > ?))`,
+      )
+      .all(now - GUEST_LIFETIME_MS, now) as { id: string }[];
+    for (const guest of old) {
+      try {
+        eraseAccount(guest.id);
+      } catch {
+        /* it is tried again at the next sweep */
+      }
+    }
+  };
+  const sweeper = setInterval(sweepGuests, GUEST_SWEEP_MS);
+  sweeper.unref();
+  app.addHook('onClose', async function stopSweeping() {
+    clearInterval(sweeper);
+  });
 }

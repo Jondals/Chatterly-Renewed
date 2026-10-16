@@ -2,7 +2,7 @@
  * src/app/features/settings/shortcuts-section.component.ts
  * Settings - Shortcuts: the keyboard combination of each action of the call, which the person can change.
  */
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   SHORTCUT_ACTIONS,
@@ -14,6 +14,7 @@ import { IconComponent } from '../../shared/components/icon.component';
 
 /** The list of shortcuts. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-shortcuts-section',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

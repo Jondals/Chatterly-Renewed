@@ -3,7 +3,7 @@
  * Builds the installer of a platform:  node scripts/dist.mjs win  |  linux  |  mac
  *
  * * It copies the web build into desktop/web and runs electron-builder for that platform (the Windows installer, or the Linux
- *   AppImage, or the macOS disk image and zip: one universal app for Intel and Apple Silicon, signed ad hoc, which is what
+ *   AppImage, or the macOS disk image: one universal app for Intel and Apple Silicon, signed ad hoc, which is what
  *   macOS needs to open an app it did not get from the App Store; it must be built on a Mac).
  * * The files are named "Chatterly-<label>.<ext>". The label is the version people read (CHATTERLY_LABEL, which the workflow sets to
  *   2.32.0 for a release and to 2.32.0-b1 for the first beta of it); without it, the version of package.json. The name is written
@@ -17,7 +17,7 @@ import path from 'node:path';
 const targets = {
   win: ['--win', 'nsis'],
   linux: ['--linux', 'AppImage'],
-  mac: ['--mac', 'dmg', 'zip', '--universal'],
+  mac: ['--mac', 'dmg', '--universal'],
 };
 const wanted = targets[process.argv[2]];
 if (!wanted) {

@@ -48,8 +48,8 @@ export interface VaultItem {
  * cannot tell a copy from a background.
  */
 export interface BackupMeta {
-  kind: 'stickers' | 'preset';
-  /** The id of the pack or preset on the devices. */
+  kind: 'stickers' | 'preset' | 'sound';
+  /** The id of the pack, preset or sound on the devices. */
   ref: string;
   name: string;
   /** When the pack or preset was made (kept as it was on every device). */
@@ -257,7 +257,7 @@ export class VaultService {
   /** The description of a copy of a pack or a preset, cleaned (null when the item is a background, or damaged). */
   private cleanBackup(meta: VaultMeta | BackupMeta): BackupMeta | null {
     const raw = meta as Partial<BackupMeta>;
-    if (raw.kind !== 'stickers' && raw.kind !== 'preset') {
+    if (raw.kind !== 'stickers' && raw.kind !== 'preset' && raw.kind !== 'sound') {
       return null;
     }
     const ref = String(raw.ref ?? '');

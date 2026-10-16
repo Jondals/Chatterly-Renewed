@@ -13,11 +13,13 @@ import {
   output,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { GifService, type GifResult } from '../../core/services/gif.service';
 
 /** One GIF of a list of results. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gif-thumb',
   standalone: true,
   template: `
@@ -25,7 +27,7 @@ import { GifService, type GifResult } from '../../core/services/gif.service';
       type="button"
       class="group relative mb-2 block w-full overflow-hidden rounded-ui bg-white/5"
       [style.aspect-ratio]="gif().width + '/' + gif().height"
-      (click)="chosen.emit(gif())"
+      (click)="pick()"
       [attr.aria-label]="gif().title"
     >
       @if (src(); as url) {
@@ -35,6 +37,8 @@ import { GifService, type GifResult } from '../../core/services/gif.service';
           [alt]="gif().title"
           class="anim-fade-in h-full w-full object-cover transition duration-300 group-hover:scale-105"
         />
+      } @else if (failed()) {
+        <span class="flex h-full w-full items-center justify-center text-xs text-muted">↻</span>
       } @else {
         <div class="shimmer h-full w-full"></div>
       }
@@ -47,6 +51,8 @@ export class GifThumbComponent {
   private readonly service = inject(GifService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly src = signal<string | null>(null);
+  /** The picture could not be loaded: pressing the thumbnail asks again. */
+  protected readonly failed = signal(false);
   /** True once the thumbnail is near the screen. */
   private readonly near = signal(false);
   private observer: IntersectionObserver | null = null;
@@ -91,8 +97,20 @@ export class GifThumbComponent {
 
   /** Gets the picture and shows it. */
   private fetch(url: string): void {
-    void this.service.preview(url).then(this.src.set.bind(this.src), function ignore(): void {
-      return undefined;
-    });
+    this.failed.set(false);
+    void this.service.preview(url).then(this.src.set.bind(this.src), this.fail.bind(this));
+  }
+
+  private fail(): void {
+    this.failed.set(true);
+  }
+
+  /** A press chooses the GIF, or asks again for the picture when it did not load. */
+  protected pick(): void {
+    if (this.failed()) {
+      this.fetch(this.gif().preview);
+    } else {
+      this.chosen.emit(this.gif());
+    }
   }
 }

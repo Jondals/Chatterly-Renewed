@@ -10,6 +10,8 @@
  *     crops the outer part with the shape of the phone: circle, squircle...). The background is a color.
  *   - mipmap-*dpi/ic_launcher.png and ic_launcher_round.png: the whole logo, for older Android and launchers.
  *   - splash.png of every drawable folder: the logo on the dark background of the app, for the start screen.
+ * * The iOS app (mobile/ios) gets its icon (1024 px, opaque: iOS refuses transparency and rounds the corners itself) and its
+ *   splash pictures (Assets.xcassets), drawn the same way.
  * * It uses the Chromium of Playwright (already a dependency of the project): the SVG is drawn by a real browser at each
  *   exact size, so the gradient and the round shapes stay sharp.
  */
@@ -19,6 +21,7 @@ import { chromium } from 'playwright';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const RES = path.join(ROOT, 'mobile', 'android', 'app', 'src', 'main', 'res');
+const IOS_ASSETS = path.join(ROOT, 'mobile', 'ios', 'App', 'App', 'Assets.xcassets');
 const LOGO = fs.readFileSync(path.join(ROOT, 'frontend', 'public', 'favicon.svg'), 'utf8');
 
 /** The dark of the logo (the square behind the bubble) and the background of the app. */
@@ -115,6 +118,40 @@ function svgPage(svg, size) {
   );
 }
 
+/** The icon of iOS: the logo on its dark square, edge to edge (the system rounds the corners). */
+function iosIconHtml(size) {
+  return (
+    '<html><body style="margin:0;width:' +
+    size +
+    'px;height:' +
+    size +
+    'px;background:' +
+    ICON_BACKGROUND +
+    '">' +
+    LOGO.replace('<svg ', '<svg width="' + size + '" height="' + size + '" style="display:block" ') +
+    '</body></html>'
+  );
+}
+
+/** Draws the icon and the splash pictures of the iOS app (when the project exists). */
+async function drawIos(page) {
+  if (!fs.existsSync(IOS_ASSETS)) return 0;
+  let written = 0;
+  const icon = path.join(IOS_ASSETS, 'AppIcon.appiconset', 'AppIcon-512@2x.png');
+  await draw(page, iosIconHtml(1024), 1024, 1024, icon, false);
+  written++;
+  const splashes = path.join(IOS_ASSETS, 'Splash.imageset');
+  for (const name of fs.readdirSync(splashes)) {
+    if (name.endsWith('.png')) {
+      const file = path.join(splashes, name);
+      const { width, height } = pngSize(file);
+      await draw(page, splashHtml(width, height), width, height, file, false);
+      written++;
+    }
+  }
+  return written;
+}
+
 /** Writes every icon and splash picture. */
 async function main() {
   const browser = await chromium.launch();
@@ -143,6 +180,7 @@ async function main() {
         }
       }
     }
+    written += await drawIos(page);
   } finally {
     await browser.close();
   }

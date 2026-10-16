@@ -11,7 +11,7 @@ import type { RingtoneId } from '../ringtones';
 import type { SpinlyProfile } from '../../features/spinly/spinly-model';
 import { gradientCss, parseMulti, sortedStops } from '../../shared/util/gradient';
 import { persisted } from './persisted';
-import { ANDROID_APP } from '../config';
+import { ANDROID_APP, IOS_APP } from '../config';
 import { isDesktopApp } from '../desktop-bridge';
 
 export type ThemeId =
@@ -305,9 +305,10 @@ export class SettingsService {
   /** What the person shared last time, to offer it again in the menu of sharing the screen. */
   readonly screenShare = persisted<{
     surface: 'any' | 'monitor' | 'window' | 'browser';
-    quality: 'standard' | 'high' | 'max';
+    /** A `ScreenQuality` (see screen-quality.ts); an older version saved standard, high or max. */
+    quality: string;
     audio: boolean;
-  }>('pref.screenShare', { surface: 'any', quality: 'high', audio: true });
+  }>('pref.screenShare', { surface: 'any', quality: '1080-30', audio: true });
   /** How much the interface animates: nothing, short transitions, or everything. Apart from the motion of the background. */
   readonly animations = persisted<'off' | 'quick' | 'full'>('pref.animations', initialAnimations());
   /**
@@ -330,7 +331,7 @@ export class SettingsService {
    * the session and the keys go. On by default in the apps (a device of the person), off in a browser (it may be shared).
    * ! Another account signing in here erases it all first (see device-wipe.ts).
    */
-  readonly keepOnSignOut = persisted('pref.keepOnSignOut', ANDROID_APP || isDesktopApp());
+  readonly keepOnSignOut = persisted('pref.keepOnSignOut', ANDROID_APP || IOS_APP || isDesktopApp());
   /** The device could not keep up (few cores or little memory, or the frames of the page came slow). */
   readonly deviceWeak = signal(document.documentElement.dataset['weak'] === '1');
   /** The battery is low and not charging (read from the system when it says). */

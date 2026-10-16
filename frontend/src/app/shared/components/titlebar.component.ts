@@ -8,7 +8,7 @@
  *   page learns the height of the bar from it (`--titlebar-h`, see main.ts).
  * * The color of the buttons of Windows follows the theme: the page reads the color of this bar and tells the shell.
  */
-import { Component, ElementRef, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, viewChild } from '@angular/core';
 import { desktopBridge } from '../../core/desktop-bridge';
 import { SettingsService } from '../../core/services/settings.service';
 
@@ -38,6 +38,7 @@ function symbolFor(hex: string): string {
 
 /** The bar of the desktop window. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-titlebar',
   standalone: true,
   template: `

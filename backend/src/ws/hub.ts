@@ -123,6 +123,14 @@ export class Hub {
     }
   }
 
+  /** Whether a connection opened with this session is open now. */
+  isSessionOnline(userId: string, sessionId: string): boolean {
+    for (const client of this.clients.get(userId) ?? []) {
+      if (client.sessionId === sessionId) return true;
+    }
+    return false;
+  }
+
   /** How many connections are open. */
   connectionCount(): number {
     let n = 0;

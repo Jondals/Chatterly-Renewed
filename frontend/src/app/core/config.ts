@@ -31,6 +31,9 @@ export const STRICT_RELAY: boolean = window.CHATTERLY_NATIVE?.strictRelay === tr
 /** True inside the Android app (set by its native-config.js, like STRICT_RELAY). */
 export const ANDROID_APP: boolean = window.CHATTERLY_NATIVE?.platform === 'android';
 
+/** True inside the iPhone and iPad app (set by its native-config.js, like STRICT_RELAY). */
+export const IOS_APP: boolean = window.CHATTERLY_NATIVE?.platform === 'ios';
+
 /** Argon-class cost is not available in WebCrypto; PBKDF2 at OWASP's recommended 600k rounds. */
 export const KDF_ITERATIONS = 600_000;
 /** Refuse to log in if a server asks for a cheaper KDF than this (downgrade protection, also enforced in deriveSecrets). */

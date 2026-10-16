@@ -3,12 +3,13 @@
  * A tiny dot next to the time of your messages: an empty ring when sent, a green dot when delivered and a blue
  * dot when read. It says nothing unless you hover it (then the tooltip names the state), so it never distracts.
  */
-import { Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import type { MessageStatus } from '../../core/services/receipt.service';
 
 /** Sent, delivered or read dot of a message. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-status-mark',
   standalone: true,
   imports: [TranslatePipe],

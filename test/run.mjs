@@ -86,8 +86,15 @@ async function main() {
   const times = [];
   const started = performance.now();
   // The checks of the desktop shell need nothing of the other steps: they run alongside them (step 22 waits for them).
-  startDesktopShellChecks(world);
-  for (const run of STEPS) {
+  // `--only 1,2,3,21,22,23` runs just those steps (pnpm test:quick, about a minute): the steps that need the people made by the
+  // earlier ones (the browsers) cannot go without them, and the others (types, security, the API, the apps) can.
+  const at = process.argv.indexOf('--only');
+  const only = at >= 0 ? (process.argv[at + 1] ?? '').split(',').map(Number) : null;
+  const chosen = STEPS.filter(function wanted(run) {
+    return !only || only.includes(Number(run.name.replace('step', '')));
+  });
+  if (chosen.includes(step22)) startDesktopShellChecks(world);
+  for (const run of chosen) {
     const at = performance.now();
     await run(world);
     times.push([run.name, (performance.now() - at) / 1000]);
@@ -103,7 +110,7 @@ async function main() {
       ((performance.now() - started) / 1000).toFixed(0),
   );
   // ! Printed only here, after the last step: the words mean that the WHOLE command passed.
-  console.log('\nALL CORRECT');
+  console.log(only ? '\nQUICK CHECKS CORRECT (not the steps with the browsers: run pnpm test for all)' : '\nALL CORRECT');
 }
 
 let failed = false;

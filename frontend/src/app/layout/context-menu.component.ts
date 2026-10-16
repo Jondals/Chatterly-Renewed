@@ -3,7 +3,7 @@
  * Draws the context menu (right click) in the browser's top layer, next to the pointer and always inside
  * the window. It closes on any click elsewhere, on Escape, when the window loses focus and on resize.
  */
-import { Component, ElementRef, HostListener, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, effect, inject, viewChild } from '@angular/core';
 import { TranslatePipe } from '../core/i18n/i18n.service';
 import { ContextMenuService, type MenuItem } from '../core/services/context-menu.service';
 import { IconComponent } from '../shared/components/icon.component';
@@ -14,6 +14,7 @@ const EDGE_GAP = 8;
 
 /** The context menu drawn in the top layer of the browser. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-context-menu',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

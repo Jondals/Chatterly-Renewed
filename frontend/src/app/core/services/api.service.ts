@@ -36,8 +36,8 @@ export class ApiService {
   }
 
   /** POST request with a JSON body. */
-  post<T>(path: string, body?: unknown, auth = true): Promise<T> {
-    return this.request<T>('POST', path, body, auth);
+  post<T>(path: string, body?: unknown, auth = true, keepalive = false): Promise<T> {
+    return this.request<T>('POST', path, body, auth, 'application/json', keepalive);
   }
 
   /** PATCH request with a JSON body. */

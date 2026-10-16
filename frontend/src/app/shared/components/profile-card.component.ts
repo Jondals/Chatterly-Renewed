@@ -2,7 +2,7 @@
  * src/app/shared/components/profile-card.component.ts
  * Public card of a user: banner, picture, name, status and description.
  */
-import { Component, computed, effect, inject, input, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import type { GuildTag, PresenceStatus, User } from '../../core/models';
 import { ImageService } from '../../core/services/image.service';
@@ -18,6 +18,7 @@ import { NameFxDirective } from '../util/name-fx.directive';
 import { fontClassOf } from '../util/user-font.directive';
 import { ServerTagComponent } from './server-tag.component';
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-profile-card',
   standalone: true,
   imports: [

@@ -13,6 +13,7 @@ import {
   output,
   signal,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from './icon.component';
@@ -30,6 +31,7 @@ const MAX_HEIGHT = 288;
 
 /** A drop-down list with the look of the rest of the interface. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-select',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

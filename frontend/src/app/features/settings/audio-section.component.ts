@@ -10,6 +10,7 @@ import {
   computed,
   inject,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { CallService } from '../../core/services/call.service';
@@ -32,6 +33,7 @@ import { decibels } from '../../shared/util/audio-level';
 
 /** Devices, microphone processing and call privacy. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-audio-section',
   standalone: true,
   imports: [

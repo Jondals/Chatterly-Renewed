@@ -10,6 +10,7 @@ import {
   inject,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
@@ -33,6 +34,7 @@ import { SocialStore } from '../../store/social.store';
 
 /** All group-related dialogs, opened through UiService from anywhere in the app. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-guild-modals',
   standalone: true,
   imports: [

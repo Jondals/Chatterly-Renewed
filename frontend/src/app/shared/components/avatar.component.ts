@@ -2,7 +2,7 @@
  * src/app/shared/components/avatar.component.ts
  * Profile picture or initials, with ring, status dot and a highlight while speaking.
  */
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { PresenceStatus, User } from '../../core/models';
 import { ImageService } from '../../core/services/image.service';
 import { ViewerService } from '../../core/services/viewer.service';
@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
  * speaking highlight. Use `shape="square"` for group icons.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-avatar',
   standalone: true,
   template: `

@@ -2,7 +2,7 @@
  * src/app/shared/components/collapse.component.ts
  * Compact collapsible section with a preview of the chosen option.
  */
-import { Component, ElementRef, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, input, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from './icon.component';
 import { listenWhile } from '../util/listen-while';
@@ -12,6 +12,7 @@ import { listenWhile } from '../util/listen-while';
  * (`<span preview>`); the full list of options only takes space when it is opened.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-collapse',
   standalone: true,
   host: { class: 'block', '[attr.title]': 'null' },

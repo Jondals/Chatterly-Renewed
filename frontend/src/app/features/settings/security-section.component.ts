@@ -4,7 +4,7 @@
  */
 import { linkCrypto, type TextPart } from '../../core/crypto-docs';
 import { copyText } from '../../shared/util/clipboard';
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { fingerprint, formatFingerprint } from '../../core/crypto/fingerprint';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -21,10 +21,14 @@ import { SettingsService } from '../../core/services/settings.service';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { describeError, passwordScore } from '../../shared/util/errors';
 
+import { SessionsCardComponent } from './sessions-card.component';
+
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-security-section',
   standalone: true,
   imports: [
+    SessionsCardComponent,
     IconComponent,
     ModalComponent,
     SegmentedComponent,
@@ -79,6 +83,8 @@ import { describeError, passwordScore } from '../../shared/util/errors';
         </button>
       </div>
     </section>
+
+    <app-sessions-card />
 
     <section class="settings-card">
       <h2 class="settings-card-title">{{ 'Visibility' | t }}</h2>

@@ -7,8 +7,9 @@
  * ! The system asks the person every time; the pictures come only from the app plugin. Android blocks capturing this
  *   app's own window (FLAG_SECURE), so what is shared is the rest of the phone.
  * * The pictures and the sound arrive as BINARY messages on window.chatterlyScreen (a channel of the WebView straight from the
- *   app, see ScreenSharePlugin.java): no base64, no bridge in between. That is what lets the sharing reach 30 pictures per
- *   second without the phone stuttering (it was stuck at about 15, whatever the quality). A WebView too old for it uses the
+ *   app, see ScreenSharePlugin.java): no base64, no bridge in between. That is what lets the sharing reach 60 pictures per
+ *   second without the phone stuttering (it was stuck at about 15, whatever the quality; the 60 qualities ask for 60 and a slower
+ *   phone simply sends fewer, because only one picture is in flight). A WebView too old for it uses the
  *   events of the plugin, as before.
  * * Pace: one picture in flight. A picture is acknowledged once it was drawn, and only then does the app encode another,
  *   so a slow phone sends fewer pictures instead of piling them up.
@@ -18,13 +19,10 @@
  *   silence (an app can forbid capturing its sound), `onScreenSilent` is told, so the person knows.
  */
 import { screenPlugin } from './native-bridge';
+import { screenQuality } from './screen-quality';
 
-/** What each quality of the menu means on a phone: the longest side of the picture, pictures per second, JPEG quality. */
-const PROFILES: Record<string, { longSide: number; fps: number; quality: number }> = {
-  standard: { longSide: 960, fps: 24, quality: 55 },
-  high: { longSide: 1280, fps: 30, quality: 60 },
-  max: { longSide: 1600, fps: 30, quality: 62 },
-};
+/** The JPEG quality for a picture of that height: bigger pictures are compressed a little more to keep each one light. */
+const JPEG_QUALITY: Record<number, number> = { 720: 60, 1080: 58 };
 /** The same over the old path (base64 through the bridge), which cannot go faster without making the phone stutter. */
 const OLD_PATH_FPS = 15;
 
@@ -138,7 +136,13 @@ export async function startAndroidScreen(
   const plugin = screenPlugin();
   if (!plugin) throw new Error('screen sharing is not available');
   const channel = window.chatterlyScreen ?? null;
-  const base = PROFILES[quality] ?? PROFILES['high']!;
+  const chosen = screenQuality(quality, true);
+  // The longest side of the picture is the width of the quality (the phone may be held either way).
+  const base = {
+    longSide: chosen.width,
+    fps: chosen.fps,
+    quality: JPEG_QUALITY[chosen.height] ?? 58,
+  };
   const profile = channel ? base : { ...base, fps: Math.min(base.fps, OLD_PATH_FPS) };
   const canvas = document.createElement('canvas');
   canvas.width = 2;

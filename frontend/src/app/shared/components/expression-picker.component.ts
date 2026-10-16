@@ -15,6 +15,7 @@ import {
   signal,
   untracked,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { GifService, type GifResult } from '../../core/services/gif.service';
@@ -55,6 +56,7 @@ const SCROLL_AHEAD_PX = 320;
  * frequently used), GIFs from GIPHY via the backend proxy, and your sticker packs (WhatsApp import).
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-expression-picker',
   standalone: true,
   imports: [IconComponent, GifThumbComponent, TranslatePipe],

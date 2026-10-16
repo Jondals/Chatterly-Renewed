@@ -11,6 +11,7 @@ import {
   inject,
   input,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 
 interface Particle {
@@ -36,6 +37,7 @@ interface Particle {
  * and stops by itself when the tab is hidden or motion is reduced.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-particle-network',
   standalone: true,
   template: `<canvas

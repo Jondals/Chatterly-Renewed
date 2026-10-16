@@ -3,7 +3,7 @@
  * What goes with trying a preset of a message: while a theme is on the app as a try, a bar asks to keep it or go back; a profile
  * is looked at in a window (with a button to keep it, or to keep it and use it).
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { PresetService } from '../../core/services/preset.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -19,6 +19,7 @@ import { RichTextComponent } from './rich-text.component';
 
 /** The bar of a theme that is being tried, and the window of a profile that is being looked at. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-preset-try',
   standalone: true,
   imports: [

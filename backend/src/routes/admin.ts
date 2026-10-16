@@ -389,6 +389,104 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void
     },
   );
 
+  /**
+   * The open sessions of an account, so an administrator can see how many devices are signed in and when each one signed in.
+   * ! Only what the server already has and nothing about the device: no address, no browser, no place. A session is an opaque id,
+   * the day it opened, the day it ends and whether it is connected now.
+   */
+  app.get(
+    '/api/admin/users/:userId/sessions',
+    { ...auth, schema: { params: userParams } },
+    async function (req, reply) {
+      const actor = adminOrNotFound(req, reply);
+      if (!actor) return reply;
+      const { userId } = req.params as { userId: string };
+      const problem = actor === userId ? '' : mayActOn(actor, userId);
+      if (problem === 'user_not_found') return reply.code(404).send({ error: problem });
+      if (problem) return reply.code(403).send({ error: problem });
+      const rows = db
+        .prepare(
+          'SELECT id, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20',
+        )
+        .all(userId, Date.now()) as { id: string; created_at: number; expires_at: number }[];
+      return {
+        sessions: rows.map(function describe(row) {
+          return {
+            id: row.id,
+            createdAt: row.created_at,
+            expiresAt: row.expires_at,
+            online: hub.isSessionOnline(userId, row.id),
+          };
+        }),
+      };
+    },
+  );
+
+  /** Closes ONE session of an account (the other devices stay signed in). */
+  app.post(
+    '/api/admin/users/:userId/sessions/:sessionId/close',
+    {
+      ...changing,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['userId', 'sessionId'],
+          properties: {
+            userId: { type: 'string', pattern: ID_PATTERN },
+            sessionId: { type: 'string', pattern: ID_PATTERN },
+          },
+        },
+      },
+    },
+    async function (req, reply) {
+      const actor = adminOrNotFound(req, reply);
+      if (!actor) return reply;
+      const { userId, sessionId } = req.params as { userId: string; sessionId: string };
+      const problem = mayActOn(actor, userId);
+      if (problem === 'user_not_found') return reply.code(404).send({ error: problem });
+      if (problem) return reply.code(403).send({ error: problem });
+      const done = db
+        .prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?')
+        .run(sessionId, userId);
+      if (done.changes === 0) return reply.code(404).send({ error: 'session_not_found' });
+      audit(db, actor, 'close-session', userId);
+      hub.closeSession(userId, sessionId);
+      return { ok: true };
+    },
+  );
+
+  /** Erases an account for good (owners only): it is what a person can do to their own, done by the owner of the server. */
+  app.delete(
+    '/api/admin/users/:userId',
+    { ...changing, schema: { params: userParams } },
+    async function (req, reply) {
+      const actor = adminOrNotFound(req, reply);
+      if (!actor) return reply;
+      if (!isOwner(actor)) return reply.code(403).send({ error: 'owners_only' });
+      const { userId } = req.params as { userId: string };
+      const problem = mayActOn(actor, userId);
+      if (problem === 'user_not_found') return reply.code(404).send({ error: problem });
+      if (problem) return reply.code(403).send({ error: problem });
+      const row = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as {
+        username: string;
+      };
+      // ! The record keeps the name (the row of the account is going to disappear).
+      audit(db, actor, 'delete-account', null, row.username);
+      ctx.eraseAccount?.(userId);
+      return reply.code(204).send();
+    },
+  );
+
+  /** Empties the record of the administration (owners only). One line says who did it. */
+  app.delete('/api/admin/audit', changing, async function (req, reply) {
+    const actor = adminOrNotFound(req, reply);
+    if (!actor) return reply;
+    if (!isOwner(actor)) return reply.code(403).send({ error: 'owners_only' });
+    db.prepare('DELETE FROM admin_audit').run();
+    audit(db, actor, 'audit-clear', null);
+    return reply.code(204).send();
+  });
+
   /** Opens or closes the sign-up of new accounts. */
   app.put(
     '/api/admin/registrations',

@@ -14,8 +14,8 @@ services:
     restart: unless-stopped
     environment:
       # The web address, plus the origins of the apps that carry the web app inside them: app://chatterly (desktop) and
-      # https://chatterly.internal (Android; a reserved name that never exists on the internet).
-      CORS_ORIGINS: https://${DOMAIN:-localhost},app://chatterly,https://chatterly.internal
+      # https://chatterly.internal (Android) and capacitor://chatterly.internal (iOS); a reserved name that never exists on the internet.
+      CORS_ORIGINS: https://${DOMAIN:-localhost},app://chatterly,https://chatterly.internal,capacitor://chatterly.internal
       JWT_SECRET: ${JWT_SECRET:-}
       SERVER_SECRET: ${SERVER_SECRET:-}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}

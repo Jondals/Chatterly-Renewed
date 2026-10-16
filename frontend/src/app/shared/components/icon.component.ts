@@ -2,7 +2,7 @@
  * src/app/shared/components/icon.component.ts
  * Reusable stroke SVG icons.
  */
-import { Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 
 /** Feather-style 24×24 stroke icons. Paths are static, trusted constants. */
@@ -132,6 +132,7 @@ const ICONS: Record<string, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-icon',
   standalone: true,
   template: `<svg

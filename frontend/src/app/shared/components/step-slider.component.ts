@@ -4,7 +4,7 @@
  * thumb never reaches the very edge of the bar, so the names are inset by half of it), and the first and the last name
  * line up with the edges instead of hanging out of the box.
  */
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 
 /** A name under the slider, at the place of one value. */
@@ -15,6 +15,7 @@ export interface StepLabel {
 
 /** A range input with labels under its steps. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-step-slider',
   standalone: true,
   imports: [TranslatePipe],

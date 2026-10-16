@@ -3,7 +3,7 @@
  * The logo of Spinly drawn as SVG inside the page: a ring of four colored parts around a dark hub, with the gem of
  * the pointer on top. Being part of the page it needs no request and shows at once, at any size.
  */
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /** Counter that gives every logo its own gradient ids (many can live in the page at once). */
 let logoCount = 0;
@@ -38,6 +38,7 @@ const PARTS = [
 
 /** The logo of Spinly. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-spinly-logo',
   standalone: true,
   host: { class: 'inline-block shrink-0 leading-none' },

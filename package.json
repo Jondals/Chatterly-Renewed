@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed",
-  "version": "2.34.0",
+  "version": "2.35.0",
   "description": "Chatterly-Renewed: chat, grupos y llamadas WebRTC con cifrado de extremo a extremo.",
   "private": true,
   "license": "ISC",
@@ -15,6 +15,7 @@
     "build": "pnpm --dir backend build && pnpm --dir frontend build",
     "typecheck": "pnpm --dir backend typecheck && pnpm --dir frontend typecheck",
     "test": "node test/run.mjs",
+    "test:quick": "node test/run.mjs --only 1,2,3,21,22,23",
     "app": "pnpm build && node scripts/produccion.mjs",
     "start": "node scripts/produccion.mjs"
   },

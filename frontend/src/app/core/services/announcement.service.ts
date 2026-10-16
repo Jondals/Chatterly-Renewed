@@ -2,13 +2,13 @@
  * src/app/core/services/announcement.service.ts
  * The announcement of the server: a short text the administrators put for everybody (a maintenance, a new version). It is
  * read when the person signs in and arrives live (`server.announcement` on the socket); each person can hide it, and it
- * stays hidden on that device until there is a new one.
+ * stays hidden on that device (also after signing out) until there is a new one.
  * ! It is plain text: it is drawn as text, never as markup.
  */
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
-import { persisted } from './persisted';
+import { SoundService } from './sound.service';
 import { SocketService, type ServerEvent } from './socket.service';
 
 /** The announcement, as the server gives it. */
@@ -19,16 +19,38 @@ export interface Announcement {
   at: number;
 }
 
+/** Where the ids of the hidden announcements are kept, and how many. */
+const DISMISSED_KEY = 'chatterly.announcement.dismissed';
+const DISMISSED_KEEP = 20;
+
+/** The ids of the announcements this device hid. */
+function readDismissed(): string[] {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]');
+    return Array.isArray(raw)
+      ? raw.filter(function text(id): id is string {
+          return typeof id === 'string';
+        })
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnnouncementService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly socket = inject(SocketService);
+  private readonly sound = inject(SoundService);
 
   /** The announcement in force (null when there is none). */
   readonly current = signal<Announcement | null>(null);
-  /** The one the person hid on this device. */
-  private readonly hidden = persisted<string>('announcement.hidden', '');
+  /**
+   * The announcements the person hid on this device (their ids). ! Kept apart from the synced preferences: a copy from the
+   * account could bring an old list over this one and the announcement would come back. It survives signing out (it is public).
+   */
+  private readonly dismissed = signal<string[]>(readDismissed());
   /** What the bar on top shows. */
   readonly visible = computed(this.readVisible.bind(this));
 
@@ -40,12 +62,19 @@ export class AnnouncementService {
   /** Hides the announcement on this device (until there is a new one). */
   hide(): void {
     const now = this.current();
-    if (now) this.hidden.set(now.id);
+    if (!now || this.dismissed().includes(now.id)) return;
+    const next = [...this.dismissed(), now.id].slice(-DISMISSED_KEEP);
+    this.dismissed.set(next);
+    try {
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+    } catch {
+      /* no storage: it stays hidden until the page is loaded again */
+    }
   }
 
   private readVisible(): Announcement | null {
     const now = this.current();
-    return now && now.id !== this.hidden() ? now : null;
+    return now && !this.dismissed().includes(now.id) ? now : null;
   }
 
   /** Reads it when somebody signs in, forgets it when they sign out. */
@@ -73,7 +102,11 @@ export class AnnouncementService {
   private onEvent(event: ServerEvent): void {
     if (event.t === 'server.announcement') {
       const e = event as unknown as { announcement: Announcement | null };
-      this.current.set(this.clean(e.announcement));
+      const next = this.clean(e.announcement);
+      const isNew = next !== null && next.id !== this.current()?.id && !this.dismissed().includes(next.id);
+      this.current.set(next);
+      // A new announcement of the administrators sounds (adminSound.ogg), like a message does.
+      if (isNew) this.sound.play('admin');
     }
   }
 

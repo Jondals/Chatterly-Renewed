@@ -3,7 +3,7 @@
  * Settings - Updates (desktop app only): the state of the update with the buttons to check, download and restart, how
  * often the app looks for a new version, and whether it should tell the person.
  */
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { BetaService } from '../../core/services/beta.service';
 import {
@@ -28,6 +28,7 @@ const INTERVALS: { id: UpdateInterval; label: string }[] = [
 
 /** Settings > Updates. Nothing here downloads or installs without the person pressing a button. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-updates-section',
   standalone: true,
   imports: [IconComponent, SelectComponent, SettingRowComponent, ToggleComponent, TranslatePipe],

@@ -23,6 +23,7 @@ import { packPreset, unpackPreset, type Preset } from '../preset';
 import { AuthService } from './auth.service';
 import { persisted } from './persisted';
 import { PresetService } from './preset.service';
+import { SoundboardStore, type CustomSound } from './soundboard.store';
 import { StickerStore, type Sticker, type StickerPack } from './sticker.store';
 import { VaultService, type BackupItem, type BackupMeta } from './vault.service';
 
@@ -131,15 +132,99 @@ function unpackStickers(
   }
 }
 
-/** Keeps the copies of the packs and presets in the account. */
+/** The beginning of a packed sound, and the biggest sound a copy may bring back. */
+const SOUND_MAGIC = 'CHATTERLY-SOUND';
+const MAX_SOUND_BYTES = 11 * 1024 * 1024;
+
+/** Packs a sound: the magic, the length of a header, the header (JSON), the sound and, when it fits, the whole file it was cut from. */
+async function packSound(clip: CustomSound): Promise<Uint8Array<ArrayBuffer>> {
+  const keepOriginal = !!clip.original && clip.blob.size + clip.original.size < MAX_SOUND_BYTES - 4096;
+  const header = {
+    v: 1,
+    name: clip.name,
+    emoji: clip.emoji,
+    category: clip.category,
+    start: clip.start,
+    end: clip.end,
+    duration: clip.duration,
+    type: clip.blob.type,
+    size: clip.blob.size,
+    originalType: keepOriginal ? clip.original!.type : undefined,
+    originalSize: keepOriginal ? clip.original!.size : undefined,
+  };
+  const head = new TextEncoder().encode(JSON.stringify(header));
+  const length = new Uint8Array(4);
+  new DataView(length.buffer).setUint32(0, head.length);
+  const parts: BlobPart[] = [SOUND_MAGIC, length, head, clip.blob];
+  if (keepOriginal) parts.push(clip.original!);
+  return new Uint8Array(await new Blob(parts).arrayBuffer());
+}
+
+/** Reads a packed sound (null when it is not one, or it is damaged). Every value is checked again. */
+function unpackSound(
+  bytes: Uint8Array<ArrayBuffer>,
+  ref: string,
+  createdAt: number,
+): CustomSound | null {
+  try {
+    const magic = new TextEncoder().encode(SOUND_MAGIC);
+    if (bytes.length < magic.length + 4) return null;
+    if (new TextDecoder().decode(bytes.subarray(0, magic.length)) !== SOUND_MAGIC) return null;
+    const headLength = new DataView(bytes.buffer, bytes.byteOffset + magic.length, 4).getUint32(0);
+    const start = magic.length + 4;
+    if (headLength > 20_000 || start + headLength > bytes.length) return null;
+    const header = JSON.parse(new TextDecoder().decode(bytes.subarray(start, start + headLength)));
+    if (header?.v !== 1) return null;
+    const size = Number(header.size);
+    const type = String(header.type ?? '');
+    const at = start + headLength;
+    if (!Number.isInteger(size) || size <= 0 || at + size > bytes.length) return null;
+    if (!/^audio\/[\w.+-]{1,40}$/.test(type)) return null;
+    const number = function number(value: unknown): number | undefined {
+      const n = Number(value);
+      return value !== undefined && value !== null && Number.isFinite(n) && n >= 0 ? n : undefined;
+    };
+    const clip: CustomSound = {
+      id: ref,
+      name: String(header.name ?? '').slice(0, 60) || 'Sound',
+      blob: new Blob([bytes.slice(at, at + size)], { type }),
+      start: number(header.start),
+      end: number(header.end),
+      duration: number(header.duration),
+      createdAt,
+    };
+    if (typeof header.emoji === 'string' && header.emoji.length <= 16) clip.emoji = header.emoji;
+    if (typeof header.category === 'string' && /^[\w-]{1,80}$/.test(header.category)) {
+      clip.category = header.category;
+    }
+    const originalSize = Number(header.originalSize);
+    const originalType = String(header.originalType ?? '');
+    if (
+      Number.isInteger(originalSize) &&
+      originalSize > 0 &&
+      at + size + originalSize <= bytes.length &&
+      /^audio\/[\w.+-]{1,40}$/.test(originalType)
+    ) {
+      clip.original = new Blob([bytes.slice(at + size, at + size + originalSize)], {
+        type: originalType,
+      });
+    }
+    return clip;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the copies of the packs, presets and sounds in the account. */
 @Injectable({ providedIn: 'root' })
 export class LibrarySyncService {
   private readonly auth = inject(AuthService);
   private readonly vault = inject(VaultService);
   private readonly stickers = inject(StickerStore);
   private readonly presets = inject(PresetService);
+  private readonly sounds = inject(SoundboardStore);
 
-  /** On this device: keep a copy of the packs and presets in the account. */
+  /** On this device: keep a copy of the packs, presets and sounds in the account. */
   readonly enabled = persisted<boolean>('sync.library', true);
   readonly status = signal<LibrarySyncStatus>('idle');
 
@@ -179,6 +264,7 @@ export class LibrarySyncService {
   private watch(): void {
     this.stickers.packs();
     this.presets.presets();
+    this.sounds.clips();
     if (!this.quiet) {
       untracked(this.schedule.bind(this, AFTER_CHANGE_MS));
     }
@@ -243,8 +329,11 @@ export class LibrarySyncService {
 
   /** The packs and presets of this device, packed and hashed. */
   private async localThings(): Promise<Map<string, LocalThing>> {
-    await Promise.all([this.stickers.load(), this.presets.load()]);
+    await Promise.all([this.stickers.load(), this.presets.load(), this.sounds.load()]);
     const out = new Map<string, LocalThing>();
+    for (const clip of this.sounds.clips()) {
+      out.set('sound:' + clip.id, await this.soundThing(clip));
+    }
     for (const pack of this.stickers.packs()) {
       out.set('stickers:' + pack.id, await this.packThing(pack));
     }
@@ -262,6 +351,19 @@ export class LibrarySyncService {
       ref: pack.id,
       name: pack.name,
       createdAt: pack.createdAt,
+      bytes,
+      hash: await sha256(bytes),
+    };
+  }
+
+  /** A sound, packed and hashed. */
+  private async soundThing(clip: CustomSound): Promise<LocalThing> {
+    const bytes = await packSound(clip);
+    return {
+      kind: 'sound',
+      ref: clip.id,
+      name: clip.name,
+      createdAt: clip.createdAt,
       bytes,
       hash: await sha256(bytes),
     };
@@ -409,6 +511,11 @@ export class LibrarySyncService {
         if (!pack) return;
         await this.stickers.restore(pack);
         hash = (await this.packThing(pack)).hash;
+      } else if (copy.meta.kind === 'sound') {
+        const clip = unpackSound(bytes, copy.meta.ref, copy.meta.createdAt);
+        if (!clip) return;
+        await this.sounds.restore(clip);
+        hash = (await this.soundThing(clip)).hash;
       } else {
         const read = await unpackPreset(new Blob([bytes]));
         if (!read) return;
@@ -432,6 +539,7 @@ export class LibrarySyncService {
     this.quiet = true;
     try {
       if (thing.kind === 'stickers') await this.stickers.removePack(thing.ref);
+      else if (thing.kind === 'sound') await this.sounds.remove(thing.ref);
       else await this.presets.remove(thing.ref);
     } finally {
       setTimeout(this.endQuiet.bind(this), 0);

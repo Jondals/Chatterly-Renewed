@@ -2,7 +2,7 @@
  * src/app/features/direct/direct-hub.component.ts
  * Home: the friends list, requests and direct messages with their profile panel.
  */
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
@@ -33,6 +33,7 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
 type Tab = 'online' | 'all' | 'pending';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-direct-hub',
   standalone: true,
   imports: [

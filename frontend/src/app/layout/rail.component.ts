@@ -2,7 +2,7 @@
  * src/app/layout/rail.component.ts
  * Group bar: home, every group (with a right-click menu) and create group.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -12,7 +12,9 @@ import { ContextMenuService, type MenuItem } from '../core/services/context-menu
 import { DialogService } from '../core/services/dialog.service';
 import { ToastService } from '../core/services/toast.service';
 import { describeError } from '../shared/util/errors';
+import { ArrivalService } from '../core/services/arrival.service';
 import { SettingsService } from '../core/services/settings.service';
+import { isWebTab } from '../core/web-tab';
 import { UiService } from '../core/services/ui.service';
 import { AvatarComponent } from '../shared/components/avatar.component';
 import { IconComponent } from '../shared/components/icon.component';
@@ -21,6 +23,7 @@ import { MessageStore } from '../store/message.store';
 
 /** Slim column with Home, every group, "create group" and settings. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-rail',
   standalone: true,
   imports: [RouterLink, RouterLinkActive, AvatarComponent, IconComponent, TranslatePipe],
@@ -104,6 +107,23 @@ import { MessageStore } from '../store/message.store';
           <app-icon name="plus" [size]="20" />
         </span>
       </button>
+      @if (web) {
+        <!-- Only in a browser tab: back to the first page of the web (download, apps). -->
+        <button
+          type="button"
+          class="rail-btn tip"
+          data-tip-pos="right"
+          [attr.data-tip]="'Back to the website' | t"
+          [attr.aria-label]="'Back to the website' | t"
+          (click)="toWebsite()"
+        >
+          <span
+            class="flex h-11 w-11 items-center justify-center rounded-ui-lg bg-white/7 text-muted transition-[background-color,color] duration-300 hover:bg-accent/15 hover:text-accent"
+          >
+            <app-icon name="globe" [size]="20" />
+          </span>
+        </button>
+      }
     </nav>
   `,
   styles: `
@@ -187,9 +207,18 @@ export class RailComponent {
     return onItsPage || (this.onCallPage() && this.ui.lastRoute.startsWith('/groups/' + id));
   }
   private readonly menu = inject(ContextMenuService);
+  private readonly arrival = inject(ArrivalService);
   private readonly dialog = inject(DialogService);
   private readonly toast = inject(ToastService);
   private readonly settings = inject(SettingsService);
+  /** Back to the first page of the web with the same transition as signing out (not with a cut). */
+  protected async toWebsite(): Promise<void> {
+    await this.arrival.play('logout');
+    await this.router.navigateByUrl('/');
+  }
+
+  /** In a browser tab only: the button back to the website. */
+  protected readonly web = isWebTab();
   /** The group being dragged, the one under it and whether it would go after that one. */
   protected readonly dragging = signal<string | null>(null);
   protected readonly overId = signal<string | null>(null);

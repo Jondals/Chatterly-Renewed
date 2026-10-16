@@ -3,11 +3,12 @@
  * A small section that opens and closes smoothly (the options of the drawer of a call). The title goes in an element with
  * `foldTitle`, a note at the right of it in one with `foldHint`, and what is inside opens under them.
  */
-import { Component, OnInit, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, input, signal } from '@angular/core';
 import { IconComponent } from './icon.component';
 
 /** A folded section with a smooth opening. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-fold',
   standalone: true,
   imports: [IconComponent],

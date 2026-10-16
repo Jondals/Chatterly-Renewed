@@ -3,7 +3,7 @@
  * View of a group: header, channel chat and members list.
  */
 import { ChannelLabelPipe, channelLabel } from '../../shared/util/channel-label.pipe';
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
@@ -48,6 +48,7 @@ function tagsOf(all: GuildTag[], ids: string[]): GuildTag[] {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-group-view',
   standalone: true,
   imports: [

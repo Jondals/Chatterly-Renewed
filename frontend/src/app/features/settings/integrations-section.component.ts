@@ -4,7 +4,7 @@
  * and tournaments work without it, and linking the Spinly account brings its themes and presets into them.
  * The card follows the colors of the app (the accent), so it looks like part of it.
  */
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { SpinlyService } from '../../core/services/spinly.service';
 import { SpinlyLogoComponent } from '../../shared/components/spinly-logo.component';
@@ -12,6 +12,7 @@ import { IconComponent } from '../../shared/components/icon.component';
 
 /** The Spinly card of the integrations page. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-integrations-section',
   standalone: true,
   imports: [SpinlyLogoComponent, IconComponent, TranslatePipe],

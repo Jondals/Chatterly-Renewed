@@ -176,9 +176,10 @@ public class ScreenForegroundService extends Service {
         int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
         longSide = Math.max(480, Math.min(1920, intent.getIntExtra(EXTRA_LONG_SIDE, 1280)));
         boolean withSound = intent.getBooleanExtra(EXTRA_AUDIO, false);
-        int fps = Math.max(1, Math.min(30, intent.getIntExtra(EXTRA_FPS, 30)));
+        int fps = Math.max(1, Math.min(60, intent.getIntExtra(EXTRA_FPS, 30)));
         jpegQuality = Math.max(30, Math.min(90, intent.getIntExtra(EXTRA_QUALITY, 60)));
-        minGapMs = 1000L / fps;
+        // A little less than the exact gap: the pictures of a 60 Hz screen arrive a millisecond early or late, and 60 would become 30.
+        minGapMs = Math.max(1L, 1000L / fps - 2L);
         if (grant == null) {
             finish();
             return START_NOT_STICKY;

@@ -4,7 +4,7 @@
  * The settings are a secondary route ("settings" outlet) that opens on top of whatever screen is showing.
  */
 import type { Route, Routes, UrlMatchResult, UrlSegment } from '@angular/router';
-import { authGuard, guestOnlyGuard } from './core/guards/auth-guard';
+import { authGuard, guestOnlyGuard, webOnlyGuard } from './core/guards/auth-guard';
 import { AuthShellComponent } from './features/auth/auth-shell.component';
 import { LoginComponent } from './features/auth/login.component';
 import { RegisterComponent } from './features/auth/register.component';
@@ -65,6 +65,13 @@ function loadVoiceStage() {
   });
 }
 
+/** Loads the first page of the web. */
+function loadLanding() {
+  return import('./features/auth/landing.component').then(function pick(module) {
+    return module.LandingComponent;
+  });
+}
+
 /** Loads the settings window. */
 function loadSettings() {
   return import('./features/settings/settings.component').then(function pick(module) {
@@ -73,6 +80,15 @@ function loadSettings() {
 }
 
 export const routes: Routes = [
+  {
+    // The first page of the web: what Chatterly is, the download that fits the device and the way into the app (also for who is
+    // signed in: it wears their theme and has the button to open the app). Only at the root address, and only in a browser
+    // (the apps skip it and the root address goes to the sign-in or to the chat, below).
+    path: '',
+    pathMatch: 'full',
+    canMatch: [webOnlyGuard],
+    loadComponent: loadLanding,
+  },
   {
     path: '',
     canMatch: [guestOnlyGuard],

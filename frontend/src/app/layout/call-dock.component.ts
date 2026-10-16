@@ -6,7 +6,7 @@
  * has the buttons of the call: mute, deafen, back to the call and hang up. When music or a video is shared it shows that
  * too, with a pause button.
  */
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -39,6 +39,7 @@ interface Featured {
 
 /** Floating panel that follows you around while a call is running and you are on another page. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-call-dock',
   standalone: true,
   imports: [IconComponent, RouterLink, TranslatePipe, DockableDirective, MediaStreamDirective],

@@ -16,6 +16,7 @@ import {
   input,
   output,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -53,7 +54,11 @@ function notSticker(file: ViewAttachment): boolean {
   return !file.sticker;
 }
 
+/** How long a finger holds a message before its actions show (milliseconds). */
+const LONG_PRESS_MS = 450;
+
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-message-item',
   standalone: true,
   imports: [
@@ -80,7 +85,6 @@ function notSticker(file: ViewAttachment): boolean {
       [class.flex-row-reverse]="bubbles() && mine()"
       [class.mt-3]="!compact()"
       (contextmenu)="openMenu($event)"
-      (click)="onTap($event)"
       (pointerenter)="hovered.set(true)"
       (pointerleave)="hovered.set(false)"
       (focusin)="hovered.set(true)"
@@ -539,21 +543,63 @@ export class MessageItemComponent {
   }
 
   /** Clic derecho sobre un mensaje: responder, copiar, editar y confirmDelete. */
-  /** True on a phone: the bar of actions was opened by tapping the message. */
+  /** True on a phone: the bar of actions was opened by holding the message. */
   protected readonly tapped = signal(false);
 
-  /** On a screen without hover a tap on the message (not on a link or button) shows or hides its actions. */
-  protected onTap(event: MouseEvent): void {
-    if (!window.matchMedia('(hover: none)').matches) {
+  /** The finger is down on the message and has not moved much: when this runs out, it is a long press. */
+  private pressTimer: ReturnType<typeof setTimeout> | undefined;
+  private pressAt: { x: number; y: number } | null = null;
+
+  /** On a screen without hover, holding a message (not a link, button or picture) shows its actions. */
+  private pressStart(event: PointerEvent): void {
+    if (event.pointerType === 'mouse') {
       return;
     }
     const target = event.target as Element | null;
-    if (target?.closest('a, button, input, textarea, video, audio, img, iframe, .selectable a')) {
+    if (target?.closest('a, button, input, textarea, video, audio, iframe, .selectable a')) {
       return;
     }
-    this.tapped.update(function toggle(open) {
-      return !open;
-    });
+    this.pressEnd();
+    this.pressAt = { x: event.clientX, y: event.clientY };
+    this.pressTimer = setTimeout(this.longPress.bind(this), LONG_PRESS_MS);
+  }
+
+  /** A finger that moves is scrolling, not holding. */
+  private pressMove(event: PointerEvent): void {
+    if (
+      this.pressAt &&
+      Math.hypot(event.clientX - this.pressAt.x, event.clientY - this.pressAt.y) > 10
+    ) {
+      this.pressEnd();
+    }
+  }
+
+  private pressEnd(): void {
+    clearTimeout(this.pressTimer);
+    this.pressAt = null;
+  }
+
+  /**
+   * ! Listened to natively and only on a screen without hover: a handler in the template would run change detection on every
+   * move of the pointer over every message of a long chat.
+   */
+  private readonly listenPress = (function (this: MessageItemComponent) {
+    if (!window.matchMedia('(hover: none)').matches) return;
+    const node = this.host.nativeElement;
+    const down = this.pressStart.bind(this);
+    const move = this.pressMove.bind(this);
+    const end = this.pressEnd.bind(this);
+    node.addEventListener('pointerdown', down, { passive: true });
+    node.addEventListener('pointermove', move, { passive: true });
+    node.addEventListener('pointerup', end, { passive: true });
+    node.addEventListener('pointercancel', end, { passive: true });
+    inject(DestroyRef).onDestroy(this.pressEnd.bind(this));
+  }).call(this);
+
+  private longPress(): void {
+    this.pressAt = null;
+    navigator.vibrate?.(15);
+    this.tapped.set(true);
   }
 
   /**
@@ -587,6 +633,11 @@ export class MessageItemComponent {
    * Right click on a message: copy, edit, delete or react, depending on who wrote it and what the person may do.
    */
   protected openMenu(event: MouseEvent): void {
+    if (window.matchMedia('(hover: none)').matches) {
+      // The long press of a phone also raises this event: it shows the bar of actions (see pressStart), not a menu.
+      event.preventDefault();
+      return;
+    }
     const m = this.message();
     if (m.pending || m.failed || this.editing()) return;
     const items: MenuItem[] = [

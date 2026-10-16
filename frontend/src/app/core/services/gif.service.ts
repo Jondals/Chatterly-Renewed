@@ -23,7 +23,10 @@ export interface GifPage {
 }
 
 /** The most previews downloaded at the same time. */
-const PREVIEWS_AT_ONCE = 4;
+const PREVIEWS_AT_ONCE = 8;
+/** Times a preview that failed is asked for again (a busy moment of the server or the network), and the wait before each. */
+const PREVIEW_RETRIES = 2;
+const RETRY_WAIT_MS = 700;
 
 /** Guesses the image type from the end of its address. */
 function mimeFromUrl(url: string): string {
@@ -117,13 +120,29 @@ export class GifService {
   /** Downloads one preview and gives its place to the next that waits. */
   private async downloadPreview(url: string): Promise<string> {
     try {
-      return this.toBlobUrl(url, await this.fetchBytes(url));
+      return this.toBlobUrl(url, await this.fetchWithRetry(url));
     } finally {
       const next = this.waiting.shift();
       if (next) {
         next();
       } else {
         this.running--;
+      }
+    }
+  }
+
+  /** Downloads the bytes, trying again a couple of times when it fails. */
+  private async fetchWithRetry(url: string): Promise<ArrayBuffer> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.fetchBytes(url);
+      } catch (error) {
+        if (attempt >= PREVIEW_RETRIES) {
+          throw error;
+        }
+        await new Promise<void>(function wait(resolve) {
+          setTimeout(resolve, RETRY_WAIT_MS * (attempt + 1));
+        });
       }
     }
   }

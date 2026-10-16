@@ -3,7 +3,7 @@
  * The presets of the theme (the look of the app) or of the profile: save what the person has now with a name, apply a preset
  * in one press, update it, rename it, share it in the chat that is open (a friend gets it with one button) or delete it.
  */
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { MAX_PRESETS, PresetService } from '../../core/services/preset.service';
 import { DialogService } from '../../core/services/dialog.service';
@@ -30,6 +30,7 @@ const ASSET_LABELS: Record<AssetName, string> = {
 
 /** The list of presets of one kind. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-presets',
   standalone: true,
   imports: [IconComponent, PresetThumbComponent, TranslatePipe],

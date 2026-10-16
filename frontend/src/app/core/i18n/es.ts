@@ -1083,6 +1083,9 @@ export const ES: Record<string, string> = {
   'A window': 'Una ventana',
   'A tab': 'Una pestaña',
   '720p · 30': '720p · 30',
+  '720p · 60': '720p · 60',
+  '1440p · 30': '1440p · 30',
+  '1440p · 60': '1440p · 60',
   'Light': 'Ligera',
   '1080p · 30': '1080p · 30',
   'Balanced': 'Equilibrada',
@@ -1341,8 +1344,82 @@ export const ES: Record<string, string> = {
     'Lo que cambies aquí se guarda en tu cuenta y llega a tus otros dispositivos.',
   'Nothing is sent or received: this device keeps its own settings.':
     'No se envía ni se recibe nada: este dispositivo guarda sus propios ajustes.',
-  'Never copied: the microphone, the speakers, the camera and the files you uploaded (fonts, cursors). They stay on each device.':
-    'Nunca se copian: el micrófono, los altavoces, la cámara y los archivos que subiste (fuentes, cursores). Se quedan en cada dispositivo.',
+  'Never copied: the microphone, the speakers, the camera, fonts and cursors. They stay on each device.':
+    'Nunca se copian: el micrófono, los altavoces, la cámara, las fuentes y los cursores. Se quedan en cada dispositivo.',
+  'Sharing the screen': 'Compartir pantalla',
+  'Ring and sounds': 'Tono y sonidos',
+  'On this phone': 'En este móvil',
+  'The size and the pictures per second of the screen you share. More is sharper and smoother, and uses more data.':
+    'El tamaño y las imágenes por segundo de la pantalla que compartes. Más es más nítido y fluido, y gasta más datos.',
+  'The sound of what you share, when it can be captured.':
+    'El sonido de lo que compartes, cuando se puede capturar.',
+  'Open sessions': 'Sesiones abiertas',
+  'Session': 'Sesión',
+  'Connected now': 'Conectada ahora',
+  'No open sessions.': 'No hay sesiones abiertas.',
+  'Only the day each one opened. The server keeps no address, device or place.':
+    'Solo el día en que se abrió cada una. El servidor no guarda dirección, dispositivo ni lugar.',
+  'Close this session': 'Cerrar esta sesión',
+  'That device of @{name} has to sign in again. Their other devices stay signed in.':
+    'Ese dispositivo de @{name} tendrá que iniciar sesión otra vez. Sus otros dispositivos siguen con la sesión abierta.',
+  'Session closed': 'Sesión cerrada',
+  'Opened {date} · ends {end}': 'Abierta el {date} · termina el {end}',
+  'Closed one session of {target}': 'Cerró una sesión de {target}',
+  'Screen sharing is not available on iPhone': 'Compartir pantalla no está disponible en iPhone',
+  'The iPhone web view cannot capture the screen. Share it from the web or the desktop app.':
+    'La vista web del iPhone no puede capturar la pantalla. Compártela desde la web o la app de escritorio.',
+  'Create account': 'Crear cuenta',
+  'Download for {device}': 'Descargar para {device}',
+  'Download the app': 'Descargar la app',
+  'Open in your browser': 'Abrir en el navegador',
+  'Private by design': 'Privado por diseño',
+  'Messages, files and calls are encrypted on your device. The server only keeps what it cannot read.':
+    'Los mensajes, los archivos y las llamadas se cifran en tu dispositivo. El servidor solo guarda lo que no puede leer.',
+  'Calls with camera and screen': 'Llamadas con cámara y pantalla',
+  'Voice, video and screen sharing straight between you and your friends.':
+    'Voz, vídeo y pantalla compartida directamente entre tú y tus amigos.',
+  'Everywhere you are': 'Estés donde estés',
+  'Web, Windows, macOS, Linux, Android and iOS, with your settings, stickers and sounds on all of them.':
+    'Web, Windows, macOS, Linux, Android e iOS, con tus ajustes, stickers y sonidos en todos.',
+  'Android asks you to allow installing from this browser.':
+    'Android te pide permitir instalar desde este navegador.',
+  'Not signed by Apple: install it with AltStore or Sideloadly.':
+    'No está firmada por Apple: instálala con AltStore o Sideloadly.',
+  'Windows': 'Windows',
+  'macOS': 'macOS',
+  'Linux': 'Linux',
+  'iOS': 'iOS',
+  'You are a guest: nothing you do is saved, and it is all erased when you leave or close the page.':
+    'Eres invitado: nada de lo que hagas se guarda, y todo se borra cuando salgas o cierres la página.',
+  'Try it as a guest': 'Probar como invitado',
+  'Preparing…': 'Preparando…',
+  'Nothing you do is saved.': 'Nada de lo que hagas se guarda.',
+  'Download the app or try it as a guest': 'Descargar la app o probar como invitado',
+  'People': 'Personas',
+  'Clear the record': 'Vaciar el registro',
+  'Every line of what the administrators did is erased. One line will say who did it.':
+    'Se borra cada línea de lo que hicieron los administradores. Una línea dirá quién lo hizo.',
+  'The record is empty': 'El registro está vacío',
+  'Delete the account of @{name}': 'Borrar la cuenta de @{name}',
+  'Everything of this account is erased now: its messages, files, keys and sessions. It cannot be undone.':
+    'Todo lo de esta cuenta se borra ahora: sus mensajes, archivos, claves y sesiones. No se puede deshacer.',
+  'Delete the account': 'Borrar la cuenta',
+  'Account deleted': 'Cuenta borrada',
+  'Deleted the account of {detail}': 'Borró la cuenta de {detail}',
+  'Emptied the record': 'Vació el registro',
+  'Choose your system': 'Elige tu sistema',
+  'Back to the website': 'Volver a la web',
+  'Your sessions': 'Tus sesiones',
+  'The devices where you are signed in. Close the ones you do not use or do not know: they have to sign in again.':
+    'Los dispositivos donde tienes la sesión iniciada. Cierra los que no uses o no conozcas: tendrán que iniciar sesión otra vez.',
+  'This device': 'Este dispositivo',
+  'Close all the other sessions': 'Cerrar todas las demás sesiones',
+  'Every other device has to sign in again. This one stays open.':
+    'Todos los demás dispositivos tendrán que iniciar sesión otra vez. Este sigue abierto.',
+  'What is synced': 'Qué se sincroniza',
+  'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.':
+    'Ajustes, stickers, preajustes, tus sonidos y fondos de cámara. Se cifran primero en este dispositivo: el servidor solo guarda algo que no puede leer.',
+  'Everything is in your account.': 'Todo está en tu cuenta.',
   'Knockout tournament': 'Torneo de eliminación',
   'players': 'jugadores',
   'duels': 'duelos',
@@ -1628,14 +1705,9 @@ export const ES: Record<string, string> = {
   'Automatic picks the best one for your computer. Try another one if you see glitches or the video stutters.':
     'Automática elige la mejor para tu equipo. Prueba otra si ves fallos o el vídeo va a tirones.',
   'Automatic (recommended)': 'Automática (recomendada)',
-  'Beta testers': 'Probadores beta',
   'People who receive the beta versions of the desktop app before everybody else, and tell you what breaks. They choose in Settings > Updates whether to use them.':
     'Personas que reciben las versiones beta de la app de escritorio antes que nadie y te cuentan qué falla. Ellas eligen en Ajustes > Actualizaciones si las usan.',
-  'Add tester': 'Añadir probador',
-  'Nobody is a beta tester yet.': 'Todavía no hay ningún probador beta.',
-  'Added {date}': 'Añadido el {date}',
-  'Could not add the tester': 'No se pudo añadir al probador',
-  'Show my call over my game': 'Mostrar mi llamada sobre mi juego',
+  'Turn on the overlay': 'Activar el overlay',
   'It appears over games in window or borderless mode. A game in exclusive full screen owns the monitor and nothing can be drawn over it: choose borderless in its video options.':
     'Aparece sobre juegos en modo ventana o sin bordes. Un juego en pantalla completa exclusiva se queda con el monitor y no se puede dibujar nada encima: elige sin bordes en sus opciones de vídeo.',
   'Another program is using that shortcut. Choose a different one.':
@@ -1667,7 +1739,7 @@ export const ES: Record<string, string> = {
   'Large': 'Grande',
   'The main screen': 'La pantalla principal',
   'The screen where Chatterly is': 'La pantalla donde está Chatterly',
-  'Game overlay': 'Overlay de juego',
+  'Overlay': 'Overlay',
   'Administration': 'Administración',
   'Administrators': 'Administradores',
   'People who can manage this page: add testers and other administrators. The ones marked as owner are set in the server and cannot be removed here.':
@@ -1786,8 +1858,6 @@ export const ES: Record<string, string> = {
   'Restore': 'Restaurar',
   'Suspend': 'Suspender',
   'Nobody matches.': 'No hay nadie con ese nombre.',
-  'People who receive the beta versions of the apps before everybody else, and tell you what breaks. They choose in Settings > Updates whether to use them.':
-    'Personas que reciben las versiones beta de las apps antes que nadie y te cuentan qué falla. Eligen en Ajustes > Actualizaciones si las usan.',
   'Sign-up': 'Registro',
   'New accounts can be made': 'Se pueden crear cuentas nuevas',
   'Announcement': 'Anuncio',
@@ -1855,8 +1925,8 @@ export const ES: Record<string, string> = {
   'Press the shortcut to unlock it: drag every widget where you want it and pin the ones that must stay while you play. A click outside, Esc or the cross give the mouse back to the game.':
     'Pulsa el atajo para desbloquearlo: arrastra cada widget donde quieras y fija los que deben verse mientras juegas. Un clic fuera, Esc o la X devuelven el ratón al juego.',
   'The text of the messages': 'El texto de los mensajes',
-  'Draws your call over the games you play: who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game.':
-    'Dibuja tu llamada encima de los juegos: quién está y quién habla, las cámaras, las pantallas que comparten, los mensajes que te llegan y los botones de la llamada. Nunca lee ni cambia el juego.',
+  'Press the shortcut at any time to open it over whatever you are doing. In a call it also shows who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game.':
+    'Pulsa el atajo en cualquier momento para abrirlo encima de lo que estés haciendo. En una llamada también enseña quién está y quién habla, las cámaras, las pantallas que comparten, los mensajes que te llegan y los botones de la llamada. Nunca lee ni cambia el juego.',
   'The notifications show what the message says. Off: only who wrote it and where.':
     'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
   'Mute, deafen, camera, screen and hang up.': 'Silenciar, ensordecer, cámara, pantalla y colgar.',

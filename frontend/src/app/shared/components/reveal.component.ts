@@ -4,10 +4,11 @@
  * everything under it jump). The content is always there; when it is folded it is inert (no focus, no clicks).
  * Use: `<app-reveal [open]="gradient"> ...controls... </app-reveal>`.
  */
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /** A block that unfolds and folds with the same easing as the collapsible sections. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-reveal',
   standalone: true,
   host: { class: 'block' },

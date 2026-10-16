@@ -1,25 +1,25 @@
 /**
  * src/app/features/settings/admin-section.component.ts
- * Settings - Administration (administrators only), in five tabs:
+ * Settings - Administration (administrators only), in four tabs:
  *   - Overview: how the server is doing (accounts, people online, calls, messages, the disk) at a glance;
  *   - People: find an account, see its role and sessions, and suspend, restore or sign it out everywhere; make it a beta
- *     tester or (owners only) an administrator;
- *   - Beta program: who receives the beta versions of the apps;
+ *     tester (that is where the testers are made) or (owners only) an administrator or erase it;
  *   - Server: open or close the sign-up, and the announcement every person sees on top of the app;
  *   - Record: what the administrators did, who and when.
  * The server decides everything (backend routes/admin.ts and routes/beta.ts) and refuses these calls to anybody who is not
  * an administrator. ! Nothing here can show a message, a file or a key: the server only has them sealed.
  */
-import { Component, computed, inject, signal, type OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, type OnInit } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   AdminService,
   type AdminFilter,
+  type AdminSession,
   type AdminUser,
   type AuditEntry,
 } from '../../core/services/admin.service';
 import { AuthService } from '../../core/services/auth.service';
-import { BetaService, type BetaTester } from '../../core/services/beta.service';
+import { BetaService } from '../../core/services/beta.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { describeError } from '../../shared/util/errors';
@@ -31,13 +31,16 @@ import {
 } from '../../shared/components/controls.component';
 
 /** The tabs of the administration. */
-type AdminTab = 'overview' | 'people' | 'beta' | 'server' | 'record';
+type AdminTab = 'overview' | 'people' | 'server' | 'record';
 
 /** How each action of the record is read. */
 const ACTIONS: Record<string, string> = {
   suspend: 'Suspended {target}',
   restore: 'Restored {target}',
   'sign-out': 'Signed {target} out everywhere',
+  'delete-account': 'Deleted the account of {detail}',
+  'audit-clear': 'Emptied the record',
+  'close-session': 'Closed one session of {target}',
   'registrations-open': 'Opened the sign-up',
   'registrations-close': 'Closed the sign-up',
   announce: 'Published an announcement',
@@ -49,6 +52,7 @@ const ACTIONS: Record<string, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-section',
   standalone: true,
   imports: [IconComponent, TranslatePipe, SegmentedComponent, SettingRowComponent, ToggleComponent],
@@ -61,64 +65,94 @@ const ACTIONS: Record<string, string> = {
     }
     .ad-stats {
       display: grid;
-      gap: 0.6rem;
-      grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+      gap: 0 1.5rem;
+      grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
     }
     .ad-stat {
       display: grid;
-      gap: 0.15rem;
-      padding: 0.85rem 0.95rem;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--r-lg);
-      background: rgba(0, 0, 0, 0.2);
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      column-gap: 0.75rem;
+      padding: 0.8rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
     .ad-stat b {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 700;
       line-height: 1.15;
       font-variant-numeric: tabular-nums;
     }
     .ad-stat span {
+      grid-column: 2;
       font-size: 0.6875rem;
       color: var(--muted);
     }
     .ad-stat .ad-icon {
+      grid-row: 1 / span 2;
+      grid-column: 1;
       display: grid;
       place-items: center;
-      width: 1.9rem;
-      height: 1.9rem;
-      margin-bottom: 0.35rem;
-      border-radius: calc(var(--r) * 0.7);
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
       background: color-mix(in srgb, var(--accent) 14%, transparent);
       color: var(--accent);
     }
     .ad-person {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.5rem 0.75rem;
-      padding: 0.7rem 0;
+      display: grid;
+      gap: 0.6rem;
+      padding: 0.75rem 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
     .ad-person:last-child {
       border-bottom: 0;
     }
+    .ad-head {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      width: 100%;
+      min-width: 0;
+      text-align: left;
+    }
     .ad-avatar {
       display: grid;
       place-items: center;
-      width: 2.25rem;
-      height: 2.25rem;
+      width: 2.4rem;
+      height: 2.4rem;
       flex-shrink: 0;
       border-radius: 999px;
       background: color-mix(in srgb, var(--accent) 18%, transparent);
       color: var(--accent);
-      font-size: 0.8125rem;
+      font-size: 0.875rem;
       font-weight: 700;
     }
     .ad-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.35rem;
+      gap: 0.4rem;
+      padding-left: 3.1rem;
+    }
+    .ad-sessions {
+      display: grid;
+      padding-left: 3.1rem;
+    }
+    .ad-session {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.45rem 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    @media (max-width: 639px) {
+      .ad-actions,
+      .ad-sessions {
+        padding-left: 0;
+      }
+      .ad-actions .btn {
+        flex: 1 1 calc(50% - 0.2rem);
+        justify-content: center;
+      }
     }
     .ad-entry {
       display: grid;
@@ -150,6 +184,7 @@ const ACTIONS: Record<string, string> = {
     @switch (tab()) {
       @case ('overview') {
         @if (admin.overview(); as o) {
+          <section class="settings-card">
           <div class="ad-stats">
             <div class="ad-stat">
               <span class="ad-icon"><app-icon name="users" [size]="16" /></span>
@@ -185,6 +220,7 @@ const ACTIONS: Record<string, string> = {
               >
             </div>
           </div>
+          </section>
           <section class="settings-card">
             <app-setting-row title="Version of the server">
               <span class="chip font-mono">{{ o.version }}</span>
@@ -245,29 +281,87 @@ const ACTIONS: Record<string, string> = {
         <section class="settings-card">
           @for (person of admin.users(); track person.id) {
             <div class="ad-person">
-              <span class="ad-avatar">{{ initials(person) }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <b class="truncate text-sm">{{ person.displayName }}</b>
-                  @if (person.owner) {
-                    <span class="chip chip-violet">{{ 'Owner' | t }}</span>
-                  } @else if (person.admin) {
-                    <span class="chip chip-violet">{{ 'Administrator' | t }}</span>
-                  }
-                  @if (person.tester) {
-                    <span class="chip chip-accent">{{ 'Beta' | t }}</span>
-                  }
-                  @if (person.suspended) {
-                    <span class="chip chip-red">{{ 'Suspended' | t }}</span>
+              <button
+                type="button"
+                class="ad-head"
+                [attr.aria-expanded]="expanded() === person.id"
+                (click)="toggle(person)"
+              >
+                <span class="ad-avatar">{{ initials(person) }}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="flex flex-wrap items-center gap-1.5">
+                    <b class="truncate text-sm">{{ person.displayName }}</b>
+                    @if (person.owner) {
+                      <span class="chip chip-violet">{{ 'Owner' | t }}</span>
+                    } @else if (person.admin) {
+                      <span class="chip chip-violet">{{ 'Administrator' | t }}</span>
+                    }
+                    @if (person.tester) {
+                      <span class="chip chip-accent">{{ 'Beta' | t }}</span>
+                    }
+                    @if (person.suspended) {
+                      <span class="chip chip-red">{{ 'Suspended' | t }}</span>
+                    }
+                  </span>
+                  <span class="mt-0.5 block truncate text-xs text-muted"
+                    >&#64;{{ person.username }}</span
+                  >
+                  <span class="block text-xs text-dim"
+                    >{{ joined(person) }} · {{ sessionsText(person) }}</span
+                  >
+                </span>
+                <app-icon
+                  name="chevron-down"
+                  [size]="16"
+                  class="shrink-0 text-muted transition-transform"
+                  [class.rotate-180]="expanded() === person.id"
+                />
+              </button>
+              @if (person.suspended && person.reason) {
+                <p class="rounded-ui bg-red/10 px-3 py-2 text-xs text-muted">“{{ person.reason }}”</p>
+              }
+              @if (expanded() === person.id) {
+                <div class="ad-sessions">
+                  <div class="label">{{ 'Open sessions' | t }}</div>
+                  @if (sessionList(); as list) {
+                    @for (item of list; track item.id) {
+                      <div class="ad-session">
+                        <app-icon name="smartphone" [size]="15" class="shrink-0 text-muted" />
+                        <span class="min-w-0 flex-1">
+                          <span class="block truncate text-xs font-semibold">
+                            {{ 'Session' | t }} · {{ shortId(item) }}
+                            @if (item.online) {
+                              <span class="chip chip-accent ml-1">{{ 'Connected now' | t }}</span>
+                            }
+                          </span>
+                          <span class="block text-[0.6875rem] text-dim">{{ sessionDates(item) }}</span>
+                        </span>
+                        @if (canAct(person)) {
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-soft-danger"
+                            [disabled]="busy()"
+                            (click)="closeSession(person, item)"
+                          >
+                            {{ 'Close' | t }}
+                          </button>
+                        }
+                      </div>
+                    } @empty {
+                      <p class="text-xs text-muted">{{ 'No open sessions.' | t }}</p>
+                    }
+                    <p class="flex items-start gap-1.5 text-[0.6875rem] text-dim">
+                      <app-icon name="lock" [size]="12" class="mt-0.5 shrink-0 text-accent" />
+                      {{
+                        'Only the day each one opened. The server keeps no address, device or place.'
+                          | t
+                      }}
+                    </p>
+                  } @else {
+                    <p class="text-xs text-muted">{{ 'Loading…' | t }}</p>
                   }
                 </div>
-                <div class="truncate text-xs text-muted">
-                  &#64;{{ person.username }} · {{ joined(person) }} · {{ sessionsText(person) }}
-                  @if (person.suspended && person.reason) {
-                    · “{{ person.reason }}”
-                  }
-                </div>
-              </div>
+              }
               <div class="ad-actions">
                 <button
                   type="button"
@@ -315,60 +409,21 @@ const ACTIONS: Record<string, string> = {
                       {{ 'Suspend' | t }}
                     </button>
                   }
+                  @if (beta.owner()) {
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-soft-danger"
+                      [disabled]="busy()"
+                      (click)="deleteAccount(person)"
+                    >
+                      <app-icon name="trash" [size]="13" /> {{ 'Delete account' | t }}
+                    </button>
+                  }
                 }
               </div>
             </div>
           } @empty {
             <p class="py-4 text-sm text-muted">{{ 'Nobody matches.' | t }}</p>
-          }
-        </section>
-      }
-
-      @case ('beta') {
-        <section class="settings-card">
-          <h2 class="settings-card-title">{{ 'Beta testers' | t }}</h2>
-          <p class="mb-4 text-sm text-muted">
-            {{
-              'People who receive the beta versions of the apps before everybody else, and tell you what breaks. They choose in Settings > Updates whether to use them.'
-                | t
-            }}
-          </p>
-          <form class="flex flex-wrap gap-2 pb-3" (submit)="addTester($event)">
-            <input
-              class="input min-w-0 flex-1"
-              type="text"
-              maxlength="24"
-              autocomplete="off"
-              [placeholder]="'Username' | t"
-              [value]="name()"
-              (input)="name.set($any($event.target).value)"
-            />
-            <button type="submit" class="btn btn-primary" [disabled]="busy() || !name().trim()">
-              <app-icon name="user-plus" [size]="16" /> {{ 'Add tester' | t }}
-            </button>
-          </form>
-        </section>
-        <section class="settings-card">
-          @for (tester of beta.testers(); track tester.id) {
-            <div class="ad-person">
-              <span class="ad-avatar">{{ initialsOf(tester.displayName) }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">{{ tester.displayName }}</div>
-                <div class="truncate text-xs text-muted">
-                  &#64;{{ tester.username }} · {{ since(tester) }}
-                </div>
-              </div>
-              <button
-                type="button"
-                class="btn btn-icon btn-sm btn-ghost"
-                [attr.aria-label]="'Remove' | t"
-                (click)="removeTester(tester.id)"
-              >
-                <app-icon name="x" [size]="16" />
-              </button>
-            </div>
-          } @empty {
-            <p class="py-4 text-sm text-muted">{{ 'Nobody is a beta tester yet.' | t }}</p>
           }
         </section>
       }
@@ -483,12 +538,24 @@ const ACTIONS: Record<string, string> = {
 
       @case ('record') {
         <section class="settings-card">
+          @if (beta.owner() && admin.audit().length > 0) {
+            <div class="flex justify-end pb-2 pt-3">
+              <button
+                type="button"
+                class="btn btn-sm btn-soft-danger gap-1.5"
+                [disabled]="busy()"
+                (click)="clearRecord()"
+              >
+                <app-icon name="trash" [size]="13" /> {{ 'Clear the record' | t }}
+              </button>
+            </div>
+          }
           @for (entry of admin.audit(); track $index) {
             <div class="ad-entry">
               <span class="font-mono text-[0.6875rem] text-dim">{{ when(entry) }}</span>
               <span class="min-w-0 text-sm">
                 <b>&#64;{{ entry.actor || '—' }}</b> {{ describe(entry) }}
-                @if (entry.detail && entry.action !== 'announce-clear') {
+                @if (entry.detail && entry.action !== 'announce-clear' && entry.action !== 'delete-account') {
                   <span class="block truncate text-xs text-muted">“{{ entry.detail }}”</span>
                 }
               </span>
@@ -513,7 +580,6 @@ export class AdminSectionComponent implements OnInit {
   protected readonly tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'people', label: 'People' },
-    { id: 'beta', label: 'Beta program' },
     { id: 'server', label: 'Server' },
     { id: 'record', label: 'Record' },
   ];
@@ -529,11 +595,13 @@ export class AdminSectionComponent implements OnInit {
   ];
   protected readonly query = signal('');
   protected readonly filter = signal<AdminFilter>('all');
-  protected readonly name = signal('');
   protected readonly adminName = signal('');
   protected readonly announcement = signal('');
   protected readonly tone = signal<'info' | 'warning'>('info');
   protected readonly busy = signal(false);
+  /** The person whose sessions are open on screen, and their sessions (null while they load). */
+  protected readonly expanded = signal<string | null>(null);
+  protected readonly sessionList = signal<AdminSession[] | null>(null);
   /** The id of the person looking (they cannot act on themselves). */
   private readonly myself = computed(this.readMyself.bind(this));
 
@@ -563,10 +631,8 @@ export class AdminSectionComponent implements OnInit {
           if (this.tab() === 'server') await this.beta.loadAdmins();
           break;
         case 'people':
-          await this.admin.search(this.query(), this.filter());
-          break;
-        case 'beta':
-          await this.beta.loadTesters();
+          // Whether this account is an owner decides which buttons a person has (the answer comes with the administrators).
+          await Promise.all([this.admin.search(this.query(), this.filter()), this.beta.loadAdmins()]);
           break;
         case 'record':
           await this.admin.loadAudit();
@@ -589,6 +655,53 @@ export class AdminSectionComponent implements OnInit {
   protected setFilter(id: string): void {
     this.filter.set(id as AdminFilter);
     void this.refresh();
+  }
+
+  /** Opens or closes the sessions of a person (they are read when opened). */
+  protected async toggle(person: AdminUser): Promise<void> {
+    if (this.expanded() === person.id) {
+      this.expanded.set(null);
+      return;
+    }
+    this.expanded.set(person.id);
+    await this.loadSessions(person);
+  }
+
+  private async loadSessions(person: AdminUser): Promise<void> {
+    this.sessionList.set(null);
+    try {
+      const list = await this.admin.sessionsOf(person.id);
+      if (this.expanded() === person.id) this.sessionList.set(list);
+    } catch (e) {
+      this.sessionList.set([]);
+      this.toast.error(this.i18n.t('Could not load it'), this.i18n.t(describeError(e)));
+    }
+  }
+
+  /** Closes one session of a person; the others stay open. */
+  protected async closeSession(person: AdminUser, item: AdminSession): Promise<void> {
+    const sure = await this.dialog.confirm(
+      this.i18n.t('Close this session'),
+      this.i18n.t(
+        'That device of @{name} has to sign in again. Their other devices stay signed in.',
+        { name: person.username },
+      ),
+      { confirmLabel: this.i18n.t('Close'), danger: true },
+    );
+    if (!sure) return;
+    await this.act(this.admin.closeSession.bind(this.admin, person.id, item.id), 'Session closed');
+    await this.loadSessions(person);
+  }
+
+  protected shortId(item: AdminSession): string {
+    return item.id.slice(0, 4);
+  }
+
+  protected sessionDates(item: AdminSession): string {
+    return this.i18n.t('Opened {date} · ends {end}', {
+      date: new Date(item.createdAt).toLocaleDateString(),
+      end: new Date(item.expiresAt).toLocaleDateString(),
+    });
   }
 
   /** Owners are never acted on; only an owner acts on another administrator (the server checks it again). */
@@ -623,6 +736,31 @@ export class AdminSectionComponent implements OnInit {
     await this.act(this.admin.suspend.bind(this.admin, person.id, reason), 'Account suspended');
   }
 
+  /** Empties the record (owners only, and it asks first). */
+  protected async clearRecord(): Promise<void> {
+    const sure = await this.dialog.confirm(
+      this.i18n.t('Clear the record'),
+      this.i18n.t('Every line of what the administrators did is erased. One line will say who did it.'),
+      { confirmLabel: this.i18n.t('Clear the record'), danger: true },
+    );
+    if (!sure) return;
+    await this.act(this.admin.clearAudit.bind(this.admin), 'The record is empty');
+  }
+
+  /** Erases an account for good (owners only, and it asks first). */
+  protected async deleteAccount(person: AdminUser): Promise<void> {
+    const sure = await this.dialog.confirm(
+      this.i18n.t('Delete the account of @{name}', { name: person.username }),
+      this.i18n.t(
+        'Everything of this account is erased now: its messages, files, keys and sessions. It cannot be undone.',
+      ),
+      { confirmLabel: this.i18n.t('Delete the account'), danger: true },
+    );
+    if (!sure) return;
+    this.expanded.set(null);
+    await this.act(this.admin.deleteAccount.bind(this.admin, person.id), 'Account deleted');
+  }
+
   protected async restore(person: AdminUser): Promise<void> {
     await this.act(this.admin.restore.bind(this.admin, person.id), 'Account restored');
   }
@@ -655,31 +793,6 @@ export class AdminSectionComponent implements OnInit {
         : this.beta.addAdmin.bind(this.beta, person.username),
       person.admin ? 'Administration taken away' : 'Administrator added',
     );
-  }
-
-  // ── Beta program ──────────────────────────────────────────────────────────────────────────────
-
-  protected async addTester(event: Event): Promise<void> {
-    event.preventDefault();
-    const username = this.name().trim().replace(/^@/, '');
-    if (!username) return;
-    this.busy.set(true);
-    try {
-      await this.beta.add(username);
-      this.name.set('');
-    } catch (e) {
-      this.toast.error(this.i18n.t('Could not add the tester'), this.i18n.t(describeError(e)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  protected async removeTester(id: string): Promise<void> {
-    try {
-      await this.beta.remove(id);
-    } catch (e) {
-      this.toast.error(this.i18n.t('Could not remove it'), this.i18n.t(describeError(e)));
-    }
   }
 
   // ── Server ────────────────────────────────────────────────────────────────────────────────────
@@ -765,11 +878,6 @@ export class AdminSectionComponent implements OnInit {
       : this.i18n.t('{n} sessions', { n: String(person.sessions) });
   }
 
-  /** "Added 3/4/2026". */
-  protected since(tester: BetaTester): string {
-    return this.i18n.t('Added {date}', { date: new Date(tester.addedAt).toLocaleDateString() });
-  }
-
   protected when(entry: AuditEntry): string {
     return new Date(entry.at).toLocaleString(undefined, {
       day: '2-digit',
@@ -781,6 +889,9 @@ export class AdminSectionComponent implements OnInit {
 
   protected describe(entry: AuditEntry): string {
     const text = ACTIONS[entry.action] ?? entry.action;
-    return this.i18n.t(text, { target: entry.target ? '@' + entry.target : '—' });
+    return this.i18n.t(text, {
+      target: entry.target ? '@' + entry.target : '—',
+      detail: '@' + entry.detail,
+    });
   }
 }

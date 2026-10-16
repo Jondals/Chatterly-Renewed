@@ -3,7 +3,7 @@
  * The window of the "+" menu of the chat to send a preset (the look of the app or a profile) to the conversation: the presets
  * of the person, with their pictures, and a press sends one. Whoever gets it has a button to import it.
  */
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import type { Preset, PresetKind } from '../../core/preset';
 import { PresetService } from '../../core/services/preset.service';
@@ -14,6 +14,7 @@ import { PresetThumbComponent } from '../settings/preset-thumb.component';
 
 /** Chooses a preset and sends it to a conversation. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-preset-share',
   standalone: true,
   imports: [ModalComponent, PresetThumbComponent, TranslatePipe],

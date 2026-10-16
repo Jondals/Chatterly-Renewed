@@ -3,7 +3,7 @@
  * Root component: the animated background, the routed pages, the notices, the sound under every press, the
  * block on the browser's own context menu, the mouse wheel on sliders and the late start of cursors and tooltips.
  */
-import { Component, HostListener, Injector, NgZone, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, Injector, NgZone, effect, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { desktopBridge } from './core/desktop-bridge';
 import { I18nService } from './core/i18n/i18n.service';
@@ -72,6 +72,7 @@ function hasSelection(): boolean {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-root',
   standalone: true,
   imports: [
@@ -139,9 +140,9 @@ export class AppComponent {
     window.setTimeout(this.loadExtras.bind(this), 0);
     // The very first visit opens with a short animation (nothing is shown to people who are already signed in).
     window.setTimeout(this.arrival.maybeIntro.bind(this.arrival), 0);
-    // The sounds load soon after the page is shown, so the first press already has its sound (on a phone a little later, so
-    // that fifty small files do not compete with the first paint); a press before that loads them at once.
-    const soundDelay = document.documentElement.dataset['perf'] === 'low' ? 5000 : 1500;
+    // The sounds load once the page has settled (fifty small files must not compete with the first paint or the first
+    // interaction; on a phone later still); a press before that loads them at once.
+    const soundDelay = document.documentElement.dataset['perf'] === 'low' ? 12000 : 8000;
     window.setTimeout(this.sound.preload.bind(this.sound), soundDelay);
     document.addEventListener('pointerdown', this.sound.preload.bind(this.sound), {
       once: true,

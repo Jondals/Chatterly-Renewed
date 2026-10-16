@@ -12,6 +12,7 @@ import {
   output,
   signal,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -65,6 +66,7 @@ function hexToHsv(hex: string): [number, number, number] {
  * otherwise captures the screen with getDisplayMedia and lets you click a pixel, so it works in every browser.
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-color-picker',
   standalone: true,
   imports: [IconComponent, TranslatePipe],

@@ -3,7 +3,7 @@
  * The block a link preview shows as inside a message: the video on top (when the link is a video) and the
  * link with its title and description underneath.
  */
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from '../../shared/components/icon.component';
@@ -20,6 +20,7 @@ import {
  * opened (press play).
  */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-link-card',
   standalone: true,
   imports: [FrameAllowDirective, IconComponent, TranslatePipe],

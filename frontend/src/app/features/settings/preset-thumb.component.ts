@@ -13,6 +13,7 @@ import {
   input,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { BannerComponent } from '../../shared/components/banner.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
@@ -25,6 +26,7 @@ const CORNERS = [2, 6, 10, 14, 18, 22];
 
 /** A small picture of a preset. */
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-preset-thumb',
   standalone: true,
   imports: [BannerComponent, NameColorDirective, UserFontDirective],
