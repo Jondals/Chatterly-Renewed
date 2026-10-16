@@ -27,6 +27,10 @@
  *   asks it for a token of that account (valid two hours, checked again on every download) and gives it to this file with
  *   "updates:beta-token". The token is sent in a header, never in the address.
  * * After an update, the installer that was downloaded is deleted (cleanAfterUpdate).
+ * * macOS: the app is not signed by Apple (that costs 99 USD a year), and the updater of macOS (Squirrel) refuses to install an
+ *   app that is not. So on a Mac the check is the same (the signed manifest latest-mac.yml / beta-mac.yml), but "Download" fetches
+ *   the .dmg the signed manifest lists, checks its sha512 against it, keeps it in Downloads, and "Install" opens it: the person
+ *   drags Chatterly to Applications (manualFile, downloadManually).
  * * Nothing is sent but the usual request for the release files: no account, no identifier.
  * ? The updater code is loaded a few seconds after the window, so it does not compete with the start of the app.
  * ? Development only: CHATTERLY_UPDATE_URL=<folder with latest.yml> checks and downloads from there and never installs
@@ -34,7 +38,8 @@
  */
 'use strict';
 
-const { app, ipcMain, net } = require('electron');
+const { app, ipcMain, net, shell } = require('electron');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -103,6 +108,11 @@ let tokenWaitTimer = null;
 let feed = null;
 /** The version whose signature was verified: nothing else is downloaded. */
 let trusted = '';
+/** macOS: the disk image the verified manifest lists (name, sha512, size), and where it was saved. */
+let manualFile = null;
+let manualPath = '';
+/** True on a Mac: the update is installed by the person (see the header). */
+const MANUAL = process.platform === 'darwin';
 
 function devFeed() {
   return !app.isPackaged ? process.env.CHATTERLY_UPDATE_URL || '' : '';
@@ -191,7 +201,21 @@ function saveSettings(settings) {
 
 /** The name of the manifest of a channel on this platform. */
 function manifestName(beta) {
-  return (beta ? 'beta' : 'latest') + (process.platform === 'linux' ? '-linux' : '') + '.yml';
+  const suffix =
+    process.platform === 'linux' ? '-linux' : process.platform === 'darwin' ? '-mac' : '';
+  return (beta ? 'beta' : 'latest') + suffix + '.yml';
+}
+
+/**
+ * macOS: the disk image listed in a verified manifest ("- url: Chatterly-<v>.dmg", its sha512 and size), or null.
+ * ! Only a plain file name: nothing in the manifest can point the download somewhere else.
+ */
+function dmgOf(text) {
+  const found =
+    /^\s*-\s*url:\s*(Chatterly-[0-9A-Za-z.-]{1,60}\.dmg)\s*\n\s*sha512:\s*([A-Za-z0-9+/=]{80,100})\s*\n\s*size:\s*(\d{1,12})/m.exec(
+      text,
+    );
+  return found ? { name: found[1], sha512: found[2], size: Number(found[3]) } : null;
 }
 
 /**
@@ -297,6 +321,10 @@ function startDownload() {
     setState({ status: 'error', error: problem, lastCheck: Date.now() });
     return;
   }
+  if (MANUAL) {
+    downloadManually().catch(onError);
+    return;
+  }
   setState({
     status: 'downloading',
     percent: 0,
@@ -316,12 +344,84 @@ function handleDownload(event) {
 
 /** With "update by itself" on, a downloaded update is installed (silently) when the app closes. Never in development. */
 function applyInstallOnQuit() {
-  if (autoUpdater) autoUpdater.autoInstallOnAppQuit = state.settings.auto && !devFeed();
+  if (autoUpdater) autoUpdater.autoInstallOnAppQuit = state.settings.auto && !devFeed() && !MANUAL;
+}
+
+/**
+ * macOS: downloads the disk image of the verified manifest to Downloads, checking its sha512 as it arrives. ! A file whose
+ * sha512 is not the signed one is deleted and never opened.
+ */
+async function downloadManually() {
+  const file = manualFile;
+  if (!file) throw new Error('The update has no disk image for this Mac');
+  setState({
+    status: 'downloading',
+    percent: 0,
+    transferred: 0,
+    total: file.size,
+    bytesPerSecond: 0,
+    error: '',
+  });
+  const target = path.join(app.getPath('downloads'), file.name);
+  const partial = target + '.part';
+  const answer = await net.fetch(file.base + file.name, {
+    headers: feed ? feed.headers : {},
+    redirect: 'follow',
+  });
+  if (!answer.ok || !answer.body) throw new Error('HTTP ' + answer.status + ' for ' + file.name);
+  const hash = crypto.createHash('sha512');
+  const out = fs.createWriteStream(partial);
+  const started = Date.now();
+  let transferred = 0;
+  try {
+    for await (const chunk of answer.body) {
+      const bytes = Buffer.from(chunk);
+      transferred += bytes.length;
+      if (transferred > file.size + 1024)
+        throw new Error('The disk image is bigger than the signed one');
+      hash.update(bytes);
+      if (!out.write(bytes))
+        await new Promise(function drained(resolve) {
+          out.once('drain', resolve);
+        });
+      const seconds = Math.max(0.5, (Date.now() - started) / 1000);
+      onProgress({
+        percent: (transferred / file.size) * 100,
+        transferred,
+        total: file.size,
+        bytesPerSecond: transferred / seconds,
+      });
+    }
+    await new Promise(function closed(resolve, reject) {
+      out.end(resolve);
+      out.on('error', reject);
+    });
+  } catch (error) {
+    out.destroy();
+    fs.rmSync(partial, { force: true });
+    throw error;
+  }
+  if (hash.digest('base64') !== file.sha512) {
+    fs.rmSync(partial, { force: true });
+    throw new Error('The disk image is not the signed one');
+  }
+  fs.renameSync(partial, target);
+  manualPath = target;
+  onDownloaded({ version: state.version });
 }
 
 function handleInstall(event) {
-  if (!isTrustedSender(event) || !autoUpdater) return state;
+  if (!isTrustedSender(event)) return state;
   if (state.status !== 'ready') return state;
+  if (MANUAL) {
+    // The person drags Chatterly to Applications from the disk image; the app closes so the copy can be replaced.
+    if (manualPath) {
+      void shell.openPath(manualPath);
+      log('opened the disk image');
+    }
+    return state;
+  }
+  if (!autoUpdater) return state;
   if (devFeed()) {
     log('would restart to install (not done in development)');
     return state;
@@ -457,6 +557,8 @@ async function verifyAvailable(info) {
     sha512: info.sha512 || (info.files && info.files[0] && info.files[0].sha512) || '',
   };
   const text = await fetchSmall(base + feed.name, feed.headers);
+  manualFile = MANUAL ? dmgOf(text) : null;
+  if (manualFile) manualFile.base = base;
   // the signature is the last line of the manifest; only a release older than that has it in a file of its own
   const signature = verify.splitSigned(text)
     ? ''

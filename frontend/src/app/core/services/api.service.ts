@@ -45,9 +45,9 @@ export class ApiService {
     return this.request<T>('PATCH', path, body);
   }
 
-  /** PUT request with a JSON body. */
-  put<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>('PUT', path, body);
+  /** PUT request with a JSON body. `keepalive`: the request goes on even if the page is closed meanwhile. */
+  put<T>(path: string, body: unknown, keepalive = false): Promise<T> {
+    return this.request<T>('PUT', path, body, true, 'application/json', keepalive);
   }
 
   /** DELETE request. */
@@ -73,8 +73,9 @@ export class ApiService {
     body?: unknown,
     auth = true,
     contentType = 'application/json',
+    keepalive = false,
   ): Promise<T> {
-    const response = await this.send(method, path, body, auth, contentType);
+    const response = await this.send(method, path, body, auth, contentType, keepalive);
     if (response.status === 204) {
       return undefined as T;
     }
@@ -89,6 +90,7 @@ export class ApiService {
     auth: boolean,
     contentType: string,
     forceRefresh: boolean,
+    keepalive = false,
   ): Promise<Response> {
     const headers: Record<string, string> = {};
     if (body !== undefined) {
@@ -112,6 +114,8 @@ export class ApiService {
       body: payload,
       cache: 'no-store',
       credentials: 'omit',
+      // ! A request that outlives the page can carry at most 64 KB.
+      keepalive: keepalive && typeof payload === 'string' && payload.length < 60_000,
     });
   }
 
@@ -122,10 +126,11 @@ export class ApiService {
     body: unknown,
     auth: boolean,
     contentType = 'application/json',
+    keepalive = false,
   ): Promise<Response> {
-    let response = await this.attempt(method, path, body, auth, contentType, false);
+    let response = await this.attempt(method, path, body, auth, contentType, false, keepalive);
     if (response.status === 401 && auth && this.tokenProvider) {
-      response = await this.attempt(method, path, body, auth, contentType, true);
+      response = await this.attempt(method, path, body, auth, contentType, true, keepalive);
       if (response.status === 401) {
         this.onSessionExpired?.();
       }

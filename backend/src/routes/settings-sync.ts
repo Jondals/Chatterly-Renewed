@@ -6,6 +6,8 @@
  * person (it cannot be derived by anybody else), so the server cannot read them. It does not know what the settings are.
  * ? Two devices may save at nearly the same time: every save says which version it was made on, and a save made on an old
  * version is refused with 409, so the device loads the new one, merges and saves again (nothing is lost silently).
+ * * After a save, every open connection of the person gets `settings.changed` with the new version (only the version:
+ *   the blob stays sealed), so their other devices load it at once.
  */
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
@@ -24,7 +26,7 @@ interface SealedSettings {
 
 /** Registers the routes of the settings of the account. */
 export function registerSettingsSyncRoutes(app: FastifyInstance, ctx: AppContext): void {
-  const { db } = ctx;
+  const { db, hub } = ctx;
   const me = callerId;
   const auth = { onRequest: [app.authenticate] };
 
@@ -78,6 +80,7 @@ export function registerSettingsSyncRoutes(app: FastifyInstance, ctx: AppContext
         `INSERT INTO settings_blobs (user_id, iv, ciphertext, updated_at) VALUES (?,?,?,?)
          ON CONFLICT(user_id) DO UPDATE SET iv = excluded.iv, ciphertext = excluded.ciphertext, updated_at = excluded.updated_at`,
       ).run(owner, body.iv, body.ciphertext, version);
+      hub.sendTo(owner, { t: 'settings.changed', updatedAt: version });
       return { updatedAt: version };
     },
   );

@@ -11,14 +11,24 @@
   </head>
   <body>
     <div id="toast" class="toast" hidden></div>
-    <div id="panel" class="panel">
-      <div id="tiles" class="tiles"></div>
-      <div id="edit" class="edit" hidden>
-        <span id="hint"></span>
-        <button id="done" type="button">OK</button>
-        <span id="grip" class="grip"></span>
+    <!-- Unlocked (like the overlay of Discord): the screen dims, every widget shows with its title and its pin. -->
+    <div id="backdrop" class="backdrop" hidden></div>
+    <div id="bar" class="bar" hidden>
+      <b id="title" class="title"></b>
+      <div class="group" role="radiogroup">
+        <button type="button" data-size="small"></button>
+        <button type="button" data-size="medium"></button>
+        <button type="button" data-size="large"></button>
       </div>
+      <button id="only" type="button" class="chip"></button>
+      <button id="names" type="button" class="chip"></button>
+      <span id="hint" class="hint"></span>
     </div>
+    <div id="close" class="close" hidden>
+      <button id="done" type="button" class="close-button"></button>
+      <span id="keys" class="close-keys"></span>
+    </div>
+    <div id="widgets"></div>
     <script src="overlay.js"></script>
   </body>
 </html>

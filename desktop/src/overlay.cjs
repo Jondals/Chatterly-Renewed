@@ -1,8 +1,12 @@
 /**
  * desktop/src/overlay.cjs
- * The in-game overlay: the people of your call (camera or picture, name, who is talking) drawn in a transparent window that
- * stays on top of the other windows, so you see them while you play. Desktop app only.
+ * The in-game overlay, like the one of Discord: widgets drawn in a transparent window that stays on top of the other windows,
+ * so you see your call while you play. Desktop app only.
  *
+ * * The widgets: the call controls (microphone, headphones, camera, screen, hang up), the people of the voice channel (who
+ *   talks, who is muted, who is live), the cameras, the activity (the registered game that is open and for how long), the
+ *   screens other people share (with their volume) and the messages that arrive. Each one has its place on the screen, and a
+ *   pin: a pinned widget stays visible while you play; the others only appear while the overlay is unlocked.
  * * How it works: a window as big as the chosen screen, transparent, without frame, always on top at the highest level,
  *   that never takes the focus and lets the mouse go through. It is one more window of the app (same sandbox, no Node):
  *   it does not read, hook or change the game, so there is nothing for an anti-cheat to flag. It shows over games in
@@ -12,13 +16,14 @@
  *   messages between the two windows; the frames are already decrypted in the page, travel inside the computer and stop there.
  * * Which games: the person can register the windows (games) that should use it. While the overlay is set to "only with my
  *   games", it opens when a window whose name contains one of the registered names is open (the list of open windows is read
- *   every few seconds, without pictures: Electron cannot tell which window has the focus), and a small notice in the overlay
- *   says which keys open it.
- * * Editing: a keyboard shortcut (chosen in Settings > Game overlay) lets the mouse reach the window for a moment, so the
- *   panel can be dragged and resized; the focus goes back to the game when it ends.
+ *   every few seconds, without pictures: Electron cannot tell which window has the focus). The same reading feeds the activity.
+ * * Unlocking (the shortcut, Ctrl+Shift+O by default): the screen dims, the mouse reaches the overlay, every widget shows with
+ *   its title and its pin, they can be dragged, and the buttons of the controls work. A click on the dimmed area, the cross,
+ *   Esc or the shortcut again lock it and give the mouse back to the game. Going back to the window of Chatterly locks it too.
  * * The choices are kept in overlay.json in the profile folder and are checked on every read and write.
  * ! Only the main page of the app may use the commands, and only fixed shapes are accepted (see sanitize*): a page that lies
- *   can draw its own names and pictures in the overlay and nothing else.
+ *   can draw its own names and pictures in the overlay and nothing else. The overlay can only ask the page for one of a fixed
+ *   list of actions, and only while it is unlocked (the person is there, with the mouse on it).
  */
 'use strict';
 
@@ -33,21 +38,40 @@ const {
 const fs = require('node:fs');
 const path = require('node:path');
 
+/** The widgets, where they start (fractions of the screen) and whether they stay visible while you play. */
+const WIDGETS = {
+  notifications: { x: 0.02, y: 0.03, pinned: true },
+  voice: { x: 0.02, y: 0.24, pinned: true },
+  controls: { x: 0.36, y: 0.8, pinned: false },
+  activity: { x: 0.8, y: 0.44, pinned: false },
+  streams: { x: 0.8, y: 0.6, pinned: true },
+};
+const WIDGET_IDS = Object.keys(WIDGETS).concat('video');
+
 const DEFAULTS = {
-  enabled: false,
+  // On by default, like the overlay of Discord: it only appears during a call.
+  enabled: true,
   hotkey: 'CommandOrControl+Shift+O',
   size: 'medium',
   opacity: 100,
   onlySpeaking: false,
-  showSelf: false,
+  // You see your own camera too (with nobody else's camera on, the video widget was empty and "my camera" seemed broken).
+  showSelf: true,
   showNames: true,
-  hideFromCapture: true,
+  // The text of a message that arrives (off: only who wrote it).
+  notifyText: true,
+  // ! Off by default: on Windows, excluding the transparent overlay window from captures could leave it invisible on the
+  //   screen too (a window that took the clicks and showed nothing). The person can still turn it on.
+  hideFromCapture: false,
   display: 'primary',
   mode: 'always',
   games: [],
+  // The place and size of the video widget (they were the place of the only panel before the widgets).
   x: 0.02,
-  y: 0.08,
+  y: 0.42,
   scale: 1,
+  videoPinned: true,
+  widgets: WIDGETS,
 };
 const SIZES = ['small', 'medium', 'large'];
 const DISPLAYS = ['primary', 'app'];
@@ -64,6 +88,13 @@ const AVATAR = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 const MAX_TILES = 16;
 const MAX_AVATAR_CHARS = 60000;
 const MAX_SIGNAL_CHARS = 30000;
+/** The version of overlay.json. Files of an older version get "hide from captures" off once (see DEFAULTS), and from
+ *  before the widgets they also get "show me" on and the video widget at its new place. */
+const FILE_VERSION = 3;
+const MAX_STREAMS = 8;
+const MAX_TEXT = 140;
+/** What the overlay may ask the page to do (only while it is unlocked). */
+const ACTIONS = ['mute', 'deafen', 'camera', 'screen', 'leave', 'open-chat', 'stream-volume'];
 
 let settings = { ...DEFAULTS };
 let mainWindow = null;
@@ -75,8 +106,19 @@ let editing = false;
 let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
+/** The call as the controls draw it, and the screens other people share. */
+let callInfo = null;
+let streams = [];
 let gameOpen = false;
+/** The registered game that is open (its registered name) and since when, for the activity widget. */
+let activity = null;
+/** The person pressed the shortcut while the overlay waited for a game: it stays open until the call ends. */
+let forced = false;
 let watchTimer = null;
+/** Esc is taken from the system while the overlay is unlocked (see setEscape). */
+let escapeRegistered = false;
+/** Brings the main window to the front (given by main.cjs). */
+let showMain = null;
 
 /** Where the choices are kept. */
 function fileOf() {
@@ -97,7 +139,15 @@ function clamp(value, min, max, fallback) {
 function sanitizeSettings(raw, base) {
   const wanted = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const next = { ...base };
-  for (const key of ['enabled', 'onlySpeaking', 'showSelf', 'showNames', 'hideFromCapture']) {
+  for (const key of [
+    'enabled',
+    'onlySpeaking',
+    'showSelf',
+    'showNames',
+    'hideFromCapture',
+    'notifyText',
+    'videoPinned',
+  ]) {
     if (typeof wanted[key] === 'boolean') next[key] = wanted[key];
   }
   if (typeof wanted.hotkey === 'string' && HOTKEY.test(wanted.hotkey)) next.hotkey = wanted.hotkey;
@@ -109,6 +159,23 @@ function sanitizeSettings(raw, base) {
   next.x = clamp(wanted.x, 0, 1, next.x);
   next.y = clamp(wanted.y, 0, 1, next.y);
   next.scale = clamp(wanted.scale, 0.5, 3, next.scale);
+  next.widgets = cleanWidgets(wanted.widgets, next.widgets || WIDGETS);
+  return next;
+}
+
+/** The places and pins of the widgets: only the known ones, each with numbers inside the screen and a yes/no pin. */
+function cleanWidgets(raw, base) {
+  const wanted = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const next = {};
+  for (const id of Object.keys(WIDGETS)) {
+    const from = base[id] || WIDGETS[id];
+    const item = wanted[id] && typeof wanted[id] === 'object' ? wanted[id] : {};
+    next[id] = {
+      x: clamp(item.x, 0, 1, from.x),
+      y: clamp(item.y, 0, 1, from.y),
+      pinned: typeof item.pinned === 'boolean' ? item.pinned : from.pinned,
+    };
+  }
   return next;
 }
 
@@ -130,7 +197,17 @@ function cleanGames(list) {
 /** Reads the choices of the person (the defaults when there is none or the file is damaged). */
 function load() {
   try {
-    return sanitizeSettings(JSON.parse(fs.readFileSync(fileOf(), 'utf8')), DEFAULTS);
+    const raw = JSON.parse(fs.readFileSync(fileOf(), 'utf8'));
+    const loaded = sanitizeSettings(raw, DEFAULTS);
+    if (!raw || raw.version !== FILE_VERSION) {
+      loaded.hideFromCapture = false;
+      if (!raw || !(raw.version >= 3)) {
+        loaded.showSelf = true;
+        loaded.x = DEFAULTS.x;
+        loaded.y = DEFAULTS.y;
+      }
+    }
+    return loaded;
   } catch (error) {
     return { ...DEFAULTS };
   }
@@ -140,7 +217,7 @@ function load() {
 function save() {
   if (quiet) return;
   try {
-    fs.writeFileSync(fileOf(), JSON.stringify(settings), 'utf8');
+    fs.writeFileSync(fileOf(), JSON.stringify({ ...settings, version: FILE_VERSION }), 'utf8');
   } catch (error) {
     // The choices simply are not kept this time.
   }
@@ -168,10 +245,87 @@ function sanitizeTiles(raw) {
       color: typeof item.color === 'string' && HEX_COLOR.test(item.color) ? item.color : '#2ef2b0',
       speaking: item.speaking === true,
       muted: item.muted === true,
+      deafened: item.deafened === true,
+      camera: item.camera === true,
+      screen: item.screen === true,
       streamId: typeof item.streamId === 'string' ? item.streamId.slice(0, 80) : '',
     });
   }
   return clean;
+}
+
+/** A short text without control characters. */
+function cleanText(value, max) {
+  return typeof value === 'string'
+    ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max)
+    : '';
+}
+
+/** The call as the controls draw it: its name, how long it lasts and the state of the buttons. Yes/no flags and short texts. */
+function sanitizeCall(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return {
+    room: cleanText(raw.room, 60),
+    since: clamp(raw.since, 0, Number.MAX_SAFE_INTEGER, 0),
+    muted: raw.muted === true,
+    deafened: raw.deafened === true,
+    camera: raw.camera === true,
+    screen: raw.screen === true,
+    video: raw.video === true,
+    ping: Math.round(clamp(raw.ping, -1, 99999, -1)),
+  };
+}
+
+/** The screens other people share: who, the id of the stream on the local connection, whether it has sound and its volume. */
+function sanitizeStreams(raw) {
+  if (!Array.isArray(raw)) return [];
+  const clean = [];
+  for (const item of raw.slice(0, MAX_STREAMS)) {
+    if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
+    clean.push({
+      id: item.id.slice(0, 64),
+      name: cleanText(item.name, 40),
+      streamId: typeof item.streamId === 'string' ? item.streamId.slice(0, 80) : '',
+      sound: item.sound === true,
+      volume: Math.round(clamp(item.volume, 0, 200, 100)),
+    });
+  }
+  return clean;
+}
+
+/** A message that arrived: who (name, picture, color), where and what it says (short), and an id to open it. */
+function sanitizeNotice(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string') return null;
+  const avatar =
+    typeof raw.avatar === 'string' &&
+    raw.avatar.length <= MAX_AVATAR_CHARS &&
+    AVATAR.test(raw.avatar)
+      ? raw.avatar
+      : '';
+  return {
+    id: raw.id.slice(0, 40),
+    name: cleanText(raw.name, 40),
+    where: cleanText(raw.where, 40),
+    text: settings.notifyText ? cleanText(raw.text, MAX_TEXT) : '',
+    avatar,
+    color: typeof raw.color === 'string' && HEX_COLOR.test(raw.color) ? raw.color : '#2ef2b0',
+  };
+}
+
+/** An action the overlay asks for: one of ACTIONS, with an id (a notice, a person) or a volume when it needs one. */
+function sanitizeAction(raw) {
+  if (!raw || typeof raw !== 'object' || !ACTIONS.includes(raw.type)) return null;
+  const action = { type: raw.type };
+  if (raw.type === 'open-chat') {
+    if (typeof raw.id !== 'string' || raw.id.length > 40) return null;
+    action.id = raw.id;
+  }
+  if (raw.type === 'stream-volume') {
+    if (typeof raw.id !== 'string' || raw.id.length > 64) return null;
+    action.id = raw.id;
+    action.volume = Math.round(clamp(raw.volume, 0, 200, 100));
+  }
+  return action;
 }
 
 /** A signalling message of the local connection: an offer, an answer or a candidate, small, nothing else. */
@@ -215,19 +369,114 @@ function targetDisplay() {
   return screen.getPrimaryDisplay();
 }
 
+/** The texts of the overlay, in the language of the system (Spanish or English). */
+function labelsFor(spanish, keys) {
+  return spanish
+    ? {
+        title: 'Overlay de Chatterly',
+        small: 'Pequeño',
+        medium: 'Mediano',
+        large: 'Grande',
+        onlySpeaking: 'Solo quien habla',
+        showNames: 'Nombres',
+        done: 'Cerrar',
+        hint:
+          'Arrastra los widgets · fija los que quieras ver jugando · ' +
+          keys +
+          ', Esc o un clic fuera para volver al juego',
+        toast: 'Overlay de Chatterly activo · ' + keys + ' para desbloquearlo',
+        pin: 'Fijar: se ve mientras juegas',
+        unpin: 'Fijado: pulsa para que solo se vea aquí',
+        widgets: {
+          notifications: 'Notificaciones',
+          voice: 'Voz',
+          video: 'Vídeo',
+          controls: 'Llamada',
+          activity: 'Actividad',
+          streams: 'Transmisiones',
+        },
+        empty: {
+          notifications: 'Aquí aparecen los mensajes que te lleguen',
+          voice: 'Nadie en la llamada',
+          video: 'Ninguna cámara encendida',
+          activity: 'Registra tu juego en Ajustes > Overlay de juego',
+          streams: 'Nadie comparte su pantalla',
+        },
+        playing: 'Jugando',
+        live: 'EN DIRECTO',
+        reply: 'Pulsa aquí o ' + keys + ' para responder',
+        voiceConnected: 'Voz conectada',
+        videoConnected: 'Vídeo conectado',
+        mute: 'Silenciar',
+        unmute: 'Activar micrófono',
+        deafen: 'Ensordecer',
+        undeafen: 'Dejar de ensordecer',
+        cameraOn: 'Encender la cámara',
+        cameraOff: 'Apagar la cámara',
+        screenOn: 'Compartir pantalla',
+        screenOff: 'Dejar de compartir',
+        leave: 'Colgar',
+        volume: 'Volumen',
+      }
+    : {
+        title: 'Chatterly overlay',
+        small: 'Small',
+        medium: 'Medium',
+        large: 'Large',
+        onlySpeaking: 'Only who talks',
+        showNames: 'Names',
+        done: 'Close',
+        hint:
+          'Drag the widgets · pin the ones you want while you play · ' +
+          keys +
+          ', Esc or a click outside to go back to the game',
+        toast: 'Chatterly overlay is on · ' + keys + ' to unlock it',
+        pin: 'Pin: it shows while you play',
+        unpin: 'Pinned: press so it only shows here',
+        widgets: {
+          notifications: 'Notifications',
+          voice: 'Voice',
+          video: 'Video',
+          controls: 'Call',
+          activity: 'Activity',
+          streams: 'Streams',
+        },
+        empty: {
+          notifications: 'Messages you get show up here',
+          voice: 'Nobody in the call',
+          video: 'No camera is on',
+          activity: 'Register your game in Settings > Game overlay',
+          streams: 'Nobody is sharing their screen',
+        },
+        playing: 'Playing',
+        live: 'LIVE',
+        reply: 'Click here or ' + keys + ' to reply',
+        voiceConnected: 'Voice connected',
+        videoConnected: 'Video connected',
+        mute: 'Mute',
+        unmute: 'Unmute',
+        deafen: 'Deafen',
+        undeafen: 'Undeafen',
+        cameraOn: 'Turn camera on',
+        cameraOff: 'Turn camera off',
+        screenOn: 'Share your screen',
+        screenOff: 'Stop sharing',
+        leave: 'Hang up',
+        volume: 'Volume',
+      };
+}
+
 /** The choices the overlay window needs to draw. */
 function viewConfig() {
   const spanish = String(app.getLocale() || 'en').slice(0, 2) === 'es';
   const keys = settings.hotkey.replace('CommandOrControl', 'Ctrl');
+  const labels = labelsFor(spanish, keys);
   return {
     ...settings,
     editing,
-    toast: spanish
-      ? 'Overlay de Chatterly activo · pulsa ' + keys + ' para abrirlo'
-      : 'Chatterly overlay is on · press ' + keys + ' to open it',
-    hint: spanish
-      ? 'Arrastra para mover · esquina para el tamaño · Esc para terminar'
-      : 'Drag to move · corner to resize · Esc to finish',
+    toast: labels.toast,
+    hint: labels.hint,
+    labels,
   };
 }
 
@@ -241,7 +490,22 @@ function publish() {
   tellPage({ type: 'state', state: state() });
 }
 
+/** Sends the call, the streams and the activity to the overlay window. */
+function publishScene() {
+  tellOverlay('overlay:scene', { call: callInfo, streams, activity });
+}
+
 // ── The window ────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lets the mouse go through the window to the game (or not, while unlocked). ! Said again after the window is shown and
+ * after every change of its size: Windows can drop the "transparent to the mouse" style of a layered window when it is
+ * shown or resized, and then the overlay kept every click of the game.
+ */
+function applyMouse() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  overlayWindow.setIgnoreMouseEvents(!editing, { forward: true });
+}
 
 /** Opens the overlay window (transparent, on top, click-through, never taking the focus). */
 function openWindow() {
@@ -263,6 +527,7 @@ function openWindow() {
     fullscreenable: false,
     resizable: false,
     movable: false,
+    title: 'Chatterly overlay',
     webPreferences: {
       preload: path.join(__dirname, 'overlay-preload.cjs'),
       contextIsolation: true,
@@ -281,10 +546,18 @@ function openWindow() {
   win.setContentProtection(settings.hideFromCapture);
   win.webContents.on('did-finish-load', onOverlayLoaded);
   win.once('ready-to-show', win.showInactive.bind(win));
+  win.on('show', applyMouse);
+  win.on('resize', applyMouse);
   win.on('closed', onOverlayClosed);
   // Never keeps the focus: if something gives it to the overlay (outside the editing mode), it goes straight back to the game.
   win.on('focus', onOverlayFocus);
+  // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
+  win.on('page-title-updated', preventDefault);
   win.loadFile(path.join(__dirname, 'overlay.html'));
+}
+
+function preventDefault(event) {
+  event.preventDefault();
 }
 
 /** The overlay got the focus without the person asking for it (editing): hand it back. */
@@ -296,6 +569,7 @@ function onOverlayFocus() {
 function onOverlayLoaded() {
   tellOverlay('overlay:config', viewConfig());
   tellOverlay('overlay:tiles', tiles);
+  publishScene();
   tellPage({ type: 'ready' });
   tellPage({ type: 'state', state: state() });
 }
@@ -303,6 +577,7 @@ function onOverlayLoaded() {
 /** The overlay window is gone (closed by us, or by the system). */
 function onOverlayClosed() {
   overlayWindow = null;
+  setEscape(false);
   editing = false;
   tellPage({ type: 'closed' });
   tellPage({ type: 'state', state: state() });
@@ -313,6 +588,15 @@ function closeWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close();
 }
 
+/** The media source id of the overlay window (the screen picker leaves it out), or ''. */
+function mediaSourceId() {
+  try {
+    return overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow.getMediaSourceId() : '';
+  } catch (error) {
+    return '';
+  }
+}
+
 /** Names of the windows that are open now (without the ones of Chatterly itself). */
 async function openWindowNames() {
   const sources = await desktopCapturer.getSources({
@@ -321,40 +605,60 @@ async function openWindowNames() {
     fetchWindowIcons: false,
   });
   const names = [];
+  const own = mediaSourceId();
   for (const source of sources) {
     const name = String(source.name || '').trim();
+    if (source.id === own) continue;
     if (name === '' || name === 'Chatterly' || name.startsWith('Chatterly overlay')) continue;
     if (!names.includes(name)) names.push(name.slice(0, 120));
   }
   return names.slice(0, 100);
 }
 
-/** True when a registered game has a window open. */
-function anyGameIn(names) {
-  return names.some(function isGame(name) {
-    return settings.games.some(function matches(game) {
-      return name.toLowerCase().includes(game.toLowerCase());
-    });
-  });
+/** The registered game that has a window open (its registered name), or ''. */
+function gameIn(names) {
+  for (const game of settings.games) {
+    const wanted = game.toLowerCase();
+    if (
+      names.some(function hasGame(name) {
+        return name.toLowerCase().includes(wanted);
+      })
+    ) {
+      return game;
+    }
+  }
+  return '';
 }
 
-/** Looks at the open windows and opens or closes the overlay if a registered game appeared or went away. */
+/**
+ * Looks at the open windows: opens or closes the overlay if a registered game appeared or went away, and keeps the activity
+ * (which game, since when) for its widget.
+ */
 async function watchGames() {
-  let open = false;
+  let game = '';
   try {
-    open = anyGameIn(await openWindowNames());
+    game = gameIn(await openWindowNames());
   } catch (error) {
-    open = false;
+    game = '';
   }
+  const known = activity ? activity.name : '';
+  if (game !== known) {
+    activity = game ? { name: game, since: Date.now() } : null;
+    publishScene();
+  }
+  const open = game !== '';
   if (open !== gameOpen) {
     gameOpen = open;
     sync();
   }
 }
 
-/** Reads the open windows now and then, but only while the overlay waits for a game during a call. */
+/**
+ * Reads the open windows now and then, only during a call with registered games: to wait for a game (mode "only with my
+ * games") and to show the activity.
+ */
 function updateWatch() {
-  const needed = settings.enabled && settings.mode === 'games' && tiles.length > 0;
+  const needed = settings.enabled && settings.games.length > 0 && tiles.length > 0;
   if (needed && !watchTimer) {
     watchTimer = setInterval(watchGames, WATCH_MS);
     void watchGames();
@@ -362,35 +666,71 @@ function updateWatch() {
     clearInterval(watchTimer);
     watchTimer = null;
     gameOpen = false;
+    activity = null;
   }
 }
 
 /** Opens or closes the window to match: it exists while the overlay is on, there are people to show and (if it waits for a game) one is open. */
 function sync() {
   updateWatch();
-  const wanted = settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen);
+  if (tiles.length === 0) forced = false;
+  const wanted =
+    settings.enabled && tiles.length > 0 && (settings.mode === 'always' || gameOpen || forced);
   if (wanted) openWindow();
   else closeWindow();
   registerHotkey();
 }
 
-// ── Editing the place of the panel ───────────────────────────────────────────────────────────────────
+// ── Unlocking (editing the widgets) ─────────────────────────────────────────────────────────────────
 
-/** Lets the mouse reach the overlay (to move and resize the panel), or hands it back to the game. */
+/**
+ * Esc locks the overlay again while it is unlocked, even when Windows did not let it take the keyboard (a game in front keeps
+ * the foreground): the key is taken from the system only while unlocked.
+ */
+function setEscape(on) {
+  try {
+    if (on && !escapeRegistered) {
+      escapeRegistered = globalShortcut.register('Escape', setEditing.bind(null, false));
+    } else if (!on && escapeRegistered) {
+      globalShortcut.unregister('Escape');
+      escapeRegistered = false;
+    }
+  } catch (error) {
+    escapeRegistered = false;
+  }
+}
+
+/** Lets the mouse reach the overlay (to move the widgets and use the controls), or hands it back to the game. */
 function setEditing(on) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   if (editing === on) return;
   editing = on;
   overlayWindow.setFocusable(on);
-  overlayWindow.setIgnoreMouseEvents(!on, { forward: true });
+  applyMouse();
+  setEscape(on);
   if (on) overlayWindow.focus();
   else overlayWindow.blur();
   publish();
 }
 
-/** The shortcut was pressed. */
+/**
+ * The shortcut was pressed: it unlocks the overlay (or locks it). If the overlay was waiting for a registered game during a
+ * call, it opens it first, so the shortcut always shows something during a call.
+ */
 function onHotkey() {
+  if (!overlayWindow && tiles.length > 0 && settings.enabled) {
+    forced = true;
+    sync();
+    if (overlayWindow)
+      overlayWindow.webContents.once('did-finish-load', setEditing.bind(null, true));
+    return;
+  }
   setEditing(!editing);
+}
+
+/** The person went back to the window of Chatterly: the overlay locks (it must never keep the mouse behind their back). */
+function onMainFocus() {
+  setEditing(false);
 }
 
 /** (Re)registers the shortcut of editing; it exists only while the overlay is on. */
@@ -448,7 +788,10 @@ function handleSet(event, patch) {
   if (!isMainPage(event)) return null;
   settings = sanitizeSettings(patch, settings);
   save();
-  if (!settings.enabled) editing = false;
+  if (!settings.enabled) {
+    setEscape(false);
+    editing = false;
+  }
   sync();
   publish();
   return state();
@@ -458,8 +801,30 @@ function handleSet(event, patch) {
 function handleTiles(event, list) {
   if (!isMainPage(event)) return false;
   tiles = sanitizeTiles(list);
+  if (tiles.length === 0) {
+    callInfo = null;
+    streams = [];
+  }
   sync();
   tellOverlay('overlay:tiles', tiles);
+  return true;
+}
+
+/** The page tells the state of the call (for the controls) and the screens other people share. */
+function handleCall(event, payload) {
+  if (!isMainPage(event) || !payload || typeof payload !== 'object') return false;
+  callInfo = sanitizeCall(payload.call);
+  streams = sanitizeStreams(payload.streams);
+  publishScene();
+  return true;
+}
+
+/** The page tells that a message arrived (the overlay shows it for a few seconds). */
+function handleNotify(event, notice) {
+  if (!isMainPage(event)) return false;
+  const clean = sanitizeNotice(notice);
+  if (!clean || !overlayWindow) return false;
+  tellOverlay('overlay:notice', clean);
   return true;
 }
 
@@ -479,11 +844,18 @@ function handleSignalToPage(event, message) {
   if (clean) tellPage({ type: 'signal', message: clean });
 }
 
-/** The overlay window says where the person left the panel (it is kept) and, when asked, that editing ended. */
+/** The overlay window says where the person left the widgets (it is kept) and, when asked, that editing ended. */
 function handleLayout(event, layout, finished) {
   if (!isOverlay(event)) return;
+  const raw = layout && typeof layout === 'object' ? layout : {};
   settings = sanitizeSettings(
-    { x: layout && layout.x, y: layout && layout.y, scale: layout && layout.scale },
+    {
+      x: raw.x,
+      y: raw.y,
+      scale: raw.scale,
+      videoPinned: raw.videoPinned,
+      widgets: raw.widgets,
+    },
     settings,
   );
   save();
@@ -491,29 +863,63 @@ function handleLayout(event, layout, finished) {
   else publish();
 }
 
-/** The person ended editing with the mouse (Esc or the button of the overlay). */
+/** The person changed a choice from the bar of the overlay while editing (only the size, who is shown and the names). */
+function handleChoose(event, patch) {
+  if (!isOverlay(event) || !editing || !patch || typeof patch !== 'object') return;
+  settings = sanitizeSettings(
+    { size: patch.size, onlySpeaking: patch.onlySpeaking, showNames: patch.showNames },
+    settings,
+  );
+  save();
+  publish();
+}
+
+/**
+ * A button of the overlay was pressed (a control of the call, a message to open, the volume of a stream). ! Only while it is
+ * unlocked (the mouse can reach it only then, so the person is the one who pressed), only one of ACTIONS, and the page does it
+ * as if it was pressed in the app. Opening a chat or sharing the screen brings the window of Chatterly to the front.
+ */
+function handleAction(event, raw) {
+  if (!isOverlay(event) || !editing) return;
+  const action = sanitizeAction(raw);
+  if (!action) return;
+  if (action.type === 'open-chat' || (action.type === 'screen' && !(callInfo && callInfo.screen))) {
+    setEditing(false);
+    if (showMain) showMain();
+  }
+  tellPage({ type: 'action', action });
+}
+
+/** The person ended editing with the mouse (a click outside, Esc or the button of the overlay). */
 function handleStopEditing(event) {
   if (isOverlay(event)) setEditing(false);
 }
 
 /**
- * Opens the commands. `window` is the main window; `isAppAddressFn` tells whether an address belongs to the app. In tests
- * (`quietMode`) the window stays off screen and nothing is written to the disk.
+ * Opens the commands. `window` is the main window; `isAppAddressFn` tells whether an address belongs to the app;
+ * `showMainFn` brings the main window to the front. In tests (`quietMode`) the window stays off screen and nothing is
+ * written to the disk.
  */
-function start(window, isAppAddressFn, userDataPath, quietMode) {
+function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   mainWindow = window;
   isAppAddress = isAppAddressFn;
   userData = userDataPath;
   quiet = quietMode === true;
+  showMain = typeof showMainFn === 'function' ? showMainFn : null;
   settings = quiet ? { ...DEFAULTS } : load();
   ipcMain.handle('overlay:get', handleGet);
   ipcMain.handle('overlay:set', handleSet);
   ipcMain.handle('overlay:tiles', handleTiles);
+  ipcMain.handle('overlay:call', handleCall);
+  ipcMain.handle('overlay:notify', handleNotify);
   ipcMain.handle('overlay:windows', handleWindows);
   ipcMain.handle('overlay:signal', handleSignalToOverlay);
   ipcMain.on('overlay:signal-out', handleSignalToPage);
   ipcMain.on('overlay:layout', handleLayout);
   ipcMain.on('overlay:stop-editing', handleStopEditing);
+  ipcMain.on('overlay:choose', handleChoose);
+  ipcMain.on('overlay:action', handleAction);
+  if (mainWindow) mainWindow.on('focus', onMainFocus);
   registerHotkey();
 }
 
@@ -524,4 +930,16 @@ function stop() {
   closeWindow();
 }
 
-module.exports = { start, stop, sanitizeSettings, sanitizeTiles, sanitizeSignal, DEFAULTS };
+module.exports = {
+  start,
+  stop,
+  mediaSourceId,
+  sanitizeSettings,
+  sanitizeTiles,
+  sanitizeSignal,
+  sanitizeCall,
+  sanitizeStreams,
+  sanitizeNotice,
+  sanitizeAction,
+  DEFAULTS,
+};

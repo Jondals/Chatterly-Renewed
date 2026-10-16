@@ -4,7 +4,7 @@
  */
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { map } from 'rxjs';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -12,6 +12,7 @@ import { ArrivalService } from '../../core/services/arrival.service';
 import { CallService } from '../../core/services/call.service';
 import { SocketService } from '../../core/services/socket.service';
 import { UiService } from '../../core/services/ui.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { GuildStore } from '../../store/guild.store';
 import { MessageStore } from '../../store/message.store';
@@ -31,6 +32,7 @@ import { StickersSectionComponent } from './stickers-section.component';
 import { UpdatesSectionComponent } from './updates-section.component';
 import { AndroidUpdatesSectionComponent } from './android-updates-section.component';
 import { ANDROID_APP } from '../../core/config';
+import { alwaysOpen, closeOnBack } from '../../core/services/back.service';
 import { BetaService } from '../../core/services/beta.service';
 import { DesktopUpdateService } from '../../core/services/desktop-update.service';
 import { OverlayService } from '../../core/services/overlay.service';
@@ -259,7 +261,6 @@ const ADMIN_ENTRY: SectionEntry = {
 })
 export class SettingsComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly ui = inject(UiService);
   private readonly auth = inject(AuthService);
   private readonly arrival = inject(ArrivalService);
@@ -268,6 +269,7 @@ export class SettingsComponent {
   private readonly guilds = inject(GuildStore);
   private readonly messages = inject(MessageStore);
   private readonly call = inject(CallService);
+  private readonly settingsService = inject(SettingsService);
 
   protected readonly closing = signal(false);
   /** On a phone: the list of sections is showing instead of a section. */
@@ -323,6 +325,18 @@ export class SettingsComponent {
     this.close();
   }
 
+  /** The back key of the phone closes Settings (see BackService). */
+  private readonly backKey = closeOnBack(alwaysOpen, this.onBack.bind(this));
+
+  /** The back key: on a phone, a section goes back to the list of sections; the list (or a computer) closes Settings. */
+  private onBack(): void {
+    if (!this.listView() && window.matchMedia('(max-width: 767px)').matches) {
+      this.listView.set(true);
+      return;
+    }
+    this.close();
+  }
+
   /** Clicking the dark area around the panels (and not the panels themselves) closes the settings. */
   protected closeOnBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
@@ -356,7 +370,7 @@ export class SettingsComponent {
     this.social.reset();
     this.guilds.reset();
     this.messages.reset();
-    await this.auth.logout();
+    await this.auth.logout(true, this.settingsService.keepOnSignOut());
     window.location.assign('/login');
   }
 }

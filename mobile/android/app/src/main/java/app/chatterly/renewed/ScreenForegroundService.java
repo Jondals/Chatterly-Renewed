@@ -10,6 +10,11 @@
  *   only to the listener the plugin registered (the page of the app), never written to a file or the network here.
  * * Pace: at most one picture in flight. The page acknowledges each one (ScreenSharePlugin.ack); until then no new
  *   picture is encoded, so a slow phone or a slow page never piles up pictures in memory.
+ * * Turning the phone: the virtual screen follows the orientation (it is resized when the display rotates); before, a
+ *   landscape game was squeezed into a portrait picture and looked tiny.
+ * * Sound (Android 10+, when the person asks for it): the sound that other apps play (media, games) is captured with
+ *   AudioPlaybackCapture and sent to the page as 16-bit PCM, mono, 48 kHz, in pieces of 100 ms. ! The sound of this app
+ *   (the voices of the call, the soundboard) is excluded, so the others never hear themselves back.
  */
 package app.chatterly.renewed;
 
@@ -20,11 +25,18 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioPlaybackCaptureConfiguration;
+import android.media.AudioRecord;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
@@ -33,8 +45,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.util.Base64;
+import android.os.Process;
 import android.util.DisplayMetrics;
+import android.view.Display;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 import java.io.ByteArrayOutputStream;
@@ -45,9 +58,16 @@ public class ScreenForegroundService extends Service {
 
     /** Who receives the pictures and the end of the capture (the plugin; null when the page is gone). */
     interface Listener {
-        void onFrame(String jpegBase64, int width, int height);
+        /** A picture: a JPEG of the given size (the array is the listener's to keep). */
+        void onFrame(byte[] jpeg, int width, int height);
 
         void onStopped();
+
+        /** A piece of the shared sound: 16-bit PCM, mono, 48 kHz, little endian (the array is the listener's to keep). */
+        void onAudio(byte[] pcm);
+
+        /** The sound comes as pure silence for a few seconds: the apps on screen do not let their sound be captured. */
+        void onSilent();
     }
 
     /** The channel of the notification while the screen is shared (quiet). */
@@ -59,6 +79,13 @@ public class ScreenForegroundService extends Service {
     static final String EXTRA_LONG_SIDE = "longSide";
     static final String EXTRA_FPS = "fps";
     static final String EXTRA_QUALITY = "quality";
+    static final String EXTRA_AUDIO = "audio";
+
+    /** The sound sent to the page: mono, 48 kHz, 16-bit, in pieces of 50 ms (smaller pieces: less delay, steadier playing). */
+    private static final int AUDIO_RATE = 48000;
+    private static final int AUDIO_PIECE = AUDIO_RATE / 20;
+    /** How many pieces of pure silence in a row mean "this sound cannot be captured" (4 s). */
+    private static final int SILENT_PIECES = 80;
 
     /** The plugin that listens. Static because a service has no other way to know it; set before the service starts. */
     static volatile Listener listener;
@@ -76,6 +103,28 @@ public class ScreenForegroundService extends Service {
     private long minGapMs = 100;
     private int jpegQuality = 60;
     private Bitmap padded;
+    private int longSide = 1280;
+    private int frameWidth;
+    private int frameHeight;
+    private DisplayManager displays;
+    private AudioRecord audio;
+    private Thread audioThread;
+
+    /** The display turned (or changed size): the virtual screen and the reader follow it. */
+    private final DisplayManager.DisplayListener rotation = new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int displayId) {}
+
+        @Override
+        public void onDisplayRemoved(int displayId) {}
+
+        @Override
+        public void onDisplayChanged(int displayId) {
+            if (displayId == Display.DEFAULT_DISPLAY) {
+                followDisplay();
+            }
+        }
+    };
 
     /** True while a capture is running. */
     static boolean isRunning() {
@@ -125,8 +174,9 @@ public class ScreenForegroundService extends Service {
         }
         Intent grant = intent.getParcelableExtra(EXTRA_PROJECTION);
         int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
-        int longSide = Math.max(480, Math.min(1920, intent.getIntExtra(EXTRA_LONG_SIDE, 1280)));
-        int fps = Math.max(1, Math.min(30, intent.getIntExtra(EXTRA_FPS, 12)));
+        longSide = Math.max(480, Math.min(1920, intent.getIntExtra(EXTRA_LONG_SIDE, 1280)));
+        boolean withSound = intent.getBooleanExtra(EXTRA_AUDIO, false);
+        int fps = Math.max(1, Math.min(30, intent.getIntExtra(EXTRA_FPS, 30)));
         jpegQuality = Math.max(30, Math.min(90, intent.getIntExtra(EXTRA_QUALITY, 60)));
         minGapMs = 1000L / fps;
         if (grant == null) {
@@ -155,24 +205,45 @@ public class ScreenForegroundService extends Service {
                 },
                 handler
             );
-            startReading(longSide);
+            startReading();
+            displays = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+            if (displays != null) {
+                displays.registerDisplayListener(rotation, handler);
+            }
+            if (withSound) {
+                startSound();
+            }
         } catch (RuntimeException failed) {
             finish();
         }
         return START_NOT_STICKY;
     }
 
-    /** Creates the virtual screen at the size the page asked for and the reader of its pictures. */
-    private void startReading(int longSide) {
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        int realWidth = Math.max(1, metrics.widthPixels);
-        int realHeight = Math.max(1, metrics.heightPixels);
+    /** The size of the screen now (it changes when the phone turns), scaled to the long side the page asked for. */
+    @SuppressWarnings("deprecation")
+    private int[] pictureSize() {
+        Point real = new Point();
+        DisplayManager manager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        Display screen = manager == null ? null : manager.getDisplay(Display.DEFAULT_DISPLAY);
+        if (screen != null) {
+            screen.getRealSize(real);
+        } else {
+            DisplayMetrics metrics = getResources().getDisplayMetrics();
+            real.set(metrics.widthPixels, metrics.heightPixels);
+        }
+        int realWidth = Math.max(1, real.x);
+        int realHeight = Math.max(1, real.y);
         double scale = Math.min(1.0, (double) longSide / Math.max(realWidth, realHeight));
         // Even sizes: some encoders refuse odd ones, and it keeps the picture sharp.
         int width = Math.max(2, ((int) Math.round(realWidth * scale)) & ~1);
         int height = Math.max(2, ((int) Math.round(realHeight * scale)) & ~1);
-        reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
-        reader.setOnImageAvailableListener(
+        return new int[] { width, height };
+    }
+
+    /** A reader of pictures of the given size. */
+    private ImageReader newReader(int width, int height) {
+        ImageReader next = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
+        next.setOnImageAvailableListener(
             new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader source) {
@@ -181,16 +252,126 @@ public class ScreenForegroundService extends Service {
             },
             handler
         );
+        return next;
+    }
+
+    /** Creates the virtual screen at the size of the screen now and the reader of its pictures. */
+    private void startReading() {
+        int[] size = pictureSize();
+        frameWidth = size[0];
+        frameHeight = size[1];
+        reader = newReader(frameWidth, frameHeight);
         display = projection.createVirtualDisplay(
             "chatterly-screen",
-            width,
-            height,
-            metrics.densityDpi,
+            frameWidth,
+            frameHeight,
+            getResources().getDisplayMetrics().densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             reader.getSurface(),
             null,
             handler
         );
+    }
+
+    /** The phone turned: the virtual screen takes the new size (landscape or portrait) and a reader of that size. */
+    private void followDisplay() {
+        if (display == null || stopping.get()) {
+            return;
+        }
+        int[] size = pictureSize();
+        if (size[0] == frameWidth && size[1] == frameHeight) {
+            return;
+        }
+        ImageReader old = reader;
+        frameWidth = size[0];
+        frameHeight = size[1];
+        reader = newReader(frameWidth, frameHeight);
+        display.resize(frameWidth, frameHeight, getResources().getDisplayMetrics().densityDpi);
+        display.setSurface(reader.getSurface());
+        if (old != null) {
+            old.setOnImageAvailableListener(null, null);
+            old.close();
+        }
+        // A picture of the old size may still be waiting for its acknowledgement: the new size must not wait for it.
+        waitingForAck.set(false);
+    }
+
+    /** Captures the sound that other apps play (not this app) and sends it to the page in pieces of 100 ms. */
+    private void startSound() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        try {
+            AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(projection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                .excludeUid(Process.myUid())
+                .build();
+            AudioFormat format = new AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(AUDIO_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                .build();
+            int minimum = AudioRecord.getMinBufferSize(AUDIO_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            audio = new AudioRecord.Builder()
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(Math.max(minimum, AUDIO_PIECE * 2 * 4))
+                .setAudioPlaybackCaptureConfig(config)
+                .build();
+            audio.startRecording();
+        } catch (RuntimeException refused) {
+            // No sound: the screen is still shared.
+            audio = null;
+            return;
+        }
+        AudioRecord recorder = audio;
+        audioThread = new Thread(
+            new Runnable() {
+                @Override
+                public void run() {
+                    readSound(recorder);
+                }
+            },
+            "chatterly-screen-sound"
+        );
+        audioThread.start();
+    }
+
+    /** Reads the sound until the capture ends and hands each piece to the page. */
+    private void readSound(AudioRecord recorder) {
+        byte[] piece = new byte[AUDIO_PIECE * 2];
+        int silent = 0;
+        boolean told = false;
+        while (!stopping.get()) {
+            int filled = 0;
+            while (filled < piece.length && !stopping.get()) {
+                int read = recorder.read(piece, filled, piece.length - filled);
+                if (read <= 0) {
+                    return;
+                }
+                filled += read;
+            }
+            Listener target = listener;
+            if (target != null && filled == piece.length) {
+                boolean quiet = true;
+                for (int i = 0; i < piece.length && quiet; i++) {
+                    quiet = piece[i] == 0;
+                }
+                silent = quiet ? silent + 1 : 0;
+                if (silent >= SILENT_PIECES && !told) {
+                    told = true;
+                    target.onSilent();
+                }
+                if (!quiet) {
+                    told = false;
+                }
+                target.onAudio(piece.clone());
+            }
+        }
     }
 
     /** Takes the newest picture; encodes it only if the page is ready for one and the pace allows it. */
@@ -223,7 +404,7 @@ public class ScreenForegroundService extends Service {
             }
             lastFrameAt = now;
             waitingForAck.set(true);
-            target.onFrame(Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP), width, height);
+            target.onFrame(bytes.toByteArray(), width, height);
         } catch (RuntimeException skipped) {
             // A picture that cannot be read is skipped; the next one comes in a moment.
         } finally {
@@ -239,6 +420,28 @@ public class ScreenForegroundService extends Service {
             return;
         }
         Listener target = listener;
+        if (displays != null) {
+            displays.unregisterDisplayListener(rotation);
+            displays = null;
+        }
+        if (audio != null) {
+            try {
+                audio.stop();
+            } catch (IllegalStateException alreadyStopped) {
+                // Nothing to stop.
+            }
+            // The reading thread leaves its loop once the recording stops; it must be out before the recorder is freed.
+            if (audioThread != null) {
+                try {
+                    audioThread.join(500);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                audioThread = null;
+            }
+            audio.release();
+            audio = null;
+        }
         if (display != null) {
             display.release();
             display = null;

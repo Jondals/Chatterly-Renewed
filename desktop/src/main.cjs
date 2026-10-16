@@ -308,7 +308,7 @@ function pickItem(source) {
  * Resolves with { id, audio } (the source chosen and whether the sound box was ticked) or with null if cancelled. `kind` is the
  * tab to start in and `audio` the start state of the box.
  */
-function pickSource(sources, kind, audio) {
+function pickSource(sources, kind, audio, query) {
   return new Promise(function executor(resolve) {
     if (!mainWindow || mainWindow.isDestroyed()) {
       resolve(null);
@@ -316,9 +316,31 @@ function pickSource(sources, kind, audio) {
     }
     // Only one question at a time: a new one cancels the old one.
     if (pendingPick) pendingPick.resolve(null);
-    pendingPick = { sources, resolve };
+    pendingPick = { sources, resolve, kind, audio, query };
     mainWindow.webContents.send('screen:pick', { kind, audio, items: sources.map(pickItem) });
   });
+}
+
+/**
+ * The person asked to read the list again (a window that was minimized is restored now: Windows does not offer a minimized
+ * window, it cannot be captured). The same question goes on with the new list.
+ */
+async function onPickRefresh(event) {
+  if (!isMainPage(event) || !pendingPick) return false;
+  const pick = pendingPick;
+  try {
+    const sources = shareable(await desktopCapturer.getSources(pick.query));
+    if (pendingPick !== pick) return false;
+    pick.sources = sources;
+    mainWindow.webContents.send('screen:pick', {
+      kind: pick.kind,
+      audio: pick.audio,
+      items: sources.map(pickItem),
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 /** The person chose a source. ! Only the main page may answer, and only with an id it was given. */
@@ -366,6 +388,33 @@ function isNoise(source) {
   return source.id.startsWith('window:') && NOISE_WINDOWS.test(source.name.trim());
 }
 
+/**
+ * The windows of Chatterly that are not for sharing: every window of the app except the main one (the overlay is transparent
+ * and showed as a black "Chatterly"). The main window can still be shared.
+ */
+function ownWindowIds() {
+  const ids = new Set();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win === mainWindow || win.isDestroyed()) continue;
+    try {
+      ids.add(win.getMediaSourceId());
+    } catch (error) {
+      // A window that is closing has no id any more.
+    }
+  }
+  const overlayId = overlay.mediaSourceId();
+  if (overlayId) ids.add(overlayId);
+  return ids;
+}
+
+/** What can be offered: no noise, no window of Chatterly but the main one. */
+function shareable(found) {
+  const own = ownWindowIds();
+  return found.filter(function isWanted(source) {
+    return !isNoise(source) && !own.has(source.id) && !source.name.startsWith('Chatterly overlay');
+  });
+}
+
 async function onDisplayMediaRequest(request, callback) {
   // * The callback can be used once, and it throws if the page went away meanwhile (for example on quit).
   let answered = false;
@@ -390,22 +439,20 @@ async function onDisplayMediaRequest(request, callback) {
     screenSurface = 'any';
     screenAudio = false;
     const wantsScreen = surface === 'monitor';
-    const found = await desktopCapturer.getSources({
+    const query = {
       types: wantsScreen ? ['screen'] : surface === 'window' ? ['window'] : ['screen', 'window'],
       // * A screen shared at once is never drawn, so it needs no picture.
       thumbnailSize: wantsScreen ? { width: 0, height: 0 } : { width: 320, height: 180 },
       fetchWindowIcons: false,
-    });
-    const sources = found.filter(function isWanted(source) {
-      return !isNoise(source);
-    });
+    };
+    const sources = shareable(await desktopCapturer.getSources(query));
     let picked = null;
     if (wantsScreen && sources.length > 0) {
       // * "A screen" was chosen in the menu of the call: nothing is left to ask. The screen the app is on is the one shared.
       picked = { id: nearestScreen(sources).id, audio };
     } else if (sources.length > 0) {
       // A window has to be told apart from the others, so only then (or when the menu said "anything") the person picks.
-      picked = await pickSource(sources, surface === 'window' ? 'window' : 'screen', audio);
+      picked = await pickSource(sources, surface === 'window' ? 'window' : 'screen', audio, query);
     }
     const source = picked
       ? sources.find(function byId(candidate) {
@@ -682,6 +729,7 @@ async function start() {
   ipcMain.handle('screen:surface', onScreenSurface);
   ipcMain.handle('screen:choose', onPickChoose);
   ipcMain.handle('screen:cancel', onPickCancel);
+  ipcMain.handle('screen:refresh', onPickRefresh);
   ipcMain.handle('window:titlebar', onTitlebarColors);
   ipcMain.handle('graphics:get', onGraphicsGet);
   ipcMain.handle('graphics:set', onGraphicsSet);
@@ -695,7 +743,7 @@ async function start() {
   createMenu();
   createWindow();
   updater.start(mainWindow, isAppOrigin, serverUrl.origin);
-  overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET);
+  overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET, showMainWindow);
 }
 
 if (!app.requestSingleInstanceLock()) {

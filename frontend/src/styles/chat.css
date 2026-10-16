@@ -329,6 +329,18 @@ button:disabled,
   font-size: 1.9rem !important;
 }
 
+/* Many emoji: still without a bubble and bigger than text, and they wrap inside the chat (never wider than the screen). */
+.bubble-emoji.is-heaps {
+  font-size: 1.55rem !important;
+  line-height: 1.3 !important;
+}
+.bubble-emoji.is-many,
+.bubble-emoji.is-lots,
+.bubble-emoji.is-heaps {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .bubble-emoji:hover {
   filter: brightness(1.15) saturate(1.1);
 }
@@ -901,9 +913,24 @@ button:disabled,
   animation: none !important;
 }
 
+/* On a phone (a finger) the text of a message is not marked: a long press opens the menu of the message, and Copy is there.
+   Marking text with a finger fought with that press, and a tap on a message started selecting it. */
+@media (pointer: coarse) {
+  app-message-item .selectable {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
 /* A sticker moves under the pointer (the pickers, so fifty of them never run at once) and, as `stk-live`, all the time (a message). */
 .stk {
   transform-origin: 50% 62%;
+}
+/* A sticker in a message cannot be saved: no "save image" menu of the browser or of a long press, and no dragging out. */
+.stk-live {
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 .stk[data-move='0'] {
   --stk: stk-0;

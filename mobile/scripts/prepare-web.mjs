@@ -1,7 +1,7 @@
 /**
  * mobile/scripts/prepare-web.mjs
  * Copies the built web app (pnpm build at the root) into mobile/web, the folder that Capacitor packs inside the APK, and
- * makes the two changes that only the Android app needs:
+ * makes the changes that only the Android app needs:
  *   1. native-config.js: the address of the API and the native policy (calls ONLY through the relay over TLS). It is a
  *      file inside the APK, loaded before the app, so no server can change it.
  *   2. The viewport without viewport-fit=cover: the WebView is kept out of the bars of the system (see below), and
@@ -9,6 +9,7 @@
  *   3. A stricter Content-Security-Policy: the page may talk only to the exact API origin (no "any wss:" and no
  *      localhost), media only from itself and the API, and no third-party frames (embedded players could open their own
  *      WebRTC connections and leak the address, which the relay policy cannot see).
+ *   4. No web emoji font: the Android WebView draws it empty, and the emoji font of Android is the same Noto.
  *
  *   node scripts/prepare-web.mjs [--from <web build>] [--to <folder>]
  *   CHATTERLY_URL=https://example.org node scripts/prepare-web.mjs
@@ -126,6 +127,37 @@ function nativeConfig(api) {
   ].join('\n');
 }
 
+/**
+ * Takes the web emoji font out of the APK: the @font-face rules of "Noto Color Emoji" in the lazy fonts stylesheet and
+ * their files. ! The Android WebView loads that font but draws every emoji EMPTY (seen in the emulator with WebView 145
+ * and on a phone). Android's own emoji font is Noto Color Emoji too (the same drawings), so the page falls back to it.
+ * It also makes the APK about 4.5 MB smaller.
+ */
+function dropEmojiFont(target) {
+  const sheet = fs.readdirSync(target).find(function isLazyFonts(name) {
+    return /^lazy-fonts.*\.css$/.test(name);
+  });
+  if (!sheet) fail('There is no lazy-fonts stylesheet in the web build: update this script.');
+  const file = path.join(target, sheet);
+  const css = fs.readFileSync(file, 'utf8');
+  const rules = /@font-face\s*\{[^}]*Noto Color Emoji[^}]*\}/g;
+  const count = (css.match(rules) || []).length;
+  if (count === 0)
+    fail('The lazy fonts have no Noto Color Emoji rules to take out: update this script.');
+  fs.writeFileSync(file, css.replace(rules, ''));
+  const media = path.join(target, 'media');
+  let files = 0;
+  for (const name of fs.existsSync(media) ? fs.readdirSync(media) : []) {
+    if (name.startsWith('noto-color-emoji-')) {
+      fs.rmSync(path.join(media, name));
+      files++;
+    }
+  }
+  console.log(
+    'Web emoji font taken out (' + count + ' rules, ' + files + ' files): Android draws its own.',
+  );
+}
+
 /** Builds the folder of the Android app from the web build. */
 function main() {
   const source = argument(
@@ -177,6 +209,7 @@ function main() {
   fs.cpSync(source, target, { recursive: true });
   fs.writeFileSync(path.join(target, 'index.html'), html);
   fs.writeFileSync(path.join(target, 'native-config.js'), nativeConfig(api));
+  dropEmojiFont(target);
   console.log(
     'Web build ' + webVersion + ' prepared for Android in ' + target + ' (API ' + api + ')',
   );

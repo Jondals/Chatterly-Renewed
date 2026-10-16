@@ -353,7 +353,7 @@ import { fontClassOf } from '../shared/util/user-font.directive';
                           class="btn btn-sm btn-primary mt-3 w-full"
                           (click)="desktopUpdate.install()"
                         >
-                          <app-icon name="spin" [size]="15" /> {{ 'Restart and update' | t }}
+                          <app-icon name="spin" [size]="15" /> {{ desktopUpdate.installLabel | t }}
                         </button>
                         <div class="mt-1.5 text-xs text-muted">
                           {{ 'Chatterly will close and open again with the new version.' | t }}

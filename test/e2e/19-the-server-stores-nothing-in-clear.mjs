@@ -43,18 +43,23 @@ export async function step19(world) {
     }),
     'no picture is stored as a picture: the group icon is ciphertext too',
   );
-  // the library of backgrounds: the picture that was added in the call is on the disk, and it is ciphertext
+  // the library: the background added in the call and the copies of the sticker packs and presets are on the disk, all ciphertext
   const library = fs.readdirSync(path.join(dataDir, 'uploads', 'vault'));
   check(
-    library.length === 1,
-    'the picture added to the library is stored (' + library.length + ')',
+    library.length >= 2,
+    'the picture added to the library and the copies of the stickers and presets are stored (' +
+      library.length +
+      ')',
   );
-  const vaultHead = fs
-    .readFileSync(path.join(dataDir, 'uploads', 'vault', library[0]))
-    .subarray(0, 4);
   check(
-    !vaultHead.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) &&
-      vaultHead.toString('latin1') !== 'RIFF',
-    'and it is not stored as a picture: the library is ciphertext',
+    library.every(function (name) {
+      const head = fs.readFileSync(path.join(dataDir, 'uploads', 'vault', name)).subarray(0, 18);
+      return (
+        !head.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) &&
+        head.subarray(0, 4).toString('latin1') !== 'RIFF' &&
+        !head.toString('latin1').startsWith('CHATTERLY')
+      );
+    }),
+    'and none is stored as a picture, a sticker pack or a preset: the library is ciphertext',
   );
 }

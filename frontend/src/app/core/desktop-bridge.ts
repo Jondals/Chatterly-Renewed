@@ -80,6 +80,8 @@ export interface DesktopScreen {
   choose(sourceId: string, audio: boolean): Promise<boolean>;
   /** Closes the menu without sharing. */
   cancel(): Promise<boolean>;
+  /** Reads the list again (a window that was minimized was restored: Windows does not offer minimized windows). */
+  refresh?(): Promise<boolean>;
 }
 
 /** The bar at the top of the window, when the app draws its own (Windows). */
@@ -91,7 +93,7 @@ interface DesktopTitlebar {
 }
 
 /** The graphics layers the person may choose ('auto' lets Chromium pick the best one). */
-export type GraphicsBackend = 'auto' | 'd3d11' | 'gl' | 'vulkan' | 'metal';
+export type GraphicsBackend = 'auto' | 'd3d11' | 'd3d11on12' | 'gl' | 'vulkan' | 'metal';
 
 /** How the desktop app uses the graphics card. */
 export interface DesktopGraphicsState {
@@ -140,10 +142,19 @@ export interface OverlaySettings {
   mode: 'always' | 'games';
   /** The names of the registered games (the overlay opens when an open window has one of them in its name). */
   games: string[];
+  /** The text of a message that arrives is shown (off: only who wrote it). */
+  notifyText: boolean;
+  /** The place and size of the video widget, and whether it stays while playing. */
   x: number;
   y: number;
   scale: number;
+  videoPinned: boolean;
+  /** The place of the other widgets and whether they stay visible while playing. */
+  widgets: Record<OverlayWidgetId, { x: number; y: number; pinned: boolean }>;
 }
+
+/** The widgets of the overlay besides the video one. */
+export type OverlayWidgetId = 'notifications' | 'voice' | 'controls' | 'activity' | 'streams';
 
 /** What the desktop app says about the overlay. */
 export interface OverlayState {
@@ -165,9 +176,53 @@ export interface OverlayTile {
   color: string;
   speaking: boolean;
   muted: boolean;
+  deafened?: boolean;
+  /** Their camera is on, and they share their screen (a LIVE mark). */
+  camera?: boolean;
+  screen?: boolean;
   /** The id of the stream that carries their video over the local connection, or empty when there is none. */
   streamId: string;
 }
+
+/** The call as the controls of the overlay draw it. */
+export interface OverlayCall {
+  room: string;
+  /** When the call started (ms), for the clock. */
+  since: number;
+  muted: boolean;
+  deafened: boolean;
+  camera: boolean;
+  screen: boolean;
+  /** Somebody's camera or screen is on. */
+  video: boolean;
+  /** The delay to the others in ms, or -1. */
+  ping: number;
+}
+
+/** A screen somebody else shares, for the streams widget. */
+export interface OverlayStream {
+  id: string;
+  name: string;
+  streamId: string;
+  sound: boolean;
+  volume: number;
+}
+
+/** A message that arrived, for the notifications widget. */
+export interface OverlayNotice {
+  id: string;
+  name: string;
+  where: string;
+  text: string;
+  avatar: string;
+  color: string;
+}
+
+/** What a button of the overlay asks the page to do (only while the overlay is unlocked). */
+export type OverlayAction =
+  | { type: 'mute' | 'deafen' | 'camera' | 'screen' | 'leave' }
+  | { type: 'open-chat'; id: string }
+  | { type: 'stream-volume'; id: string; volume: number };
 
 /** A message of the local video connection between the app and the overlay window. */
 export interface OverlaySignal {
@@ -181,13 +236,18 @@ export type OverlayEvent =
   | { type: 'state'; state: OverlayState }
   | { type: 'ready' }
   | { type: 'closed' }
-  | { type: 'signal'; message: OverlaySignal };
+  | { type: 'signal'; message: OverlaySignal }
+  | { type: 'action'; action: OverlayAction };
 
 /** The in-game overlay. */
 export interface DesktopOverlay {
   get(): Promise<OverlayState | null>;
   set(patch: Partial<OverlaySettings>): Promise<OverlayState | null>;
   setTiles(tiles: OverlayTile[]): Promise<boolean>;
+  /** The state of the call and the shared screens (an older shell has no such command). */
+  setCall?(payload: { call: OverlayCall | null; streams: OverlayStream[] }): Promise<boolean>;
+  /** A message that arrived (an older shell has no such command). */
+  notify?(notice: OverlayNotice): Promise<boolean>;
   signal(message: OverlaySignal): Promise<boolean>;
   /** The names of the windows that are open now (to register a game from the list). */
   windows(): Promise<string[]>;

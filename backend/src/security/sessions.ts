@@ -6,7 +6,7 @@
 import type { Db } from '../db';
 
 /**
- * Whether a session exists, belongs to the user, has not expired and its account is not erased.
+ * Whether a session exists, belongs to the user, has not expired and its account is not erased or suspended.
  * * Access tokens carry the id of their session (`sid`); a token without a live session is worthless, which
  * is what makes logout and "close all sessions" effective immediately instead of after the 15 minute lifetime.
  *
@@ -24,7 +24,8 @@ export function isSessionLive(
   return !!db
     .prepare(
       `SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
-        WHERE s.id = ? AND s.user_id = ? AND s.expires_at > ? AND u.deleted_at IS NULL`,
+        WHERE s.id = ? AND s.user_id = ? AND s.expires_at > ? AND u.deleted_at IS NULL
+          AND u.suspended_at IS NULL`,
     )
     .get(sessionId, userId, now);
 }

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  mobile/android/app/src/main/res/layout/notification_call.xml
+  The call notification, folded: who, how long, and small mute, deafen and hang up buttons (the open notification is
+  notification_call_big.xml). The texts use the styles of the system notifications (they follow the light or dark phone); the
+  buttons use colors/*.xml. Only views that a notification may hold (RemoteViews): LinearLayout, TextView, Chronometer,
+  ImageView and ImageButton.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/call_name"
+            style="@style/TextAppearance.Compat.Notification.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Chronometer
+                android:id="@+id/call_timer"
+                style="@style/TextAppearance.Compat.Notification.Line2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/call_state"
+                style="@style/TextAppearance.Compat.Notification.Line2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:singleLine="true" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/call_mute"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/notification_button"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_call_mic" />
+
+    <ImageButton
+        android:id="@+id/call_deafen"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/notification_button"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_call_headphones" />
+
+    <ImageButton
+        android:id="@+id/call_hang_up"
+        android:layout_width="38dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/notification_button_end"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_call_end" />
+</LinearLayout>

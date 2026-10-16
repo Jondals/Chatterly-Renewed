@@ -1459,3 +1459,19 @@ html[data-titlebar='custom'] .fixed.inset-0 {
 .is-on > .radio-dot::after {
   transform: scale(1);
 }
+
+/* The picture and the name at the top of a direct chat open the profile of the person (like their name on a message). */
+.page-header-link {
+  margin: -0.25rem -0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.page-header-link:hover,
+.page-header-link:focus-visible {
+  background: rgb(255 255 255 / 0.05);
+}
+.page-header-link:active {
+  background: rgb(255 255 255 / 0.08);
+}

@@ -2,9 +2,10 @@
  * src/app/shared/components/collapse.component.ts
  * Compact collapsible section with a preview of the chosen option.
  */
-import { Component, ElementRef, HostListener, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, inject, input, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { IconComponent } from './icon.component';
+import { listenWhile } from '../util/listen-while';
 
 /**
  * A compact section: the header shows the title, the current choice and an optional preview
@@ -102,9 +103,21 @@ export class CollapseComponent {
     this.expanded.set(this.open());
   }
 
+  /** While open, a press outside the section folds it (the page is not listened to while it is folded). */
+  private readonly outside = listenWhile(
+    this.isOpen.bind(this),
+    document,
+    'mousedown',
+    this.closeOnOutside.bind(this),
+  );
+
+  /** Whether the section is open. */
+  private isOpen(): boolean {
+    return this.open();
+  }
+
   /** A press outside the section folds it. */
-  @HostListener('document:mousedown', ['$event'])
-  protected closeOnOutside(event: MouseEvent): void {
+  protected closeOnOutside(event: Event): void {
     const target = event.target as Element;
     if (
       this.open() &&

@@ -1,7 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <!--
   mobile/android/app/src/main/res/values/strings.xml
-  Texts of the native side. ! The notification of a call is generic on purpose: never a name, a group or a channel.
+  Texts of the native side. ! The lock screen only ever shows the generic version of a call ("Call in progress",
+  "Incoming call"): the name of the person or channel is shown only on an unlocked phone (see CallForegroundService).
 -->
 <resources>
     <string name="app_name">Chatterly</string>
@@ -12,4 +13,17 @@
     <string name="call_channel_name">Calls in progress</string>
     <string name="screen_in_progress">Sharing the screen</string>
     <string name="screen_channel_name">Screen sharing</string>
+    <string name="incoming_call">Incoming call</string>
+    <string name="incoming_channel_name">Incoming calls</string>
+    <string name="listening">Connected: calls will ring</string>
+    <string name="listening_channel_name">Connected in the background</string>
+    <string name="action_mute">Mute</string>
+    <string name="action_unmute">Unmute</string>
+    <string name="action_deafen">Deafen</string>
+    <string name="action_undeafen">Undeafen</string>
+    <string name="action_hang_up">Hang up</string>
+    <string name="action_answer">Answer</string>
+    <string name="action_decline">Decline</string>
+    <string name="state_muted">Muted</string>
+    <string name="state_deafened">Deafened</string>
 </resources>

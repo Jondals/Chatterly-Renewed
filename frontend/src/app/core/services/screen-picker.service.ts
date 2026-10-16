@@ -42,6 +42,21 @@ export class ScreenPickerService {
     this.bridge?.choose(item.id, audio).catch(this.ignore);
   }
 
+  /** True when the shell can read the list again (the button "Refresh"). */
+  readonly canRefresh = Boolean(this.bridge?.refresh);
+  /** A new reading of the list was asked: it keeps the tab and the box as they are. */
+  private refreshing = false;
+
+  /**
+   * Reads the screens and windows again. Windows does not offer a minimized window (it cannot be captured), so a person who
+   * misses one restores it and presses this.
+   */
+  refresh(): void {
+    if (!this.request() || !this.bridge?.refresh) return;
+    this.refreshing = true;
+    this.bridge.refresh().catch(this.ignore);
+  }
+
   /** Closes the menu without sharing. */
   cancel(): void {
     if (this.request()) {
@@ -51,6 +66,12 @@ export class ScreenPickerService {
   }
 
   private onRequest(request: ScreenPickRequest): void {
+    if (this.refreshing && this.request()) {
+      this.refreshing = false;
+      this.request.set(request);
+      return;
+    }
+    this.refreshing = false;
     const kinds = new Set(request.items.map(this.kindOf));
     this.tab.set(kinds.size === 1 ? [...kinds][0]! : request.kind);
     this.audio.set(request.audio);

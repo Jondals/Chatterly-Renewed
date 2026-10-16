@@ -1,17 +1,19 @@
 /**
  * src/app/shared/components/modal.component.ts
- * Generic modal window.
+ * Generic modal window. It is drawn at the end of <body> (see ToBodyDirective), so it always covers the whole app.
  */
 import { Component, HostListener, input, output } from '@angular/core';
 import { IconComponent } from './icon.component';
+import { closeOnBack } from '../../core/services/back.service';
+import { ToBodyDirective } from '../util/to-body.directive';
 
 @Component({
   selector: 'app-modal',
   standalone: true,
-  imports: [IconComponent],
+  imports: [IconComponent, ToBodyDirective],
   template: `
     <div
-      animate.leave="leave-fade"
+      appToBody="leave-fade"
       class="anim-fade-in fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
       (mousedown)="onBackdrop($event)"
       role="presentation"
@@ -46,6 +48,9 @@ import { IconComponent } from './icon.component';
   `,
 })
 export class ModalComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   readonly title = input.required<string>();
   readonly subtitle = input<string>('');
   readonly width = input(460);
@@ -57,5 +62,15 @@ export class ModalComponent {
   /** A press on the dark area around the window closes it. */
   onBackdrop(event: MouseEvent) {
     if (event.target === event.currentTarget) this.closed.emit();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return true;
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.closed.emit();
   }
 }

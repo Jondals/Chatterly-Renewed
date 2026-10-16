@@ -115,19 +115,22 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
     <div class="flex h-full min-h-0 flex-col overflow-hidden">
       @if (call.roomId()) {
         <app-page-header [title]="roomTitle()" icon="volume" [subtitle]="subtitle()">
+          <!-- The lock: a plain button like the others of the bar, coloured by the state of the encryption. -->
           <button
             type="button"
-            class="chip !px-3 !py-1.5 hover:brightness-125"
-            [class.chip-accent]="call.mediaEncryption() === 'active'"
-            [class.chip-amber]="call.mediaEncryption() === 'pending'"
-            [class.chip-red]="call.mediaEncryption() === 'failing'"
-            [attr.title]="encryptionTitle()"
+            class="btn btn-ghost tip"
+            data-tip-pos="bottom"
+            [class.btn-icon]="call.mediaEncryption() !== 'failing'"
+            [class.text-accent]="call.mediaEncryption() === 'active'"
+            [class.text-amber-300]="call.mediaEncryption() === 'pending'"
+            [class.btn-soft-danger]="call.mediaEncryption() === 'failing'"
+            [attr.data-tip]="encryptionTitle()"
             [attr.aria-label]="'End-to-end encryption' | t"
             (click)="verifyOpen.set(true)"
           >
             <app-icon
               [name]="call.mediaEncryption() === 'pending' ? 'shield' : 'lock'"
-              [size]="17"
+              [size]="18"
               [class.animate-pulse]="call.mediaEncryption() === 'pending'"
             />
             @if (call.mediaEncryption() === 'failing') {
@@ -169,6 +172,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                   [label]="menu.label"
                   [userId]="menu.userId"
                   [canAdjust]="menu.canAdjust"
+                  [stream]="menu.stream"
                   (hide)="hideTile(menu.id)"
                   (closed)="tileMenu.set(null)"
                 />
@@ -539,32 +543,36 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                           <div>
                             <b class="block text-sm">{{ 'Share your screen' | t }}</b>
                             <span class="block text-xs text-muted">{{
-                              (desktop
-                                ? 'A screen is shared at once; for a window you pick which one next.'
-                                : 'The browser will ask you to confirm what to show.'
+                              (android
+                                ? 'Android asks next what to share: the whole screen or one app.'
+                                : desktop
+                                  ? 'A screen is shared at once; for a window you pick which one next.'
+                                  : 'The browser will ask you to confirm what to show.'
                               ) | t
                             }}</span>
                           </div>
                         </div>
-                        <div class="label mb-1.5">{{ 'What to share' | t }}</div>
-                        <div
-                          class="grid gap-2"
-                          [class.grid-cols-3]="!desktop"
-                          [class.grid-cols-2]="desktop"
-                        >
-                          @for (option of surfaceChoices; track option.id) {
-                            <button
-                              type="button"
-                              class="sb-tile"
-                              [class.is-hit]="settings.screenShare().surface === option.id"
-                              (click)="setShare({ surface: option.id })"
-                            >
-                              <app-icon [name]="option.icon" [size]="20" />
-                              <span class="text-[0.6875rem]">{{ option.label | t }}</span>
-                            </button>
-                          }
-                        </div>
-                        <div class="label mb-1.5 mt-3.5">{{ 'Quality' | t }}</div>
+                        @if (!android) {
+                          <div class="label mb-1.5">{{ 'What to share' | t }}</div>
+                          <div
+                            class="mb-3.5 grid gap-2"
+                            [class.grid-cols-3]="!desktop"
+                            [class.grid-cols-2]="desktop"
+                          >
+                            @for (option of surfaceChoices; track option.id) {
+                              <button
+                                type="button"
+                                class="sb-tile"
+                                [class.is-hit]="settings.screenShare().surface === option.id"
+                                (click)="setShare({ surface: option.id })"
+                              >
+                                <app-icon [name]="option.icon" [size]="20" />
+                                <span class="text-[0.6875rem]">{{ option.label | t }}</span>
+                              </button>
+                            }
+                          </div>
+                        }
+                        <div class="label mb-1.5">{{ 'Quality' | t }}</div>
                         <div class="grid grid-cols-3 gap-2">
                           @for (option of shareQualities; track option.id) {
                             <button
@@ -817,7 +825,10 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
 
           @let tab = drawer() ?? 'stats';
           <div class="drawer-wrap" [class.is-open]="!!drawer()" [attr.inert]="drawer() ? null : ''">
-            <aside class="flex h-full flex-col border-l border-white/6 bg-ink-900">
+            <!-- The same surface as the rest of the call (the glass of the panel), a little darker: not a black slab on top. -->
+            <aside
+              class="flex h-full flex-col border-l border-white/8 bg-black/15 max-lg:bg-ink-900/92 max-lg:backdrop-blur-md"
+            >
               <div
                 class="flex shrink-0 items-center justify-between border-b border-white/6 px-4 py-2.5"
               >
@@ -1376,9 +1387,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
         (contextmenu)="t.kind !== 'activity' && openTileMenu($event, t)"
         (dblclick)="toggleFullscreen($event, t)"
         [attr.title]="(focus ? 'Click to go back to the grid' : 'Click to enlarge') | t"
-        [style.border-color]="t.speaking ? 'var(--accent)' : 'rgba(255,255,255,.08)'"
+        [style.border-color]="speakingOf(t) ? 'var(--accent)' : 'rgba(255,255,255,.08)'"
         [style.box-shadow]="
-          t.speaking ? '0 0 0 1px var(--accent), 0 0 26px -8px var(--accent)' : null
+          speakingOf(t) ? '0 0 0 1px var(--accent), 0 0 26px -8px var(--accent)' : null
         "
       >
         @if (t.kind === 'activity') {
@@ -1406,12 +1417,15 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               [size]="small ? 44 : 88"
               [ringRatio]="0.07"
               [aura]="true"
-              [speaking]="t.speaking"
+              [speaking]="speakingOf(t)"
             />
           </div>
         }
         @if (t.kind !== 'activity') {
-          <div class="absolute left-3 top-3 flex min-h-6 gap-1.5">
+          <!-- The state of the person and the delay to them, in one row: they never sit on top of each other. -->
+          <div
+            class="absolute left-3 top-3 flex min-h-6 max-w-[calc(100%-5.5rem)] flex-wrap items-center gap-1.5"
+          >
             @if (t.kind === 'screen') {
               <span class="chip chip-violet"
                 ><app-icon name="monitor" [size]="11" /> {{ 'Screen' | t }}</span
@@ -1422,6 +1436,9 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               }
               @if (t.deafened) {
                 <span class="state-badge"><app-icon name="headphones-off" [size]="13" /></span>
+              }
+              @if (!small && !t.local && t.rtt !== null) {
+                <span class="chip font-mono !py-0.5 text-[0.6875rem]">{{ t.rtt }} ms</span>
               }
             }
           </div>
@@ -1445,15 +1462,6 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               >
                 <app-icon name="maximize" [size]="14" />
               </button>
-            }
-          </div>
-          <div
-            class="absolute top-3 flex min-h-6 gap-1"
-            [class.right-3]="small"
-            [class.right-[5.4rem]]="!small"
-          >
-            @if (!small && !t.local && t.rtt !== null && t.kind !== 'screen') {
-              <span class="chip">{{ t.rtt }} ms</span>
             }
           </div>
           <div class="absolute inset-x-4 bottom-3.5 flex items-end justify-between gap-2">
@@ -1514,7 +1522,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
                 @for (b of bars; track $index) {
                   <span
                     class="w-[3px] rounded-full bg-accent transition-[height] duration-100"
-                    [style.height.px]="3 + t.level * 16 * b"
+                    [style.height.px]="3 + levelOf(t) * 16 * b"
                   ></span>
                 }
               </span>
@@ -1878,9 +1886,9 @@ export class VoiceStageComponent {
   ];
 
   /**
-   * The button of the screen: stops sharing. To start, in the desktop app it opens the menu (what to share, quality, sound:
-   * nothing else asks for them there); in a browser it starts at once, as the browser asks what to show (the menu is on the
-   * right click).
+   * The button of the screen: stops sharing. To start, in the desktop app and the Android app it opens the menu (what to
+   * share, quality, sound: nothing else asks for them there); in a browser it starts at once, as the browser asks what to
+   * show (the menu is on the right click).
    */
   protected screenClick(): void {
     if (this.android && !this.androidShare) {
@@ -1895,7 +1903,9 @@ export class VoiceStageComponent {
       void this.call.toggleScreen();
       return;
     }
-    if (this.desktop) {
+    // The desktop app and the Android app open the menu first (what to share, quality, sound); then the picker of the
+    // app or the dialog of Android asks what to show.
+    if (this.desktop || this.android) {
       const open = !this.shareOpen();
       this.closeOthers();
       this.shareOpen.set(open);
@@ -1909,8 +1919,7 @@ export class VoiceStageComponent {
   /** The right click on the button of the screen opens its options (quality, sound, what to offer). */
   protected shareOptions(event: Event): void {
     event.preventDefault();
-    // The Android app has nothing to choose here: the system asks what to share.
-    if (this.call.screenOn() || this.android) {
+    if (this.call.screenOn()) {
       return;
     }
     const open = !this.shareOpen();
@@ -2060,6 +2069,8 @@ export class VoiceStageComponent {
     label: string;
     userId: string;
     canAdjust: boolean;
+    /** The tile is a screen someone else shares: the menu is the one of that stream. */
+    stream: boolean;
     x: number;
     y: number;
   } | null>(null);
@@ -2114,6 +2125,7 @@ export class VoiceStageComponent {
       label: tile.user?.displayName ?? '',
       userId: tile.user?.id ?? '',
       canAdjust: !tile.local && !!tile.user && tile.kind !== 'screen',
+      stream: !tile.local && !!tile.user && tile.kind === 'screen',
       x: event.clientX,
       y: event.clientY,
     });
@@ -3022,8 +3034,8 @@ export class VoiceStageComponent {
   protected readonly tiles = computed(
     function (this: VoiceStageComponent) {
       const me = this.auth.user()?.id;
-      const levels = this.call.levels();
-      const speaking = this.call.speaking();
+      // ! The voice levels change 12 times a second: they are read by the template (levelOf, speakingOf), not here, so
+      //   the tiles and their layout are not rebuilt for every level.
       const peers = this.call.peers();
       const angles = this.call.angles();
       const out: Tile[] = [];
@@ -3035,8 +3047,8 @@ export class VoiceStageComponent {
           local,
           muted: p.muted,
           deafened: p.deafened,
-          speaking: speaking.has(p.userId),
-          level: levels[p.userId] ?? 0,
+          speaking: false,
+          level: 0,
           angle: angles[p.userId] ?? 0,
           rtt: peer?.rttMs ?? null,
           connection: peer?.connection,
@@ -3078,6 +3090,16 @@ export class VoiceStageComponent {
         : out;
     }.bind(this),
   );
+
+  /** Whether the person of a tile is speaking (a shared screen or an activity never is). */
+  protected speakingOf(t: Tile): boolean {
+    return t.kind !== 'screen' && !!t.user && this.call.speaking().has(t.user.id);
+  }
+
+  /** The voice level (0 to 1) of the person of a tile. */
+  protected levelOf(t: Tile): number {
+    return t.user ? (this.call.levels()[t.user.id] ?? 0) : 0;
+  }
 
   /** A tile for an activity of the call (it has no person, no voice and no stream). */
   private activityTile(activity: 'music' | 'video' | 'spinly'): Tile {

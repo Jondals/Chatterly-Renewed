@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-desktop",
-  "version": "2.33.0",
+  "version": "2.34.0",
   "productName": "Chatterly",
   "homepage": "https://github.com/Jondals/ChatterlyRenewed",
   "desktopName": "chatterly.desktop",
@@ -15,7 +15,8 @@
     "web": "node scripts/copy-web.mjs",
     "dist": "node scripts/dist.mjs win",
     "dist:linux": "node scripts/dist.mjs linux",
-    "dist:store": "node scripts/dist-store.mjs"
+    "dist:store": "node scripts/dist-store.mjs",
+    "dist:mac": "node scripts/dist.mjs mac"
   },
   "devDependencies": {
     "@electron/fuses": "^2.1.3",
@@ -49,6 +50,36 @@
       "category": "Network",
       "syncDesktopName": true,
       "maintainer": "Jondals <noreply@github.com>",
+      "artifactName": "Chatterly-${env.CHATTERLY_LABEL}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.social-networking",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "Chatterly-${env.CHATTERLY_LABEL}.${ext}",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Chatterly uses the camera only in the calls where you turn it on.",
+        "NSMicrophoneUsageDescription": "Chatterly uses the microphone only in your calls.",
+        "NSScreenCaptureUsageDescription": "Chatterly captures the screen only when you choose to share it in a call."
+      }
+    },
+    "dmg": {
       "artifactName": "Chatterly-${env.CHATTERLY_LABEL}.${ext}"
     },
     "nsis": {

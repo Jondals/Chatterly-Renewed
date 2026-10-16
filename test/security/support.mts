@@ -217,6 +217,7 @@ export interface TestSocket {
   closed: Promise<number>;
   send(message: unknown): void;
   raw(data: string): void;
+  close(): void;
 }
 
 /** Opens a WebSocket to the test server and authenticates it. */
@@ -259,6 +260,9 @@ export async function openSocket(
     },
     raw: function raw(data: string) {
       ws.send(data);
+    },
+    close: function close() {
+      ws.close();
     },
   };
 }

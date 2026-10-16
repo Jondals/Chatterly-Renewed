@@ -93,6 +93,18 @@ function webBuild(work) {
   );
   fs.writeFileSync(path.join(fake, "index.html"), html);
   fs.writeFileSync(path.join(fake, "main-ABCDEFGH.js"), "");
+  // Like the real build: the lazy fonts, with the web emoji font that prepare-web.mjs takes out, and a name font it keeps.
+  fs.writeFileSync(
+    path.join(fake, "lazy-fonts-ABCDEFGH.css"),
+    '@font-face{font-family:"Noto Color Emoji";src:url(media/noto-color-emoji-0-400-normal-X.woff2) format("woff2")}' +
+      '@font-face{font-family:Pacifico;src:url(media/pacifico-Y.woff2) format("woff2")}',
+  );
+  fs.mkdirSync(path.join(fake, "media"), { recursive: true });
+  fs.writeFileSync(
+    path.join(fake, "media", "noto-color-emoji-0-400-normal-X.woff2"),
+    "x",
+  );
+  fs.writeFileSync(path.join(fake, "media", "pacifico-Y.woff2"), "y");
   return fake;
 }
 
@@ -166,6 +178,21 @@ function checkWebFolder(work) {
   );
   const html = fs.readFileSync(path.join(target, "index.html"), "utf8");
   const csp = cspOf(html);
+  if (!process.argv.includes("--web")) {
+    const fonts = fs.readFileSync(
+      path.join(target, "lazy-fonts-ABCDEFGH.css"),
+      "utf8",
+    );
+    check(
+      !fonts.includes("Noto Color Emoji") &&
+        fonts.includes("Pacifico") &&
+        !fs.existsSync(
+          path.join(target, "media", "noto-color-emoji-0-400-normal-X.woff2"),
+        ) &&
+        fs.existsSync(path.join(target, "media", "pacifico-Y.woff2")),
+      "the web emoji font is taken out (rules and files) and the other lazy fonts stay",
+    );
+  }
 
   check(
     (csp.get("connect-src") ?? []).join(" ") ===
@@ -381,16 +408,21 @@ function checkAndroidProject() {
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
     "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
     "android.permission.INTERNET",
     "android.permission.MODIFY_AUDIO_SETTINGS",
+    "android.permission.POST_NOTIFICATIONS",
     "android.permission.RECORD_AUDIO",
+    "android.permission.REQUEST_DELETE_PACKAGES",
     "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.USE_FULL_SCREEN_INTENT",
+    "android.permission.VIBRATE",
   ];
   check(
     permissions.every(function known(permission) {
       return allowedPermissions.includes(permission);
     }),
-    "only the permissions a call (and sharing the screen) needs are asked (" +
+    "only the permissions calls (notifications, sharing the screen) and updates need are asked (" +
       permissions.join(", ") +
       ")",
   );
@@ -417,7 +449,7 @@ function checkAndroidProject() {
       services.some(function call(tag) {
         return (
           /android:name="\.CallForegroundService"/.test(tag) &&
-          /android:foregroundServiceType="microphone"/.test(tag)
+          /android:foregroundServiceType="microphone\|specialUse"/.test(tag)
         );
       }) &&
       services.some(function screen(tag) {
@@ -426,7 +458,50 @@ function checkAndroidProject() {
           /android:foregroundServiceType="mediaProjection"/.test(tag)
         );
       }),
-    "two services only, none exported: the call (microphone) and the shared screen (mediaProjection); never a socket kept alive",
+    "two services only, none exported: the calls (microphone, and the optional connection in the background) and the shared screen (mediaProjection)",
+  );
+  check(
+    /PROPERTY_SPECIAL_USE_FGS_SUBTYPE/.test(manifest) &&
+      /onTaskRemoved[\s\S]*?stopSelf/.test(
+        fs.readFileSync(
+          path.join(
+            MOBILE,
+            "android",
+            "app",
+            "src",
+            "main",
+            "java",
+            "app",
+            "chatterly",
+            "renewed",
+            "CallForegroundService.java",
+          ),
+          "utf8",
+        ),
+      ),
+    "the connection kept in the background says why (special use) and stops when the app is swiped away",
+  );
+  const receivers = [...manifest.matchAll(/<receiver\b[^>]*>/g)]
+    .map(function tag(match) {
+      return match[0];
+    })
+    .filter(function ours(tag) {
+      return !/tools:node="remove"/.test(tag);
+    });
+  check(
+    receivers.length === 1 &&
+      /android:name="\.CallActionReceiver"/.test(receivers[0]) &&
+      /android:exported="false"/.test(receivers[0]),
+    "one receiver of the app (the Decline button of a ringing call), not exported",
+  );
+  check(
+    /android\.webkit\.WebView\.EnableSafeBrowsing"\s+android:value="false"/.test(
+      manifest,
+    ) &&
+      /android\.webkit\.WebView\.MetricsOptOut"\s+android:value="true"/.test(
+        manifest,
+      ),
+    "the WebView sends no Safe Browsing lookups or usage metrics to Google",
   );
   const strings = ["values", "values-es"].map(function read(folder) {
     return fs.readFileSync(
@@ -516,8 +591,27 @@ function checkAndroidProject() {
       /context\.getPackageName\(\)\.equals\(update\.packageName\)/.test(
         updater,
       ) &&
-      /String problem = apk\.exists\(\) \? check\(context, apk\)/.test(updater),
+      /String problem = apk\.exists\(\) \? check\(context, apk, false\)/.test(
+        updater,
+      ),
     "before the installer opens, the APK must be this app, newer, and signed with the certificate of the installed app",
+  );
+  // An older version (changing channel) is only kept in Downloads after the same checks, never handed to the installer.
+  const installBody = updater.slice(
+    updater.indexOf("public void install("),
+    updater.indexOf("File apkFile()"),
+  );
+  const keepBody = updater.slice(
+    updater.indexOf("public void keepInDownloads("),
+    updater.indexOf("public void uninstall("),
+  );
+  check(
+    installBody.includes("check(context, apk, false)") &&
+      !installBody.includes("check(context, apk, true)") &&
+      keepBody.includes("check(context, apk, true)") &&
+      !keepBody.includes("ACTION_VIEW") &&
+      /versionCode\(update\) == versionCode\(installed\)/.test(updater),
+    "an older version is never given to the installer: it only goes to Downloads, as this app signed by the same author",
   );
   check(
     /canRequestPackageInstalls/.test(updater) &&
@@ -589,8 +683,43 @@ function checkAndroidProject() {
   const secure = activity.indexOf("FLAG_SECURE");
   const created = activity.indexOf("super.onCreate");
   check(
-    secure > 0 && created > secure,
-    "FLAG_SECURE is set before the screen is created (no screenshots, blank card in recent apps)",
+    secure > 0 &&
+      created > secure &&
+      /setRecentsScreenshotEnabled\(false\)/.test(activity),
+    "FLAG_SECURE is set before the screen is created, and the recent apps never show the app",
+  );
+  const callPlugin = fs.readFileSync(
+    path.join(
+      android,
+      "app",
+      "src",
+      "main",
+      "java",
+      "app",
+      "chatterly",
+      "renewed",
+      "CallServicePlugin.java",
+    ),
+    "utf8",
+  );
+  check(
+    (
+      activity.match(
+        /clearFlags\(WindowManager\.LayoutParams\.FLAG_SECURE\)/g,
+      ) ?? []
+    ).length === 0 &&
+      (
+        callPlugin.match(
+          /clearFlags\(WindowManager\.LayoutParams\.FLAG_SECURE\)/g,
+        ) ?? []
+      ).length === 1,
+    "screenshots are allowed only through setSecure (the page allows them only with verified contacts)",
+  );
+  check(
+    /setAllowFileAccess\(false\)/.test(activity) &&
+      /setGeolocationEnabled\(false\)/.test(activity) &&
+      /setJavaScriptCanOpenWindowsAutomatically\(false\)/.test(activity),
+    "the WebView gets no file:// access, no location and no windows opened by script",
   );
   const chrome = fs.readFileSync(
     path.join(
@@ -828,10 +957,15 @@ function checkBuiltApk() {
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
     "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
     "android.permission.INTERNET",
     "android.permission.MODIFY_AUDIO_SETTINGS",
+    "android.permission.POST_NOTIFICATIONS",
     "android.permission.RECORD_AUDIO",
+    "android.permission.REQUEST_DELETE_PACKAGES",
     "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.USE_FULL_SCREEN_INTENT",
+    "android.permission.VIBRATE",
     // AndroidX defines this one for the app itself (signature level): it guards its own non-exported receivers.
     "app.chatterly.renewed.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
   ];
@@ -899,6 +1033,12 @@ function checkBuiltApk() {
     "the web app inside the APK talks to an https server and has the strict relay policy (" +
       (window.CHATTERLY_API ?? "no native-config.js") +
       ")",
+  );
+  check(
+    ![...files.keys()].some(function emojiFont(name) {
+      return /^assets\/public\/media\/noto-color-emoji-/.test(name);
+    }),
+    "the APK carries no web emoji font (the WebView draws it empty; Android has its own Noto)",
   );
   const connect = (cspOf(index).get("connect-src") ?? []).join(" ");
   check(

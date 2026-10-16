@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- mobile/android/app/src/main/res/drawable/notification_button_on.xml: a button of the call notification that is on (muted, deafened). Small corners, as the person asked. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="8dp" />
+    <solid android:color="@color/notification_button_on" />
+</shape>

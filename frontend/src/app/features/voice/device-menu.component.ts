@@ -1,11 +1,13 @@
 /**
  * src/app/features/voice/device-menu.component.ts
- * The little arrow next to the microphone and the camera buttons of a call (like in Discord): it opens a list of the
- * devices, the one in use is marked, and choosing one switches to it at once, without leaving the call.
+ * The little arrow next to the microphone, headphones and camera buttons of a call (like in Discord): it opens a list of the
+ * devices, the one in use is marked, and choosing one switches to it at once, without leaving the call. In the Android app
+ * the arrow of the headphones chooses where the voice sounds (phone, speaker, headphones or Bluetooth).
  */
 import {
   Component,
   ElementRef,
+  computed,
   EnvironmentInjector,
   HostListener,
   inject,
@@ -18,6 +20,10 @@ import { CallService } from '../../core/services/call.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { openBackgroundPicker } from './background-picker.component';
+import { closeOnBack } from '../../core/services/back.service';
+import { listenWhile } from '../../shared/util/listen-while';
+import { NativeCallService } from '../../core/services/native-call.service';
+import type { AudioRoute } from '../../core/native-bridge';
 
 /** One device of the list. */
 interface Device {
@@ -27,6 +33,13 @@ interface Device {
 
 /** Which devices the arrow offers: the microphones, the speakers, or the cameras. */
 export type DeviceKind = 'mic' | 'speakers' | 'video';
+
+/**
+ * The one list that is open now, of all the arrows of the page (the call page and the floating panel have their own).
+ * ! Only one at a time: opening the microphones closes the speakers. A press outside used to be the only thing that closed
+ *   them, and a tap on a phone (or a press stopped by another element) could leave two lists open on top of each other.
+ */
+const openList = signal<object | null>(null);
 
 @Component({
   selector: 'app-device-menu',
@@ -65,6 +78,26 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
                 <app-icon name="check" [size]="15" class="text-accent" />
               }
             </button>
+          }
+        } @else if (kind() === 'speakers' && native.available) {
+          <!-- Android: where the voice sounds (the phone at the ear, the speaker, a headset). -->
+          <div class="label px-2.5 pb-1 pt-1.5">{{ 'Audio output' | t }}</div>
+          @for (route of native.routes(); track route.id) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="device-item"
+              [attr.aria-checked]="native.currentRoute() === route.id"
+              (click)="chooseRoute(route)"
+            >
+              <app-icon [name]="routeIcon(route)" [size]="15" />
+              <span class="min-w-0 flex-1 truncate">{{ native.routeLabel(route) }}</span>
+              @if (native.currentRoute() === route.id) {
+                <app-icon name="check" [size]="15" class="text-accent" />
+              }
+            </button>
+          } @empty {
+            <p class="px-2.5 pb-1 pt-1 text-[0.6875rem] text-dim">{{ 'No other output' | t }}</p>
           }
         } @else if (kind() === 'speakers') {
           <div class="label px-2.5 pb-1 pt-1.5">{{ 'Speakers' | t }}</div>
@@ -146,15 +179,21 @@ export type DeviceKind = 'mic' | 'speakers' | 'video';
   `,
 })
 export class DeviceMenuComponent implements OnDestroy {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   /** Which devices to offer. */
   readonly kind = input.required<DeviceKind>();
 
   protected readonly settings = inject(SettingsService);
   private readonly call = inject(CallService);
+  /** Android: the outputs of the voice of a call. */
+  protected readonly native = inject(NativeCallService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(EnvironmentInjector);
 
-  protected readonly open = signal(false);
+  /** True while this list is the open one. */
+  protected readonly open = computed(this.isOpen.bind(this));
   protected readonly inputs = signal<Device[]>([]);
   protected readonly outputs = signal<Device[]>([]);
   protected readonly cameras = signal<Device[]>([]);
@@ -165,23 +204,42 @@ export class DeviceMenuComponent implements OnDestroy {
     navigator.mediaDevices?.addEventListener?.('devicechange', this.onDeviceChange);
   }
 
-  /** Stops listening for devices. */
+  /** Stops listening for devices (and closes the list if it was the open one). */
   ngOnDestroy(): void {
     navigator.mediaDevices?.removeEventListener?.('devicechange', this.onDeviceChange);
+    this.setOpen(false);
   }
 
+  /** True while this list is the open one. */
+  private isOpen(): boolean {
+    return openList() === this;
+  }
+
+  /** Opens this list (closing any other one) or closes it. */
+  private setOpen(on: boolean): void {
+    if (on) openList.set(this);
+    else if (openList() === this) openList.set(null);
+  }
+
+  /** While open, a press anywhere else closes the list. */
+  private readonly outside = listenWhile(
+    this.backOpen.bind(this),
+    document,
+    'mousedown',
+    this.onOutside.bind(this),
+  );
+
   /** A press anywhere else closes the list. */
-  @HostListener('document:mousedown', ['$event'])
-  onOutside(event: MouseEvent): void {
+  onOutside(event: Event): void {
     if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
-      this.open.set(false);
+      this.setOpen(false);
     }
   }
 
   /** Escape closes the list. */
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    this.open.set(false);
+    this.setOpen(false);
   }
 
   /** The name of what the arrow opens (for screen readers). */
@@ -196,10 +254,30 @@ export class DeviceMenuComponent implements OnDestroy {
   /** Opens or closes the list (reading the devices when it opens). */
   protected toggle(): void {
     const next = !this.open();
-    this.open.set(next);
-    if (next) {
+    this.setOpen(next);
+    if (next && this.kind() === 'speakers' && this.native.available) {
+      // A headset may have been plugged in since the last look.
+      void this.native.refreshRoutes();
+    } else if (next) {
       void this.refresh();
     }
+  }
+
+  /** Android: sends the voice to an output and closes the list. */
+  protected chooseRoute(route: AudioRoute): void {
+    this.setOpen(false);
+    void this.native.setRoute(route);
+  }
+
+  /** Android: the icon of an output of the voice. */
+  protected routeIcon(route: AudioRoute): string {
+    const icons: Record<AudioRoute['kind'], string> = {
+      earpiece: 'smartphone',
+      speaker: 'volume-2',
+      wired: 'headphones',
+      bluetooth: 'bluetooth',
+    };
+    return icons[route.kind];
   }
 
   /** Reads the devices. The names are empty until the browser has given permission, so they get a number then. */
@@ -238,7 +316,7 @@ export class DeviceMenuComponent implements OnDestroy {
 
   /** Closes the list and opens the window of the camera backgrounds. */
   protected openBackground(): void {
-    this.open.set(false);
+    this.setOpen(false);
     openBackgroundPicker(this.injector);
   }
 
@@ -246,5 +324,15 @@ export class DeviceMenuComponent implements OnDestroy {
   protected chooseCamera(id: string): void {
     this.settings.cameraDeviceId.set(id);
     void this.call.changeCamera();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return this.open();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
+    this.setOpen(false);
   }
 }

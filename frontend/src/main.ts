@@ -19,23 +19,31 @@ function start(): void {
 }
 
 /**
- * Marks weak devices (a phone, 4 cores or fewer, 4 GB of memory or less, or "save data" on) so the page can do less of what is only
- * decoration: no blur behind panels, a lighter animation of arriving, no web fonts for emoji and names, and quick motion.
+ * Marks weak devices (2 cores or fewer, 2 GB of memory or less, or "save data" on). With the automatic power mode (the
+ * default) the page then does less of what is only decoration: no blur behind panels, still decorations, a lighter
+ * camera. A phone is not weak for being a phone: it gets every animation, like the computer (the person can choose the
+ * battery saver in Settings > Appearance).
  */
 function markWeakDevice(): void {
   const info = navigator as Navigator & {
     deviceMemory?: number;
     connection?: { saveData?: boolean };
   };
-  // a phone (a touch screen that is small) starts in light mode: its first seconds are the ones that must not stutter
-  const phone = window.matchMedia('(pointer: coarse) and (max-width: 820px)').matches;
   if (
-    phone ||
-    (info.hardwareConcurrency ?? 8) <= 4 ||
-    (info.deviceMemory ?? 8) <= 4 ||
+    (info.hardwareConcurrency ?? 8) <= 2 ||
+    (info.deviceMemory ?? 8) <= 2 ||
     info.connection?.saveData === true
   ) {
-    document.documentElement.dataset['perf'] = 'low';
+    document.documentElement.dataset['weak'] = '1';
+  }
+  try {
+    // Before the settings are read (the first paint), the light mode follows what the person chose last time.
+    const mode = JSON.parse(localStorage.getItem('chatterly.pref.powerMode') ?? '"auto"');
+    if (mode === 'saver' || (mode === 'auto' && document.documentElement.dataset['weak'] === '1')) {
+      document.documentElement.dataset['perf'] = 'low';
+    }
+  } catch {
+    // Storage blocked: the settings decide a moment later.
   }
 }
 

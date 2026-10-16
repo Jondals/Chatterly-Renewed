@@ -23,6 +23,8 @@ const HEADLINES: Record<AndroidUpdateStatus, string> = {
   available: 'A new version is available',
   downloading: 'Downloading the update…',
   ready: 'The update is ready to install',
+  older: 'An older version is available in this channel',
+  saved: 'Ready to change version',
   error: 'The update could not be completed',
 };
 
@@ -46,7 +48,13 @@ const HEADLINES: Record<AndroidUpdateStatus, string> = {
           <div class="text-base font-bold">{{ headline() | t }}</div>
           <div class="text-xs text-muted">
             Chatterly v{{ version }}
-            @if (update.found() && (status() === 'available' || status() === 'ready')) {
+            @if (
+              update.found() &&
+              (status() === 'available' ||
+                status() === 'ready' ||
+                status() === 'older' ||
+                status() === 'saved')
+            ) {
               → v{{ update.found() }}
             }
           </div>
@@ -73,6 +81,42 @@ const HEADLINES: Record<AndroidUpdateStatus, string> = {
               <app-icon name="download" [size]="16" /> {{ 'Install' | t }}
             </button>
           }
+          @case ('older') {
+            <div class="flex w-full flex-col gap-2">
+              <button
+                type="button"
+                class="btn w-full justify-center"
+                (click)="update.changeToOlder()"
+              >
+                <app-icon name="download" [size]="16" /> {{ changeLabel() }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost w-full justify-center"
+                (click)="update.check()"
+              >
+                <app-icon name="spin" [size]="16" /> {{ 'Check for updates' | t }}
+              </button>
+            </div>
+          }
+          @case ('saved') {
+            <div class="flex w-full flex-col gap-2">
+              <button
+                type="button"
+                class="btn btn-danger w-full justify-center"
+                (click)="update.uninstall()"
+              >
+                {{ 'Uninstall Chatterly' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost w-full justify-center"
+                (click)="update.cancelChange()"
+              >
+                {{ 'Cancel' | t }}
+              </button>
+            </div>
+          }
           @default {
             <button
               type="button"
@@ -87,6 +131,27 @@ const HEADLINES: Record<AndroidUpdateStatus, string> = {
       </div>
       @if (update.problem()) {
         <p class="mt-3 text-sm text-muted">{{ update.problem() | t }}</p>
+      }
+      @if (status() === 'older') {
+        <p class="mt-3 text-sm text-muted">
+          {{
+            'Android never installs an older version over a newer one. To change to it, Chatterly has to be uninstalled first: that erases what the app keeps on this phone and you will sign in again. Or wait: the next version of this channel will arrive by itself.'
+              | t
+          }}
+        </p>
+      }
+      @if (status() === 'saved') {
+        <ol class="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">
+          <li>{{ savedStep() }}</li>
+          <li>{{ 'Press Uninstall Chatterly and confirm it in the window of Android.' | t }}</li>
+          <li>
+            {{
+              'Open the Files app (or Downloads), tap the file and install it. Android may ask to allow that app to install apps.'
+                | t
+            }}
+          </li>
+          <li>{{ 'Open Chatterly and sign in again.' | t }}</li>
+        </ol>
       }
       @if (status() === 'ready') {
         <p class="mt-3 text-xs text-muted">
@@ -136,6 +201,20 @@ export class AndroidUpdatesSectionComponent {
       return HEADLINES[this.status()];
     }.bind(this),
   );
+  /** "Change to v2.33.0" (the version the channel offers). */
+  protected readonly changeLabel = computed(
+    function (this: AndroidUpdatesSectionComponent): string {
+      return this.i18n.t('Change to v{v}', { v: this.update.found() });
+    }.bind(this),
+  );
+  /** The first step of the change: where the file was kept. */
+  protected readonly savedStep = computed(
+    function (this: AndroidUpdatesSectionComponent): string {
+      return this.i18n.t('{name} is saved in the Downloads folder of the phone.', {
+        name: this.update.savedName(),
+      });
+    }.bind(this),
+  );
   /** The channel choice: for a tester or administrator, or for somebody who runs a beta (to go back to Release). */
   protected readonly showChannel = computed(
     function (this: AndroidUpdatesSectionComponent): boolean {
@@ -152,9 +231,10 @@ export class AndroidUpdatesSectionComponent {
     }.bind(this),
   );
 
-  /** Changes the channel and looks again in the new one. */
+  /** Changes the channel and looks again in the new one (a change to an older version that was half done is left). */
   protected setChannel(value: string): void {
     this.update.beta.set(value === 'beta');
+    this.update.cancelChange();
     void this.update.check();
   }
 }

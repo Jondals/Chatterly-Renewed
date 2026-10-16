@@ -1,15 +1,47 @@
 /**
  * src/app/shared/util/emoji-only.ts
- * Detects a message that is only a few emoji (up to ten), which the chat draws big (like WhatsApp does): the fewer, the bigger.
+ * Detects a message that is only emoji (spaces between them are fine), which the chat draws big and without a bubble
+ * (like WhatsApp does): the fewer, the bigger.
  */
 
-/** One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ. */
-const EMOJI =
-  /^(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*){1,10}$/u;
+/**
+ * One emoji: a pictographic character with an optional variation selector or skin tone, joined with others by ZWJ; or a
+ * flag (two regional letters, or a black flag with tag letters, like Scotland); or a keycap (a digit, # or * with the
+ * keycap mark).
+ */
+const ONE =
+  /(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\u{1F3F4}[\u{E0061}-\u{E007A}]+\u{E007F}|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3)/u
+    .source;
 
-/** True when the text (ignoring spaces at both ends) is only one to ten emoji. */
+/** Invisible marks that some keyboards leave around emoji (zero-width space, word joiner, text-style selector...). */
+const INVISIBLE = /[\u200B\u200C\u2060\uFE0E\uFEFF]/gu;
+
+/** The text without the invisible marks and the spaces around it. */
+function bare(text: string): string {
+  return text.replace(INVISIBLE, '').trim();
+}
+
+/** Only emoji, as many as there are, with any spaces between them. */
+const EMOJI = new RegExp('^' + ONE + '(?:\\s*' + ONE + ')*$', 'u');
+
+/** Splits a text into what a person sees as characters (an emoji with its skin tone or a family is one). */
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** How many emoji (graphemes that are not spaces) a text has. */
+export function emojiCountOf(text: string): number {
+  let count = 0;
+  for (const part of GRAPHEMES.segment(bare(text))) {
+    if (part.segment.trim()) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/** True when the text (ignoring spaces) is only emoji, however many: it never gets a bubble. */
 export function isOnlyEmoji(text: string): boolean {
-  return EMOJI.test(text.trim());
+  const trimmed = bare(text);
+  return trimmed.length > 0 && EMOJI.test(trimmed);
 }
 
 /** The kinds of emoji that have their own little animation when they are alone in a message (the first one counts). */

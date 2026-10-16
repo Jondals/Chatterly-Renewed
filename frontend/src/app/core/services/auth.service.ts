@@ -17,7 +17,8 @@ import { deriveSecrets } from '../crypto/kdf';
 import type { Tokens, User } from '../models';
 import { ApiError, ApiService } from './api.service';
 import { forgetVault, openText, sealText } from '../session-vault';
-import { wipeDeviceData } from '../device-wipe';
+import { claimDevice, rememberOwner, wipeDeviceData, wipeSession } from '../device-wipe';
+import { resetPersisted } from './persisted';
 import { KEY_STORE } from './key-store';
 
 /** Tokens plus the moment the access token expires. */
@@ -70,13 +71,28 @@ export class AuthService {
   /** True while the account is being erased (see `deleteAccount`). */
   private erasing = false;
 
-  /** The server refused to renew the session: sign out on this device only. */
+  /**
+   * True once this page handed its session over to another page of the same app (Android: a page kept alive for a call after
+   * the app was swiped away, see CallKeeper.java). ! It never renews the session or writes it again from then on: the new page
+   * owns it, and two pages renewing the same session would look like a stolen token to the server (it closes every session).
+   */
+  private frozen = false;
+
+  /** Stops renewing and writing the session (another page of this device owns it now). */
+  freeze(): void {
+    this.frozen = true;
+  }
+
+  /**
+   * The server refused to renew the session: sign out on this device only. What the person made here (stickers, sounds,
+   * presets, preferences) stays for their next sign in; only the session and the keys go (see device-wipe.ts).
+   */
   private onSessionExpired(): void {
     // ? While the account is being erased the server refuses the session on purpose: the page is about to be loaded again.
-    if (this.erasing) {
+    if (this.erasing || this.frozen) {
       return;
     }
-    void this.logout(false).then(function reload() {
+    void this.logout(false, true).then(function reload() {
       // Nothing of the account stays in memory either: the sign-in page is loaded from scratch.
       window.location.assign('/login');
     });
@@ -107,6 +123,8 @@ export class AuthService {
       if (raw && stored) {
         const saved = JSON.parse(raw) as { session: Session; user: User };
         if (saved.user.id === stored.userId) {
+          // An install from before the owner was noted: what it keeps is of the account that is signed in.
+          rememberOwner(saved.user.id);
           this.session = saved.session;
           this.user.set(saved.user);
           if (sealed && sealed.startsWith('{')) void this.persist();
@@ -122,7 +140,9 @@ export class AuthService {
         }
       }
     } catch {
-      await this.clearLocal();
+      // ! A session that cannot be read (damaged, or from a version that sealed it otherwise) is not a reason to lose the
+      //   stickers and presets of the person: only the session goes.
+      await this.clearLocal(true);
     }
   }
 
@@ -236,8 +256,11 @@ export class AuthService {
     await wipeDeviceData();
   }
 
-  /** Signs out; the server is told too unless the session was already refused. */
-  async logout(callServer = true): Promise<void> {
+  /**
+   * Signs out; the server is told too unless the session was already refused. `keepPersonal`: what the person made on this
+   * device (stickers, sounds, presets, fonts, preferences) stays; only the session and the keys go.
+   */
+  async logout(callServer = true, keepPersonal = false): Promise<void> {
     const refresh = this.session?.refreshToken;
     const retryKey = this.session?.retryKey;
     if (callServer && refresh) {
@@ -249,7 +272,7 @@ export class AuthService {
         )
         .catch(this.ignore);
     }
-    await this.clearLocal();
+    await this.clearLocal(keepPersonal);
   }
 
   /** Stores a new version of the profile of the person. */
@@ -262,6 +285,9 @@ export class AuthService {
   async getAccessToken(forceRefresh = false): Promise<string | null> {
     if (!this.session) {
       return null;
+    }
+    if (this.frozen) {
+      return this.session.accessToken;
     }
     if (!forceRefresh && this.session.accessExp - Date.now() > RENEW_MARGIN) {
       return this.session.accessToken;
@@ -299,14 +325,21 @@ export class AuthService {
       return tokens.accessToken;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        await this.clearLocal();
+        await this.clearLocal(true);
       }
       return null;
     }
   }
 
-  /** Saves the identity on this device and starts the session. */
+  /**
+   * Saves the identity on this device and starts the session. ! If what this device keeps belongs to another account, it is
+   * all erased first (and the preferences go back to their defaults), so nobody inherits the stickers or settings of the
+   * person who used it before.
+   */
   private async startSession(response: AuthResponse, identity: Identity): Promise<void> {
+    if (await claimDevice(response.user.id)) {
+      resetPersisted();
+    }
     await this.keyStore.save({
       userId: response.user.id,
       ecdhPrivate: identity.ecdhPrivate,
@@ -334,6 +367,9 @@ export class AuthService {
 
   /** Writes the session to localStorage, encrypted; the promise ends when the latest version is written. */
   private persist(): Promise<void> {
+    if (this.frozen) {
+      return Promise.resolve();
+    }
     const write = this.writeSession.bind(this);
     this.writing = this.writing.then(write, write);
     return this.writing;
@@ -351,16 +387,16 @@ export class AuthService {
   }
 
   /**
-   * Forgets everything about the account on this device (see device-wipe.ts for the list). The caller loads the page
-   * again afterwards, so nothing that was read into memory survives either.
+   * Forgets the account on this device (see device-wipe.ts for the list): everything, or with `keepPersonal` only the session
+   * and the keys. The caller loads the page again afterwards, so nothing that was read into memory survives either.
    */
-  private async clearLocal(): Promise<void> {
+  private async clearLocal(keepPersonal = false): Promise<void> {
     this.session = null;
     this.user.set(null);
     this.unlockedIdentity.set(null);
     localStorage.removeItem(SESSION_KEY);
     await forgetVault();
     await this.keyStore.clear();
-    await wipeDeviceData();
+    await (keepPersonal ? wipeSession() : wipeDeviceData());
   }
 }

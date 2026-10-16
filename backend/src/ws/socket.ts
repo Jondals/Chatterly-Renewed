@@ -12,6 +12,8 @@ import type { Client, Presence } from './hub';
 
 const PRESENCE_VALUES: Presence[] = ['online', 'idle', 'dnd', 'invisible'];
 const MAX_SIGNAL_BYTES = 48 * 1024;
+/** The shortest time between two "typing" of one connection in one channel that are passed on (the others show it for 4 s). */
+const TYPING_MS = 2000;
 
 /**
  * Whether a page was served from the same address that opens the socket (a browser cannot forge the Host header, so
@@ -48,6 +50,9 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
     });
   };
   hub.onRoomChange = announceRoom;
+
+  /** When each connection last said it was typing in each channel: it is passed on at most once every TYPING_MS. */
+  const lastTyping = new WeakMap<Client, Map<string, number>>();
 
   app.get('/ws', { websocket: true }, function (socket: WebSocket, req) {
     // ! Cross-site WebSocket hijacking guard. Non-browser clients send no Origin.
@@ -174,6 +179,12 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
         const channel =
           typeof msg['channelId'] === 'string' ? getChannel(db, msg['channelId']) : undefined;
         if (!channel || !canAccessChannel(db, channel, userId)) return;
+        // ! Throttled: a client repeating "typing" must not make the server send it to the whole group many times a second.
+        const seen = lastTyping.get(client) ?? new Map<string, number>();
+        lastTyping.set(client, seen);
+        const now = Date.now();
+        if (now - (seen.get(channel.id) ?? 0) < TYPING_MS) return;
+        seen.set(channel.id, now);
         hub.sendToMany(
           channelAudience(db, channel),
           { t: 'typing', channelId: channel.id, userId },
@@ -196,8 +207,14 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
             return send({ t: 'error', code: 'not_friends' });
         }
         const wasEmpty = hub.participants(channel.id).length === 0;
-        const joined = hub.joinRoom(channel.id, userId);
+        const heldRoom = hub.roomOf(userId);
+        const joined = hub.joinRoom(channel.id, client);
         if (!joined.ok) return send({ t: 'error', code: 'room_full' });
+        // ! The person joined from another of their devices: that one leaves the call quietly (it must not send "leave",
+        //   which would take away the place that has just moved here).
+        if (joined.replaced && heldRoom) {
+          joined.replaced.send({ t: 'call.transferred', roomId: heldRoom });
+        }
         send({
           t: 'call.joined',
           roomId: channel.id,
@@ -218,12 +235,15 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
       }
 
       case 'call.leave': {
+        // A device whose call already moved to another one cannot end it there.
+        if (!hub.isCallClient(client)) return;
         const room = hub.leaveRoom(userId);
         if (room) send({ t: 'call.left', roomId: room });
         return;
       }
 
       case 'call.update': {
+        if (!hub.isCallClient(client)) return;
         const room = hub.roomOf(userId);
         if (!room) return;
         const patch: Record<string, boolean> = {};
@@ -246,8 +266,8 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
         )
           return;
         if (JSON.stringify(payload).length > MAX_SIGNAL_BYTES) return;
-        if (!hub.inSameRoom(roomId, userId, to)) return;
-        hub.sendTo(to, { t: 'rtc.signal', roomId, from: userId, payload });
+        if (!hub.isCallClient(client) || !hub.inSameRoom(roomId, userId, to)) return;
+        hub.sendToCall(to, { t: 'rtc.signal', roomId, from: userId, payload });
         return;
       }
 

@@ -5,6 +5,7 @@
 import { Component, HostListener, inject } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { ViewerService } from '../../core/services/viewer.service';
+import { closeOnBack } from '../../core/services/back.service';
 
 /** The big picture of a profile picture. */
 @Component({
@@ -35,11 +36,24 @@ import { ViewerService } from '../../core/services/viewer.service';
   `,
 })
 export class ImageViewerComponent {
+  /** The back key of the phone closes it (see BackService). */
+  private readonly backKey = closeOnBack(this.backOpen.bind(this), this.backClose.bind(this));
+
   protected readonly viewer = inject(ViewerService);
 
   /** Esc closes the picture. */
   @HostListener('document:keydown.escape')
   protected close(): void {
+    this.viewer.close();
+  }
+
+  /** Whether it is open for the back key. */
+  private backOpen(): boolean {
+    return !!this.viewer.open();
+  }
+
+  /** The back key closes it. */
+  private backClose(): void {
     this.viewer.close();
   }
 }

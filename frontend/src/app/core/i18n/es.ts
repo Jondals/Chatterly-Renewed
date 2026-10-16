@@ -120,7 +120,6 @@ export const ES: Record<string, string> = {
   'Pop-up notices': 'Avisos emergentes',
   'The small messages that appear in the corner, like Copied.':
     'Los mensajitos que salen en la esquina, como Copiado.',
-  'Only important': 'Solo importantes',
   'Solid color': 'Color sólido',
   'Background color': 'Color del fondo',
   'Base color': 'Color base',
@@ -141,8 +140,6 @@ export const ES: Record<string, string> = {
   'Shuffle': 'Aleatorio',
   'A different background is picked at random. Choose when it changes.':
     'Se elige un fondo distinto al azar. Elige cuándo cambia.',
-  'On every reload': 'En cada recarga',
-  'Every few minutes': 'Cada pocos minutos',
   'Change every': 'Cambiar cada',
   'Orb': 'Esfera',
   'Sleek': 'Elegante',
@@ -1117,7 +1114,6 @@ export const ES: Record<string, string> = {
     'Los grupos que tienes pasan al miembro más antiguo (un grupo sin nadie más se borra); de los demás simplemente sales.',
   'Who can see you online': 'Quién puede verte en línea',
   'Everybody': 'Todo el mundo',
-  'Friends only': 'Solo amigos',
   'Nobody': 'Nadie',
   'Your online status. Anybody who is not allowed sees you as offline, whatever you do.':
     'Tu estado en línea. Quien no tenga permiso te verá desconectado, hagas lo que hagas.',
@@ -1246,16 +1242,10 @@ export const ES: Record<string, string> = {
   'No category': 'Sin categoría',
   'End-to-end encryption': 'Cifrado de extremo a extremo',
   'Call data': 'Datos de la llamada',
-  'Introduction': 'Introducción',
-  'The animation that plays once each time you open the browser.':
-    'La animación que sale una vez cada vez que abres el navegador.',
-  'Watch it again': 'Verla otra vez',
   'Sent, encrypted': 'Enviados, cifrados',
   'Received, decrypted': 'Recibidos, descifrados',
   'Add the pack to my soundboard': 'Añadir el pack a mi tablero de sonidos',
   '{n} sounds added to your soundboard': '{n} sonidos añadidos a tu tablero de sonidos',
-  'Share as a pack': 'Compartir como pack',
-  'Open a chat to send it there.': 'Abre un chat para enviarlo ahí.',
   'Sent to the chat': 'Enviado al chat',
   'Playback speed': 'Velocidad de reproducción',
   'Your voice goes as it comes out of the microphone.': 'Tu voz sale tal como sale del micrófono.',
@@ -1306,7 +1296,6 @@ export const ES: Record<string, string> = {
   'Save how your profile looks now (colors, effect, name animation, About me, pictures...) with a name, and bring it back in one press. You can share it in a chat.':
     'Guarda con un nombre cómo se ve tu perfil ahora (colores, efecto, animación del nombre, Sobre mí, imágenes...) y recupéralo con una pulsación. Puedes compartirlo en un chat.',
   'Name of the preset': 'Nombre del preajuste',
-  'Save what I have now': 'Guardar lo que tengo ahora',
   'You have no presets of this kind yet.': 'Todavía no tienes preajustes de este tipo.',
   'Update with what I have now': 'Actualizar con lo que tengo ahora',
   'Preset saved': 'Preajuste guardado',
@@ -1426,8 +1415,56 @@ export const ES: Record<string, string> = {
     'Chatterly se cerrará y se abrirá de nuevo con la versión nueva.',
   'The update could not be downloaded': 'No se pudo descargar la actualización',
   'No Android beta has been published yet.': 'Todavía no se ha publicado ninguna beta de Android.',
-  'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.':
-    'La última beta es anterior a la versión instalada: Android solo la instala si antes desinstalas Chatterly.',
+  'A download is already in progress: wait for it to finish.':
+    'Ya hay una descarga en marcha: espera a que termine.',
+  'That version is not newer than the one installed: Android never installs an older or equal version over it.':
+    'Esa versión no es más nueva que la instalada: Android nunca instala una versión anterior o igual encima.',
+  'The file is not signed with the key of Chatterly, so it was refused: it could be a forged copy.':
+    'El archivo no está firmado con la clave de Chatterly y se ha rechazado: podría ser una copia falsificada.',
+  'The downloaded file is not Chatterly, so it was refused.':
+    'El archivo descargado no es Chatterly y se ha rechazado.',
+  'The download arrived damaged (its fingerprint does not match). Try again.':
+    'La descarga llegó dañada (su huella no coincide). Inténtalo otra vez.',
+  'The file of that version is not on the server: it may not be published yet.':
+    'El archivo de esa versión no está en el servidor: puede que aún no se haya publicado.',
+  'The server could not give the file right now. Try again in a few minutes.':
+    'El servidor no ha podido dar el archivo ahora. Inténtalo dentro de unos minutos.',
+  'The update pointed to an address the app does not trust, so nothing was downloaded.':
+    'La actualización apuntaba a una dirección de la que la app no se fía, así que no se descargó nada.',
+  'The file is far bigger than an update of Chatterly, so it was refused.':
+    'El archivo es mucho más grande que una actualización de Chatterly y se ha rechazado.',
+  'The phone could not save the file: check that there is free space.':
+    'El teléfono no ha podido guardar el archivo: comprueba que hay espacio libre.',
+  'There is no connection with the server. Check the internet and try again.':
+    'No hay conexión con el servidor. Comprueba internet e inténtalo otra vez.',
+  'Too many tries in a short time: wait a minute and try again.':
+    'Demasiados intentos en poco tiempo: espera un minuto e inténtalo otra vez.',
+  'Your account is not in the beta program any more: choose Release.':
+    'Tu cuenta ya no está en el programa beta: elige Release.',
+  'The session has expired: sign in again and retry.':
+    'La sesión ha caducado: vuelve a iniciar sesión e inténtalo otra vez.',
+  'The beta server answered something the app does not understand.':
+    'El servidor de betas ha respondido algo que la app no entiende.',
+  'An older version is available in this channel': 'Este canal tiene una versión anterior',
+  'Ready to change version': 'Listo para cambiar de versión',
+  'Change to v{v}': 'Cambiar a la v{v}',
+  'Uninstall Chatterly': 'Desinstalar Chatterly',
+  'Android never installs an older version over a newer one. To change to it, Chatterly has to be uninstalled first: that erases what the app keeps on this phone and you will sign in again. Or wait: the next version of this channel will arrive by itself.':
+    'Android nunca instala una versión anterior encima de una más nueva. Para cambiar a ella hay que desinstalar Chatterly antes: eso borra lo que la app guarda en este móvil y tendrás que volver a iniciar sesión. O espera: la próxima versión de este canal te llegará sola.',
+  '{name} is saved in the Downloads folder of the phone.':
+    '{name} está guardado en la carpeta Descargas del móvil.',
+  'Press Uninstall Chatterly and confirm it in the window of Android.':
+    'Pulsa Desinstalar Chatterly y confírmalo en la ventana de Android.',
+  'Open the Files app (or Downloads), tap the file and install it. Android may ask to allow that app to install apps.':
+    'Abre la app Archivos (o Descargas), toca el archivo e instálalo. Android puede pedirte que permitas a esa app instalar apps.',
+  'Open Chatterly and sign in again.': 'Abre Chatterly y vuelve a iniciar sesión.',
+  'The version could not be prepared': 'No se pudo preparar la versión',
+  'The uninstaller of Android could not be opened': 'No se pudo abrir el desinstalador de Android',
+  'Changing to an older version needs Android 10 or newer: uninstall Chatterly and install the APK from the release page by hand.':
+    'Cambiar a una versión anterior necesita Android 10 o posterior: desinstala Chatterly e instala a mano el APK de la página de la release.',
+  'The file could not be saved in Downloads: check that there is free space.':
+    'No se pudo guardar el archivo en Descargas: comprueba que hay espacio libre.',
+  'That is the version you already have.': 'Esa es la versión que ya tienes.',
   'Updates': 'Actualizaciones',
   'Check for updates': 'Buscar actualizaciones',
   'Checking…': 'Buscando…',
@@ -1624,8 +1661,8 @@ export const ES: Record<string, string> = {
   'Everybody else disappears until they speak. Cameras and pictures keep the game clear.':
     'El resto desaparece hasta que hable. Así las cámaras y las fotos no tapan el juego.',
   'Adds your own camera or picture to the panel.': 'Añade tu propia cámara o foto al panel.',
-  "Your friends' cameras do not appear if you record your game or share your screen.":
-    'Las cámaras de tus amigos no salen si grabas tu juego o compartes tu pantalla.',
+  "Your friends' cameras do not appear if you record your game or share your screen. On some computers Windows then hides the overlay from your own screen too: if you do not see it, turn this off.":
+    'Las cámaras de tus amigos no salen si grabas tu juego o compartes tu pantalla. En algunos equipos Windows también oculta entonces el overlay de tu propia pantalla: si no lo ves, apágalo.',
   'Small': 'Pequeño',
   'Large': 'Grande',
   'The main screen': 'La pantalla principal',
@@ -1676,4 +1713,193 @@ export const ES: Record<string, string> = {
   'Add from the open windows': 'Añadir desde las ventanas abiertas',
   'No other windows are open.': 'No hay otras ventanas abiertas.',
   'Or type part of the name of its window': 'O escribe parte del nombre de su ventana',
+  'Saved in Downloads': 'Guardado en Descargas',
+  'Download {name}': 'Descargar {name}',
+  'Could not save the file': 'No se pudo guardar el archivo',
+  'Save GIF': 'Guardar GIF',
+  'Save image': 'Guardar imagen',
+  'A contact is verified once for your account: your other devices see it as verified too.':
+    'Un contacto se verifica una vez para tu cuenta: tus otros dispositivos también lo ven verificado.',
+  'Performance': 'Rendimiento',
+  'Calls in the background': 'Llamadas en segundo plano',
+  'Power mode': 'Modo de energía',
+  'Maximum': 'Máximo',
+  'Saving battery now: the battery is low.': 'Ahorrando batería ahora: queda poca batería.',
+  'Saving battery now: this device could not keep up with everything.':
+    'Ahorrando batería ahora: este dispositivo no podía con todo.',
+  'Still decorations, no blur, the camera at 480p and 15 frames per second. The animations of the interface follow their own setting.':
+    'Decoraciones quietas, sin desenfoque y la cámara a 480p y 15 imágenes por segundo. Las animaciones de la interfaz siguen su propio ajuste.',
+  'Everything on, always, even with low battery.':
+    'Todo activado, siempre, aunque quede poca batería.',
+  'Everything on. With low battery, or on a device that cannot keep up, it saves battery by itself.':
+    'Todo activado. Con poca batería, o en un dispositivo que no puede con todo, ahorra batería solo.',
+  'Audio output': 'Salida de audio',
+  'No other output': 'No hay otra salida',
+  'Phone': 'Teléfono',
+  'Speaker': 'Altavoz',
+  'Headphones': 'Auriculares',
+  'Bluetooth': 'Bluetooth',
+  'Call moved to another device': 'La llamada pasó a otro dispositivo',
+  'You are in this call on another device now.':
+    'Ahora estás en esta llamada desde otro dispositivo.',
+  'Calls over the lock screen': 'Llamadas sobre la pantalla de bloqueo',
+  'Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked.':
+    'Android pide que lo permitas: así una llamada que suena ocupa la pantalla, como una llamada de teléfono, aunque el móvil esté bloqueado.',
+  'Allow': 'Permitir',
+  'Reload': 'Recarga',
+  'Timed': 'Periódico',
+  'Saver': 'Ahorro',
+  'Important': 'Importantes',
+  'Watch it': 'Verla',
+  'Intro when Chatterly opens': 'Intro al abrir Chatterly',
+  'The short animation of the logo before the app appears. Off: Chatterly opens straight away.':
+    'La animación corta del logo antes de que aparezca la app. Apagada: Chatterly se abre directamente.',
+  'Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open.':
+    'Mantiene Chatterly conectado con una notificación fija, para que las llamadas suenen con la app minimizada o la pantalla apagada. Apagado: sin notificación, y las llamadas solo suenan con la app abierta.',
+  'Back': 'Atrás',
+  'Send a sound': 'Enviar un sonido',
+  'You have no sounds yet. Add them in the soundboard of a call.':
+    'Aún no tienes sonidos. Añádelos en el tablero de sonidos de una llamada.',
+  'Send the category as a pack': 'Enviar la categoría como paquete',
+  'Android asks next what to share: the whole screen or one app.':
+    'Después Android pregunta qué compartir: la pantalla entera o una app.',
+  'Name and emoji': 'Nombre y emoji',
+  'The server runs an older version without these tools. They appear when it is updated.':
+    'El servidor tiene una versión anterior sin estas herramientas. Aparecerán cuando se actualice.',
+  'Accounts': 'Cuentas',
+  'this week': 'esta semana',
+  'Online now': 'Conectados ahora',
+  'connections': 'conexiones',
+  'Calls now': 'Llamadas ahora',
+  'people': 'personas',
+  'Messages in 24 h': 'Mensajes en 24 h',
+  'in all': 'en total',
+  'MB on the disk': 'MB en el disco',
+  'of libraries': 'de bibliotecas',
+  'These are the only things the server knows in clear: names, dates and totals. Messages, files, calls and keys are encrypted on the devices, and nobody here can read them.':
+    'Es lo único que el servidor sabe en claro: nombres, fechas y totales. Los mensajes, archivos, llamadas y claves se cifran en los dispositivos y nadie puede leerlos desde aquí.',
+  'Loading…': 'Cargando…',
+  'Search by name': 'Buscar por nombre',
+  'Search': 'Buscar',
+  'Suspended': 'Suspendida',
+  'Sign out everywhere': 'Cerrar sesión en todas partes',
+  'Restore': 'Restaurar',
+  'Suspend': 'Suspender',
+  'Nobody matches.': 'No hay nadie con ese nombre.',
+  'People who receive the beta versions of the apps before everybody else, and tell you what breaks. They choose in Settings > Updates whether to use them.':
+    'Personas que reciben las versiones beta de las apps antes que nadie y te cuentan qué falla. Eligen en Ajustes > Actualizaciones si las usan.',
+  'Sign-up': 'Registro',
+  'New accounts can be made': 'Se pueden crear cuentas nuevas',
+  'Announcement': 'Anuncio',
+  'A short text every person sees on top of the app at once (a maintenance, a new version). Each person can hide it.':
+    'Un texto corto que todo el mundo ve al momento arriba de la app (un mantenimiento, una versión nueva). Cada persona puede ocultarlo.',
+  'For example: the server restarts at 22:00 for a few minutes.':
+    'Por ejemplo: el servidor se reinicia a las 22:00 unos minutos.',
+  'Remove it': 'Quitarlo',
+  'Publish': 'Publicar',
+  'In force:': 'Ahora mismo:',
+  'Only an owner (set in the server) makes or removes administrators. Administrators manage the beta program, the accounts and the announcements.':
+    'Solo un dueño (fijado en el servidor) pone o quita administradores. Los administradores gestionan el programa beta, las cuentas y los anuncios.',
+  'Nothing has been done yet.': 'Todavía no se ha hecho nada.',
+  'Could not load it': 'No se pudo cargar',
+  'Could not do it': 'No se pudo hacer',
+  'Suspend {name}': 'Suspender a {name}',
+  'Their sessions end now and they cannot sign in until you restore the account. Nothing of it is deleted. The reason is what they are told (optional).':
+    'Sus sesiones se cierran ya y no podrá entrar hasta que restaures la cuenta. No se borra nada de ella. El motivo es lo que se le dirá (opcional).',
+  'Reason': 'Motivo',
+  'Every session of @{name} ends now, on every device. They can sign in again.':
+    'Todas las sesiones de @{name} se cierran ya, en todos sus dispositivos. Puede volver a entrar.',
+  'Joined {date}': 'Desde el {date}',
+  '1 session': '1 sesión',
+  '{n} sessions': '{n} sesiones',
+  'Version of the server': 'Versión del servidor',
+  'Running for': 'En marcha desde hace',
+  'Suspended accounts': 'Cuentas suspendidas',
+  'Closed, nobody can make an account on this server (the owners still can). The people who have one keep it.':
+    'Cerrado, nadie puede crear una cuenta en este servidor (los dueños sí). Quien ya tiene una la conserva.',
+  'Overview': 'Resumen',
+  'Beta program': 'Programa beta',
+  'Server': 'Servidor',
+  'Record': 'Registro',
+  'Testers': 'Probadores',
+  'Information': 'Información',
+  'Warning': 'Aviso',
+  'open': 'abierto',
+  'Closed': 'Cerrado',
+  'Remove from beta': 'Quitar de la beta',
+  'Make tester': 'Hacer probador',
+  'Remove administrator': 'Quitar administrador',
+  'Make administrator': 'Hacer administrador',
+  'Account suspended': 'Cuenta suspendida',
+  'Account restored': 'Cuenta restaurada',
+  'Signed out everywhere': 'Sesión cerrada en todas partes',
+  'Taken out of the beta program': 'Fuera del programa beta',
+  'Added to the beta program': 'Añadido al programa beta',
+  'Administration taken away': 'Administración retirada',
+  'Administrator added': 'Administrador añadido',
+  'The sign-up is open': 'El registro está abierto',
+  'The sign-up is closed': 'El registro está cerrado',
+  'Announcement published': 'Anuncio publicado',
+  'Announcement removed': 'Anuncio quitado',
+  'Suspended {target}': 'Suspendió a {target}',
+  'Restored {target}': 'Restauró a {target}',
+  'Signed {target} out everywhere': 'Cerró las sesiones de {target}',
+  'Opened the sign-up': 'Abrió el registro',
+  'Closed the sign-up': 'Cerró el registro',
+  'Published an announcement': 'Publicó un anuncio',
+  'Removed the announcement': 'Quitó el anuncio',
+  'Made {target} an administrator': 'Hizo administrador a {target}',
+  'Took the administration from {target}': 'Quitó la administración a {target}',
+  'Made {target} a beta tester': 'Hizo probador a {target}',
+  'Took {target} out of the beta program': 'Sacó a {target} del programa beta',
+  'Press the shortcut to unlock it: drag every widget where you want it and pin the ones that must stay while you play. A click outside, Esc or the cross give the mouse back to the game.':
+    'Pulsa el atajo para desbloquearlo: arrastra cada widget donde quieras y fija los que deben verse mientras juegas. Un clic fuera, Esc o la X devuelven el ratón al juego.',
+  'The text of the messages': 'El texto de los mensajes',
+  'Draws your call over the games you play: who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game.':
+    'Dibuja tu llamada encima de los juegos: quién está y quién habla, las cámaras, las pantallas que comparten, los mensajes que te llegan y los botones de la llamada. Nunca lee ni cambia el juego.',
+  'The notifications show what the message says. Off: only who wrote it and where.':
+    'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
+  'Mute, deafen, camera, screen and hang up.': 'Silenciar, ensordecer, cámara, pantalla y colgar.',
+  'Who is in the call, who talks and who is live.':
+    'Quién está en la llamada, quién habla y quién está en directo.',
+  'The cameras, yours too.': 'Las cámaras, también la tuya.',
+  'The game you registered and for how long.': 'El juego que registraste y cuánto llevas.',
+  'Streams': 'Transmisiones',
+  'The screens they share, with their volume.': 'Las pantallas que comparten, con su volumen.',
+  'The messages you get, to open them.': 'Los mensajes que te llegan, para abrirlos.',
+  'Activity': 'Actividad',
+  'Stickers and presets': 'Stickers y preajustes',
+  'Keep a copy in my account': 'Guardar una copia en mi cuenta',
+  'Syncing…': 'Sincronizando…',
+  'Your stickers and presets are in your account.': 'Tus stickers y preajustes están en tu cuenta.',
+  'Your account is full: what does not fit stays on this device.':
+    'Tu cuenta está llena: lo que no cabe se queda en este dispositivo.',
+  'Could not reach your account. It is tried again with the next change.':
+    'No se pudo llegar a tu cuenta. Se vuelve a intentar con el siguiente cambio.',
+  'Waiting for your account…': 'Esperando a tu cuenta…',
+  'Sync now': 'Sincronizar ahora',
+  'Keep them on this device when I sign out': 'Conservarlos en este dispositivo al cerrar sesión',
+  'Your sticker packs and presets reach every device you sign in on, and come back if this device loses them. Encrypted here first: the server keeps something it cannot read.':
+    'Tus paquetes de stickers y preajustes llegan a todos los dispositivos donde entres, y vuelven si este dispositivo los pierde. Se cifran aquí antes: el servidor guarda algo que no puede leer.',
+  'Signing out then erases only your session and your keys. If another account signs in here, everything is erased first.':
+    'Al cerrar sesión solo se borran tu sesión y tus claves. Si otra cuenta entra aquí, antes se borra todo.',
+  'No background': 'Sin fondo',
+  'This stream has no sound.': 'Esta transmisión no tiene sonido.',
+  'Unmute the stream': 'Activar el sonido',
+  'Mute the stream': 'Silenciar la transmisión',
+  'From the administrators': 'De los administradores',
+  'A minimized window cannot be shared and does not show here: restore it and press Refresh.':
+    'Una ventana minimizada no se puede compartir y no sale aquí: restáurala y pulsa Actualizar.',
+  'Refresh': 'Actualizar',
+  'Only an owner of the server can do that.': 'Solo un dueño del servidor puede hacer eso.',
+  'You cannot do that to your own account.': 'No puedes hacerle eso a tu propia cuenta.',
+  'This account is suspended by the administrators of the server.':
+    'Los administradores del servidor han suspendido esta cuenta.',
+  'This server is not accepting new accounts right now.':
+    'Este servidor no admite cuentas nuevas ahora mismo.',
+  'Open the installer': 'Abrir el instalador',
+  'The others do not hear the sound of that app': 'Los demás no oyen el sonido de esa app',
+  'Android lets each app forbid capturing its sound, and this one does. The picture is still shared.':
+    'Android deja que cada app prohíba capturar su sonido, y esta lo hace. La imagen se sigue compartiendo.',
+  'Direct3D 12': 'Direct3D 12',
 };

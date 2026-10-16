@@ -8,6 +8,9 @@ import { Injectable, computed, effect, inject, signal, untracked } from '@angula
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 
+/** How long to wait before asking the server again when it did not answer. */
+const RETRY_MS = 30_000;
+
 /** One person who can try the beta versions. */
 export interface BetaTester {
   id: string;
@@ -31,6 +34,8 @@ export class BetaService {
   readonly beta = signal(false);
   /** The account administers the program. */
   readonly admin = signal(false);
+  /** The account is an owner of the server (ADMIN_USERS): only owners make or unmake administrators. */
+  readonly owner = signal(false);
   /** The beta channel is open to this account: a tester, or an administrator (who can always try what they publish). */
   readonly canUseBeta = computed(this.readCanUse.bind(this));
   /** The server has answered for this account (before that, "not a tester" only means "not known yet"). */
@@ -90,31 +95,44 @@ export class BetaService {
     this.testers.set(answer.testers);
   }
 
-  /** Follows the account: nothing is known while nobody is signed in. */
+  /**
+   * Follows the account: nothing is known while nobody is signed in. Only a change of the person asks again (the profile
+   * object changes every time the person edits their name or picture, and that is not a reason to ask).
+   */
   private onUser(): void {
-    const user = this.auth.user();
-    untracked(this.refresh.bind(this, user !== null));
+    const id = this.auth.user()?.id ?? null;
+    if (id === this.userId) {
+      return;
+    }
+    this.userId = id;
+    untracked(this.refresh.bind(this, id !== null));
   }
+
+  /** The account the state belongs to. */
+  private userId: string | null = null;
 
   /** Reads the state of the account (or forgets it when nobody is signed in). */
   private refresh(signedIn: boolean): void {
     if (!signedIn) {
+      clearTimeout(this.retryTimer);
       this.beta.set(false);
       this.admin.set(false);
+      this.owner.set(false);
       this.known.set(false);
       this.testers.set([]);
       this.admins.set([]);
       return;
     }
     this.api
-      .get<{ beta: boolean; admin: boolean }>('/api/beta/me')
+      .get<{ beta: boolean; admin: boolean; owner?: boolean }>('/api/beta/me')
       .then(this.onState.bind(this), this.forget.bind(this));
   }
 
   /** Keeps the answer, and loads the list for an administrator. */
-  private onState(state: { beta: boolean; admin: boolean }): void {
+  private onState(state: { beta: boolean; admin: boolean; owner?: boolean }): void {
     this.beta.set(state.beta);
     this.admin.set(state.admin);
+    this.owner.set(state.owner === true);
     this.known.set(true);
     if (state.admin) {
       this.loadTesters().catch(this.forget.bind(this));
@@ -122,9 +140,27 @@ export class BetaService {
     }
   }
 
-  /** The server did not answer (offline, an older server): the beta features simply stay hidden. */
+  /**
+   * The server did not answer (offline, a renewal of the session in the middle, an older server). What was known stays as it
+   * was, and the answer is asked for again in a while.
+   * ! It must never look like "not a tester any more": the desktop app leaves the beta channel when the account is KNOWN not to
+   *   be in the program, and a single failed request used to say exactly that, so the channel went back to Release by itself.
+   */
   private forget(): void {
-    this.beta.set(false);
-    this.admin.set(false);
+    if (!this.known()) {
+      this.beta.set(false);
+      this.admin.set(false);
+    }
+    clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(this.retry.bind(this), RETRY_MS);
   }
+
+  /** Asks again after a failure, if somebody is still signed in. */
+  private retry(): void {
+    if (this.auth.user() !== null) {
+      this.refresh(true);
+    }
+  }
+
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
 }

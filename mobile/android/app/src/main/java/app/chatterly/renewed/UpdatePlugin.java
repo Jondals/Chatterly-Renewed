@@ -1,6 +1,9 @@
 /*
  * mobile/android/app/src/main/java/app/chatterly/renewed/UpdatePlugin.java
  * Downloads a new version of the app and hands it to the installer of Android ("ChatterlyUpdate": download, install).
+ * Changing to an OLDER version (a beta that goes back to the release, or the other way round) cannot be done over the installed
+ * app: Android refuses a lower version code. Then the checked APK is kept in the Downloads folder (keepInDownloads), the
+ * person uninstalls the app (uninstall: the dialog of Android) and installs that file from Downloads.
  *
  * ! What may be downloaded is closed: only an APK of the beta server of this app (https://<API host>/api/beta/dl/Chatterly-*.apk,
  *   with the beta token of the account in a header) or an APK of a release of this repository in GitHub (and the storage
@@ -8,9 +11,13 @@
  * ! Nothing is trusted because of where it came from. Before the installer opens, the APK must be this same app (package
  *   name), NEWER than the installed one (no downgrade) and signed with exactly the same certificate as the installed app.
  *   Android checks the certificate again when it installs; the person always confirms in the installer of the system.
+ * ! An older version is only downloaded on request (allowOlder) and never given to the installer: it only goes to Downloads,
+ *   after the same checks (this app, signed with the same certificate).
  */
 package app.chatterly.renewed;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -19,6 +26,7 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.JSObject;
@@ -62,7 +70,13 @@ public class UpdatePlugin extends Plugin {
     /** A download is in progress (only one at a time). */
     private volatile boolean busy = false;
 
-    /** Downloads and checks an APK (url, optional beta token, optional SHA-256); answers its version. */
+    /** The type of an APK. */
+    private static final String APK_TYPE = "application/vnd.android.package-archive";
+
+    /**
+     * Downloads and checks an APK (url, optional beta token, optional SHA-256); answers its version. With allowOlder the APK
+     * may be an older version (to keep in Downloads, never to install over the app).
+     */
     @PluginMethod
     public void download(PluginCall call) {
         if (busy) {
@@ -72,12 +86,79 @@ public class UpdatePlugin extends Plugin {
         String url = call.getString("url", "");
         String token = call.getString("token", null);
         String sha256 = call.getString("sha256", null);
+        boolean allowOlder = Boolean.TRUE.equals(call.getBoolean("allowOlder", false));
         if (!allowed(url, token)) {
             call.reject("This address is not a download of the app");
             return;
         }
         busy = true;
-        new Thread(new DownloadJob(this, call, url, token, sha256), "chatterly-update").start();
+        new Thread(new DownloadJob(this, call, url, token, sha256, allowOlder), "chatterly-update").start();
+    }
+
+    /**
+     * Copies the downloaded APK (checked again: this app, same certificate, another version) to the Downloads folder, where it
+     * stays after the app is uninstalled. Answers the name of the file. Android 10 or newer (no storage permission needed).
+     */
+    @PluginMethod
+    public void keepInDownloads(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.reject("Changing to an older version needs Android 10 or newer", "android-version");
+            return;
+        }
+        Context context = getContext();
+        File apk = apkFile();
+        String problem = apk.exists() ? check(context, apk, true) : "There is no downloaded version";
+        if (problem != null) {
+            call.reject(problem);
+            return;
+        }
+        PackageInfo info = context.getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(), 0);
+        String version = info != null && info.versionName != null ? info.versionName.replaceAll("[^0-9A-Za-z.-]", "") : "";
+        String name = "Chatterly-" + (version.isEmpty() ? "update" : version) + ".apk";
+        ContentResolver resolver = context.getContentResolver();
+        Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        // A copy left by an earlier try (the app only sees its own files there) is replaced, not doubled as "(1)".
+        resolver.delete(collection, MediaStore.MediaColumns.DISPLAY_NAME + "=?", new String[] { name });
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, APK_TYPE);
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri item = resolver.insert(collection, values);
+        if (item == null) {
+            call.reject("The file could not be kept in Downloads");
+            return;
+        }
+        byte[] buffer = new byte[64 * 1024];
+        try (InputStream in = new java.io.FileInputStream(apk); OutputStream out = resolver.openOutputStream(item)) {
+            if (out == null) {
+                throw new IOException("The file could not be kept in Downloads");
+            }
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+        } catch (IOException failed) {
+            resolver.delete(item, null, null);
+            call.reject("The file could not be kept in Downloads");
+            return;
+        }
+        ContentValues done = new ContentValues();
+        done.put(MediaStore.MediaColumns.IS_PENDING, 0);
+        resolver.update(item, done, null, null);
+        apk.delete();
+        JSObject answer = new JSObject();
+        answer.put("name", name);
+        call.resolve(answer);
+    }
+
+    /** Opens the dialog of Android that uninstalls this app (the person confirms there; nothing is removed without it). */
+    @PluginMethod
+    public void uninstall(PluginCall call) {
+        Context context = getContext();
+        Intent remove = new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + context.getPackageName()));
+        remove.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(remove);
+        call.resolve();
     }
 
     /** Opens the installer of Android with the APK that was downloaded and checked (asks for the permission the first time). */
@@ -85,7 +166,7 @@ public class UpdatePlugin extends Plugin {
     public void install(PluginCall call) {
         Context context = getContext();
         File apk = apkFile();
-        String problem = apk.exists() ? check(context, apk) : "There is no downloaded version";
+        String problem = apk.exists() ? check(context, apk, false) : "There is no downloaded version";
         if (problem != null) {
             call.reject(problem);
             return;
@@ -100,7 +181,7 @@ public class UpdatePlugin extends Plugin {
         }
         Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", apk);
         Intent open = new Intent(Intent.ACTION_VIEW);
-        open.setDataAndType(uri, "application/vnd.android.package-archive");
+        open.setDataAndType(uri, APK_TYPE);
         open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(open);
         call.resolve();
@@ -131,9 +212,10 @@ public class UpdatePlugin extends Plugin {
 
     /**
      * Why an APK must not be installed, or null when it may: it has to be this app, newer than the installed version and
-     * signed with exactly the same certificates as the installed app.
+     * signed with exactly the same certificates as the installed app. With allowOlder it may be any OTHER version (it is
+     * only kept in Downloads, never installed over the app).
      */
-    static String check(Context context, File apk) {
+    static String check(Context context, File apk, boolean allowOlder) {
         PackageManager manager = context.getPackageManager();
         int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
         PackageInfo update = manager.getPackageArchiveInfo(apk.getAbsolutePath(), flags);
@@ -149,8 +231,8 @@ public class UpdatePlugin extends Plugin {
         } catch (PackageManager.NameNotFoundException impossible) {
             return "The installed app cannot be read";
         }
-        if (versionCode(update) <= versionCode(installed)) {
-            return "The file is not newer than the installed version";
+        if (allowOlder ? versionCode(update) == versionCode(installed) : versionCode(update) <= versionCode(installed)) {
+            return allowOlder ? "The file is the installed version" : "The file is not newer than the installed version";
         }
         Set<String> wanted = certificates(installed);
         if (wanted.isEmpty() || !wanted.equals(certificates(update))) {
@@ -213,14 +295,16 @@ public class UpdatePlugin extends Plugin {
         private final String url;
         private final String token;
         private final String sha256;
+        private final boolean allowOlder;
 
         /** Keeps what the download needs. */
-        DownloadJob(UpdatePlugin plugin, PluginCall call, String url, String token, String sha256) {
+        DownloadJob(UpdatePlugin plugin, PluginCall call, String url, String token, String sha256, boolean allowOlder) {
             this.plugin = plugin;
             this.call = call;
             this.url = url;
             this.token = token;
             this.sha256 = sha256;
+            this.allowOlder = allowOlder;
         }
 
         /** Downloads to a temporary file, checks it and keeps it as the update; any problem deletes it. */
@@ -235,7 +319,7 @@ public class UpdatePlugin extends Plugin {
                 if (sha256 != null && !sha256.equalsIgnoreCase(digest)) {
                     throw new IOException("The download is damaged (its SHA-256 is not the expected one)");
                 }
-                String problem = check(plugin.getContext(), part);
+                String problem = check(plugin.getContext(), part, allowOlder);
                 if (problem != null) {
                     throw new IOException(problem);
                 }

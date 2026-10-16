@@ -59,6 +59,8 @@ type Tab = 'online' | 'all' | 'pending';
             [titleClass]="nameClass(p)"
             [titleColor]="p.profileColor"
             [subtitle]="statusWord(p.id) | t"
+            [clickable]="true"
+            (pressed)="ui.profileUserId.set(p.id)"
           >
             <app-avatar leading [user]="p" [size]="32" [status]="social.statusOf(p.id)" />
             <button

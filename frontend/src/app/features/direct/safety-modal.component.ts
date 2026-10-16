@@ -43,7 +43,7 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
       <div class="mt-3 rounded-ui border border-accent/25 bg-accent/5 p-4">
         <div class="label mb-2 text-center text-accent">{{ 'Safety number' | t }}</div>
         <div
-          class="grid grid-cols-4 gap-x-3 gap-y-2 text-center font-mono text-[0.9375rem] font-bold tracking-wider"
+          class="grid grid-cols-4 gap-x-2 gap-y-2 text-center font-mono text-[0.8125rem] font-bold tracking-wide sm:gap-x-3 sm:text-[0.9375rem] sm:tracking-wider"
         >
           @for (g of groups(); track $index) {
             <span class="anim-fade-in" [style.--d]="$index * 40 + 'ms'">{{ g }}</span>
@@ -51,7 +51,14 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
         </div>
       </div>
 
-      <details class="mt-3 text-xs text-muted">
+      <p class="mt-3 text-xs text-muted">
+        {{
+          'A contact is verified once for your account: your other devices see it as verified too.'
+            | t
+        }}
+      </p>
+
+      <details class="mt-3 min-w-0 text-xs text-muted">
         <summary class="cursor-pointer font-semibold hover:text-fg">
           {{ 'Show raw identity fingerprints' | t }}
         </summary>
@@ -67,15 +74,17 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
         </div>
       </details>
 
-      <div class="mt-5 flex items-center justify-between gap-3">
+      <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         @if (directory.isVerified(userId())) {
-          <span class="chip chip-accent"
+          <span class="chip chip-accent self-start sm:self-auto"
             ><app-icon name="check" [size]="11" /> {{ 'Verified' | t }}</span
           >
         } @else {
-          <span class="text-xs text-muted">{{ 'Numbers match? Mark them as verified.' | t }}</span>
+          <span class="min-w-0 text-xs text-muted">{{
+            'Numbers match? Mark them as verified.' | t
+          }}</span>
         }
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 max-sm:[&>.btn]:flex-1">
           <button class="btn" type="button" (click)="copy()">
             <app-icon name="copy" [size]="15" /> {{ 'Copy' | t }}
           </button>

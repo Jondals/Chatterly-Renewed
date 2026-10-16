@@ -51,6 +51,23 @@ function byCreation(first: CustomSound, second: CustomSound): number {
   return first.createdAt - second.createdAt;
 }
 
+/** A sound of the person as a file of a message, marked for the soundboard of whoever receives it (with its pack, if any). */
+export function soundAsFile(
+  clip: CustomSound,
+  pack?: string,
+): { data: Blob; name: string; mime: string; soundboard: true; emoji?: string; pack?: string } {
+  const type = clip.blob.type || 'audio/wav';
+  const extension = type.includes('mpeg') ? '.mp3' : type.includes('ogg') ? '.ogg' : '.wav';
+  return {
+    data: clip.blob,
+    name: clip.name + extension,
+    mime: type,
+    soundboard: true,
+    emoji: clip.emoji,
+    pack,
+  };
+}
+
 /** The person's own soundboard clips, stored only on this device (IndexedDB). */
 @Injectable({ providedIn: 'root' })
 export class SoundboardStore {

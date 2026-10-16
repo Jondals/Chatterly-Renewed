@@ -7,6 +7,8 @@ import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 
 /** Feather-style 24×24 stroke icons. Paths are static, trusted constants. */
 const ICONS: Record<string, string> = {
+  smartphone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  bluetooth: '<path d="m7 7 10 10-5 5V2l5 5L7 17"/>',
   shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
   radio:
     '<circle cx="12" cy="12" r="2"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14M7.76 16.24a6 6 0 0 1 0-8.48M16.24 7.76a6 6 0 0 1 0 8.48M19.07 4.93a10 10 0 0 1 0 14.14"/>',

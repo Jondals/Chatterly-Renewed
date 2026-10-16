@@ -57,9 +57,10 @@ function pageCanvas(size: number): HTMLCanvasElement {
   return canvas;
 }
 
-/** The whole page goes to the light mode (no blur, quick motion) for this visit. */
+/** The device could not keep up with the show: the settings decide what to lighten (the automatic power mode does). */
 function lightMode(): void {
-  document.documentElement.dataset['perf'] = 'low';
+  document.documentElement.dataset['weak'] = '1';
+  window.dispatchEvent(new Event('chatterly:weak'));
 }
 
 /** Whether this browser can draw on a canvas from a worker. */
@@ -78,10 +79,12 @@ function canUseWorker(canvas: HTMLCanvasElement): boolean {
  */
 export function startFx(canvas: HTMLCanvasElement, mode: FxMode): Fx {
   const weak = document.documentElement.dataset['perf'] === 'low';
+  // A phone has 3 pixels per point: glowing dots look the same drawn at 1, and it is up to 9 times fewer pixels to fill.
+  const touch = window.matchMedia('(pointer: coarse)').matches;
   const config: ShowConfig = {
     mode,
     // Sharper than 1.5 pixels per pixel is not seen in glowing dots, and it costs the square of it to fill.
-    ratio: Math.min(window.devicePixelRatio || 1, weak ? 1 : 1.5),
+    ratio: Math.min(window.devicePixelRatio || 1, weak || touch ? 1 : 1.5),
     width: canvas.clientWidth || window.innerWidth,
     height: canvas.clientHeight || window.innerHeight,
     weak,

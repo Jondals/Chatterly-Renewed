@@ -37,9 +37,13 @@ import { canChangeCamera, isNeutral, startCameraFx, type CameraFx } from './came
 import { SocketService, type ServerEvent } from './socket.service';
 import { buildVoiceChain } from '../audio-chain';
 import { desktopBridge } from '../desktop-bridge';
-import { STRICT_RELAY } from '../config';
-import { keepCallAlive } from '../native-bridge';
-import { androidScreenAvailable, startAndroidScreen, stopAndroidScreen } from '../android-screen';
+import { ANDROID_APP, STRICT_RELAY } from '../config';
+import {
+  androidScreenAvailable,
+  onScreenSilent,
+  startAndroidScreen,
+  stopAndroidScreen,
+} from '../android-screen';
 import { SoundService, type SfxId } from './sound.service';
 import { ToastService } from './toast.service';
 
@@ -170,7 +174,37 @@ interface Link {
   relayRequired: boolean;
   /** When the connection was first connected (ms since 1970): the frame encryption must be proven soon after. */
   connectedAt?: number;
+  /** The share (0.15 to 1) of the highest bitrate the video towards this person may use now (see adaptVideo). */
+  videoScale: number;
+  /** The lowest round trip seen on this connection (ms): the line without a queue. */
+  baseRtt: number;
+  /** Seconds in a row that the line looked clear (the video goes up again after a while). */
+  clearSeconds: number;
+  /** Packets of our video the other side reported lost and sent, at the last measure. */
+  lastVideoLoss: { lost: number; sent: number };
 }
+
+/**
+ * ! The most a camera may send, by the height of its picture (bits per second). In production every call goes through
+ * the relay over TLS, that is over TCP: whatever the line cannot carry is queued, and the queue shows as a round trip that
+ * keeps growing until the call breaks. A ceiling, plus adaptVideo lowering it as soon as the queue appears, keeps the
+ * picture moving instead.
+ */
+const CAMERA_BITRATE: Record<string, number> = {
+  '480': 700_000,
+  '720': 1_500_000,
+  '1080': 3_000_000,
+};
+/** The ceilings of a shared screen, by the quality chosen. */
+const SCREEN_BITRATE: Record<string, number> = {
+  standard: 2_500_000,
+  high: 5_000_000,
+  max: 8_000_000,
+};
+/** The lowest share of the ceiling the video goes down to when the line is full. */
+const MIN_VIDEO_SCALE = 0.12;
+/** Seconds of a clear line before the video goes up a step again. */
+const CLEAR_SECONDS_TO_RISE = 6;
 
 /**
  * ! How long a connected call may go without proof that the frame encryption works before it is closed: at least one
@@ -389,6 +423,9 @@ export class CallService {
             break;
           case 'call.incoming':
             this.onIncoming(e['roomId'] as string, e['from'] as string);
+            break;
+          case 'call.transferred':
+            this.onTransferred(e['roomId'] as string);
             break;
           case 'rtc.signal':
             this.onSignal(
@@ -936,11 +973,11 @@ export class CallService {
    * instead of failing, and the choice goes back to "default".
    */
   private async openRawCamera(): Promise<MediaStream> {
-    const height = Number(this.settings.cameraQuality());
+    const { height, fps } = this.cameraShape();
     const quality = {
       width: { ideal: Math.round((height * 16) / 9) },
       height: { ideal: height },
-      frameRate: { ideal: Number(this.settings.cameraFps()) },
+      frameRate: { ideal: fps, max: fps },
     };
     const id = this.settings.cameraDeviceId();
     if (id !== 'default') {
@@ -953,6 +990,15 @@ export class CallService {
       }
     }
     return navigator.mediaDevices.getUserMedia({ video: quality });
+  }
+
+  /** The height and the pictures per second of the camera: the chosen ones, or 480p at 15 with the battery saver. */
+  private cameraShape(): { height: number; fps: number } {
+    const height = Number(this.settings.cameraQuality());
+    const fps = Number(this.settings.cameraFps());
+    return this.settings.saving()
+      ? { height: Math.min(height, 480), fps: Math.min(fps, 15) }
+      : { height, fps };
   }
 
   /** The person chose another camera: if the camera is on it restarts with the new one (the others see it change). */
@@ -986,7 +1032,7 @@ export class CallService {
       video.displaySurface = choice.surface;
     }
     if (androidScreenAvailable()) {
-      await this.shareAndroidScreen(choice.quality);
+      await this.shareAndroidScreen(choice.quality, choice.audio);
       return;
     }
     try {
@@ -1038,10 +1084,23 @@ export class CallService {
     }
   }
 
-  /** The Android app: the system captures the screen (after asking) and the pictures become the video of the call. */
-  private async shareAndroidScreen(quality: string): Promise<void> {
+  /**
+   * The Android app: the system captures the screen (after asking) and the pictures become the video of the call; with
+   * `withSound` the sound of the other apps of the phone goes with it (Android 10+).
+   */
+  private async shareAndroidScreen(quality: string, withSound: boolean): Promise<void> {
+    // The apps on screen may forbid capturing their sound: the person is told instead of thinking the others hear it.
+    onScreenSilent(
+      function (this: CallService) {
+        this.toast.info(
+          'The others do not hear the sound of that app',
+          'Android lets each app forbid capturing its sound, and this one does. The picture is still shared.',
+          '🔇',
+        );
+      }.bind(this),
+    );
     try {
-      const stream = await startAndroidScreen(quality);
+      const stream = await startAndroidScreen(quality, withSound);
       this.localScreen.set(stream);
       this.screenOn.set(true);
       this.lightenCameraFx(true);
@@ -1463,7 +1522,9 @@ export class CallService {
       if (level > 0.015) this.lastSpeech.set(link.userId, now);
       if (now - (this.lastSpeech.get(link.userId) ?? 0) < 300) speaking.add(link.userId);
     }
-    this.levels.set(levels);
+    // * The meters are drawn only when somebody can see them, and only when a level moved enough to show: an unchanged
+    //   signal does not wake the screen of the call 12 times a second (that kept a phone busy for nothing).
+    if (!document.hidden && this.levelsMoved(levels)) this.levels.set(levels);
     const prev = this.speaking();
     if (
       prev.size !== speaking.size ||
@@ -1474,10 +1535,28 @@ export class CallService {
       this.speaking.set(speaking);
   }
 
+  /** Whether any level differs from the ones on screen by more than can be seen (or a person came or went). */
+  private levelsMoved(next: Record<string, number>): boolean {
+    const shown = this.levels();
+    const ids = Object.keys(next);
+    if (ids.length !== Object.keys(shown).length) return true;
+    for (const id of ids) {
+      if (Math.abs((shown[id] ?? -1) - next[id]!) > 0.02) return true;
+    }
+    return false;
+  }
+
+  /** One buffer per analyser, reused at every measure instead of a new one 12 times a second. */
+  private readonly meterBuffers = new WeakMap<AnalyserNode, Uint8Array<ArrayBuffer>>();
+
   /** Loudness (0 to 1) of an audio analyser. */
   private rms(analyser: AnalyserNode | null): number {
     if (!analyser) return 0;
-    const data = new Uint8Array(analyser.fftSize);
+    let data = this.meterBuffers.get(analyser);
+    if (!data || data.length !== analyser.fftSize) {
+      data = new Uint8Array(analyser.fftSize);
+      this.meterBuffers.set(analyser, data);
+    }
     analyser.getByteTimeDomainData(data);
     let sum = 0;
     for (const v of data) {
@@ -1499,9 +1578,9 @@ export class CallService {
         return p.userId;
       }),
     );
+    // (On Android, NativeCallService follows this status: the notification of the call and the service that keeps the
+    // microphone alive with the screen off.)
     this.status.set('connected');
-    // On Android the microphone stops when the app goes to the background unless a foreground service runs.
-    keepCallAlive(true);
     // Mute/deafen are personal and persist between calls: tell the room how we joined.
     this.applyMute();
     if (this.muted() || this.deafened())
@@ -1529,6 +1608,13 @@ export class CallService {
       return next;
     });
     if (!participants.length && this.incoming()?.roomId === roomId) this.dismissIncoming();
+    // The call was answered on another device of this person: this one stops ringing.
+    if (
+      this.incoming()?.roomId === roomId &&
+      roomId !== this.roomId() &&
+      this.includesMe(participants)
+    )
+      this.dismissIncoming();
     if (roomId !== this.roomId()) return;
     this.participants.set(participants);
     const now = new Set(
@@ -1549,13 +1635,33 @@ export class CallService {
     void this.directory.ensure(now);
   }
 
+  /** Whether this person is in a list of participants (maybe from another of their devices). */
+  private includesMe(participants: CallParticipant[]): boolean {
+    const me = this.auth.user()?.id;
+    return participants.some(function isMe(p) {
+      return p.userId === me;
+    });
+  }
+
+  /**
+   * The person joined this call from another of their devices (the phone and then the computer, or the other way round):
+   * the call goes on there, so here it ends quietly. Nothing is sent to the server: a "leave" would take away the place
+   * that has just moved.
+   */
+  private onTransferred(roomId: string): void {
+    if (roomId !== this.roomId() && roomId !== this.pendingRoom) return;
+    this.teardown();
+    this.toast.info('Call moved to another device', 'You are in this call on another device now.');
+  }
+
   /** A call is ringing: show it, ring, and dismiss it after 45 seconds. */
   private onIncoming(roomId: string, from: string): void {
     if (this.roomId() === roomId) return;
     this.incoming.set({ roomId, from });
     void this.directory.ensure([from]);
     this.stopRing?.();
-    this.stopRing = this.sound.ring();
+    // On a hidden Android app the call notification rings with the ringtone of the phone (NativeCallService).
+    this.stopRing = ANDROID_APP && document.hidden ? null : this.sound.ring();
     setTimeout(
       function (this: CallService) {
         if (this.incoming()?.roomId === roomId) this.dismissIncoming();
@@ -1597,6 +1703,10 @@ export class CallService {
       remoteEph: null,
       protectedReceivers: new WeakSet(),
       relayRequired: this.relayRequired,
+      videoScale: 1,
+      baseRtt: Infinity,
+      clearSeconds: 0,
+      lastVideoLoss: { lost: 0, sent: 0 },
     };
     link.ephReady = crypto.subtle
       .generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits'])
@@ -1732,6 +1842,7 @@ export class CallService {
         const transceiver = this.protectTrack(link, sender, kind);
         if (kind === 'video' && transceiver) this.preferVp8(transceiver);
         if (kind === 'video' && isScreen) this.tuneScreenSender(sender, track);
+        if (kind === 'video' && !isScreen) this.tuneCameraSender(link, sender, track);
         return sender;
       }.bind(this),
     );
@@ -1747,16 +1858,92 @@ export class CallService {
   private tuneScreenSender(sender: RTCRtpSender, track: MediaStreamTrack): void {
     const motion = this.settings.screenShare().quality === 'max';
     track.contentHint = motion ? 'motion' : 'detail';
-    const ceiling = { standard: 2_500_000, high: 5_000_000, max: 8_000_000 };
     const params = sender.getParameters() as RTCRtpSendParameters & {
       degradationPreference?: string;
     };
     if (!params.encodings?.length) return;
-    params.encodings[0]!.maxBitrate = ceiling[this.settings.screenShare().quality] ?? ceiling.high;
+    params.encodings[0]!.maxBitrate = this.screenCeiling();
     params.degradationPreference = motion ? 'maintain-framerate' : 'maintain-resolution';
     void sender.setParameters(params).catch(function ignore(): void {
       return undefined;
     });
+  }
+
+  /** The highest bitrate of the shared screen, by the quality chosen. */
+  private screenCeiling(): number {
+    return SCREEN_BITRATE[this.settings.screenShare().quality] ?? SCREEN_BITRATE['high']!;
+  }
+
+  /** The highest bitrate of the camera, by its height (lower with the battery saver). */
+  private cameraCeiling(): number {
+    const { height } = this.cameraShape();
+    return CAMERA_BITRATE[String(height)] ?? CAMERA_BITRATE['720']!;
+  }
+
+  /**
+   * The camera keeps moving before it keeps its sharpness: under pressure the picture gets smaller, not slower (that was
+   * the stutter). It starts at the share of the ceiling the line allows now (adaptVideo moves it).
+   */
+  private tuneCameraSender(link: Link, sender: RTCRtpSender, track: MediaStreamTrack): void {
+    track.contentHint = 'motion';
+    const params = sender.getParameters() as RTCRtpSendParameters & {
+      degradationPreference?: string;
+    };
+    if (!params.encodings?.length) return;
+    params.encodings[0]!.maxBitrate = Math.round(this.cameraCeiling() * link.videoScale);
+    params.encodings[0]!.maxFramerate = this.cameraShape().fps;
+    params.degradationPreference = 'maintain-framerate';
+    void sender.setParameters(params).catch(function ignore(): void {
+      return undefined;
+    });
+  }
+
+  /**
+   * ! Keeps the video inside what the line carries, from the statistics of every second. A round trip well above the
+   * lowest one seen means packets are queuing (on the TCP relay that is how a full line shows) and a loss of more than
+   * 5 % means they are dropped: the video goes down by a third at once. After some seconds of a clear line it goes up
+   * a fifth at a time, to its ceiling. The voice is never touched (it is small and it matters most).
+   */
+  private adaptVideo(link: Link, rttMs: number | null, loss: { lost: number; sent: number }): void {
+    const lostNow = Math.max(0, loss.lost - link.lastVideoLoss.lost);
+    const sentNow = Math.max(0, loss.sent - link.lastVideoLoss.sent);
+    link.lastVideoLoss = loss;
+    if (rttMs !== null && rttMs > 0) link.baseRtt = Math.min(link.baseRtt, rttMs);
+    const queued =
+      rttMs !== null &&
+      Number.isFinite(link.baseRtt) &&
+      rttMs > Math.max(link.baseRtt * 2, link.baseRtt + 120);
+    const dropping = sentNow > 20 && lostNow / sentNow > 0.05;
+    let next = link.videoScale;
+    if (queued || dropping) {
+      link.clearSeconds = 0;
+      next = Math.max(MIN_VIDEO_SCALE, link.videoScale * 0.66);
+    } else if (++link.clearSeconds >= CLEAR_SECONDS_TO_RISE) {
+      link.clearSeconds = 0;
+      next = Math.min(1, link.videoScale * 1.2);
+    }
+    if (Math.abs(next - link.videoScale) < 0.01) return;
+    link.videoScale = next;
+    this.applyVideoCeilings(link);
+  }
+
+  /** Puts the current share of the ceilings on the camera and the screen sent to a person. */
+  private applyVideoCeilings(link: Link): void {
+    const ceilings: [RTCRtpSender[] | undefined, number][] = [
+      [link.senders.camera, this.cameraCeiling()],
+      [link.senders.screen, this.screenCeiling()],
+    ];
+    for (const [senders, ceiling] of ceilings) {
+      for (const sender of senders ?? []) {
+        if (sender.track?.kind !== 'video') continue;
+        const params = sender.getParameters();
+        if (!params.encodings?.length) continue;
+        params.encodings[0]!.maxBitrate = Math.max(100_000, Math.round(ceiling * link.videoScale));
+        void sender.setParameters(params).catch(function ignore(): void {
+          return undefined;
+        });
+      }
+    }
   }
 
   /** Stops sending the camera or screen video to a person. */
@@ -2285,6 +2472,8 @@ export class CallService {
       const now = performance.now();
       let bytesIn = 0;
       let bytesOut = 0;
+      let linkRtt: number | null = null;
+      const videoLoss = { lost: 0, sent: 0 };
       let selectedPair: string | undefined;
       report.forEach(function (s) {
         if (s.type === 'transport') {
@@ -2301,7 +2490,11 @@ export class CallService {
           ) {
             if (typeof s.currentRoundTripTime === 'number') {
               rtts.push(s.currentRoundTripTime * 1000);
-              this.updatePeer(link.userId, { rttMs: Math.round(s.currentRoundTripTime * 1000) });
+              linkRtt = s.currentRoundTripTime * 1000;
+              const rounded = Math.round(linkRtt);
+              // Only a real change wakes the screen of the call.
+              if (this.peers()[link.userId]?.rttMs !== rounded)
+                this.updatePeer(link.userId, { rttMs: rounded });
             }
           } else if (s.type === 'inbound-rtp') {
             bytesIn += s.bytesReceived ?? 0;
@@ -2312,9 +2505,15 @@ export class CallService {
             }
           } else if (s.type === 'outbound-rtp') {
             bytesOut += s.bytesSent ?? 0;
+            if (s.kind === 'video') videoLoss.sent += s.packetsSent ?? 0;
+          } else if (s.type === 'remote-inbound-rtp' && s.kind === 'video') {
+            videoLoss.lost += Math.max(0, s.packetsLost ?? 0);
           }
         }.bind(this),
       );
+      if (link.senders.camera?.length || link.senders.screen?.length) {
+        this.adaptVideo(link, linkRtt, videoLoss);
+      }
       const seconds = Math.max(0.2, (now - link.lastBytes.at) / 1000);
       inn += Math.max(0, ((bytesIn - link.lastBytes.in) * 8) / 1000 / seconds);
       out += Math.max(0, ((bytesOut - link.lastBytes.out) * 8) / 1000 / seconds);
@@ -2397,7 +2596,6 @@ export class CallService {
     this.rttHistory.set([]);
     this.previousParticipants = new Set();
     this.status.set('idle');
-    keepCallAlive(false);
     this.worker?.terminate();
     this.worker = null;
     // The next call asks the server again: nothing about how to connect is remembered between calls.

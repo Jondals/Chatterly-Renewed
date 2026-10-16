@@ -1,9 +1,10 @@
 /**
  * desktop/scripts/dist.mjs
- * Builds the installer of a platform:  node scripts/dist.mjs win   |   node scripts/dist.mjs linux
+ * Builds the installer of a platform:  node scripts/dist.mjs win  |  linux  |  mac
  *
  * * It copies the web build into desktop/web and runs electron-builder for that platform (the Windows installer, or the Linux
- *   AppImage).
+ *   AppImage, or the macOS disk image and zip: one universal app for Intel and Apple Silicon, signed ad hoc, which is what
+ *   macOS needs to open an app it did not get from the App Store; it must be built on a Mac).
  * * The files are named "Chatterly-<label>.<ext>". The label is the version people read (CHATTERLY_LABEL, which the workflow sets to
  *   2.32.0 for a release and to 2.32.0-b1 for the first beta of it); without it, the version of package.json. The name is written
  *   in the update file (latest.yml / beta.yml) by electron-builder itself, so the apps always find the file they are told about.
@@ -13,10 +14,14 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-const targets = { win: ['--win', 'nsis'], linux: ['--linux', 'AppImage'] };
+const targets = {
+  win: ['--win', 'nsis'],
+  linux: ['--linux', 'AppImage'],
+  mac: ['--mac', 'dmg', 'zip', '--universal'],
+};
 const wanted = targets[process.argv[2]];
 if (!wanted) {
-  console.error('Usage: node scripts/dist.mjs win|linux');
+  console.error('Usage: node scripts/dist.mjs win|linux|mac');
   process.exit(1);
 }
 const desktop = path.resolve(import.meta.dirname, '..');

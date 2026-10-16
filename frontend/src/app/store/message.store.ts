@@ -26,6 +26,9 @@ import { SocialStore } from './social.store';
 
 type AttachmentKind = 'image' | 'audio' | 'video' | 'file';
 
+/** The most decrypted files (pictures, GIFs, voice notes) kept in memory at once. */
+const MAX_DECRYPTED_FILES = 120;
+
 export interface ViewAttachment extends AttachmentPayload {
   kind: AttachmentKind;
 }
@@ -142,6 +145,15 @@ const PAGE = 50;
  * Decrypts and holds the conversation history. Plaintext exists only here, in memory: the server
  * stores and relays ciphertext, signatures and encrypted attachment blobs.
  */
+/** The text of a message without its marks of format, on one line (for a preview). */
+function plainPreview(text: string): string {
+  return text
+    .replace(/[*_~`|>]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 140);
+}
+
 @Injectable({ providedIn: 'root' })
 export class MessageStore {
   private readonly api = inject(ApiService);
@@ -162,6 +174,13 @@ export class MessageStore {
   private started = false;
   private localId = 0;
 
+  /** The last message that arrived from somebody else while its chat was not in view (the overlay shows it). */
+  readonly lastIncoming = signal<{
+    seq: number;
+    ref: ChannelRef;
+    senderId: string;
+    text: string;
+  } | null>(null);
   readonly unread = signal<Record<string, number>>({});
   /** The conversation currently on screen (used to suppress notifications). */
   readonly viewing = signal<string | null>(null);
@@ -652,7 +671,11 @@ export class MessageStore {
   /** Downloads, decrypts and integrity-checks an attachment; resolves to an object URL. */
   attachmentUrl(attachment: ViewAttachment): Promise<string> {
     let promise = this.attachmentCache.get(attachment.fileId);
-    if (!promise) {
+    if (promise) {
+      // The most recently used go to the end: the ones that leave first are the ones not seen for longest.
+      this.attachmentCache.delete(attachment.fileId);
+      this.attachmentCache.set(attachment.fileId, promise);
+    } else {
       promise = async function (this: MessageStore) {
         const cipher = await this.api.download(`/api/files/${attachment.fileId}`);
         const plain = await decryptFile(cipher, attachment.secret);
@@ -670,8 +693,30 @@ export class MessageStore {
         }.bind(this),
       );
       this.attachmentCache.set(attachment.fileId, promise);
+      this.trimAttachments();
     }
     return promise;
+  }
+
+  /**
+   * ! Keeps at most MAX_DECRYPTED_FILES decrypted files in memory. Every picture, GIF and voice note that was ever opened
+   *   stayed there until the app closed, and a long chat full of GIFs filled the memory of a phone until the page froze.
+   *   The ones not used for longest are released (opened again, they are decrypted again).
+   */
+  private trimAttachments(): void {
+    while (this.attachmentCache.size > MAX_DECRYPTED_FILES) {
+      const oldest = this.attachmentCache.keys().next().value as string;
+      const promise = this.attachmentCache.get(oldest);
+      this.attachmentCache.delete(oldest);
+      void promise?.then(
+        function revoke(url: string): void {
+          URL.revokeObjectURL(url);
+        },
+        function ignore(): void {
+          return undefined;
+        },
+      );
+    }
   }
 
   // ---- realtime handlers ---------------------------------------------------------------------
@@ -734,6 +779,15 @@ export class MessageStore {
   private afterIncoming(ref: ChannelRef, view: ViewMessage): void {
     const visible = this.viewing() === view.channelId && !document.hidden;
     if (visible) return;
+    // The overlay of the desktop app shows it over the game too (see OverlayService).
+    this.lastIncoming.set({
+      seq: (this.lastIncoming()?.seq ?? 0) + 1,
+      ref,
+      senderId: view.senderId,
+      text: view.undecryptable
+        ? '🔒'
+        : plainPreview(view.text) || (view.attachments.length ? '📎' : ''),
+    });
     this.unread.update(function (u) {
       return { ...u, [view.channelId]: (u[view.channelId] ?? 0) + 1 };
     });

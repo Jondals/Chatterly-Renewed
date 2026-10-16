@@ -4,13 +4,12 @@
  */
 import { NameColorDirective } from '../../shared/util/name-color.directive';
 import { NameFxDirective } from '../../shared/util/name-fx.directive';
-import { emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
+import { emojiCountOf, emojiMood, isOnlyEmoji } from '../../shared/util/emoji-only';
 import { copyText } from '../../shared/util/clipboard';
 import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   computed,
   effect,
   inject,
@@ -18,11 +17,12 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { TranslatePipe } from '../../core/i18n/i18n.service';
+import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { saveFile } from '../../shared/util/save-file';
 import { ToastService } from '../../core/services/toast.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { ExpressionPickerComponent } from '../../shared/components/expression-picker.component';
@@ -47,6 +47,11 @@ import { ServerTagComponent } from '../../shared/components/server-tag.component
 const EMOJI_FRESH_MS = 6000;
 /** Seconds of rest between the end of the show of a lone emoji and the next one. */
 const EMOJI_REST_MS = 5000;
+
+/** True for a file that is not a sticker (stickers cannot be saved). */
+function notSticker(file: ViewAttachment): boolean {
+  return !file.sticker;
+}
 
 @Component({
   selector: 'app-message-item',
@@ -76,6 +81,10 @@ const EMOJI_REST_MS = 5000;
       [class.mt-3]="!compact()"
       (contextmenu)="openMenu($event)"
       (click)="onTap($event)"
+      (pointerenter)="hovered.set(true)"
+      (pointerleave)="hovered.set(false)"
+      (focusin)="hovered.set(true)"
+      (focusout)="onFocusOut($event)"
     >
       <!-- on a phone the picture goes inline with the name (22 px): no empty column on the left of every message -->
       <div class="w-9 shrink-0 pt-0.5 max-sm:hidden">
@@ -159,7 +168,8 @@ const EMOJI_REST_MS = 5000;
             [class.is-fresh]="bigEmoji() && emojiFresh()"
             (click)="replayEmoji($event)"
             [class.is-many]="bigEmoji() && emojiCount() > 3 && emojiCount() <= 6"
-            [class.is-lots]="bigEmoji() && emojiCount() > 6"
+            [class.is-lots]="bigEmoji() && emojiCount() > 6 && emojiCount() <= 14"
+            [class.is-heaps]="bigEmoji() && emojiCount() > 14"
             [attr.data-pop]="bigEmoji() ? emojiPop() : null"
             [attr.data-mood]="bigEmoji() && singleEmoji() ? emojiMoodOf() : null"
             [class.px-0]="!bubbles()"
@@ -246,10 +256,17 @@ const EMOJI_REST_MS = 5000;
         </div>
       </div>
 
-      @if (!m.pending && !m.failed && !editing() && settings.messageActions()) {
+      <!-- ? Built only while the message is under the pointer, tapped or focused: a long chat no longer keeps a hidden
+           bar of buttons in every message (about 25 elements each). -->
+      @if (
+        !m.pending &&
+        !m.failed &&
+        !editing() &&
+        settings.messageActions() &&
+        (hovered() || tapped() || pickerOpen())
+      ) {
         <div
-          class="msg-actions absolute -top-4 z-10 hidden items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl group-hover:flex group-focus-within:flex"
-          [class.!flex]="tapped()"
+          class="msg-actions absolute -top-4 z-10 flex items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl"
           [class.right-4]="!(bubbles() && mine())"
           [class.left-4]="bubbles() && mine()"
         >
@@ -322,11 +339,21 @@ export class MessageItemComponent {
   private readonly directory = inject(DirectoryService);
   protected readonly store = inject(MessageStore);
   private readonly toast = inject(ToastService);
+  private readonly i18n = inject(I18nService);
   private readonly dialog = inject(DialogService);
   protected readonly settings = inject(SettingsService);
 
   protected readonly quick = QUICK_REACTIONS.slice(0, 3);
-  protected readonly plain = plainText;
+  /** The pointer is over the message, or the focus is inside it (its bar of buttons shows). */
+  protected readonly hovered = signal(false);
+
+  /** The focus left the message (not to an element inside it): the bar of buttons goes. */
+  protected onFocusOut(event: FocusEvent): void {
+    const next = event.relatedTarget as Node | null;
+    if (!next || !this.host.nativeElement.contains(next)) {
+      this.hovered.set(false);
+    }
+  }
   protected readonly editing = signal(false);
   protected readonly draft = signal('');
   protected readonly pickerOpen = signal(false);
@@ -377,26 +404,19 @@ export class MessageItemComponent {
       return message.text.replace(/https?:\/\/\S+/g, '').trim().length > 0;
     }.bind(this),
   );
-  /** True when the message is just one to three emoji: they are drawn big, without a bubble. */
   /** A message that is exactly one emoji (it gets its own little show). */
   protected readonly singleEmoji = computed(
     function (this: MessageItemComponent) {
-      const text = this.message().text.trim();
-      return (
-        [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].length === 1
-      );
+      return this.emojiCount() === 1;
     }.bind(this),
   );
-  /** How many emoji the message has (the more there are, the smaller each one is drawn). */
+  /** How many emoji the message has, spaces apart (the more there are, the smaller each one is drawn). */
   protected readonly emojiCount = computed(
     function (this: MessageItemComponent) {
-      return [
-        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
-          this.message().text.trim(),
-        ),
-      ].length;
+      return emojiCountOf(this.message().text);
     }.bind(this),
   );
+  /** True when the message is only emoji: they are drawn big, without a bubble. */
   protected readonly bigEmoji = computed(
     function (this: MessageItemComponent) {
       const message = this.message();
@@ -536,9 +556,28 @@ export class MessageItemComponent {
     });
   }
 
-  /** A press anywhere else hides the actions that a tap opened. */
-  @HostListener('document:pointerdown', ['$event'])
-  protected closeTapped(event: Event): void {
+  /**
+   * A press anywhere else hides the actions that a tap opened. ! The page is listened to only while the actions are open:
+   * every message listening to every press of the page made each click run hundreds of handlers in a long chat.
+   */
+  private readonly outsidePress = this.closeTapped.bind(this);
+  private readonly followTapped = effect(
+    function (this: MessageItemComponent) {
+      if (this.tapped()) {
+        document.addEventListener('pointerdown', this.outsidePress, { passive: true });
+      } else {
+        document.removeEventListener('pointerdown', this.outsidePress);
+      }
+    }.bind(this),
+  );
+  private readonly forgetTapped = inject(DestroyRef).onDestroy(
+    function (this: MessageItemComponent) {
+      document.removeEventListener('pointerdown', this.outsidePress);
+    }.bind(this),
+  );
+
+  /** A press outside the message closes its actions. */
+  private closeTapped(event: Event): void {
     if (this.tapped() && !this.host.nativeElement.contains(event.target as Node)) {
       this.tapped.set(false);
     }
@@ -567,6 +606,23 @@ export class MessageItemComponent {
           return void this.copy(plainText(m.text));
         }.bind(this),
       });
+    // Every file of the message can be kept: a GIF, a picture, a voice note or any file (on the phone, in Downloads).
+    // With several files each one is named. ! Stickers are not offered: they belong to whoever made them.
+    const files = m.attachments.filter(notSticker).slice(0, 6);
+    for (const file of files) {
+      items.push({
+        label:
+          files.length > 1
+            ? this.i18n.t('Download {name}', { name: file.name.slice(0, 28) })
+            : file.gif
+              ? 'Save GIF'
+              : file.kind === 'image'
+                ? 'Save image'
+                : 'Download',
+        icon: 'download',
+        action: this.saveAttachment.bind(this, file),
+      });
+    }
     if (this.mine() && m.text && !m.spinly && !m.activity)
       items.push({
         label: 'Edit',
@@ -586,6 +642,19 @@ export class MessageItemComponent {
         }.bind(this),
       });
     this.menu.open(event, items);
+  }
+
+  /** Decrypts a file of the message (if it was not yet) and saves it on the device. */
+  private async saveAttachment(file: ViewAttachment): Promise<void> {
+    try {
+      const url = await this.store.attachmentUrl(file);
+      const where = await saveFile(url, file.name, file.mime);
+      if (where === 'downloads') {
+        this.toast.success(this.i18n.t('Saved in Downloads'), file.name);
+      }
+    } catch {
+      this.toast.error(this.i18n.t('Could not save the file'));
+    }
   }
 
   /** Reacts to the message with an emoji. */

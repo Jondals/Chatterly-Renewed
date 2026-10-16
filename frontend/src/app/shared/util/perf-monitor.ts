@@ -23,7 +23,9 @@ const WINDOW_MS = 3000;
 /** Share of slow frames that makes a window slow. */
 const SLOW_SHARE = 0.35;
 /** Slow windows in a row that switch the light mode on. */
-const SLOW_WINDOWS_TO_SWITCH = 2;
+const SLOW_WINDOWS_TO_SWITCH = 3;
+/** The first seconds are not judged: the page is still loading and every device stutters a little then. */
+const SETTLE_MS = 6000;
 /** Fewest frames a window needs to be judged (a window with almost no frames says nothing). */
 const MIN_FRAMES = 30;
 /** How long the page is watched after the start. */
@@ -32,7 +34,7 @@ const WATCH_MS = 60_000;
 /** Starts watching. Call it once, outside the Angular zone, after the first paint. */
 export function watchFramePerformance(): void {
   const root = document.documentElement;
-  if (root.dataset['perf'] === 'low') {
+  if (root.dataset['weak'] === '1') {
     return;
   }
   const startedAt = performance.now();
@@ -46,7 +48,7 @@ export function watchFramePerformance(): void {
   function onFrame(now: number): void {
     const gap = now - last;
     last = now;
-    if (document.hidden || gap > PAUSE_GAP_MS) {
+    if (document.hidden || gap > PAUSE_GAP_MS || now - startedAt < SETTLE_MS) {
       // The tab was in the background: start the window again, nothing is judged.
       windowStart = now;
       frames = 0;
@@ -64,7 +66,9 @@ export function watchFramePerformance(): void {
       frames = 0;
       slow = 0;
       if (slowWindows >= SLOW_WINDOWS_TO_SWITCH) {
-        root.dataset['perf'] = 'low';
+        // The settings decide what to do with it (only the automatic power mode lightens the page).
+        root.dataset['weak'] = '1';
+        window.dispatchEvent(new Event('chatterly:weak'));
         return;
       }
     }

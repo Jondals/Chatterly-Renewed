@@ -10,6 +10,8 @@ const KEY_PREFIX = 'chatterly.';
 
 /** Every persisted signal by its key (without the prefix). */
 const registry = new Map<string, WritableSignal<unknown>>();
+/** The value each one has before the person changes it. */
+const defaults = new Map<string, unknown>();
 
 /** A signal mirrored to localStorage. It must be called in an injection context. */
 export function persisted<T>(key: string, initial: T): WritableSignal<T> {
@@ -25,6 +27,7 @@ export function persisted<T>(key: string, initial: T): WritableSignal<T> {
   }
   const state = signal<T>(value);
   registry.set(key, state as WritableSignal<unknown>);
+  defaults.set(key, initial);
   effect(function save() {
     try {
       localStorage.setItem(storageKey, JSON.stringify(state()));
@@ -61,5 +64,12 @@ export function applyPersisted(values: Record<string, unknown>): void {
     if (state && kindOf(state()) === kindOf(value)) {
       state.set(value);
     }
+  }
+}
+
+/** Puts every persisted signal back to its default value (another account signed in on this device). */
+export function resetPersisted(): void {
+  for (const [key, state] of registry) {
+    state.set(defaults.get(key));
   }
 }

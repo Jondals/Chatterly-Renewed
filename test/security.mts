@@ -24,6 +24,7 @@ import { checkImages } from './security/images.mts';
 import { checkVault } from './security/vault.mts';
 import { checkBeta } from './security/beta.mts';
 import { checkBetaFiles } from './security/beta-files.mts';
+import { checkAdmin } from './security/admin.mts';
 import { checkPreview } from './security/preview.mts';
 import { checkDeletion } from './security/deletion.mts';
 import { checkDatabase } from './security/database.mts';
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
     await checkVault();
     await checkBeta();
     await checkBetaFiles();
+    await checkAdmin();
     await checkPreview();
     await checkDeletion();
     await checkFriendRemoval();

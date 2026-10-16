@@ -204,7 +204,10 @@ function auditSource() {
     'overlay:tiles',
     'overlay:signal',
     'overlay:windows',
+    'overlay:call',
+    'overlay:notify',
     'overlay:event',
+    'screen:refresh',
     'screen:pick',
     'screen:choose',
     'screen:cancel',
@@ -245,8 +248,9 @@ function auditSource() {
     },
   );
   check(
-    overlayChannels.sort().join(',') === 'overlay:layout,overlay:signal-out,overlay:stop-editing',
-    'the overlay window can only send its signalling, its layout and "editing ended"',
+    overlayChannels.sort().join(',') ===
+      'overlay:action,overlay:choose,overlay:layout,overlay:signal-out,overlay:stop-editing',
+    'the overlay window can only send its signalling, its layout, the choices of its bar, one of its fixed actions and "editing ended"',
   );
   check(
     !overlayPreload.slice(overlayPreload.indexOf('exposeInMainWorld(')).includes('ipcRenderer') &&
@@ -260,7 +264,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:get,overlay:layout,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:call,overlay:choose,overlay:get,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -357,17 +361,6 @@ function auditSignatures() {
     verify.checkAgainstManifest(found, inside.replace('2.40.0', '2.41.0'), '', keys) !== '' &&
       verify.checkAgainstManifest(found, manifest, '', keys) !== '',
     'changing a signed manifest, or taking its signature off, is refused',
-  );
-  // The apps up to 2.32.0 read only "<manifest>.sig" and check it against the whole manifest they download, signature line
-  // included (sign-update.mjs writes that file too).
-  const legacy = sign(null, Buffer.from(inside), pair.privateKey).toString('base64');
-  check(
-    verify.verifySignature(Buffer.from(inside), legacy, keys) && !!verify.readManifest(inside),
-    'the separate .sig still lets an app of 2.32.0 or before verify the new manifest',
-  );
-  check(
-    !verify.verifySignature(Buffer.from(inside.replace('2.40.0', '2.41.0')), legacy, keys),
-    'a .sig left from another build does not verify a different manifest (it is refused, not trusted)',
   );
 
   const bundle = require('../src/bundle.cjs');

@@ -7,6 +7,9 @@
  *   so the app does not ask GitHub until the person downloads; the APK is the one of that GitHub release.
  * * Beta channel (testers and administrators): like the desktop app, the account gets a token from the server and the
  *   manifest beta-android.yml says which APK is the beta.
+ * * Another channel can offer an OLDER version (back from a beta to the release, or a beta older than the release installed).
+ *   Android never installs a lower version over a higher one, so that is a change in two steps the person does: the app
+ *   keeps the checked APK in Downloads, opens the uninstaller of Android, and the person installs the file from Downloads.
  * ! The page only chooses what to ask for. The native plugin (UpdatePlugin.java) downloads only from those two places, and
  *   before opening the installer checks that the APK is this app, newer, and signed with the certificate of the installed
  *   app; Android checks the certificate again and the person confirms in the installer. Nothing is installed by itself.
@@ -16,17 +19,85 @@ import { ANDROID_APP, API_BASE } from '../config';
 import { updatePlugin, type UpdateTarget } from '../native-bridge';
 import { isNewerVersion } from '../version-compare';
 import { APP_LABEL } from '../../version';
-import { ApiService } from './api.service';
+import { ApiError, ApiService } from './api.service';
 import { BetaService } from './beta.service';
 import { persisted } from './persisted';
 import { ToastService } from './toast.service';
 
-/** Where an update is: nothing found, being looked for, available, downloading, downloaded (ready to install), or failed. */
+/**
+ * Where an update is: nothing found, being looked for, available, downloading, downloaded (ready to install), or failed.
+ * 'older': the channel offers an older version than the installed one; 'saved': that version is in Downloads, waiting for the
+ * person to uninstall the app and install it.
+ */
 export type AndroidUpdateStatus =
-  'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error';
+  | 'idle'
+  | 'checking'
+  | 'none'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'older'
+  | 'saved'
+  | 'error';
 
 /** The GitHub releases of the project: the stable APK of a version is attached to its release. */
 const RELEASES = 'https://github.com/Jondals/ChatterlyRenewed/releases/download/';
+
+/**
+ * Why a step failed, in words for the person: the first rule whose pattern matches the error (the message of the native plugin,
+ * of the browser or the code of the server) gives the explanation. Each explanation is a key of the translations.
+ */
+const REASONS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/already in progress/i, 'A download is already in progress: wait for it to finish.'],
+  [
+    /not newer than the installed/i,
+    'That version is not newer than the one installed: Android never installs an older or equal version over it.',
+  ],
+  [
+    /not signed by the author/i,
+    'The file is not signed with the key of Chatterly, so it was refused: it could be a forged copy.',
+  ],
+  [/is another app|is not an app/i, 'The downloaded file is not Chatterly, so it was refused.'],
+  [/damaged/i, 'The download arrived damaged (its fingerprint does not match). Try again.'],
+  [
+    /not available \(404\)|beta_manifest_404/i,
+    'The file of that version is not on the server: it may not be published yet.',
+  ],
+  [
+    /not available \(|beta_manifest_5\d\d/i,
+    'The server could not give the file right now. Try again in a few minutes.',
+  ],
+  [
+    /sent somewhere else|not a download of the app/i,
+    'The update pointed to an address the app does not trust, so nothing was downloaded.',
+  ],
+  [/too big/i, 'The file is far bigger than an update of Chatterly, so it was refused.'],
+  [
+    /could not be kept|cannot be read|ENOSPC|space/i,
+    'The phone could not save the file: check that there is free space.',
+  ],
+  [
+    /Allow Chatterly to install apps/i,
+    'Allow Chatterly to install apps, come back and press Install again.',
+  ],
+  [
+    /needs Android 10/i,
+    'Changing to an older version needs Android 10 or newer: uninstall Chatterly and install the APK from the release page by hand.',
+  ],
+  [
+    /kept in Downloads/i,
+    'The file could not be saved in Downloads: check that there is free space.',
+  ],
+  [/is the installed version/i, 'That is the version you already have.'],
+  [
+    /failed to fetch|network|unable to resolve|timed? ?out|connect|unreachable/i,
+    'There is no connection with the server. Check the internet and try again.',
+  ],
+  [/^429$|too many/i, 'Too many tries in a short time: wait a minute and try again.'],
+  [/^40[34]$/, 'Your account is not in the beta program any more: choose Release.'],
+  [/^401$/, 'The session has expired: sign in again and retry.'],
+  [/beta_manifest/i, 'The beta server answered something the app does not understand.'],
+];
 
 /** The name of an APK the server may point to. */
 const APK_NAME = /^Chatterly-[0-9A-Za-z.-]{1,60}\.apk$/;
@@ -48,6 +119,8 @@ export class AndroidUpdateService {
   readonly problem = signal('');
   /** When the last check ended (ms since 1970), or 0. */
   readonly lastCheck = signal(0);
+  /** The name of the APK kept in Downloads (status 'saved'). */
+  readonly savedName = signal('');
   private target: UpdateTarget | null = null;
   private autoChecked = false;
 
@@ -58,8 +131,20 @@ export class AndroidUpdateService {
     setTimeout(this.quietCheck.bind(this), 8000);
   }
 
-  /** The check of the start: says nothing unless a new version exists. */
+  /** How many times the check of the start waited for the server to say whether the account is a tester. */
+  private waits = 0;
+
+  /**
+   * The check of the start: says nothing unless a new version exists.
+   * ! On the beta channel it waits until the server said whether the account is still a tester: looking before that used
+   *   the Release channel and offered a phone that runs a beta to "change" to the older release.
+   */
   private async quietCheck(): Promise<void> {
+    if (this.beta() && !this.betaProgram.known() && this.waits < 12) {
+      this.waits++;
+      setTimeout(this.quietCheck.bind(this), 5000);
+      return;
+    }
     await this.check();
     if (this.status() === 'available') {
       this.toast.info(
@@ -77,7 +162,13 @@ export class AndroidUpdateService {
 
   /** Looks for a newer version in the channel in use. */
   async check(): Promise<void> {
-    if (!this.supported || this.status() === 'checking' || this.status() === 'downloading') return;
+    if (
+      !this.supported ||
+      this.status() === 'checking' ||
+      this.status() === 'downloading' ||
+      this.status() === 'saved'
+    )
+      return;
     this.status.set('checking');
     this.problem.set('');
     this.target = null;
@@ -87,14 +178,13 @@ export class AndroidUpdateService {
         this.target = found.target;
         this.found.set(found.version);
         this.status.set('available');
+      } else if (found && found.version !== APP_LABEL) {
+        // The channel offers an older version (Android never installs it over a newer one): the person may change to it in
+        // two steps (see changeToOlder), or wait for a newer one.
+        this.target = found.target;
+        this.found.set(found.version);
+        this.status.set('older');
       } else {
-        // Android never installs an older version over a newer one (a stable 2.33.0 is above every 2.33.0-bN): say so,
-        // instead of a plain "up to date" that hides why the beta is not offered.
-        if (found && found.version !== APP_LABEL && this.usingBeta()) {
-          this.problem.set(
-            'The latest beta is older than the installed version: Android only installs it after uninstalling Chatterly.',
-          );
-        }
         this.status.set('none');
       }
     } catch (error) {
@@ -158,6 +248,41 @@ export class AndroidUpdateService {
     }
   }
 
+  /**
+   * The first step to change to an older version: downloads it (checked: this app, signed by the same author) and keeps it in
+   * the Downloads folder, where it stays after the app is uninstalled.
+   */
+  async changeToOlder(): Promise<void> {
+    const plugin = updatePlugin();
+    if (!plugin || !this.target || this.status() !== 'older') return;
+    this.status.set('downloading');
+    this.problem.set('');
+    try {
+      await plugin.download({ ...this.target, allowOlder: true });
+      const kept = await plugin.keepInDownloads();
+      this.savedName.set(kept.name);
+      this.status.set('saved');
+    } catch (error) {
+      this.fail(error, 'The version could not be prepared');
+    }
+  }
+
+  /** The second step: the dialog of Android that uninstalls the app (then the person installs the file from Downloads). */
+  async uninstall(): Promise<void> {
+    const plugin = updatePlugin();
+    if (!plugin || this.status() !== 'saved') return;
+    try {
+      await plugin.uninstall();
+    } catch (error) {
+      this.fail(error, 'The uninstaller of Android could not be opened');
+    }
+  }
+
+  /** Leaves the change to an older version (the file stays in Downloads; it can be deleted from there). */
+  cancelChange(): void {
+    if (this.status() === 'saved') this.status.set('older');
+  }
+
   /** Opens the installer of Android (the first time Android asks to allow Chatterly to install apps). */
   async install(): Promise<void> {
     const plugin = updatePlugin();
@@ -173,10 +298,25 @@ export class AndroidUpdateService {
     }
   }
 
-  /** Marks the failure with a message for the person (the technical detail goes to the console only). */
+  /**
+   * Marks the failure with the reason for the person: what happened, never just "it failed". An error the app does not know
+   * keeps the general message and its own text, so it can still be reported.
+   */
   private fail(error: unknown, message: string): void {
     console.warn(message, error);
-    this.problem.set(message);
+    this.problem.set(explain(error, message));
     this.status.set('error');
   }
+}
+
+/** The explanation of an error (see REASONS), or the general message with the text of the error. */
+function explain(error: unknown, message: string): string {
+  const text =
+    error instanceof ApiError
+      ? String(error.status)
+      : String((error as { message?: unknown } | null)?.message ?? error ?? '');
+  for (const [pattern, reason] of REASONS) {
+    if (pattern.test(text)) return reason;
+  }
+  return text ? message + ' (' + text.slice(0, 200) + ')' : message;
 }

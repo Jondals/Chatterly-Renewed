@@ -18,9 +18,11 @@ import {
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { PresetService } from '../../core/services/preset.service';
 import { ToastService } from '../../core/services/toast.service';
+import { saveFile } from '../../shared/util/save-file';
 import { SoundImportService } from './sound-import.service';
 import { formatBytes, formatDuration } from '../../shared/pipes/timestamp.pipe';
 import { IconComponent } from '../../shared/components/icon.component';
+import { ToBodyDirective } from '../../shared/util/to-body.directive';
 import { MessageStore, type ViewAttachment } from '../../store/message.store';
 
 /** The speeds of a voice note or an audio. */
@@ -33,7 +35,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
 @Component({
   selector: 'app-attachment',
   standalone: true,
-  imports: [IconComponent, TranslatePipe, DecimalPipe],
+  imports: [IconComponent, TranslatePipe, DecimalPipe, ToBodyDirective],
   styles: `
     .wave {
       cursor: var(--cur-pointer, pointer);
@@ -118,6 +120,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
                 [src]="src"
                 alt=""
                 draggable="false"
+                (contextmenu)="$event.preventDefault()"
                 class="anim-pop stk stk-live mt-1 h-36 w-36 object-contain drop-shadow-lg"
                 [attr.data-move]="att().move"
               />
@@ -171,6 +174,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
           }
           @if (lightbox() && url()) {
             <div
+              appToBody
               class="anim-fade-in fixed inset-0 z-[95] flex cursor-zoom-out items-center justify-center bg-black/85 p-6 backdrop-blur"
               (click)="lightbox.set(false)"
             >
@@ -622,10 +626,9 @@ export class AttachmentComponent implements OnDestroy {
     this.error.set('');
     try {
       const url = await this.store.attachmentUrl(this.att());
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = this.att().name.replace(/[\\/:*?"<>|]/g, '_');
-      a.click();
+      if ((await saveFile(url, this.att().name, this.att().mime)) === 'downloads') {
+        this.toast.success(this.i18n.t('Saved in Downloads'), this.att().name);
+      }
     } catch {
       this.error.set('Integrity check failed — the file was altered or corrupted.');
     } finally {

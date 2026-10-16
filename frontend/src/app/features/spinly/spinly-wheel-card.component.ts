@@ -5,22 +5,14 @@
  * landing point comes from the shared seed. A spin that was already there when the card appeared is shown as a
  * finished result; one that arrives afterwards is played.
  */
-import {
-  Component,
-  HostListener,
-  computed,
-  inject,
-  input,
-  output,
-  signal,
-  type OnInit,
-} from '@angular/core';
+import { Component, computed, inject, input, output, signal, type OnInit } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { SoundService } from '../../core/services/sound.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { type WheelSpec } from './spinly-model';
 import { planWheel, sectorColor } from './spinly-engine';
 import { SpinlyWheelComponent, type WheelOrder, type WheelSector } from './spinly-wheel.component';
+import { listenWhile } from '../../shared/util/listen-while';
 
 /** How long a spin of the wheel lasts (ms). */
 const SPIN_MS = 4200;
@@ -123,7 +115,19 @@ export class SpinlyWheelCardComponent implements OnInit {
   protected readonly winnerName = computed(this.pickWinnerName.bind(this));
 
   /** The space bar asks for a spin, unless the person is typing or a window is open. */
-  @HostListener('window:keydown', ['$event'])
+  /** Only the cards that can be spun with the space bar listen to the keyboard (not every card of the history). */
+  private readonly spaceKey = listenWhile(
+    this.listensForSpace.bind(this),
+    window,
+    'keydown',
+    this.onSpace.bind(this) as (event: Event) => void,
+  );
+
+  /** Whether this card spins with the space bar now. */
+  private listensForSpace(): boolean {
+    return this.spaceSpins() && this.canSpin();
+  }
+
   protected onSpace(event: KeyboardEvent): void {
     if (event.code !== 'Space') {
       return;

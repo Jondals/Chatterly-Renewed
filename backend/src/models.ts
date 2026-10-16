@@ -36,6 +36,9 @@ export interface UserRow {
   friend_requests: 'everyone' | 'nobody';
   searchable: number;
   created_at: number;
+  /** Suspended by an administrator (routes/admin.ts): when, or null. */
+  suspended_at?: number | null;
+  suspended_reason?: string;
 }
 
 /** The privacy choices of a person. Only the person themselves receive them (see `toSelfUser`). */
