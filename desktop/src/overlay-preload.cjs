@@ -49,6 +49,9 @@ function stopEditing() {
 function choose(patch) {
   ipcRenderer.send('overlay:choose', patch);
 }
+function alive() {
+  ipcRenderer.send('overlay:alive');
+}
 function hover(over) {
   ipcRenderer.send('overlay:hover', over === true);
 }
@@ -66,6 +69,7 @@ contextBridge.exposeInMainWorld(
     stopEditing,
     choose,
     hover,
+    alive,
     act,
   }),
 );

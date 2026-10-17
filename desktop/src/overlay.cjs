@@ -140,6 +140,14 @@ let forced = false;
 /** The person pressed the shortcut with nothing to show (no call): the overlay is open on its own until they lock it. */
 let summoned = false;
 let watchTimer = null;
+/** Safety net: the overlay page says it is alive every second; while unlocked (it holds the mouse) a silence means it is stuck. */
+let lastAlive = 0;
+let aliveTimer = null;
+/** When the overlay was last rebuilt after a failure (ms), so a window that fails again and again is not rebuilt in a loop. */
+const recoveries = [];
+const ALIVE_EVERY_MS = 2000;
+const ALIVE_LIMIT_MS = 6000;
+const MAX_RECOVERIES = 3;
 /** Esc is taken from the system while the overlay is unlocked (see setEscape). */
 let escapeRegistered = false;
 /** Brings the main window to the front (given by main.cjs). */
@@ -609,7 +617,56 @@ function openWindow() {
   win.on('focus', onOverlayFocus);
   // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
   win.on('page-title-updated', preventDefault);
+  // ! If the page of the overlay dies, hangs or does not load, the window is thrown away and rebuilt: an overlay that is
+  //   stuck while it holds the mouse leaves the person with a screen they cannot click.
+  win.webContents.on('render-process-gone', recoverOverlay);
+  win.webContents.on('did-fail-load', onOverlayLoadFailed);
+  win.on('unresponsive', recoverOverlay);
+  lastAlive = Date.now();
+  clearInterval(aliveTimer);
+  aliveTimer = setInterval(checkAlive, ALIVE_EVERY_MS);
   win.loadURL(PAGE_URL);
+}
+
+/** The page of the overlay did not load (the address changed, a file is missing): same as a page that died. */
+function onOverlayLoadFailed(event, code, description, address, isMainFrame) {
+  // -3 is "aborted": a new load replaced this one, not a failure.
+  if (isMainFrame === true && code !== -3) recoverOverlay();
+}
+
+/** The page of the overlay says it is alive. */
+function handleAlive(event) {
+  if (isOverlay(event)) lastAlive = Date.now();
+}
+
+/** While unlocked, a page that has not answered for a while is stuck: it is rebuilt. */
+function checkAlive() {
+  if (editing && Date.now() - lastAlive > ALIVE_LIMIT_MS) recoverOverlay();
+}
+
+/**
+ * Gives the mouse back at once and rebuilds the overlay window (it opens again by itself when it should). At most MAX_RECOVERIES
+ * times a minute: past that it stays closed rather than flickering forever.
+ */
+function recoverOverlay() {
+  editing = false;
+  hoverControls = false;
+  summoned = false;
+  setEscape(false);
+  const window = overlayWindow;
+  if (window && !window.isDestroyed()) {
+    try {
+      window.setIgnoreMouseEvents(true, { forward: true });
+    } catch (error) {
+      // The window is already going away.
+    }
+    window.destroy();
+  }
+  const now = Date.now();
+  while (recoveries.length > 0 && now - recoveries[0] > 60000) recoveries.shift();
+  if (recoveries.length >= MAX_RECOVERIES) return;
+  recoveries.push(now);
+  setTimeout(sync, 800);
 }
 
 /**
@@ -656,6 +713,7 @@ function onOverlayLoaded() {
 
 /** The overlay window is gone (closed by us, or by the system). */
 function onOverlayClosed() {
+  clearInterval(aliveTimer);
   overlayWindow = null;
   setEscape(false);
   editing = false;
@@ -825,6 +883,11 @@ function onHotkey() {
 
 /** The person went back to the window of Chatterly: the overlay locks (it must never keep the mouse behind their back). */
 function onMainFocus() {
+  setEditing(false);
+}
+
+/** The main page died or stopped answering: the overlay locks (the mouse goes back to whatever is under it). */
+function onMainGone() {
   setEditing(false);
 }
 
@@ -1031,13 +1094,20 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   ipcMain.on('overlay:choose', handleChoose);
   ipcMain.on('overlay:action', handleAction);
   ipcMain.on('overlay:hover', handleHover);
-  if (mainWindow) mainWindow.on('focus', onMainFocus);
+  ipcMain.on('overlay:alive', handleAlive);
+  if (mainWindow) {
+    mainWindow.on('focus', onMainFocus);
+    // The app page itself died or hung: the overlay must not keep the mouse for a page that can no longer answer it.
+    mainWindow.webContents.on('render-process-gone', onMainGone);
+    mainWindow.on('unresponsive', onMainGone);
+  }
   registerHotkey();
 }
 
 /** Leaves nothing registered on the system when the app closes. */
 function stop() {
   clearInterval(watchTimer);
+  clearInterval(aliveTimer);
   globalShortcut.unregisterAll();
   closeWindow();
 }

@@ -417,8 +417,20 @@ const DRAW = {
   streams: drawStreams,
 };
 
-/** Draws every widget: the pinned ones that have something to show, or all of them while unlocked. */
+/**
+ * Draws every widget. ! A drawing that fails (a camera that gives something odd, a picture that cannot be decoded) must not leave
+ * the overlay half drawn and stuck: the failure is kept inside, the next drawing tries again.
+ */
 function render() {
+  try {
+    renderNow();
+  } catch (error) {
+    // Drawn again at the next change.
+  }
+}
+
+/** The drawing itself: the pinned widgets that have something to show, or all of them while unlocked. */
+function renderNow() {
   if (!config) return;
   const style = document.documentElement.style;
   style.setProperty('--tile', TILE_WIDTHS[config.size] + 'px');
@@ -501,6 +513,8 @@ function saveLayout(finished) {
 
 /** Updates the clocks (how long the call and the game last) once a second, without drawing everything again. */
 function tick() {
+  // Tells the shell the page is alive (while unlocked it watches for this, and rebuilds the window if it stops).
+  window.chatterlyOverlay.alive();
   if (!config) return;
   const call = scene.call;
   for (const node of host.querySelectorAll('.tick-since')) {
@@ -731,4 +745,10 @@ done.addEventListener('click', onDone);
 backdrop.addEventListener('pointerdown', onBackdrop);
 window.addEventListener('keydown', onKey);
 window.addEventListener('resize', placeAll);
+window.addEventListener('error', function onError(event) {
+  event.preventDefault();
+});
+window.addEventListener('unhandledrejection', function onRejection(event) {
+  event.preventDefault();
+});
 setInterval(tick, 1000);

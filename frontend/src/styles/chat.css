@@ -965,8 +965,3 @@ app-message-item {
   content-visibility: auto;
   contain-intrinsic-size: auto 4.5rem;
 }
-/* ! content-visibility clips what sticks out of the message, and the bar of actions (and an open picker) sticks out above it:
-   the message that has them is drawn whole. */
-app-message-item:has(.msg-actions) {
-  content-visibility: visible;
-}
