@@ -66,6 +66,14 @@ export class NativeCallService {
 
   /** Whether a ringing call may fill the screen over the lock screen (Android 14+ asks the person). */
   readonly fullScreenAllowed = signal(true);
+  /** What the app is allowed to do (the screen of permissions in Settings). */
+  readonly permissions = signal<{ microphone: boolean; camera: boolean; notifications: boolean }>({
+    microphone: true,
+    camera: true,
+    notifications: true,
+  });
+  /** The phone lets the app run without battery limits (when it does not, swiping the app away may end a call on some phones). */
+  readonly batteryUnrestricted = signal(true);
 
   /** The page is on screen (not minimized, screen on). */
   private readonly visible = signal(!document.hidden);
@@ -112,6 +120,7 @@ export class NativeCallService {
     void this.takeRejoin(0);
     void this.plugin.notifications().catch(this.ignore);
     void this.checkFullScreen();
+    void this.checkBattery();
     inject(DestroyRef).onDestroy(this.stopAll.bind(this));
   }
 
@@ -119,7 +128,7 @@ export class NativeCallService {
   private onVisibility(): void {
     this.visible.set(!document.hidden);
     if (!document.hidden) {
-      void this.checkFullScreen();
+      void this.checkPermissions();
     }
   }
 
@@ -130,6 +139,47 @@ export class NativeCallService {
     } catch {
       this.fullScreenAllowed.set(true);
     }
+  }
+
+  /** Reads what the app is allowed to do. */
+  async checkPermissions(): Promise<void> {
+    try {
+      const state = await this.plugin?.permissionStates?.();
+      if (state) this.permissions.set(state);
+    } catch {
+      /* the list keeps what it had */
+    }
+    await Promise.all([this.checkFullScreen(), this.checkBattery()]);
+  }
+
+  /** Asks for a permission; when Android no longer asks (refused for good) its page about the app opens instead. */
+  async askPermission(which: 'microphone' | 'camera' | 'notifications'): Promise<void> {
+    try {
+      const answer = await this.plugin?.askPermission?.({ permission: which });
+      if (!answer?.granted) void this.plugin?.appSettings?.().catch(this.ignore);
+    } catch {
+      void this.plugin?.appSettings?.().catch(this.ignore);
+    }
+    await this.checkPermissions();
+  }
+
+  /** Opens the page of Android about this app. */
+  openAppSettings(): void {
+    void this.plugin?.appSettings?.().catch(this.ignore);
+  }
+
+  /** Reads whether the phone lets the app run without battery limits. */
+  async checkBattery(): Promise<void> {
+    try {
+      this.batteryUnrestricted.set((await this.plugin?.batteryUnrestricted?.())?.unrestricted ?? true);
+    } catch {
+      this.batteryUnrestricted.set(true);
+    }
+  }
+
+  /** Opens the page of Android where the person lets the app run without battery limits. */
+  openBatterySettings(): void {
+    void this.plugin?.batterySettings?.().catch(this.ignore);
   }
 
   /** Opens the page of Android where the person allows calls to fill the screen. */

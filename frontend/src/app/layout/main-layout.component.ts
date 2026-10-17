@@ -2,11 +2,12 @@
  * src/app/layout/main-layout.component.ts
  * Structure of the private area: side bars, content and the realtime services.
  */
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { I18nService } from '../core/i18n/i18n.service';
+import { watchDrawerSwipe } from './drawer-swipe';
 import { CallService } from '../core/services/call.service';
 import { NativeCallService } from '../core/services/native-call.service';
 import { OverlayService } from '../core/services/overlay.service';
@@ -120,6 +121,7 @@ export class MainLayoutComponent implements OnInit {
   private readonly librarySync = inject(LibrarySyncService);
 
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   /** True while the page of the call is the one on screen. */
   protected readonly onVoice = toSignal(
     this.router.events.pipe(
@@ -175,6 +177,9 @@ export class MainLayoutComponent implements OnInit {
     this.messages.start();
     this.call.start();
     this.shortcuts.start();
+    // On a phone a swipe to the right opens the navigation and a swipe to the left closes it.
+    const stopSwipe = watchDrawerSwipe(this.backOpen.bind(this), this.ui.sidebarOpen.set.bind(this.ui.sidebarOpen));
+    this.destroyRef.onDestroy(stopSwipe);
     // ! Not at the start: the list (and the font pieces it checks) is a big job, so it waits until the app has settled and the browser is idle.
     setTimeout(this.warmEmoji.bind(this), EMOJI_WARM_UP_MS);
     this.socket.connect();

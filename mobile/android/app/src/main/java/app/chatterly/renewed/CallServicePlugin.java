@@ -8,6 +8,10 @@
  *   - setSecure: whether screenshots of the app are blocked (FLAG_SECURE);
  *   - notifications: asks Android 13+ for permission to show notifications;
  *   - fullScreen / fullScreenSettings: whether a ringing call may fill the screen, and the page of Android to allow it;
+ *   - permissionStates / askPermission / appSettings: the screen of permissions in Settings (what is allowed, ask for one, and the
+ *     page of Android about this app);
+ *   - batteryUnrestricted / batterySettings: whether the phone lets the app run without battery limits (some makers kill a call
+ *     when the app is swiped away from the recent apps unless it is), and the page of Android where the person allows it;
  *   - takePendingAction: what a button of a notification asked while the page was not listening;
  *   - takeRejoin / rejoined: the call a page kept after the app was swiped away hands over to this page (CallKeeper).
  * ! A page that is not the current one (a page kept for a call that is handing it over) can no longer change the notification
@@ -28,6 +32,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.provider.Settings;
 import android.content.pm.PackageManager;
+import android.os.PowerManager;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Build;
@@ -46,7 +51,11 @@ import java.util.List;
 
 @CapacitorPlugin(
     name = "ChatterlyCall",
-    permissions = { @Permission(strings = { Manifest.permission.POST_NOTIFICATIONS }, alias = "notifications") }
+    permissions = {
+        @Permission(strings = { Manifest.permission.POST_NOTIFICATIONS }, alias = "notifications"),
+        @Permission(strings = { Manifest.permission.RECORD_AUDIO }, alias = "microphone"),
+        @Permission(strings = { Manifest.permission.CAMERA }, alias = "camera")
+    }
 )
 public class CallServicePlugin extends Plugin {
 
@@ -287,6 +296,95 @@ public class CallServicePlugin extends Plugin {
         JSObject answer = new JSObject();
         answer.put("allowed", allowed);
         call.resolve(answer);
+    }
+
+    /** What the app is allowed to do now, for the screen of permissions in Settings (yes/no values only). */
+    @PluginMethod
+    public void permissionStates(PluginCall call) {
+        JSObject answer = new JSObject();
+        answer.put("microphone", getPermissionState("microphone") == PermissionState.GRANTED);
+        answer.put("camera", getPermissionState("camera") == PermissionState.GRANTED);
+        answer.put(
+            "notifications",
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || getPermissionState("notifications") == PermissionState.GRANTED
+        );
+        call.resolve(answer);
+    }
+
+    /** Asks for one of the permissions of the list (Android shows its own question; if it was refused for good it answers no at once). */
+    @PluginMethod
+    public void askPermission(PluginCall call) {
+        String name = call.getString("permission", "");
+        if (!"microphone".equals(name) && !"camera".equals(name) && !"notifications".equals(name)) {
+            call.reject("Unknown permission");
+            return;
+        }
+        if (getPermissionState(name) == PermissionState.GRANTED) {
+            JSObject answer = new JSObject();
+            answer.put("granted", true);
+            call.resolve(answer);
+            return;
+        }
+        requestPermissionForAlias(name, call, "askAnswered");
+    }
+
+    /** The answer of the person to the question of a permission. */
+    @PermissionCallback
+    private void askAnswered(PluginCall call) {
+        String name = call.getString("permission", "");
+        JSObject answer = new JSObject();
+        answer.put("granted", getPermissionState(name) == PermissionState.GRANTED);
+        call.resolve(answer);
+    }
+
+    /** Opens the page of Android about this app (where every permission can be changed). */
+    @PluginMethod
+    public void appSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:" + getContext().getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (RuntimeException missing) {
+            call.reject("This phone has no such setting");
+        }
+    }
+
+    /**
+     * Whether the phone lets the app run without battery limits. Several makers (Xiaomi, Huawei, Oppo, Vivo...) end the whole app when
+     * it is swiped away from the recent apps, and the call with it, unless the person allowed it here.
+     */
+    @PluginMethod
+    public void batteryUnrestricted(PluginCall call) {
+        boolean unrestricted = true;
+        PowerManager power = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        if (power != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            unrestricted = power.isIgnoringBatteryOptimizations(getContext().getPackageName());
+        }
+        JSObject answer = new JSObject();
+        answer.put("unrestricted", unrestricted);
+        call.resolve(answer);
+    }
+
+    /** Opens the page of Android with the list of apps that may run without battery limits (no extra permission is needed). */
+    @PluginMethod
+    public void batterySettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (RuntimeException missing) {
+            try {
+                Intent details = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:" + getContext().getPackageName()))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(details);
+                call.resolve();
+            } catch (RuntimeException none) {
+                call.reject("This phone has no such setting");
+            }
+        }
     }
 
     /** Opens the page of Android where the person allows calls to fill the screen (Android 14+). */

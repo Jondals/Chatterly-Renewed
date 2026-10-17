@@ -28,6 +28,7 @@ import { SyncSectionComponent } from './sync-section.component';
 import { IntegrationsSectionComponent } from './integrations-section.component';
 import { ProfileSectionComponent } from './profile-section.component';
 import { SecuritySectionComponent } from './security-section.component';
+import { PermissionsSectionComponent } from './permissions-section.component';
 import { ShortcutsSectionComponent } from './shortcuts-section.component';
 import { StickersSectionComponent } from './stickers-section.component';
 import { UpdatesSectionComponent } from './updates-section.component';
@@ -76,6 +77,14 @@ const GROUPS: SectionEntry[][] = [
   [{ id: 'about', label: 'About', icon: 'info', tone: 'bg-white/10 text-muted' }],
 ];
 
+/** The Android app asks the phone for permissions: this section lists them (it sits before Privacy & security). */
+const PERMISSIONS_ENTRY: SectionEntry = {
+  id: 'permissions',
+  label: 'Permissions',
+  icon: 'key',
+  tone: 'bg-amber/15 text-amber',
+};
+
 /** Only the desktop app can update itself, so only it has this section (it sits just before About). */
 const UPDATES_ENTRY: SectionEntry = {
   id: 'updates',
@@ -113,6 +122,7 @@ const ADMIN_ENTRY: SectionEntry = {
     GeneralSectionComponent,
     AudioSectionComponent,
     CallsSectionComponent,
+    PermissionsSectionComponent,
     StickersSectionComponent,
     ShortcutsSectionComponent,
     SecuritySectionComponent,
@@ -228,6 +238,9 @@ const ADMIN_ENTRY: SectionEntry = {
               @case ('calls') {
                 <app-calls-section class="anim-fade-up block" />
               }
+              @case ('permissions') {
+                <app-permissions-section class="anim-fade-up block" />
+              }
               @case ('shortcuts') {
                 <app-shortcuts-section class="anim-fade-up block" />
               }
@@ -303,6 +316,7 @@ export class SettingsComponent {
   private buildGroups(): SectionEntry[][] {
     const extra: SectionEntry[] = [];
     if (this.overlay.supported) extra.push(OVERLAY_ENTRY);
+    if (this.android) extra.push(PERMISSIONS_ENTRY);
     // Updates: the desktop app (electron-updater) and the Android app (its own plugin). The overlay stays desktop only.
     if (this.desktopUpdate.supported || this.android) extra.push(UPDATES_ENTRY);
     if (this.beta.admin()) extra.push(ADMIN_ENTRY);

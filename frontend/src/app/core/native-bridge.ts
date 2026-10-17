@@ -42,6 +42,18 @@ export interface CallPlugin {
   notifications(): Promise<{ granted: boolean }>;
   fullScreen(): Promise<{ allowed: boolean }>;
   fullScreenSettings(): Promise<void>;
+  /** What the app is allowed to do (an older app has no such command). */
+  permissionStates?(): Promise<{ microphone: boolean; camera: boolean; notifications: boolean }>;
+  /** Asks for a permission: Android shows its question (it answers no at once when it was refused for good). */
+  askPermission?(options: {
+    permission: 'microphone' | 'camera' | 'notifications';
+  }): Promise<{ granted: boolean }>;
+  /** Opens the page of Android about this app. */
+  appSettings?(): Promise<void>;
+  /** Whether the phone lets the app run without battery limits (an older app has no such command). */
+  batteryUnrestricted?(): Promise<{ unrestricted: boolean }>;
+  /** Opens the page of Android where that is allowed. */
+  batterySettings?(): Promise<void>;
   audioRoutes(): Promise<{ routes: AudioRoute[]; current: string }>;
   setAudioRoute(options: { id: string }): Promise<void>;
   takePendingAction(): Promise<CallAction>;

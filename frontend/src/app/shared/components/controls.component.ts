@@ -49,7 +49,7 @@ export class ToggleComponent {
           type="button"
           role="radio"
           [attr.aria-checked]="value() === o.id"
-          class="whitespace-nowrap rounded-[calc(var(--r)*.75)] px-3 py-1.5 text-xs font-semibold max-md:px-3.5 max-md:py-2"
+          class="min-w-0 max-w-full truncate whitespace-nowrap rounded-[calc(var(--r)*.75)] px-3 py-1.5 text-xs font-semibold max-md:px-3.5 max-md:py-2"
           [class.bg-accent]="value() === o.id"
           [class.text-accent-ink]="value() === o.id"
           [class.text-muted]="value() !== o.id"

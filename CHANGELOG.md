@@ -2,8 +2,24 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
-## 2.35.2
+## 2.36.0
 
+- **The overlay now works in the installed app.** Cause found: the installed app keeps its files inside `app.asar` and, with the extra privileges of `file://` taken away, Electron could not read the page of the overlay (ERR_FILE_NOT_FOUND): the window was transparent, took the mouse and drew nothing. It is now served by its own scheme that only hands out its three files (in development there is no asar, which is why it never failed there). Checked inside a packed copy.
+- **The overlay can no longer leave you without a mouse.** If its page dies, hangs or does not load, the mouse goes back at once and the window is rebuilt (at most three times a minute); a page that does not answer for 6 s while unlocked is rebuilt too, and so is it when the app page dies. A failing drawing is kept inside and tried again.
+- **Overlay: the controls of the call are used while you play.** They are shown by default and take the mouse only while it is over them, without taking the focus from the game. The bar on top is gone (size, "only who talks" and names are in Settings > Overlay).
+- **Overlay: cameras.** Right click on them (unlocked) to stack them or put them side by side; they can be made bigger (up to 4x, never more than 60 % of the screen).
+- **Overlay shortcut in Settings > Shortcuts**, and in "only with my games" mode it does nothing while no registered game is open.
+- **Call shortcuts work with Chatterly in the background (desktop).** During a call the shell takes mute, deafen, camera, screen and hang up from the system; outside a call it takes no key.
+- **Stickers lag less.** New ones are kept at 320 px (and a still WebP is reduced too), and only the stickers of the latest 8 messages move all the time (the others under the pointer).
+- **Camera on weak devices.** Phones and computers with few cores or little memory start at 480p; whoever chose another quality keeps it.
+- **Pictures that move can be adjusted.** A GIF or an animated WebP as a profile picture or banner opens the same window (move and zoom) and is cut frame by frame into a GIF that keeps moving, with an encoder of our own; if the browser cannot, it is saved as before.
+- **Listen and watch together in the apps.** The Android and iOS apps blocked every frame, and so the players of YouTube and Spotify; now only those two are allowed. Spotify cannot be paused for everybody (its player has no control from outside).
+- **Android: shared screen with the phone on its side.** The others go in a column at the right instead of a strip below, and the bar of the call takes less height.
+- **Android: the call goes on when you clear the recent apps** on phones that end the app unless it runs without battery limits: a new "Permissions" section (microphone, camera, notifications, calls over the lock screen and battery) with a button to allow each one.
+- **Swipe on the phone:** right opens the menu, left closes it.
+- **Chat.** The bar of actions of a message is no longer cut at the top; switching chats no longer glides from the top (a long glide only when you press "Latest"); a long chat keeps its images lazy and decoded off the main thread.
+- **Administration.** The sessions and actions unfold smoothly, the owner cannot be taken out of the beta, and the "Administrators" card of the Server tab is gone (they are made in People).
+- **Small fixes on the phone.** The column of GIFs when choosing a banner or picture, the text of the Gradient buttons and the space between "+" and the microphone.
 - **Less lag on every platform.** The default animated background (aurora) no longer has a filter over the whole screen, which was drawn again on every frame: in my measurement (no graphics card) the frame at rest went from 34 to 22 ms. Also, when Chatterly is not the window in use (a game in front, for example) the animated background stops after 4 s and comes back at once with the focus; before, it went on drawing at full speed behind the game, taking the graphics card from it. Calls and chats do not change.
 - **Own animations on the first page of the web.** Going into the app from it and signing out on it have their own animation (a curtain over the grid, with the logo alone), different from the ones of signing in and out, so the same one does not play again right after. Signing out on the first page uses the default colors, not the theme of whoever left; going back to the web from the app uses the same one. Web only.
 - **Android: sound when sharing the screen.** Cause found in the code: the sound capture mixed "include" and "exclude" rules, which Android does not allow, and it failed silently. It now only excludes Chatterly (the voices of the call) and captures the rest; if it still cannot capture, it tells you instead of staying quiet. I could not test it on a real phone.

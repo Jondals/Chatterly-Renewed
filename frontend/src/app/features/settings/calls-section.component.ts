@@ -71,6 +71,20 @@ import { GeneralSectionComponent } from './general-section.component';
             </button>
           </app-setting-row>
         }
+        @if (!nativeCall.batteryUnrestricted()) {
+          <app-setting-row
+            title="Keep calls when you clear the recent apps"
+            hint="On some phones, clearing the recent apps ends the call. Allow Chatterly to run without battery limits (look for Chatterly in the list and choose Don't optimize) and the call goes on."
+          >
+            <button
+              type="button"
+              class="btn btn-sm btn-primary"
+              (click)="nativeCall.openBatterySettings()"
+            >
+              {{ 'Allow' | t }}
+            </button>
+          </app-setting-row>
+        }
       </section>
     }
   `,

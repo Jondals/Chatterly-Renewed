@@ -296,7 +296,7 @@ const GRADIENTS = [
 
       @if (toolbar() && !recording()) {
         <div
-          class="anim-fade-up mb-1.5 flex flex-nowrap items-center gap-1 overflow-hidden rounded-ui border border-white/10 bg-ink-800 p-1.5"
+          class="anim-fade-up mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden rounded-ui border border-white/10 bg-ink-800 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <button
             class="btn btn-icon btn-sm btn-ghost tip"
@@ -359,16 +359,16 @@ const GRADIENTS = [
           <span class="mx-1 h-5 w-px bg-white/10"></span>
           <button
             type="button"
-            class="btn btn-sm btn-ghost shrink-0 gap-1.5"
+            class="btn btn-sm btn-ghost max-w-full shrink-0 gap-1.5"
             [class.btn-active]="gradientOpen()"
             (mousedown)="$event.preventDefault()"
             (click)="gradientOpen.set(!gradientOpen())"
           >
             <span
-              class="h-3.5 w-6 rounded-full ring-1 ring-white/30"
+              class="h-3.5 w-6 shrink-0 rounded-full ring-1 ring-white/30"
               [style.background]="gradientCss()"
             ></span>
-            {{ 'Gradient' | t }}
+            <span class="min-w-0 truncate">{{ 'Gradient' | t }}</span>
           </button>
         </div>
         @if (gradientOpen()) {
@@ -438,7 +438,7 @@ const GRADIENTS = [
           </button>
         </div>
       } @else {
-        <div class="panel flex items-end gap-1 p-1.5">
+        <div class="panel flex items-end gap-1 p-1.5 max-sm:gap-1.5">
           <input
             #file
             type="file"
@@ -658,7 +658,7 @@ const GRADIENTS = [
           </div>
           <!-- only on a phone (on a computer Enter sends): always there, a microphone while nothing is written and the arrow when there is something to send, so nothing appears or moves -->
           <button
-            class="btn btn-icon btn-primary relative sm:!hidden"
+            class="btn btn-icon btn-primary relative max-sm:ml-1.5 sm:!hidden"
             type="button"
             (click)="canSend() ? send() : startRecording()"
             [disabled]="sending()"

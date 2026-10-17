@@ -1885,6 +1885,23 @@ export const ES: Record<string, string> = {
   'Call moved to another device': 'La llamada pasó a otro dispositivo',
   'You are in this call on another device now.':
     'Ahora estás en esta llamada desde otro dispositivo.',
+  'Keep calls when you clear the recent apps': 'Mantener las llamadas al limpiar las apps recientes',
+  "On some phones, clearing the recent apps ends the call. Allow Chatterly to run without battery limits (look for Chatterly in the list and choose Don't optimize) and the call goes on.":
+    'En algunos móviles, limpiar las apps recientes corta la llamada. Permite que Chatterly funcione sin límites de batería (busca Chatterly en la lista y elige No optimizar) y la llamada sigue.',
+  'Permissions': 'Permisos',
+  'These are the permissions Chatterly asks of this phone. Allow the ones you want to use: nothing is used without them.':
+    'Estos son los permisos que Chatterly pide a este móvil. Permite los que quieras usar: sin ellos no se usa nada.',
+  'Allowed': 'Permitido',
+  'To talk in calls and record voice notes.': 'Para hablar en las llamadas y grabar notas de voz.',
+  'To turn your camera on in a call.': 'Para encender tu cámara en una llamada.',
+  'Messages, the call in progress and calls that ring.': 'Mensajes, la llamada en curso y las llamadas que suenan.',
+  'So a call that rings fills the screen even with the phone locked.':
+    'Para que una llamada que suena ocupe la pantalla aunque el móvil esté bloqueado.',
+  'Run without battery limits: on some phones clearing the recent apps ends the call.':
+    'Funcionar sin límites de batería: en algunos móviles limpiar las apps recientes corta la llamada.',
+  'Sharing the screen is asked by Android every time you start it.':
+    'Android pregunta cada vez que empiezas a compartir la pantalla.',
+  'Open the settings of the app': 'Abrir los ajustes de la app',
   'Calls over the lock screen': 'Llamadas sobre la pantalla de bloqueo',
   'Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked.':
     'Android pide que lo permitas: así una llamada que suena ocupa la pantalla, como una llamada de teléfono, aunque el móvil esté bloqueado.',

@@ -569,59 +569,6 @@ const ACTIONS: Record<string, string> = {
             </p>
           }
         </section>
-        <section class="settings-card">
-          <h2 class="settings-card-title">{{ 'Administrators' | t }}</h2>
-          <p class="mb-3 text-xs text-muted">
-            {{
-              'Only an owner (set in the server) makes or removes administrators. Administrators manage the beta program, the accounts and the announcements.'
-                | t
-            }}
-          </p>
-          @if (beta.owner()) {
-            <form class="flex flex-wrap gap-2 pb-3" (submit)="addAdmin($event)">
-              <input
-                class="input min-w-0 flex-1"
-                type="text"
-                maxlength="24"
-                autocomplete="off"
-                [placeholder]="'Username' | t"
-                [value]="adminName()"
-                (input)="adminName.set($any($event.target).value)"
-              />
-              <button
-                type="submit"
-                class="btn btn-primary"
-                [disabled]="busy() || !adminName().trim()"
-              >
-                <app-icon name="user-plus" [size]="16" /> {{ 'Add administrator' | t }}
-              </button>
-            </form>
-          }
-          @for (a of beta.admins(); track a.id) {
-            <div class="ad-person">
-              <span class="ad-avatar">{{ initialsOf(a.displayName) }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">{{ a.displayName }}</div>
-                <div class="truncate text-xs text-muted">
-                  &#64;{{ a.username }}
-                  @if (a.fixed) {
-                    · {{ 'Owner' | t }}
-                  }
-                </div>
-              </div>
-              @if (!a.fixed && beta.owner()) {
-                <button
-                  type="button"
-                  class="btn btn-icon btn-sm btn-ghost"
-                  [attr.aria-label]="'Remove' | t"
-                  (click)="removeAdmin(a.id)"
-                >
-                  <app-icon name="x" [size]="16" />
-                </button>
-              }
-            </div>
-          }
-        </section>
       }
 
       @case ('record') {
@@ -683,7 +630,6 @@ export class AdminSectionComponent implements OnInit {
   ];
   protected readonly query = signal('');
   protected readonly filter = signal<AdminFilter>('all');
-  protected readonly adminName = signal('');
   protected readonly announcement = signal('');
   protected readonly tone = signal<'info' | 'warning'>('info');
   protected readonly busy = signal(false);
@@ -930,32 +876,6 @@ export class AdminSectionComponent implements OnInit {
       this.admin.announce.bind(this.admin, text, this.tone()),
       text.trim() ? 'Announcement published' : 'Announcement removed',
     );
-  }
-
-  protected async addAdmin(event: Event): Promise<void> {
-    event.preventDefault();
-    const username = this.adminName().trim().replace(/^@/, '');
-    if (!username) return;
-    this.busy.set(true);
-    try {
-      await this.beta.addAdmin(username);
-      this.adminName.set('');
-    } catch (e) {
-      this.toast.error(
-        this.i18n.t('Could not add the administrator'),
-        this.i18n.t(describeError(e)),
-      );
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  protected async removeAdmin(id: string): Promise<void> {
-    try {
-      await this.beta.removeAdmin(id);
-    } catch (e) {
-      this.toast.error(this.i18n.t('Could not remove it'), this.i18n.t(describeError(e)));
-    }
   }
 
   // ── Texts ─────────────────────────────────────────────────────────────────────────────────────
