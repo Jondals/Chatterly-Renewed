@@ -56,7 +56,7 @@ const PAGE_FILES = {
 const WIDGETS = {
   notifications: { x: 0.02, y: 0.03, pinned: true },
   voice: { x: 0.02, y: 0.24, pinned: true },
-  controls: { x: 0.36, y: 0.8, pinned: false },
+  controls: { x: 0.36, y: 0.8, pinned: true },
   activity: { x: 0.8, y: 0.44, pinned: false },
   streams: { x: 0.8, y: 0.6, pinned: true },
 };
@@ -78,6 +78,8 @@ const DEFAULTS = {
   //   screen too (a window that took the clicks and showed nothing). The person can still turn it on.
   hideFromCapture: false,
   display: 'primary',
+  // How the cameras are laid out in the video widget (changed with a right click on it while unlocked).
+  videoLayout: 'vertical',
   mode: 'always',
   games: [],
   // The place and size of the video widget (they were the place of the only panel before the widgets).
@@ -88,10 +90,13 @@ const DEFAULTS = {
   widgets: WIDGETS,
 };
 const SIZES = ['small', 'medium', 'large'];
+const VIDEO_LAYOUTS = ['vertical', 'horizontal'];
 const DISPLAYS = ['primary', 'app'];
 /** When it shows: during every call, or only while one of the registered games is open. */
 const MODES = ['always', 'games'];
 const MAX_GAMES = 30;
+/** The biggest the cameras can be made (times their size); the overlay page also keeps them inside the screen. */
+const MAX_SCALE = 4;
 const MAX_GAME_CHARS = 80;
 /** How often the open windows are read while the overlay waits for a game. */
 const WATCH_MS = 4000;
@@ -104,11 +109,13 @@ const MAX_AVATAR_CHARS = 60000;
 const MAX_SIGNAL_CHARS = 30000;
 /** The version of overlay.json. Files of an older version get "hide from captures" off once (see DEFAULTS), and from
  *  before the widgets they also get "show me" on and the video widget at its new place. */
-const FILE_VERSION = 3;
+const FILE_VERSION = 4;
 const MAX_STREAMS = 8;
 const MAX_TEXT = 140;
 /** What the overlay may ask the page to do (only while it is unlocked). */
 const ACTIONS = ['mute', 'deafen', 'camera', 'screen', 'leave', 'open-chat', 'stream-volume'];
+/** The buttons of the controls: they work while you play, with the mouse over them, without unlocking the overlay. */
+const CONTROL_ACTIONS = ['mute', 'deafen', 'camera', 'screen', 'leave'];
 
 let settings = { ...DEFAULTS };
 let mainWindow = null;
@@ -117,6 +124,8 @@ let userData = '';
 let quiet = false;
 let overlayWindow = null;
 let editing = false;
+/** The mouse is over the controls of the call (then the window takes the mouse for them, still without taking the focus). */
+let hoverControls = false;
 let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
@@ -187,12 +196,13 @@ function sanitizeSettings(raw, base) {
   if (typeof wanted.hotkey === 'string' && HOTKEY.test(wanted.hotkey)) next.hotkey = wanted.hotkey;
   if (SIZES.includes(wanted.size)) next.size = wanted.size;
   if (DISPLAYS.includes(wanted.display)) next.display = wanted.display;
+  if (VIDEO_LAYOUTS.includes(wanted.videoLayout)) next.videoLayout = wanted.videoLayout;
   if (MODES.includes(wanted.mode)) next.mode = wanted.mode;
   if (Array.isArray(wanted.games)) next.games = cleanGames(wanted.games);
   next.opacity = Math.round(clamp(wanted.opacity, 30, 100, next.opacity));
   next.x = clamp(wanted.x, 0, 1, next.x);
   next.y = clamp(wanted.y, 0, 1, next.y);
-  next.scale = clamp(wanted.scale, 0.5, 3, next.scale);
+  next.scale = clamp(wanted.scale, 0.5, MAX_SCALE, next.scale);
   next.widgets = cleanWidgets(wanted.widgets, next.widgets || WIDGETS);
   return next;
 }
@@ -233,8 +243,12 @@ function load() {
   try {
     const raw = JSON.parse(fs.readFileSync(fileOf(), 'utf8'));
     const loaded = sanitizeSettings(raw, DEFAULTS);
+    if (!raw || !(raw.version >= 4)) {
+      // The controls of the call are shown (and can be pressed) while you play: they were only there while unlocked.
+      loaded.widgets = { ...loaded.widgets, controls: { ...loaded.widgets.controls, pinned: true } };
+    }
     if (!raw || raw.version !== FILE_VERSION) {
-      loaded.hideFromCapture = false;
+      if (!raw || !(raw.version >= 3)) loaded.hideFromCapture = false;
       if (!raw || !(raw.version >= 3)) {
         loaded.showSelf = true;
         loaded.x = DEFAULTS.x;
@@ -419,6 +433,8 @@ function labelsFor(spanish, keys) {
           keys +
           ', Esc o un clic fuera para volver al juego',
         toast: 'Overlay de Chatterly activo · ' + keys + ' para desbloquearlo',
+        layoutVertical: 'Cámaras en vertical',
+        layoutHorizontal: 'Cámaras en horizontal',
         pin: 'Fijar: se ve mientras juegas',
         unpin: 'Fijado: pulsa para que solo se vea aquí',
         widgets: {
@@ -465,6 +481,8 @@ function labelsFor(spanish, keys) {
           keys +
           ', Esc or a click outside to go back to the game',
         toast: 'Chatterly overlay is on · ' + keys + ' to unlock it',
+        layoutVertical: 'Cameras stacked',
+        layoutHorizontal: 'Cameras side by side',
         pin: 'Pin: it shows while you play',
         unpin: 'Pinned: press so it only shows here',
         widgets: {
@@ -538,7 +556,7 @@ function publishScene() {
  */
 function applyMouse() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  overlayWindow.setIgnoreMouseEvents(!editing, { forward: true });
+  overlayWindow.setIgnoreMouseEvents(!(editing || hoverControls), { forward: true });
 }
 
 /** Opens the overlay window (transparent, on top, click-through, never taking the focus). */
@@ -641,6 +659,7 @@ function onOverlayClosed() {
   overlayWindow = null;
   setEscape(false);
   editing = false;
+  hoverControls = false;
   tellPage({ type: 'closed' });
   tellPage({ type: 'state', state: state() });
 }
@@ -720,7 +739,11 @@ async function watchGames() {
  * games") and to show the activity.
  */
 function updateWatch() {
-  const needed = settings.enabled && settings.games.length > 0 && tiles.length > 0;
+  // In "only with my games" the open windows are read also outside a call: the shortcut only works while one of them is open.
+  const needed =
+    settings.enabled &&
+    settings.games.length > 0 &&
+    (tiles.length > 0 || settings.mode === 'games');
   if (needed && !watchTimer) {
     watchTimer = setInterval(watchGames, WATCH_MS);
     void watchGames();
@@ -768,6 +791,7 @@ function setEditing(on) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   if (editing === on) return;
   editing = on;
+  hoverControls = false;
   overlayWindow.setFocusable(on);
   applyMouse();
   setEscape(on);
@@ -786,6 +810,8 @@ function setEditing(on) {
  * press locks it again. If the overlay was waiting for a registered game during a call, this opens it too.
  */
 function onHotkey() {
+  // ! "Only with my games": the shortcut does nothing while none of them is open.
+  if (!overlayWindow && settings.enabled && settings.mode === 'games' && !gameOpen) return;
   if (!overlayWindow && settings.enabled) {
     if (tiles.length > 0) forced = true;
     else summoned = true;
@@ -932,11 +958,16 @@ function handleLayout(event, layout, finished) {
   else publish();
 }
 
-/** The person changed a choice from the bar of the overlay while editing (only the size, who is shown and the names). */
+/** The person changed a choice from the overlay while editing (only the size, who is shown, the names and the layout of the cameras). */
 function handleChoose(event, patch) {
   if (!isOverlay(event) || !editing || !patch || typeof patch !== 'object') return;
   settings = sanitizeSettings(
-    { size: patch.size, onlySpeaking: patch.onlySpeaking, showNames: patch.showNames },
+    {
+      size: patch.size,
+      onlySpeaking: patch.onlySpeaking,
+      showNames: patch.showNames,
+      videoLayout: patch.videoLayout,
+    },
     settings,
   );
   save();
@@ -949,14 +980,23 @@ function handleChoose(event, patch) {
  * as if it was pressed in the app. Opening a chat or sharing the screen brings the window of Chatterly to the front.
  */
 function handleAction(event, raw) {
-  if (!isOverlay(event) || !editing) return;
+  if (!isOverlay(event)) return;
   const action = sanitizeAction(raw);
   if (!action) return;
+  // Locked: only the buttons of the controls, and only while the mouse is over them.
+  if (!editing && !(hoverControls && CONTROL_ACTIONS.includes(action.type))) return;
   if (action.type === 'open-chat' || (action.type === 'screen' && !(callInfo && callInfo.screen))) {
     setEditing(false);
     if (showMain) showMain();
   }
   tellPage({ type: 'action', action });
+}
+
+/** The overlay page says the mouse is over (or left) the controls of the call: the window takes the mouse only then. */
+function handleHover(event, over) {
+  if (!isOverlay(event) || editing) return;
+  hoverControls = over === true;
+  applyMouse();
 }
 
 /** The person ended editing with the mouse (a click outside, Esc or the button of the overlay). */
@@ -990,6 +1030,7 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   ipcMain.on('overlay:stop-editing', handleStopEditing);
   ipcMain.on('overlay:choose', handleChoose);
   ipcMain.on('overlay:action', handleAction);
+  ipcMain.on('overlay:hover', handleHover);
   if (mainWindow) mainWindow.on('focus', onMainFocus);
   registerHotkey();
 }

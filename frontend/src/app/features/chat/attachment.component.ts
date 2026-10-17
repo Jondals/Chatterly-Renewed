@@ -60,7 +60,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
       <div class="mt-2 w-80 max-w-full rounded-ui border border-white/8 bg-black/30 p-2.5">
         <div class="flex items-center gap-3">
           @if (mark.thumb) {
-            <img
+            <img decoding="async"
               [src]="mark.thumb"
               alt=""
               class="h-12 w-[4.75rem] shrink-0 rounded-lg border border-white/12 object-cover"
@@ -119,7 +119,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
         @case ('image') {
           @if (att().sticker) {
             @if (url(); as src) {
-              <img
+              <img decoding="async"
                 [src]="src"
                 alt=""
                 draggable="false"
@@ -141,7 +141,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
               class="group relative mt-2 max-w-sm overflow-hidden rounded-ui border border-white/8 bg-black/30"
             >
               @if (url(); as src) {
-                <img
+                <img decoding="async"
                   [src]="src"
                   [alt]="att().name"
                   class="anim-fade-in max-h-80 w-full cursor-zoom-in object-cover transition duration-500 group-hover:scale-[1.02]"
@@ -181,7 +181,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
               class="anim-fade-in fixed inset-0 z-[95] flex cursor-zoom-out items-center justify-center bg-black/85 p-6 backdrop-blur"
               (click)="lightbox.set(false)"
             >
-              <img
+              <img decoding="async"
                 [src]="url()!"
                 [alt]="att().name"
                 class="anim-pop max-h-full max-w-full rounded-ui shadow-2xl"

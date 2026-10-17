@@ -479,7 +479,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               }
 
               <!-- Controls -->
-              <div class="flex shrink-0 justify-center px-3 pb-4 pt-2">
+              <div class="call-controls flex shrink-0 justify-center px-3 pb-4 pt-2">
                 <div
                   class="call-bar flex flex-wrap items-center justify-center gap-3 rounded-ui-lg border border-white/8 bg-black/30 px-4 py-3"
                 >

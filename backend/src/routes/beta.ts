@@ -234,6 +234,8 @@ export function registerBetaRoutes(app: FastifyInstance, ctx: AppContext): void 
       const actor = me(req);
       if (!isAdmin(actor)) return reply.code(404).send({ error: 'not_found' });
       const { userId } = req.params as { userId: string };
+      // ! An owner always has the beta (see canUseBeta): taking it away would mean nothing, so it is refused.
+      if (isCallerOwner(userId)) return reply.code(403).send({ error: 'owner_fixed' });
       const removed = db.prepare('DELETE FROM beta_testers WHERE user_id = ?').run(userId).changes;
       if (removed) recordAdminAction(db, actor, 'tester-remove', userId);
       return { ok: true };

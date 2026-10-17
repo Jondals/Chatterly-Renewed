@@ -35,6 +35,19 @@ export type ThemeId =
 /** How opaque the big blocks of the interface are for each level of "background visibility", in percent. */
 const GLASS_LEVELS = [94, 80, 64, 46, 28];
 
+/**
+ * A device with few cores or little memory (a cheap phone, an old computer). Its camera starts at 480p: every picture is encoded and
+ * ciphered on the device itself, and 720p was too much for it (the call stuttered). Whoever picks another quality keeps it.
+ */
+function isLowEndDevice(): boolean {
+  try {
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    return (navigator.hardwareConcurrency || 8) <= 4 || (memory !== undefined && memory <= 4);
+  } catch {
+    return false;
+  }
+}
+
 /** The animations to start with: off for whoever had "reduce motion" on before this setting existed, all of them otherwise. */
 function initialAnimations(): 'off' | 'quick' | 'full' {
   try {
@@ -382,7 +395,10 @@ export class SettingsService {
     'natural',
   );
   /** The quality of the camera in calls (the height of the picture in pixels). */
-  readonly cameraQuality = persisted<'480' | '720' | '1080'>('pref.cameraQuality', '720');
+  readonly cameraQuality = persisted<'480' | '720' | '1080'>(
+    'pref.cameraQuality',
+    isLowEndDevice() ? '480' : '720',
+  );
   /** Pictures per second of the camera. */
   readonly cameraFps = persisted<'15' | '30' | '60'>('pref.cameraFps', '30');
   /** What is behind the person in the camera of a call: 'none', 'blur', 'custom', 'preset:<id>' or 'vault:<id>' (a picture of the library). */

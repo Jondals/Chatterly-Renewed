@@ -28,9 +28,10 @@ const LOCATION: StoreLocation = {
   store: 'packs',
   keyPath: 'id',
 };
-/** Biggest sticker kept as it is (1 MB) and longest side of the others (512 px). */
+/** Biggest sticker kept as it is (1 MB) and longest side of the others (320 px). */
 const MAX_STICKER_BYTES = 1024 * 1024;
-const MAX_STICKER_SIDE = 512;
+// ? A sticker is drawn at 144 px (a bit more on a sharp screen): 320 px is plenty, and 512 px pictures made the conversation lag on a PC.
+const MAX_STICKER_SIDE = 320;
 /** Emoji turned into stickers by the starter pack. */
 const STARTER = [
   '😀',
@@ -308,20 +309,32 @@ export class StickerStore {
     }
   }
 
-  /** Turns any image into a sticker (at most 512 px; WebP and GIF are kept as they are to keep the animation). */
+  /** True for a WebP that is animated (its header says so); only those must be kept as they are. */
+  private async isAnimatedWebp(blob: Blob): Promise<boolean> {
+    const head = new Uint8Array(await blob.slice(0, 32).arrayBuffer());
+    const tag = String.fromCharCode(...head.slice(8, 16));
+    // RIFF....WEBPVP8X: the flags byte comes after the chunk size; bit 1 is "animation".
+    return tag === 'WEBPVP8X' && ((head[20] ?? 0) & 0x02) !== 0;
+  }
+
+  /** Turns any image into a sticker (at most 320 px; a GIF or an animated WebP is kept as it is to keep the animation). */
   private async normalize(blob: Blob): Promise<Blob | null> {
     if (blob.type === 'image/svg+xml') {
       return blob;
     }
-    if (
-      (blob.type === 'image/webp' || blob.type === 'image/gif') &&
-      blob.size <= MAX_STICKER_BYTES
-    ) {
+    const isKept =
+      blob.type === 'image/gif' || (blob.type === 'image/webp' && (await this.isAnimatedWebp(blob)));
+    if (isKept && blob.size <= MAX_STICKER_BYTES) {
       return blob;
     }
     try {
       const bitmap = await createImageBitmap(blob);
       const scale = Math.min(1, MAX_STICKER_SIDE / Math.max(bitmap.width, bitmap.height));
+      // ? A still picture that is already small enough is kept as it is (it would only be encoded again for nothing).
+      if (scale === 1 && blob.type === 'image/webp' && blob.size <= MAX_STICKER_BYTES) {
+        bitmap.close();
+        return blob;
+      }
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(bitmap.width * scale));
       canvas.height = Math.max(1, Math.round(bitmap.height * scale));

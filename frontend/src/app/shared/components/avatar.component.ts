@@ -43,7 +43,7 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
           [style.fontSize.px]="size() * 0.4"
         >
           @if (shown(); as url) {
-            <img
+            <img decoding="async" loading="lazy"
               [src]="url"
               alt=""
               draggable="false"

@@ -1066,6 +1066,8 @@ export const ES: Record<string, string> = {
   'Shortcuts': 'Atajos',
   'Press the key or the combination you want for each action. They work while this tab is the one in front.':
     'Pulsa la tecla o la combinación que quieras para cada acción. Funcionan mientras esta pestaña es la que tienes delante.',
+  'Press the key or the combination you want for each action. In a call they work even when Chatterly is not in front.':
+    'Pulsa la tecla o la combinación que quieras para cada acción. En una llamada funcionan aunque Chatterly no esté delante.',
   'Press the keys…': 'Pulsa las teclas…',
   'No shortcut': 'Sin atajo',
   'Esc cancels, Backspace removes the shortcut.': 'Esc cancela, Retroceso quita el atajo.',
@@ -1784,6 +1786,11 @@ export const ES: Record<string, string> = {
   'The video goes to the overlay inside your computer only: it is never sent anywhere. The overlay is a window of Chatterly; it does not touch the game, so there is nothing for an anti-cheat to flag, but not every game can be promised.':
     'El vídeo llega al overlay solo dentro de tu ordenador: nunca se envía a ningún sitio. El overlay es una ventana de Chatterly; no toca el juego, así que un antitrampas no tiene nada que marcar, pero no se puede prometer en todos los juegos.',
   'Move and resize shortcut': 'Atajo para mover y cambiar el tamaño',
+  'The shortcut to move and resize the panel is in Settings > Shortcuts.':
+    'El atajo para mover y cambiar el tamaño del panel está en Ajustes > Atajos.',
+  'Overlay: move and resize the panel': 'Overlay: mover y cambiar el tamaño del panel',
+  'Press it to grab the panel with the mouse (and the controls of the call); Esc or the shortcut again gives the game its mouse back.':
+    'Púlsalo para coger el panel con el ratón (y los controles de la llamada); Esc o el atajo otra vez devuelve el ratón al juego.',
   'Size of each person': 'Tamaño de cada persona',
   'Draws the cameras and the pictures of the people in your call, and who is talking, over the games you play. It never reads or changes the game.':
     'Dibuja las cámaras y las fotos de las personas de tu llamada, y quién habla, sobre los juegos que juegas. Nunca lee ni cambia el juego.',

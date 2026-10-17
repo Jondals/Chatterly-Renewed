@@ -49,6 +49,9 @@ function stopEditing() {
 function choose(patch) {
   ipcRenderer.send('overlay:choose', patch);
 }
+function hover(over) {
+  ipcRenderer.send('overlay:hover', over === true);
+}
 
 contextBridge.exposeInMainWorld(
   'chatterlyOverlay',
@@ -62,6 +65,7 @@ contextBridge.exposeInMainWorld(
     saveLayout,
     stopEditing,
     choose,
+    hover,
     act,
   }),
 );

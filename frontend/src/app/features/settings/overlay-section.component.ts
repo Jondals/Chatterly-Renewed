@@ -24,7 +24,6 @@ const DISPLAYS: { id: OverlaySettings['display']; label: string }[] = [
 ];
 
 /** A key that can end a shortcut: a letter, a digit or F1 to F12. */
-const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 
 /** Settings > Overlay. */
 @Component({
@@ -137,20 +136,10 @@ const SHORTCUT_KEY = /^(?:[A-Z0-9]|F[1-9]|F1[0-2])$/;
 
     <section class="settings-card mt-4">
       <h2 class="settings-card-title">{{ 'Position' | t }}</h2>
-      <app-setting-row
-        title="Move and resize shortcut"
-        hint="Press it during a call to grab the panel with the mouse: drag it where you want, pull the corner to resize it, and press Esc (or the shortcut again) to give the game back its mouse."
-      >
-        <button
-          type="button"
-          class="btn btn-sm min-w-40 font-mono"
-          (click)="listening.set(true)"
-          (keydown)="onKey($event)"
-          (blur)="listening.set(false)"
-        >
-          {{ listening() ? ('Press the keys…' | t) : shortcutLabel() }}
-        </button>
-      </app-setting-row>
+      <p class="text-xs text-muted">
+        {{ 'The shortcut to move and resize the panel is in Settings > Shortcuts.' | t }}
+        <b class="font-mono text-fg">{{ shortcutLabel() }}</b>
+      </p>
       @if (!overlay.state().hotkeyOk && settings().enabled) {
         <p class="mt-2 text-xs text-red-300">
           {{ 'Another program is using that shortcut. Choose a different one.' | t }}
@@ -274,7 +263,6 @@ export class OverlaySectionComponent {
   protected readonly modeOptions = computed(this.buildModes.bind(this));
 
   /** True while the button waits for the keys of a new shortcut. */
-  protected readonly listening = signal(false);
   protected readonly settings = computed(this.readSettings.bind(this));
 
   protected readonly sizeOptions = computed(this.buildSizes.bind(this));
@@ -347,27 +335,5 @@ export class OverlaySectionComponent {
     if (found) {
       this.overlay.set({ size: found.id });
     }
-  }
-
-  /** Builds the shortcut from the keys the person presses (at least one of Ctrl, Alt or Shift, and a letter, digit or F key). */
-  protected onKey(event: KeyboardEvent): void {
-    if (!this.listening()) {
-      return;
-    }
-    event.preventDefault();
-    if (event.key === 'Escape') {
-      this.listening.set(false);
-      return;
-    }
-    const key = event.key.toUpperCase();
-    const modifiers: string[] = [];
-    if (event.ctrlKey || event.metaKey) modifiers.push('CommandOrControl');
-    if (event.altKey) modifiers.push('Alt');
-    if (event.shiftKey) modifiers.push('Shift');
-    if (modifiers.length === 0 || !SHORTCUT_KEY.test(key)) {
-      return;
-    }
-    this.listening.set(false);
-    this.overlay.set({ hotkey: [...modifiers, key].join('+') });
   }
 }

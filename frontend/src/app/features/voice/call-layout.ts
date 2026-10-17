@@ -63,6 +63,30 @@ export function gridBoxes(count: number, width: number, height: number): Box[] {
   return boxes;
 }
 
+/** One big tile and the others stacked in a narrow column at its right (a short, wide stage). */
+function sideBoxes(count: number, width: number, height: number): Box[] {
+  const others = count - 1;
+  const columnWidth = Math.round(Math.min(160, Math.max(96, width * 0.18)));
+  const mainWidth = width - columnWidth - GAP;
+  const boxes: Box[] = [{ x: 0, y: 0, w: Math.max(mainWidth, 60), h: height }];
+  const ratio = 16 / 9;
+  const tileHeight = Math.floor(
+    Math.min(columnWidth / ratio, (height - GAP * (others - 1)) / others),
+  );
+  const tileWidth = Math.floor(tileHeight * ratio);
+  const columnHeight = others * tileHeight + GAP * (others - 1);
+  const left = mainWidth + GAP + (columnWidth - tileWidth) / 2;
+  for (let i = 0; i < others; i++) {
+    boxes.push({
+      x: Math.round(left),
+      y: Math.round((height - columnHeight) / 2 + i * (tileHeight + GAP)),
+      w: tileWidth,
+      h: tileHeight,
+    });
+  }
+  return boxes;
+}
+
 /**
  * One tile fills the stage and the rest sit in a strip along the bottom. The first box is the big one; the others
  * follow in order. With nobody else, the big one takes everything.
@@ -75,6 +99,11 @@ export function focusBoxes(count: number, width: number, height: number): Box[] 
     return [{ x: 0, y: 0, w: width, h: height }];
   }
   const others = count - 1;
+  // ! A phone turned sideways has very little height: a strip along the bottom left the shared screen small. The others go in a
+  //   column at the right instead, so the big tile keeps all the height it can.
+  if (height < 480 && width > height) {
+    return sideBoxes(count, width, height);
+  }
   const stripHeight = Math.round(Math.min(150, Math.max(height < 420 ? 64 : 88, height * 0.2)));
   const mainHeight = height - stripHeight - GAP;
   const boxes: Box[] = [{ x: 0, y: 0, w: width, h: Math.max(mainHeight, 60) }];

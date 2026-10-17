@@ -54,7 +54,7 @@ import {
               }
             } @else {
               @if (preview().image) {
-                <img
+                <img decoding="async" loading="lazy"
                   [src]="preview().image"
                   alt=""
                   class="absolute inset-0 h-full w-full object-cover opacity-80"
@@ -86,7 +86,7 @@ import {
           rel="noopener noreferrer nofollow"
         >
           @if (!video() && preview().image) {
-            <img
+            <img decoding="async" loading="lazy"
               [src]="preview().image"
               alt=""
               class="h-16 w-16 shrink-0 rounded-ui object-cover"

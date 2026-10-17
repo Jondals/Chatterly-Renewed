@@ -95,7 +95,9 @@ function nativeCsp(webCsp, api) {
   const wanted = {
     'connect-src': "'self' " + api + ' ' + socket,
     'media-src': "'self' blob: mediastream: " + api,
-    'frame-src': "'none'",
+    // The two players of "listen and watch together" (see music-link.ts): they are the only frames the app may open. ! With
+    // 'none' the call could not show them at all in the app.
+    'frame-src': 'https://www.youtube-nocookie.com https://open.spotify.com',
   };
   const directives = parseCsp(webCsp);
   const names = directives.map(function name(pair) {

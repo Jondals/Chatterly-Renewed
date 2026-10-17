@@ -29,6 +29,7 @@ const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
 const graphics = require('./graphics.cjs');
 const overlay = require('./overlay.cjs');
+const shortcuts = require('./shortcuts.cjs');
 const updater = require('./updater.cjs');
 const { trace } = require('./trace.cjs');
 const windowState = require('./window-state.cjs');
@@ -702,6 +703,7 @@ function onActivate() {
 
 function onWillQuit() {
   overlay.stop();
+  shortcuts.stop();
 }
 
 function onWindowAllClosed() {
@@ -755,6 +757,7 @@ async function start() {
   createWindow();
   updater.start(mainWindow, isAppOrigin, serverUrl.origin);
   overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET, showMainWindow);
+  shortcuts.start(mainWindow, isAppOrigin);
 }
 
 if (!app.requestSingleInstanceLock()) {

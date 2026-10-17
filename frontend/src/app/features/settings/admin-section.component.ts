@@ -144,28 +144,29 @@ const ACTIONS: Record<string, string> = {
       display: grid;
       padding-left: 3.1rem;
     }
-    /* The sessions and the actions unfold (they used to appear at once). Clipped only while they move, so focus rings stay whole. */
-    .ad-sessions,
-    .ad-actions {
-      animation: ad-open 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    /* The sessions and the actions unfold with a smooth change of height (the same easing as the other folds of the app). */
+    .ad-fold {
+      display: grid;
+      animation: ad-open 0.42s var(--ease) both;
+    }
+    .ad-fold-inner {
+      display: grid;
+      gap: 0.5rem;
+      min-height: 0;
+      overflow: hidden;
     }
     @keyframes ad-open {
       from {
-        overflow: hidden;
-        max-height: 0;
+        grid-template-rows: 0fr;
         opacity: 0;
-        transform: translateY(-6px);
       }
       to {
-        overflow: hidden;
-        max-height: 40rem;
+        grid-template-rows: 1fr;
         opacity: 1;
-        transform: none;
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .ad-sessions,
-      .ad-actions {
+      .ad-fold {
         animation: none;
       }
     }
@@ -379,6 +380,7 @@ const ACTIONS: Record<string, string> = {
                 <p class="rounded-ui bg-red/10 px-3 py-2 text-xs text-muted">“{{ person.reason }}”</p>
               }
               @if (expanded() === person.id) {
+                <div class="ad-fold"><div class="ad-fold-inner">
                 <div class="ad-sessions">
                   <div class="label">{{ 'Open sessions' | t }}</div>
                   @if (sessionList(); as list) {
@@ -419,17 +421,17 @@ const ACTIONS: Record<string, string> = {
                     <p class="text-xs text-muted">{{ 'Loading…' | t }}</p>
                   }
                 </div>
-              }
-              @if (expanded() === person.id) {
               <div class="ad-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  [disabled]="busy()"
-                  (click)="toggleTester(person)"
-                >
-                  {{ (person.tester ? 'Remove from beta' : 'Make tester') | t }}
-                </button>
+                @if (!person.owner) {
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    [disabled]="busy()"
+                    (click)="toggleTester(person)"
+                  >
+                    {{ (person.tester ? 'Remove from beta' : 'Make tester') | t }}
+                  </button>
+                }
                 @if (beta.owner() && !person.owner) {
                   <button
                     type="button"
@@ -489,6 +491,7 @@ const ACTIONS: Record<string, string> = {
                   }
                 }
               </div>
+              </div></div>
               }
             </div>
           } @empty {

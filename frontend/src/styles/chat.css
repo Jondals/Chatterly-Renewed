@@ -950,8 +950,12 @@ button:disabled,
 .stk[data-move='5'] {
   --stk: stk-5;
 }
-.stk:hover,
-.stk.stk-live {
+.stk:hover {
+  animation: var(--stk, none) 1.8s ease-in-out infinite;
+}
+/* ! In a conversation only the stickers of the latest messages move all the time: a screen full of animated pictures kept the
+   processor busy on computers without a graphics card (the ones further up still move under the pointer). */
+app-message-item:nth-last-child(-n + 8) .stk.stk-live {
   animation: var(--stk, none) 1.8s ease-in-out infinite;
 }
 
@@ -960,4 +964,9 @@ button:disabled,
 app-message-item {
   content-visibility: auto;
   contain-intrinsic-size: auto 4.5rem;
+}
+/* ! content-visibility clips what sticks out of the message, and the bar of actions (and an open picker) sticks out above it:
+   the message that has them is drawn whole. */
+app-message-item:has(.msg-actions) {
+  content-visibility: visible;
 }

@@ -170,6 +170,14 @@ svg {
   gap: calc(8px * var(--scale));
   width: calc(var(--tile) * var(--scale));
 }
+.tiles.horizontal {
+  flex-direction: row;
+  width: auto;
+}
+.tiles.horizontal .tile {
+  width: calc(var(--tile) * var(--scale));
+  flex: none;
+}
 .tile {
   position: relative;
   width: 100%;
@@ -468,6 +476,35 @@ svg {
     opacity: 0;
     transform: translateY(-6px);
   }
+}
+
+/* The menu of a right click on the cameras (only while unlocked). */
+.menu {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(14, 16, 22, 0.97);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+}
+.menu button {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: transparent;
+  color: #e8eaf2;
+  text-align: left;
+  cursor: pointer;
+}
+.menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.menu button[aria-checked='true'] {
+  color: var(--accent);
 }
 
 /* ── Unlocked: the dimmed screen, the bar and the cross ────────────────────────────────────────── */
