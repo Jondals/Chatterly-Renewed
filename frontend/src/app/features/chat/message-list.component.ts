@@ -361,15 +361,18 @@ export class MessageListComponent {
    * Glides to the end in a fixed time (longer when there is more to go), starting slowly, going fast in the middle and
    * landing softly. If the list grows while it glides, the target moves with it.
    */
-  private glideToEnd(): void {
+  private glideToEnd(always = false): void {
     if (this.glide) {
       return;
     }
-    if (document.documentElement.dataset['motion'] === 'reduced') {
+    const el = this.scroller().nativeElement;
+    // ! Far from the end (a conversation that was just opened and drew its messages after being put at its end) it jumps instead of
+    //   gliding: a long glide from the top looked like the chat going up and coming back.
+    const far = el.scrollHeight - el.clientHeight - el.scrollTop > el.clientHeight * 1.5;
+    if (document.documentElement.dataset['motion'] === 'reduced' || (far && !always)) {
       this.scrollToBottom(false);
       return;
     }
-    const el = this.scroller().nativeElement;
     this.glideFrom = el.scrollTop;
     this.glideStart = performance.now();
     this.glideTime = Math.min(900, 380 + (el.scrollHeight - el.clientHeight - el.scrollTop) * 0.12);
@@ -444,7 +447,7 @@ export class MessageListComponent {
   scrollToBottom(smooth: boolean): void {
     this.stick = true;
     if (smooth) {
-      this.glideToEnd();
+      this.glideToEnd(true);
       return;
     }
     const el = this.scroller().nativeElement;

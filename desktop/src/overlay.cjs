@@ -34,9 +34,23 @@ const {
   globalShortcut,
   ipcMain,
   screen,
+  session,
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+
+/**
+ * The page of the overlay is served by its own scheme, not by file://. ! In the installed app the files live inside app.asar and
+ * the fuse that takes the extra privileges from file:// (see package.json) also stops it from reading inside an asar: the window
+ * got ERR_FILE_NOT_FOUND, stayed blank and still took the mouse. Only these three files are served, read by this process.
+ */
+const PAGE_SCHEME = 'chatterly-overlay';
+const PAGE_URL = PAGE_SCHEME + '://page/overlay.html';
+const PAGE_FILES = {
+  '/overlay.html': 'text/html; charset=utf-8',
+  '/overlay.css': 'text/css; charset=utf-8',
+  '/overlay.js': 'text/javascript; charset=utf-8',
+};
 
 /** The widgets, where they start (fractions of the screen) and whether they stay visible while you play. */
 const WIDGETS = {
@@ -121,6 +135,24 @@ let watchTimer = null;
 let escapeRegistered = false;
 /** Brings the main window to the front (given by main.cjs). */
 let showMain = null;
+
+/** The scheme of the page, to be registered (before the app is ready) together with the others: see bundle.registerScheme. */
+const PAGE_SCHEME_ENTRY = { scheme: PAGE_SCHEME, privileges: { standard: true, secure: true } };
+
+/** Answers the requests of the overlay page: its html, css and script, nothing else. */
+async function servePage(request) {
+  const url = new URL(request.url);
+  const type = url.hostname === 'page' ? PAGE_FILES[url.pathname] : undefined;
+  if (!type || request.method !== 'GET') return new Response('Not found', { status: 404 });
+  try {
+    const body = await fs.promises.readFile(path.join(__dirname, url.pathname.slice(1)));
+    return new Response(body, {
+      headers: { 'content-type': type, 'x-content-type-options': 'nosniff' },
+    });
+  } catch (error) {
+    return new Response('Not found', { status: 404 });
+  }
+}
 
 /** Where the choices are kept. */
 function fileOf() {
@@ -559,7 +591,7 @@ function openWindow() {
   win.on('focus', onOverlayFocus);
   // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
   win.on('page-title-updated', preventDefault);
-  win.loadFile(path.join(__dirname, 'overlay.html'));
+  win.loadURL(PAGE_URL);
 }
 
 /**
@@ -944,6 +976,8 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   quiet = quietMode === true;
   showMain = typeof showMainFn === 'function' ? showMainFn : null;
   settings = quiet ? { ...DEFAULTS } : load();
+  if (!session.defaultSession.protocol.isProtocolHandled(PAGE_SCHEME))
+    session.defaultSession.protocol.handle(PAGE_SCHEME, servePage);
   ipcMain.handle('overlay:get', handleGet);
   ipcMain.handle('overlay:set', handleSet);
   ipcMain.handle('overlay:tiles', handleTiles);
@@ -968,6 +1002,7 @@ function stop() {
 }
 
 module.exports = {
+  PAGE_SCHEME_ENTRY,
   start,
   stop,
   mediaSourceId,

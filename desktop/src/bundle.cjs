@@ -50,8 +50,10 @@ const HEADERS = {
 };
 
 /** Must run before the app is ready. Makes app:// behave like https: secure context (crypto, IndexedDB), fetch, streams. */
-function registerScheme() {
+function registerScheme(others) {
+  // ! It can only be called once (a second call replaces the first), so the other schemes of the app come in here.
   protocol.registerSchemesAsPrivileged([
+    ...(others || []),
     {
       scheme: SCHEME,
       // codeCache: V8 keeps the compiled code of the scripts between starts, so the second start does not compile them again.

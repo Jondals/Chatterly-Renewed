@@ -144,6 +144,31 @@ const ACTIONS: Record<string, string> = {
       display: grid;
       padding-left: 3.1rem;
     }
+    /* The sessions and the actions unfold (they used to appear at once). Clipped only while they move, so focus rings stay whole. */
+    .ad-sessions,
+    .ad-actions {
+      animation: ad-open 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes ad-open {
+      from {
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+      to {
+        overflow: hidden;
+        max-height: 40rem;
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ad-sessions,
+      .ad-actions {
+        animation: none;
+      }
+    }
     .ad-session {
       display: flex;
       align-items: center;

@@ -127,7 +127,7 @@ const graphicsApplied = graphics.apply(app, process.platform);
 // * Every renderer runs in the Chromium sandbox, also the ones created later.
 app.enableSandbox();
 // ! Must happen before the app is ready.
-bundle.registerScheme();
+bundle.registerScheme([overlay.PAGE_SCHEME_ENTRY]);
 // * Windows works out which windows are covered by others and slows those down; a call in a window that is behind
 //   another one must not be slowed down (the same switch VS Code uses).
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
