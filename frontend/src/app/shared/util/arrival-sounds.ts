@@ -17,6 +17,8 @@ const SOUNDTRACKS: Record<ArrivalKind, SoundId> = {
   login: 'authSignIn',
   logout: 'authSignOut',
   register: 'authSignUp',
+  enter: 'authSignIn',
+  leave: 'authSignOut',
 };
 
 /**
@@ -25,12 +27,14 @@ const SOUNDTRACKS: Record<ArrivalKind, SoundId> = {
  * @param context The audio context of the page.
  * @param output Where the sounds of the interface go (their master volume).
  * @param kind Which animation plays.
+ * @param onStarted Called at the moment the sound really starts (after it is decoded), so the lights can follow it.
  * @returns A function that silences the sound (the animation was skipped or removed).
  */
 export function playArrivalSounds(
   context: AudioContext,
   output: AudioNode,
   kind: ArrivalKind,
+  onStarted?: () => void,
 ): () => void {
   const id = SOUNDTRACKS[kind];
   let source: AudioBufferSourceNode | null = null;
@@ -51,6 +55,7 @@ export function playArrivalSounds(
       return;
     }
     source = playSound(context, output, id);
+    onStarted?.();
   };
   void start();
 

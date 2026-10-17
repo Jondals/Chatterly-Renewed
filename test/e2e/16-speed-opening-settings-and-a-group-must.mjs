@@ -26,4 +26,25 @@ export async function step16(world) {
   );
   await a.keyboard.press('Escape');
   await a.waitForTimeout(500);
+  // The decoration stops when the app is not the window in use, and comes back with the focus
+  await a.evaluate(function away() {
+    window.dispatchEvent(new Event('blur'));
+  });
+  await a.waitForTimeout(4600);
+  check(
+    (await a.evaluate(function idle() {
+      const blob = document.querySelector('app-mesh-background .blob, app-mesh-background [class*=absolute]');
+      return document.documentElement.dataset.idle === '1' && (!blob || getComputedStyle(blob).animationPlayState !== 'running');
+    })) === true,
+    'the animated background stands still while the app is not the window in use',
+  );
+  await a.evaluate(function back() {
+    window.dispatchEvent(new Event('focus'));
+  });
+  check(
+    (await a.evaluate(function resumed() {
+      return document.documentElement.dataset.idle === undefined;
+    })) === true,
+    'and goes on when the focus comes back',
+  );
 }

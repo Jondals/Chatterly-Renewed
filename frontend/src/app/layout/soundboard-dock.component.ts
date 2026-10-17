@@ -184,7 +184,7 @@ const CATEGORY_NAME_MAX = 20;
         (scroll)="drawMore(scroller)"
       >
         @for (tab of [current()]; track tab) {
-          <div class="anim-fade-in">
+          <div class="anim-fade-in min-h-[14rem]">
             <button type="button" class="sb-add" (click)="upload()">
               <app-icon name="plus" [size]="15" /> {{ 'Add a sound' | t }}
             </button>

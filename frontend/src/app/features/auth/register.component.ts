@@ -5,6 +5,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
+import { warmApp } from '../../core/warm-app';
 import { AuthService } from '../../core/services/auth.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { describeError, passwordScore } from '../../shared/util/errors';
@@ -25,7 +26,12 @@ const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
       {{ 'Your keys are generated here, in this browser.' | t }}
     </p>
 
-    <form class="mt-6 space-y-4" (submit)="submit($event)" [class.anim-shake]="shake()">
+    <form
+      class="mt-6 space-y-4"
+      (submit)="submit($event)"
+      (focusin)="warm()"
+      [class.anim-shake]="shake()"
+    >
       <label class="block">
         <span class="label">{{ 'Username' | t }}</span>
         <input
@@ -119,7 +125,7 @@ const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
       <p class="flex gap-2 rounded-ui bg-white/[.04] p-3 text-xs text-muted">
         <app-icon name="key" [size]="15" class="mt-0.5 shrink-0 text-accent" />
         {{
-          'Nobody can reset your password — it protects your private keys. Losing it means losing your message history.'
+          'If you lose your password an administrator can let you in again, but your message history is lost: the password protects your private keys.'
             | t
         }}
       </p>
@@ -158,6 +164,11 @@ export class RegisterComponent {
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private readonly arrival = inject(ArrivalService);
+
+  /** Starts loading the app while the person fills the form (see warm-app.ts). */
+  protected warm(): void {
+    warmApp();
+  }
 
   readonly username = signal('');
   readonly displayName = signal('');

@@ -10,7 +10,9 @@
 
 const TILE_WIDTHS = { small: 180, medium: 240, large: 320 };
 const MIN_SCALE = 0.5;
-const MAX_SCALE = 3;
+const MAX_SCALE = 4;
+/** The cameras never get wider than this share of the screen, however much they are stretched. */
+const MAX_SHARE = 0.6;
 const TOAST_MS = 7000;
 /** How long a message stays on screen, and how many are shown at once. */
 const NOTICE_MS = 7000;
@@ -50,9 +52,6 @@ const hint = document.getElementById('hint');
 const done = document.getElementById('done');
 const closeBox = document.getElementById('close');
 const keys = document.getElementById('keys');
-const only = document.getElementById('only');
-const names = document.getElementById('names');
-const sizeButtons = bar.querySelectorAll('[data-size]');
 
 let config = null;
 let tiles = [];
@@ -151,6 +150,11 @@ function widgetFor(id) {
   root.append(head, body);
   host.appendChild(root);
   root.addEventListener('pointerdown', onPointerDown);
+  if (id === 'video') root.addEventListener('contextmenu', onVideoMenu);
+  if (id === 'controls') {
+    root.addEventListener('pointerenter', onControlsOver.bind(null, true));
+    root.addEventListener('pointerleave', onControlsOver.bind(null, false));
+  }
   widget = { root, title, pin, body };
   widgets.set(id, widget);
   return widget;
@@ -216,7 +220,7 @@ function drawVideo(body) {
     return config.editing || (tile.streamId && remote.has(tile.streamId));
   });
   if (people.length === 0) return false;
-  const list = el('div', 'tiles');
+  const list = el('div', 'tiles' + (config.videoLayout === 'horizontal' ? ' horizontal' : ''));
   for (const person of people) {
     const tile = el('div', 'tile' + (person.speaking ? ' speaking' : ''));
     const { video, live } = videoFor('camera:' + person.id, person.streamId);
@@ -241,6 +245,14 @@ function drawVideo(body) {
   return true;
 }
 
+/** The mouse is over the controls of the call: the shell lets it reach them even while locked (and gives it back when it leaves). */
+let overControls = false;
+
+function onControlsOver(over) {
+  overControls = over;
+  window.chatterlyOverlay.hover(over);
+}
+
 /** A button of the controls. */
 function control(name, title, className, action) {
   const button = el('button', 'ctl ' + className);
@@ -250,7 +262,7 @@ function control(name, title, className, action) {
   button.appendChild(icon(name));
   button.addEventListener('click', function press(event) {
     event.stopPropagation();
-    if (config && config.editing) window.chatterlyOverlay.act({ type: action });
+    if (config && (config.editing || overControls)) window.chatterlyOverlay.act({ type: action });
   });
   return button;
 }
@@ -405,17 +417,30 @@ const DRAW = {
   streams: drawStreams,
 };
 
-/** Draws every widget: the pinned ones that have something to show, or all of them while unlocked. */
+/**
+ * Draws every widget. ! A drawing that fails (a camera that gives something odd, a picture that cannot be decoded) must not leave
+ * the overlay half drawn and stuck: the failure is kept inside, the next drawing tries again.
+ */
 function render() {
+  try {
+    renderNow();
+  } catch (error) {
+    // Drawn again at the next change.
+  }
+}
+
+/** The drawing itself: the pinned widgets that have something to show, or all of them while unlocked. */
+function renderNow() {
   if (!config) return;
   const style = document.documentElement.style;
   style.setProperty('--tile', TILE_WIDTHS[config.size] + 'px');
-  style.setProperty('--scale', String(config.scale));
+  style.setProperty('--scale', String(Math.min(config.scale, maxScale())));
   style.setProperty('--opacity', String(config.opacity / 100));
   document.body.classList.toggle('editing', config.editing);
   backdrop.hidden = !config.editing;
   bar.hidden = !config.editing;
   closeBox.hidden = !config.editing;
+  if (!config.editing) closeMenu();
   if (config.editing) {
     drawBar();
     document.getElementById('toast').hidden = true;
@@ -430,6 +455,12 @@ function render() {
     widget.root.hidden = !visible;
   }
   placeAll();
+}
+
+/** The biggest scale the cameras may have now: the general limit, and no more than a share of the width of the screen. */
+function maxScale() {
+  const tile = TILE_WIDTHS[config.size] || TILE_WIDTHS.medium;
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, (innerWidth * MAX_SHARE) / tile));
 }
 
 /** Puts every widget where the person left it, always inside the screen. */
@@ -455,23 +486,6 @@ function drawBar() {
   done.title = labels.done;
   done.setAttribute('aria-label', labels.done);
   keys.textContent = config.hotkey.replace('CommandOrControl', 'Ctrl');
-  only.textContent = labels.onlySpeaking;
-  only.setAttribute('aria-pressed', String(config.onlySpeaking));
-  names.textContent = labels.showNames;
-  names.setAttribute('aria-pressed', String(config.showNames));
-  for (const button of sizeButtons) {
-    button.textContent = labels[button.dataset.size];
-    button.setAttribute('aria-pressed', String(config.size === button.dataset.size));
-  }
-}
-
-/** A button of the bar: a size, or turning "only who talks" or the names on or off. */
-function onBarClick(event) {
-  const button = event.target.closest('button');
-  if (!button || !config) return;
-  if (button.dataset.size) window.chatterlyOverlay.choose({ size: button.dataset.size });
-  else if (button === only) window.chatterlyOverlay.choose({ onlySpeaking: !config.onlySpeaking });
-  else if (button === names) window.chatterlyOverlay.choose({ showNames: !config.showNames });
 }
 
 /** Tells the app where the widgets are now (as fractions of the screen), their pins and the size of the video. */
@@ -499,6 +513,8 @@ function saveLayout(finished) {
 
 /** Updates the clocks (how long the call and the game last) once a second, without drawing everything again. */
 function tick() {
+  // Tells the shell the page is alive (while unlocked it watches for this, and rebuilds the window if it stops).
+  window.chatterlyOverlay.alive();
   if (!config) return;
   const call = scene.call;
   for (const node of host.querySelectorAll('.tick-since')) {
@@ -552,9 +568,45 @@ async function onSignal(message) {
 
 let drag = null;
 
+/** Right click on the cameras (while unlocked): choose whether they are stacked or side by side. */
+let menu = null;
+
+function closeMenu() {
+  if (menu) menu.remove();
+  menu = null;
+}
+
+function onVideoMenu(event) {
+  event.preventDefault();
+  if (!config || !config.editing) return;
+  closeMenu();
+  menu = el('div', 'menu');
+  menu.setAttribute('role', 'menu');
+  for (const layout of ['vertical', 'horizontal']) {
+    const item = el(
+      'button',
+      '',
+      layout === 'vertical' ? config.labels.layoutVertical : config.labels.layoutHorizontal,
+    );
+    item.type = 'button';
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('aria-checked', String((config.videoLayout || 'vertical') === layout));
+    item.addEventListener('click', function pick(click) {
+      click.stopPropagation();
+      window.chatterlyOverlay.choose({ videoLayout: layout });
+      closeMenu();
+    });
+    menu.append(item);
+  }
+  menu.style.left = Math.min(event.clientX, innerWidth - 200) + 'px';
+  menu.style.top = Math.min(event.clientY, innerHeight - 90) + 'px';
+  document.body.append(menu);
+}
+
 /** The pointer went down on a widget (to move it) or on the corner of the video (to resize it). */
 function onPointerDown(event) {
   if (!config || !config.editing || event.button !== 0) return;
+  if (menu && !event.target.closest('.menu')) closeMenu();
   if (event.target.closest('button, input')) return;
   const root = event.currentTarget;
   const rect = root.getBoundingClientRect();
@@ -585,7 +637,7 @@ function onPointerMove(event) {
   const dy = event.clientY - drag.startY;
   if (drag.resize) {
     const wanted = (drag.scale * (drag.width + dx)) / drag.width;
-    config.scale = Math.min(Math.max(wanted, MIN_SCALE), MAX_SCALE);
+    config.scale = Math.min(Math.max(wanted, MIN_SCALE), maxScale());
     document.documentElement.style.setProperty('--scale', String(config.scale));
     return;
   }
@@ -616,11 +668,16 @@ function onPointerUp(event) {
 
 /** Escape locks the overlay. */
 function onKey(event) {
-  if (event.key === 'Escape' && config && config.editing) saveLayout(true);
+  if (event.key === 'Escape' && menu) closeMenu();
+  else if (event.key === 'Escape' && config && config.editing) saveLayout(true);
 }
 
 /** A click on the dimmed screen (not on a widget) locks the overlay, like the overlay of Discord. */
 function onBackdrop() {
+  if (menu) {
+    closeMenu();
+    return;
+  }
   if (config && config.editing) saveLayout(true);
 }
 
@@ -686,7 +743,12 @@ window.chatterlyOverlay.onNotice(onNotice);
 window.chatterlyOverlay.onSignal(onSignal);
 done.addEventListener('click', onDone);
 backdrop.addEventListener('pointerdown', onBackdrop);
-bar.addEventListener('click', onBarClick);
 window.addEventListener('keydown', onKey);
 window.addEventListener('resize', placeAll);
+window.addEventListener('error', function onError(event) {
+  event.preventDefault();
+});
+window.addEventListener('unhandledrejection', function onRejection(event) {
+  event.preventDefault();
+});
 setInterval(tick, 1000);

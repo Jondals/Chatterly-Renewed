@@ -32,7 +32,7 @@ const CORNERS = [2, 6, 10, 14, 18, 22];
   imports: [BannerComponent, NameColorDirective, UserFontDirective],
   template: `
     @if (urls().thumb) {
-      <img class="thumb" [src]="urls().thumb" alt="" />
+      <img decoding="async" loading="lazy" class="thumb" [src]="urls().thumb" alt="" />
     } @else if (preset().kind === 'theme') {
       <div class="thumb" [style.background]="background()" [style.background-size]="'cover'">
         <span

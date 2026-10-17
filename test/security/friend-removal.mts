@@ -28,6 +28,7 @@ export async function checkFriendRemoval(): Promise<void> {
     userId: bob.id,
     envelope: envelope(),
   });
+  await call(app, bob, 'POST', `/api/guild-invites/${club.id}/accept`);
   const spoken = await call(app, bob, 'POST', `/api/channels/${club.text}/messages`, {
     ...sealed(),
     keyVersion: 1,

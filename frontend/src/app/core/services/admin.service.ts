@@ -6,6 +6,9 @@
  * ! Nothing here can show a message, a file or a key: the server only knows them sealed.
  */
 import { Injectable, inject, signal } from '@angular/core';
+import { KDF_ITERATIONS } from '../config';
+import { randomBytes, toB64 } from '../crypto/bytes';
+import { deriveSecrets } from '../crypto/kdf';
 import { ApiService } from './api.service';
 import type { Announcement } from './announcement.service';
 
@@ -36,6 +39,8 @@ export interface AdminUser {
   reason: string;
   sessions: number;
   tester: boolean;
+  /** When the person said from the sign-in page that they cannot sign in (0: never). */
+  recoveryAt: number;
   admin: boolean;
   owner: boolean;
 }
@@ -129,6 +134,20 @@ export class AdminService {
         '/close',
       {},
     );
+  }
+
+  /**
+   * Sets a temporary password on an account whose person cannot sign in. The proof of the password is made here: the server
+   * never sees the password. The person makes new keys when they sign in (what was encrypted for the old ones is lost).
+   */
+  async resetPassword(userId: string, password: string): Promise<void> {
+    const kdfSalt = toB64(randomBytes(16));
+    const { authSecret } = await deriveSecrets(password, kdfSalt, KDF_ITERATIONS);
+    await this.api.post('/api/admin/users/' + encodeURIComponent(userId) + '/reset-password', {
+      authSecret,
+      kdfSalt,
+      kdfIterations: KDF_ITERATIONS,
+    });
   }
 
   /** Erases an account for good (owners only). */

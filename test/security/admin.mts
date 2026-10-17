@@ -184,6 +184,103 @@ export async function checkAdmin(): Promise<void> {
     'an empty text takes it away',
   );
 
+  // Recovery: the person asks, an administrator sets a temporary password, the person makes new keys with one of their own.
+  const lost = await signUp(app, 'adminlost');
+  const asked = await app.inject({
+    method: 'POST',
+    url: '/api/auth/recovery-request',
+    payload: { username: lost.username },
+  });
+  const askedUnknown = await app.inject({
+    method: 'POST',
+    url: '/api/auth/recovery-request',
+    payload: { username: 'nobody_' + randomBytes(3).toString('hex') },
+  });
+  check(
+    asked.statusCode === 204 && askedUnknown.statusCode === 204,
+    'asking for help answers the same for a name that exists and one that does not',
+  );
+  const asking = (await call(app, helper, 'GET', '/api/admin/users?q=' + lost.username)).json();
+  check(asking.users[0]?.recoveryAt > 0, 'the administrators see who asked for help');
+  const temporary = randomBytes(32).toString('base64');
+  const resetBody = { authSecret: temporary, kdfSalt: randomBytes(16).toString('base64'), kdfIterations: 600000 };
+  check(
+    (await call(app, other, 'POST', '/api/admin/users/' + lost.id + '/reset-password', resetBody))
+      .statusCode === 404,
+    'a normal account cannot reset a password',
+  );
+  check(
+    (await call(app, helper, 'POST', '/api/admin/users/' + helper.id + '/reset-password', resetBody))
+      .statusCode === 403,
+    'nobody resets their own password from the administration',
+  );
+  check(
+    (await call(app, helper, 'POST', '/api/admin/users/' + owner.id + '/reset-password', resetBody))
+      .statusCode === 403,
+    'an owner cannot be reset',
+  );
+  check(
+    (await call(app, helper, 'POST', '/api/admin/users/' + lost.id + '/reset-password', resetBody))
+      .statusCode === 200,
+    'an administrator sets a temporary password',
+  );
+  check(
+    (await call(app, lost, 'GET', '/api/me')).statusCode === 401,
+    'the sessions of the account end when the password is reset',
+  );
+  const kdf = (await app.inject({ method: 'GET', url: '/api/auth/kdf?username=' + lost.username })).json();
+  check(kdf.salt === resetBody.kdfSalt, 'the temporary password has its own stretching salt');
+  const entered = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { username: lost.username, authSecret: temporary },
+  });
+  check(
+    entered.statusCode === 200 && entered.json().identityReset === true,
+    'signing in with the temporary password says the keys must be made again',
+  );
+  const fresh = {
+    ...lost,
+    access: entered.json().accessToken as string,
+    refresh: entered.json().refreshToken as string,
+  };
+  const mine = registration(lost.username, randomBytes(32).toString('base64')) as Record<string, unknown>;
+  const ownSecret = mine['authSecret'];
+  const done = await call(app, fresh, 'POST', '/api/me/identity-reset', {
+    authSecret: ownSecret,
+    kdfSalt: mine['kdfSalt'],
+    kdfIterations: mine['kdfIterations'],
+    publicKeys: mine['publicKeys'],
+    wrappedKeys: mine['wrappedKeys'],
+  });
+  check(done.statusCode === 200, 'the person makes new keys with a password of their own');
+  check(
+    (await call(app, fresh, 'POST', '/api/me/identity-reset', {
+      authSecret: ownSecret,
+      kdfSalt: mine['kdfSalt'],
+      kdfIterations: mine['kdfIterations'],
+      publicKeys: mine['publicKeys'],
+      wrappedKeys: mine['wrappedKeys'],
+    })).statusCode === 403,
+    'the new keys can be made only once per reset',
+  );
+  const signedBack = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { username: lost.username, authSecret: ownSecret },
+  });
+  check(
+    signedBack.statusCode === 200 && signedBack.json().identityReset === false,
+    'the person signs in with their own password afterwards',
+  );
+  const trail = (await call(app, owner, 'GET', '/api/admin/audit')).json().entries as { action: string }[];
+  check(
+    trail.some(function reset(entry) {
+      return entry.action === 'reset-password';
+    }),
+    'the reset is in the record',
+  );
+
   // The record.
   const entries = (await call(app, owner, 'GET', '/api/admin/audit')).json().entries as {
     action: string;

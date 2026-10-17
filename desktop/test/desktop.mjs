@@ -207,6 +207,8 @@ function auditSource() {
     'overlay:call',
     'overlay:notify',
     'overlay:event',
+    'shortcuts:set',
+    'shortcuts:event',
     'screen:refresh',
     'screen:pick',
     'screen:choose',
@@ -249,7 +251,7 @@ function auditSource() {
   );
   check(
     overlayChannels.sort().join(',') ===
-      'overlay:action,overlay:choose,overlay:layout,overlay:signal-out,overlay:stop-editing',
+      'overlay:action,overlay:alive,overlay:choose,overlay:hover,overlay:layout,overlay:signal-out,overlay:stop-editing',
     'the overlay window can only send its signalling, its layout, the choices of its bar, one of its fixed actions and "editing ended"',
   );
   check(
@@ -258,13 +260,13 @@ function auditSource() {
     'the overlay preload hands out no ipcRenderer and requires nothing but electron',
   );
   const mainChannels = new Set();
-  for (const name of ['main.cjs', 'updater.cjs', 'overlay.cjs']) {
+  for (const name of ['main.cjs', 'updater.cjs', 'overlay.cjs', 'shortcuts.cjs']) {
     for (const m of text[name].matchAll(/ipcMain\.(?:handle|on|once)\('([^']+)'/g))
       mainChannels.add(m[1]);
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:call,overlay:choose,overlay:get,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:alive,overlay:call,overlay:choose,overlay:get,overlay:hover,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,shortcuts:set,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
@@ -551,8 +553,8 @@ async function runningApp() {
   check(
     world.api ===
       (process.platform === 'win32'
-        ? 'graphics,isDesktop,overlay,platform,screen,titlebar,updates'
-        : 'graphics,isDesktop,overlay,platform,screen,updates'),
+        ? 'graphics,isDesktop,overlay,platform,screen,shortcuts,titlebar,updates'
+        : 'graphics,isDesktop,overlay,platform,screen,shortcuts,updates'),
     'the page sees only isDesktop, platform, the screen hint, the graphics choice, the overlay and the update commands',
   );
   check(world.isDesktop === true, 'the page can tell it runs in the desktop app');

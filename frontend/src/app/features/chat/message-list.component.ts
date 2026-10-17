@@ -21,6 +21,8 @@ import {
 import { AuthService } from '../../core/services/auth.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import type { Guild, GuildChannel } from '../../core/models';
+import { GuildStore } from '../../store/guild.store';
 import { MessageStore, type ViewMessage } from '../../store/message.store';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { MessageItemComponent } from './message-item.component';
@@ -151,6 +153,7 @@ export class MessageListComponent {
   readonly replyTo = output<ViewMessage>();
 
   protected readonly store = inject(MessageStore);
+  private readonly guilds = inject(GuildStore);
   private readonly i18n = inject(I18nService);
   private readonly auth = inject(AuthService);
   private readonly directory = inject(DirectoryService);
@@ -171,7 +174,21 @@ export class MessageListComponent {
 
   protected readonly rows = computed<Row[]>(
     function (this: MessageListComponent) {
-      const list = this.state().messages();
+      // ! In a group, what was sent before the person joined (or with a key they were never given) is not shown as a row of locks:
+      //   they could never have read it, and a wall of locks only says that nothing is wrong. In a direct chat it is shown.
+      const channelId = this.channelId();
+      const inGroup = this.guilds.guilds().some(function holds(guild: Guild) {
+        return guild.channels.some(function same(channel: GuildChannel) {
+          return channel.id === channelId;
+        });
+      });
+      const list = inGroup
+        ? this.state()
+            .messages()
+            .filter(function readable(message) {
+              return !message.undecryptable;
+            })
+        : this.state().messages();
       const i18n = this.i18n;
       return list.map(function (message, i) {
         const prev = list[i - 1];
@@ -344,15 +361,18 @@ export class MessageListComponent {
    * Glides to the end in a fixed time (longer when there is more to go), starting slowly, going fast in the middle and
    * landing softly. If the list grows while it glides, the target moves with it.
    */
-  private glideToEnd(): void {
+  private glideToEnd(always = false): void {
     if (this.glide) {
       return;
     }
-    if (document.documentElement.dataset['motion'] === 'reduced') {
+    const el = this.scroller().nativeElement;
+    // ! Far from the end (a conversation that was just opened and drew its messages after being put at its end) it jumps instead of
+    //   gliding: a long glide from the top looked like the chat going up and coming back.
+    const far = el.scrollHeight - el.clientHeight - el.scrollTop > el.clientHeight * 1.5;
+    if (document.documentElement.dataset['motion'] === 'reduced' || (far && !always)) {
       this.scrollToBottom(false);
       return;
     }
-    const el = this.scroller().nativeElement;
     this.glideFrom = el.scrollTop;
     this.glideStart = performance.now();
     this.glideTime = Math.min(900, 380 + (el.scrollHeight - el.clientHeight - el.scrollTop) * 0.12);
@@ -427,7 +447,7 @@ export class MessageListComponent {
   scrollToBottom(smooth: boolean): void {
     this.stick = true;
     if (smooth) {
-      this.glideToEnd();
+      this.glideToEnd(true);
       return;
     }
     const el = this.scroller().nativeElement;

@@ -1,23 +1,23 @@
-/* The styles of the Android app only. native-config.js (inside the APK, mobile/scripts/prepare-web.mjs) marks the page
-   with html[data-platform='android']; nothing here applies to the web or to the desktop app. */
+/* The styles of the phone apps (Android and iOS). native-config.js (inside the app, mobile/scripts/prepare-web.mjs) marks the page
+   with html[data-platform="android"] or html[data-platform="ios"]; nothing here applies to the web or to the desktop app. */
 
 /* The text and everything measured in rem (spacing, widths) a step smaller than on a computer: 15 px where the web uses
    16 px for the same setting of Settings > Appearance. The WebView no longer adds the font scale of the system on top
    (setTextZoom(100) in MainActivity.java). */
-html[data-platform='android'] {
+html:is([data-platform='android'], [data-platform='ios']) {
   font-size: calc(var(--font-size) * 15 / 14);
 }
 
 /* Settings on the phone: the list and each section are separate screens. Switching between them started two animations
    at once (the list sliding in, the title and the section rising), which looked like a jump; now the screen that appears
    only fades in, quickly. */
-html[data-platform='android'] .settings-overlay .anim-slide-left,
-html[data-platform='android'] .settings-overlay .anim-fade-up {
+html:is([data-platform='android'], [data-platform='ios']) .settings-overlay .anim-slide-left,
+html:is([data-platform='android'], [data-platform='ios']) .settings-overlay .anim-fade-up {
   animation: none;
 }
 
-html[data-platform='android'] .settings-overlay nav,
-html[data-platform='android'] .settings-overlay main {
+html:is([data-platform='android'], [data-platform='ios']) .settings-overlay nav,
+html:is([data-platform='android'], [data-platform='ios']) .settings-overlay main {
   animation: android-screen-in 0.15s ease-out both;
 }
 
@@ -30,19 +30,19 @@ html[data-platform='android'] .settings-overlay main {
 /* Choices of several buttons (app-segmented) in Settings: on the phone they take the whole width under their title, with
    buttons of the same width, and a long label wraps inside its own button instead of pushing the third one to a second
    line (that made "All / Only important / Off" look broken). */
-html[data-platform='android'] app-setting-row div:has(> app-segmented) {
+html:is([data-platform='android'], [data-platform='ios']) app-setting-row div:has(> app-segmented) {
   flex: 1 1 100%;
 }
-html[data-platform='android'] app-setting-row app-segmented {
+html:is([data-platform='android'], [data-platform='ios']) app-setting-row app-segmented {
   display: block;
   width: 100%;
 }
-html[data-platform='android'] app-segmented > [role='radiogroup'] {
+html:is([data-platform='android'], [data-platform='ios']) app-segmented > [role='radiogroup'] {
   display: flex;
   width: 100%;
   flex-wrap: nowrap;
 }
-html[data-platform='android'] app-segmented [role='radio'] {
+html:is([data-platform='android'], [data-platform='ios']) app-segmented [role='radio'] {
   flex: 1 1 0;
   min-width: 0;
   min-height: 2.5rem;
@@ -50,4 +50,13 @@ html[data-platform='android'] app-segmented [role='radio'] {
   white-space: normal;
   text-align: center;
   line-height: 1.2;
+}
+
+/* A choice of four or more buttons does not fit in one row on a phone: two by two, and a long word never goes over the next button. */
+html:is([data-platform='android'], [data-platform='ios']) app-segmented > [role='radiogroup']:has(> [role='radio']:nth-child(4)) {
+  flex-wrap: wrap;
+}
+html:is([data-platform='android'], [data-platform='ios']) app-segmented > [role='radiogroup']:has(> [role='radio']:nth-child(4)) > [role='radio'] {
+  flex: 1 1 calc(50% - 0.25rem);
+  overflow-wrap: anywhere;
 }

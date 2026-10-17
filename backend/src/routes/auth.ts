@@ -20,6 +20,7 @@ import { hashAuthSecret, verifyAuthSecret, needsUpgrade } from '../security/pass
 import { deleteImage, imageFile, ownsImage } from './images';
 import { vaultFile } from './vault';
 import { registrationsOpen } from './admin';
+import { eraseIdentityData } from './recovery';
 import {
   authSecretField,
   b64Field,
@@ -504,6 +505,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       return {
         user: toSelfUser(row),
         wrappedKeys,
+        // An administrator reset the password: the person makes new keys now (see routes/recovery.ts).
+        identityReset: row.identity_reset === 1,
         ...issueTokens(row.id, undefined, false, undefined, deviceId),
       };
     },
@@ -1127,6 +1130,118 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
       if (done.changes === 0) return reply.code(404).send({ error: 'session_not_found' });
       ctx.hub.closeSession(id, sessionId);
       return reply.code(204).send();
+    },
+  );
+
+  /**
+   * POST /api/auth/recovery-request: a person who cannot sign in tells the administrators (they see it in Administration > People).
+   * Always answers the same, so it cannot be used to find out which names exist.
+   */
+  app.post(
+    '/api/auth/recovery-request',
+    {
+      ...authLimit,
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['username'],
+          properties: { username: { type: 'string', minLength: 1, maxLength: 64 } },
+        },
+      },
+    },
+    async function (req, reply) {
+      const { username } = req.body as { username: string };
+      const row = db
+        .prepare('SELECT id FROM users WHERE username = ? AND guest = 0 AND deleted_at IS NULL')
+        .get(username) as { id: string } | undefined;
+      if (row) {
+        db.prepare('INSERT OR REPLACE INTO recovery_requests (user_id, at) VALUES (?, ?)').run(
+          row.id,
+          Date.now(),
+        );
+      }
+      return reply.code(204).send();
+    },
+  );
+
+  /**
+   * POST /api/me/identity-reset: after an administrator reset the password, the person makes new keys with a password of their own.
+   * Only for an account that was reset; what was encrypted for the old keys is forgotten (see routes/recovery.ts).
+   */
+  app.post(
+    '/api/me/identity-reset',
+    {
+      onRequest: [app.authenticate],
+      ...authLimit,
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['authSecret', 'kdfSalt', 'kdfIterations', 'publicKeys', 'wrappedKeys'],
+          properties: {
+            authSecret: authSecretField,
+            kdfSalt: b64Field(16, 64),
+            kdfIterations: { type: 'integer', maximum: 5_000_000 },
+            publicKeys: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['ecdh', 'ecdsa'],
+              properties: { ecdh: publicKeyField, ecdsa: publicKeyField },
+            },
+            wrappedKeys: wrappedKeysSchema,
+          },
+        },
+      },
+    },
+    async function (req, reply) {
+      const id = userId(req);
+      const body = req.body as {
+        authSecret: string;
+        kdfSalt: string;
+        kdfIterations: number;
+        publicKeys: { ecdh: string; ecdsa: string };
+        wrappedKeys: { ecdh: string; ecdsa: string };
+      };
+      const row = getUser(db, id);
+      if (!row || row.identity_reset !== 1) return reply.code(403).send({ error: 'not_reset' });
+      if (body.kdfIterations < config.minKdfIterations) {
+        return reply.code(400).send({ error: 'kdf_too_weak', minIterations: config.minKdfIterations });
+      }
+      if (!isValidP256Point(body.publicKeys.ecdh) || !isValidP256Point(body.publicKeys.ecdsa)) {
+        return reply.code(400).send({ error: 'invalid_public_key' });
+      }
+      const authHash = await hashAuthSecret(body.authSecret, config.scrypt, config.serverSecret);
+      eraseIdentityData(ctx, id);
+      db.prepare(
+        `UPDATE users SET auth_hash = ?, kdf_salt = ?, kdf_iterations = ?, pub_ecdh = ?, pub_ecdsa = ?,
+           wrapped_ecdh = ?, wrapped_ecdsa = ?, identity_reset = 0 WHERE id = ?`,
+      ).run(
+        authHash,
+        body.kdfSalt,
+        body.kdfIterations,
+        body.publicKeys.ecdh,
+        body.publicKeys.ecdsa,
+        body.wrappedKeys.ecdh,
+        body.wrappedKeys.ecdsa,
+        id,
+      );
+      // Every other session of the account ends (the temporary password is over), and the people who share things are told.
+      const current = (req.user as { sid: string }).sid;
+      db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(id, current);
+      ctx.hub.closeSessions(id, current);
+      const friends = db
+        .prepare(
+          'SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS id FROM friendships WHERE user_a = ? OR user_b = ?',
+        )
+        .all(id, id, id) as { id: string }[];
+      ctx.hub.sendToMany(
+        friends.map(function ids(f) {
+          return f.id;
+        }),
+        { t: 'friends.update' },
+      );
+      return { user: toSelfUser(getUser(db, id)!) };
     },
   );
 

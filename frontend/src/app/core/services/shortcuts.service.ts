@@ -1,10 +1,12 @@
 /**
  * src/app/core/services/shortcuts.service.ts
  * Keyboard shortcuts for the call (mute, deafen, camera, screen, hang up, soundboard). The person can change each
- * combination in Settings. A web page only receives keys while it has the focus, so these work while the Chatterly
- * tab is the one in front.
+ * combination in Settings. A web page only receives keys while it has the focus, so in the browser these work while the
+ * Chatterly tab is the one in front. In the desktop app the shell also holds them for the whole system during a call, so
+ * they work while you play (see desktop/src/shortcuts.cjs).
  */
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { desktopBridge } from '../desktop-bridge';
 import { CallService } from './call.service';
 import { SettingsService } from './settings.service';
 import { UiService } from './ui.service';
@@ -69,8 +71,36 @@ export class ShortcutsService {
   private readonly call = inject(CallService);
   private readonly ui = inject(UiService);
   private readonly handler = this.onKey.bind(this);
+  private readonly shell = desktopBridge()?.shortcuts;
   /** True while Settings waits for a new combination, so the shortcuts do not fire meanwhile. */
   recording = false;
+
+  constructor() {
+    if (!this.shell) return;
+    // During a call the shell holds the combinations of the call actions for the whole system; outside it holds none.
+    effect(this.shareWithShell.bind(this));
+    const stop = this.shell.onPress(this.onShellPress.bind(this));
+    inject(DestroyRef).onDestroy(stop);
+  }
+
+  /** Gives the shell the combinations to hold (none when there is no call, so no key is taken from other programs). */
+  private shareWithShell(): void {
+    const list: Record<string, string> = {};
+    if (this.call.inCall()) {
+      this.settings.shortcuts();
+      for (const entry of SHORTCUT_ACTIONS) {
+        const combo = this.comboFor(entry.id);
+        if (entry.id !== 'soundboard' && combo) list[entry.id] = combo;
+      }
+    }
+    void this.shell?.set(list);
+  }
+
+  /** The shell says a shortcut was pressed while the app was not in front. */
+  private onShellPress(action: string): void {
+    if (this.recording) return;
+    if (SHORTCUT_ACTIONS.some((entry) => entry.id === action)) this.run(action as ShortcutAction);
+  }
 
   /** Starts listening (once per session). */
   start(): void {

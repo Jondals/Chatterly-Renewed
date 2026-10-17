@@ -301,8 +301,8 @@ export const ES: Record<string, string> = {
   'At least 10 characters': 'Al menos 10 caracteres',
   'Confirm password': 'Confirmar contraseña',
   'Passwords do not match.': 'Las contraseñas no coinciden.',
-  'Nobody can reset your password — it protects your private keys. Losing it means losing your message history.':
-    'Nadie puede restablecer tu contraseña: protege tus claves privadas. Perderla implica perder tu historial de mensajes.',
+  'If you lose your password an administrator can let you in again, but your message history is lost: the password protects your private keys.':
+    'Si pierdes la contraseña un administrador puede dejarte entrar otra vez, pero pierdes tu historial de mensajes: la contraseña protege tus claves privadas.',
   'Generating keys…': 'Generando claves…',
   'Already have an account?': '¿Ya tienes cuenta?',
   'Too short': 'Demasiado corta',
@@ -855,7 +855,6 @@ export const ES: Record<string, string> = {
   'TypeScript': 'TypeScript',
   'General chat': 'Chat general',
   'Account': 'Cuenta',
-  'Chatterly': 'Chatterly',
   'Zero knowledge': 'Conocimiento cero',
   'Your password and your keys never leave your device.':
     'Tu contraseña y tus claves nunca salen de tu dispositivo.',
@@ -1067,6 +1066,8 @@ export const ES: Record<string, string> = {
   'Shortcuts': 'Atajos',
   'Press the key or the combination you want for each action. They work while this tab is the one in front.':
     'Pulsa la tecla o la combinación que quieras para cada acción. Funcionan mientras esta pestaña es la que tienes delante.',
+  'Press the key or the combination you want for each action. In a call they work even when Chatterly is not in front.':
+    'Pulsa la tecla o la combinación que quieras para cada acción. En una llamada funcionan aunque Chatterly no esté delante.',
   'Press the keys…': 'Pulsa las teclas…',
   'No shortcut': 'Sin atajo',
   'Esc cancels, Backspace removes the shortcut.': 'Esc cancela, Retroceso quita el atajo.',
@@ -1410,12 +1411,77 @@ export const ES: Record<string, string> = {
   'Choose your system': 'Elige tu sistema',
   'Back to the website': 'Volver a la web',
   'Your sessions': 'Tus sesiones',
-  'The devices where you are signed in. Close the ones you do not use or do not know: they have to sign in again.':
-    'Los dispositivos donde tienes la sesión iniciada. Cierra los que no uses o no conozcas: tendrán que iniciar sesión otra vez.',
+  'Every time you sign in on a device a session is made, and signing out deletes it. A session also stays open when you close the app or clear the browser without signing out: it ends by itself after 30 days. A device that signs in again replaces its own old session. Close here the ones you do not use or do not know: they have to sign in again.':
+    'Cada vez que inicias sesión en un dispositivo se crea una sesión, y cerrar sesión la borra. Una sesión también queda abierta si cierras la app o borras el navegador sin cerrar sesión: termina sola a los 30 días. Un dispositivo que vuelve a entrar sustituye su propia sesión anterior. Cierra aquí las que no uses o no conozcas: tendrán que iniciar sesión otra vez.',
   'This device': 'Este dispositivo',
   'Close all the other sessions': 'Cerrar todas las demás sesiones',
   'Every other device has to sign in again. This one stays open.':
     'Todos los demás dispositivos tendrán que iniciar sesión otra vez. Este sigue abierto.',
+  'This picture is too big to keep moving': 'Esta imagen es demasiado grande para seguir en movimiento',
+  'Pictures that move can weigh up to 8 MB: this one is saved still.':
+    'Las imágenes en movimiento pueden pesar hasta 8 MB: esta se guarda fija.',
+  'Tone': 'Tono',
+  'Releases': 'Versiones',
+  'Source code': 'Código fuente',
+  'Security': 'Seguridad',
+  'Open source (ISC licence) · No tracking': 'Código abierto (licencia ISC) · Sin rastreo',
+  'Chatterly': 'Chatterly',
+  'The text of the messages': 'El texto de los mensajes',
+  'The notifications show what the message says. Off: only who wrote it and where.':
+    'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
+  'The messages you get, to open them.': 'Los mensajes que te llegan, para abrirlos.',
+  'Install on iOS': 'Instalar en iOS',
+  'Install Chatterly on your iPhone': 'Instala Chatterly en tu iPhone',
+  'Open this page in Safari.': 'Abre esta página en Safari.',
+  'Tap Share, the square with an arrow.': 'Toca Compartir, el cuadrado con una flecha.',
+  'Choose "Add to Home Screen" and tap Add.': 'Elige «Añadir a pantalla de inicio» y toca Añadir.',
+  'It opens like any app, full screen. No store and nothing else to install.': 'Se abre como cualquier app, a pantalla completa. Sin tienda y sin instalar nada más.',
+  'I prefer the file (IPA, for advanced users)': 'Prefiero el archivo (IPA, para usuarios avanzados)',
+  'Got it': 'Entendido',
+  'Choose your new password':
+    'Elige tu nueva contraseña',
+  'An administrator gave you a temporary password. Choose one of your own: it makes new keys for your account. Messages that were encrypted with the old keys cannot be read any more.':
+    'Un administrador te dio una contraseña temporal. Elige una propia: crea claves nuevas para tu cuenta. Los mensajes cifrados con las claves antiguas ya no se pueden leer.',
+  'New password':
+    'Nueva contraseña',
+  'Set the password':
+    'Poner la contraseña',
+  'Cannot sign in?':
+    '¿No puedes entrar?',
+  'Tell the administrators. One of them sets a temporary password and gives it to you; then you choose your own. Your old encrypted messages cannot be recovered: nobody has your keys.':
+    'Avisa a los administradores. Uno te pone una contraseña temporal y te la da; después eliges la tuya. Tus mensajes cifrados antiguos no se pueden recuperar: nadie tiene tus claves.',
+  'Sent. When an administrator sets a temporary password, sign in with it.':
+    'Enviado. Cuando un administrador ponga una contraseña temporal, entra con ella.',
+  'Tell the administrators':
+    'Avisar a los administradores',
+  'Cannot sign in':
+    'No puede entrar',
+  'Reset password':
+    'Restablecer contraseña',
+  'Reset the password of @{name}':
+    'Restablecer la contraseña de @{name}',
+  'Write a temporary password (10 characters or more) and give it to them by another way. They choose their own when they sign in. Their old encrypted messages cannot be recovered, and their sessions end now.':
+    'Escribe una contraseña temporal (10 caracteres o más) y dásela por otra vía. Elegirá la suya al entrar. Sus mensajes cifrados antiguos no se pueden recuperar y sus sesiones terminan ahora.',
+  'Temporary password':
+    'Contraseña temporal',
+  'Use 10 characters or more.':
+    'Usa 10 caracteres o más.',
+  'Password reset':
+    'Contraseña restablecida',
+  'Customize': 'Personalizar',
+  'Show in the bar': 'Mostrar en la barra',
+  'In the bar': 'En la barra',
+  'In the menu': 'En el menú',
+  'Everything is in the bar.': 'Todo está en la barra.',
+  'Encrypted before they leave your device. Up to 10 MB each.': 'Se cifran antes de salir de tu dispositivo. Hasta 10 MB cada uno.',
+  'Invited by {name}': 'Invitado por {name}',
+  'They join when they accept.': 'Entran cuando aceptan.',
+  'Could not join': 'No se pudo entrar',
+  'The invitation is not valid any more.': 'La invitación ya no es válida.',
+  'Opening the app…': 'Abriendo la app…',
+  'Hello, {name}': 'Hola, {name}',
+  'Signing you out…': 'Cerrando tu sesión…',
+  'See you soon': 'Hasta pronto',
   'What is synced': 'Qué se sincroniza',
   'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.':
     'Ajustes, stickers, preajustes, tus sonidos y fondos de cámara. Se cifran primero en este dispositivo: el servidor solo guarda algo que no puede leer.',
@@ -1720,6 +1786,11 @@ export const ES: Record<string, string> = {
   'The video goes to the overlay inside your computer only: it is never sent anywhere. The overlay is a window of Chatterly; it does not touch the game, so there is nothing for an anti-cheat to flag, but not every game can be promised.':
     'El vídeo llega al overlay solo dentro de tu ordenador: nunca se envía a ningún sitio. El overlay es una ventana de Chatterly; no toca el juego, así que un antitrampas no tiene nada que marcar, pero no se puede prometer en todos los juegos.',
   'Move and resize shortcut': 'Atajo para mover y cambiar el tamaño',
+  'The shortcut to move and resize the panel is in Settings > Shortcuts.':
+    'El atajo para mover y cambiar el tamaño del panel está en Ajustes > Atajos.',
+  'Overlay: move and resize the panel': 'Overlay: mover y cambiar el tamaño del panel',
+  'Press it to grab the panel with the mouse (and the controls of the call); Esc or the shortcut again gives the game its mouse back.':
+    'Púlsalo para coger el panel con el ratón (y los controles de la llamada); Esc o el atajo otra vez devuelve el ratón al juego.',
   'Size of each person': 'Tamaño de cada persona',
   'Draws the cameras and the pictures of the people in your call, and who is talking, over the games you play. It never reads or changes the game.':
     'Dibuja las cámaras y las fotos de las personas de tu llamada, y quién habla, sobre los juegos que juegas. Nunca lee ni cambia el juego.',
@@ -1814,6 +1885,23 @@ export const ES: Record<string, string> = {
   'Call moved to another device': 'La llamada pasó a otro dispositivo',
   'You are in this call on another device now.':
     'Ahora estás en esta llamada desde otro dispositivo.',
+  'Keep calls when you clear the recent apps': 'Mantener las llamadas al limpiar las apps recientes',
+  "On some phones, clearing the recent apps ends the call. Allow Chatterly to run without battery limits (look for Chatterly in the list and choose Don't optimize) and the call goes on.":
+    'En algunos móviles, limpiar las apps recientes corta la llamada. Permite que Chatterly funcione sin límites de batería (busca Chatterly en la lista y elige No optimizar) y la llamada sigue.',
+  'Permissions': 'Permisos',
+  'These are the permissions Chatterly asks of this phone. Allow the ones you want to use: nothing is used without them.':
+    'Estos son los permisos que Chatterly pide a este móvil. Permite los que quieras usar: sin ellos no se usa nada.',
+  'Allowed': 'Permitido',
+  'To talk in calls and record voice notes.': 'Para hablar en las llamadas y grabar notas de voz.',
+  'To turn your camera on in a call.': 'Para encender tu cámara en una llamada.',
+  'Messages, the call in progress and calls that ring.': 'Mensajes, la llamada en curso y las llamadas que suenan.',
+  'So a call that rings fills the screen even with the phone locked.':
+    'Para que una llamada que suena ocupe la pantalla aunque el móvil esté bloqueado.',
+  'Run without battery limits: on some phones clearing the recent apps ends the call.':
+    'Funcionar sin límites de batería: en algunos móviles limpiar las apps recientes corta la llamada.',
+  'Sharing the screen is asked by Android every time you start it.':
+    'Android pregunta cada vez que empiezas a compartir la pantalla.',
+  'Open the settings of the app': 'Abrir los ajustes de la app',
   'Calls over the lock screen': 'Llamadas sobre la pantalla de bloqueo',
   'Android asks you to allow it: then a call that rings fills the screen, like a phone call, even with the phone locked.':
     'Android pide que lo permitas: así una llamada que suena ocupa la pantalla, como una llamada de teléfono, aunque el móvil esté bloqueado.',
@@ -1913,6 +2001,7 @@ export const ES: Record<string, string> = {
   'Announcement removed': 'Anuncio quitado',
   'Suspended {target}': 'Suspendió a {target}',
   'Restored {target}': 'Restauró a {target}',
+  'Reset the password of {target}': 'Restableció la contraseña de {target}',
   'Signed {target} out everywhere': 'Cerró las sesiones de {target}',
   'Opened the sign-up': 'Abrió el registro',
   'Closed the sign-up': 'Cerró el registro',
@@ -1924,11 +2013,8 @@ export const ES: Record<string, string> = {
   'Took {target} out of the beta program': 'Sacó a {target} del programa beta',
   'Press the shortcut to unlock it: drag every widget where you want it and pin the ones that must stay while you play. A click outside, Esc or the cross give the mouse back to the game.':
     'Pulsa el atajo para desbloquearlo: arrastra cada widget donde quieras y fija los que deben verse mientras juegas. Un clic fuera, Esc o la X devuelven el ratón al juego.',
-  'The text of the messages': 'El texto de los mensajes',
   'Press the shortcut at any time to open it over whatever you are doing. In a call it also shows who is in it and who is talking, the cameras, the screens they share, the messages you get and the buttons of the call. It never reads or changes the game.':
     'Pulsa el atajo en cualquier momento para abrirlo encima de lo que estés haciendo. En una llamada también enseña quién está y quién habla, las cámaras, las pantallas que comparten, los mensajes que te llegan y los botones de la llamada. Nunca lee ni cambia el juego.',
-  'The notifications show what the message says. Off: only who wrote it and where.':
-    'Las notificaciones muestran lo que dice el mensaje. Apagado: solo quién lo escribió y dónde.',
   'Mute, deafen, camera, screen and hang up.': 'Silenciar, ensordecer, cámara, pantalla y colgar.',
   'Who is in the call, who talks and who is live.':
     'Quién está en la llamada, quién habla y quién está en directo.',
@@ -1936,7 +2022,6 @@ export const ES: Record<string, string> = {
   'The game you registered and for how long.': 'El juego que registraste y cuánto llevas.',
   'Streams': 'Transmisiones',
   'The screens they share, with their volume.': 'Las pantallas que comparten, con su volumen.',
-  'The messages you get, to open them.': 'Los mensajes que te llegan, para abrirlos.',
   'Activity': 'Actividad',
   'Stickers and presets': 'Stickers y preajustes',
   'Keep a copy in my account': 'Guardar una copia en mi cuenta',

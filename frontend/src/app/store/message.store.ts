@@ -204,6 +204,20 @@ export class MessageStore {
   }
 
   /**
+   * A chat that is not on screen any more keeps only its latest messages: the longer a session lasts the more chats were opened,
+   * and every message kept is memory (and, when the chat opens again, rows to draw). The older ones are asked for again if the
+   * person scrolls up (`hasMore`). ! Only the newest messages stay, so what arrives later still follows them without a gap.
+   */
+  trim(channelId: string, keep = 60): void {
+    const state = this.states.get(channelId);
+    if (!state || this.viewing() === channelId) return;
+    const list = state.messages();
+    if (list.length <= keep * 2) return;
+    state.messages.set(list.slice(-keep));
+    state.hasMore.set(true);
+  }
+
+  /**
    * Starts listening to the server (new, edited and deleted messages, reactions, typing); only once, however many screens ask.
    */
   start(): void {

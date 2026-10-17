@@ -24,11 +24,7 @@ import { DialogService } from '../../core/services/dialog.service';
 import { ToastService } from '../../core/services/toast.service';
 import { describeError } from '../../shared/util/errors';
 import { IconComponent } from '../../shared/components/icon.component';
-import {
-  SegmentedComponent,
-  SettingRowComponent,
-  ToggleComponent,
-} from '../../shared/components/controls.component';
+import { SettingRowComponent, ToggleComponent } from '../../shared/components/controls.component';
 
 /** The tabs of the administration. */
 type AdminTab = 'overview' | 'people' | 'server' | 'record';
@@ -38,6 +34,7 @@ const ACTIONS: Record<string, string> = {
   suspend: 'Suspended {target}',
   restore: 'Restored {target}',
   'sign-out': 'Signed {target} out everywhere',
+  'reset-password': 'Reset the password of {target}',
   'delete-account': 'Deleted the account of {detail}',
   'audit-clear': 'Emptied the record',
   'close-session': 'Closed one session of {target}',
@@ -55,7 +52,7 @@ const ACTIONS: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-section',
   standalone: true,
-  imports: [IconComponent, TranslatePipe, SegmentedComponent, SettingRowComponent, ToggleComponent],
+  imports: [IconComponent, TranslatePipe, SettingRowComponent, ToggleComponent],
   styles: `
     .ad-tabs {
       position: sticky;
@@ -128,14 +125,50 @@ const ACTIONS: Record<string, string> = {
       font-weight: 700;
     }
     .ad-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
       gap: 0.4rem;
       padding-left: 3.1rem;
+    }
+    .ad-actions .btn {
+      min-width: 0;
+      height: auto;
+      min-height: 2rem;
+      justify-content: center;
+      padding-block: 0.4rem;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.2;
     }
     .ad-sessions {
       display: grid;
       padding-left: 3.1rem;
+    }
+    /* The sessions and the actions unfold with a smooth change of height (the same easing as the other folds of the app). */
+    .ad-fold {
+      display: grid;
+      animation: ad-open 0.42s var(--ease) both;
+    }
+    .ad-fold-inner {
+      display: grid;
+      gap: 0.5rem;
+      min-height: 0;
+      overflow: hidden;
+    }
+    @keyframes ad-open {
+      from {
+        grid-template-rows: 0fr;
+        opacity: 0;
+      }
+      to {
+        grid-template-rows: 1fr;
+        opacity: 1;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ad-fold {
+        animation: none;
+      }
     }
     .ad-session {
       display: flex;
@@ -149,9 +182,8 @@ const ACTIONS: Record<string, string> = {
       .ad-sessions {
         padding-left: 0;
       }
-      .ad-actions .btn {
-        flex: 1 1 calc(50% - 0.2rem);
-        justify-content: center;
+      .ad-actions {
+        grid-template-columns: 1fr 1fr;
       }
     }
     .ad-entry {
@@ -167,7 +199,21 @@ const ACTIONS: Record<string, string> = {
   `,
   template: `
     <div class="ad-tabs">
-      <app-segmented [options]="tabs" [value]="tab()" (valueChange)="open($event)" />
+      <div class="grid grid-cols-4 gap-1 rounded-ui bg-black/30 p-1" role="tablist">
+        @for (t of tabs; track t.id) {
+          <button
+            type="button"
+            role="tab"
+            class="btn btn-sm min-w-0 justify-center !px-1"
+            [class.btn-primary]="tab() === t.id"
+            [class.btn-ghost]="tab() !== t.id"
+            [attr.aria-selected]="tab() === t.id"
+            (click)="open(t.id)"
+          >
+            <span class="truncate">{{ t.label | t }}</span>
+          </button>
+        }
+      </div>
     </div>
 
     @if (admin.unavailable()) {
@@ -271,15 +317,25 @@ const ACTIONS: Record<string, string> = {
             </button>
           </form>
           <div class="pb-3">
-            <app-segmented
-              [options]="filters"
-              [value]="filter()"
-              (valueChange)="setFilter($event)"
-            />
+            <div class="grid grid-cols-2 gap-1 rounded-ui bg-black/30 p-1 sm:grid-cols-4" role="radiogroup">
+              @for (f of filters; track f.id) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="btn btn-sm min-w-0 justify-center !px-2"
+                  [class.btn-primary]="filter() === f.id"
+                  [class.btn-ghost]="filter() !== f.id"
+                  [attr.aria-checked]="filter() === f.id"
+                  (click)="setFilter(f.id)"
+                >
+                  <span class="truncate">{{ f.label | t }}</span>
+                </button>
+              }
+            </div>
           </div>
         </section>
         <section class="settings-card">
-          @for (person of admin.users(); track person.id) {
+          @for (person of people(); track person.id) {
             <div class="ad-person">
               <button
                 type="button"
@@ -302,6 +358,9 @@ const ACTIONS: Record<string, string> = {
                     @if (person.suspended) {
                       <span class="chip chip-red">{{ 'Suspended' | t }}</span>
                     }
+                    @if (person.recoveryAt) {
+                      <span class="chip chip-amber">{{ 'Cannot sign in' | t }}</span>
+                    }
                   </span>
                   <span class="mt-0.5 block truncate text-xs text-muted"
                     >&#64;{{ person.username }}</span
@@ -321,6 +380,7 @@ const ACTIONS: Record<string, string> = {
                 <p class="rounded-ui bg-red/10 px-3 py-2 text-xs text-muted">“{{ person.reason }}”</p>
               }
               @if (expanded() === person.id) {
+                <div class="ad-fold"><div class="ad-fold-inner">
                 <div class="ad-sessions">
                   <div class="label">{{ 'Open sessions' | t }}</div>
                   @if (sessionList(); as list) {
@@ -361,16 +421,17 @@ const ACTIONS: Record<string, string> = {
                     <p class="text-xs text-muted">{{ 'Loading…' | t }}</p>
                   }
                 </div>
-              }
               <div class="ad-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  [disabled]="busy()"
-                  (click)="toggleTester(person)"
-                >
-                  {{ (person.tester ? 'Remove from beta' : 'Make tester') | t }}
-                </button>
+                @if (!person.owner) {
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    [disabled]="busy()"
+                    (click)="toggleTester(person)"
+                  >
+                    {{ (person.tester ? 'Remove from beta' : 'Make tester') | t }}
+                  </button>
+                }
                 @if (beta.owner() && !person.owner) {
                   <button
                     type="button"
@@ -382,6 +443,15 @@ const ACTIONS: Record<string, string> = {
                   </button>
                 }
                 @if (canAct(person)) {
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    [class.btn-primary]="person.recoveryAt > 0"
+                    [disabled]="busy()"
+                    (click)="resetPassword(person)"
+                  >
+                    <app-icon name="key" [size]="13" /> {{ 'Reset password' | t }}
+                  </button>
                   <button
                     type="button"
                     class="btn btn-sm"
@@ -421,6 +491,8 @@ const ACTIONS: Record<string, string> = {
                   }
                 }
               </div>
+              </div></div>
+              }
             </div>
           } @empty {
             <p class="py-4 text-sm text-muted">{{ 'Nobody matches.' | t }}</p>
@@ -457,10 +529,26 @@ const ACTIONS: Record<string, string> = {
             [value]="announcement()"
             (input)="announcement.set($any($event.target).value)"
           ></textarea>
-          <div class="flex flex-wrap items-center gap-2 py-3">
-            <app-segmented [options]="tones" [value]="tone()" (valueChange)="setTone($event)" />
-            <span class="flex-1"></span>
-            <span class="font-mono text-[0.6875rem] text-dim">{{ announcement().length }}/300</span>
+          <div class="mt-1 flex items-center justify-between gap-2 text-[0.6875rem] text-dim">
+            <span>{{ 'Tone' | t }}</span>
+            <span class="font-mono">{{ announcement().length }}/300</span>
+          </div>
+          <div class="mt-1.5 grid grid-cols-2 gap-1 rounded-ui bg-black/30 p-1" role="radiogroup">
+            @for (t of tones; track t.id) {
+              <button
+                type="button"
+                role="radio"
+                class="btn btn-sm min-w-0 justify-center"
+                [class.btn-primary]="tone() === t.id"
+                [class.btn-ghost]="tone() !== t.id"
+                [attr.aria-checked]="tone() === t.id"
+                (click)="setTone(t.id)"
+              >
+                {{ t.label | t }}
+              </button>
+            }
+          </div>
+          <div class="flex flex-wrap items-center justify-end gap-2 py-3">
             @if (admin.overview()?.announcement) {
               <button type="button" class="btn btn-sm" [disabled]="busy()" (click)="publish('')">
                 {{ 'Remove it' | t }}
@@ -468,7 +556,7 @@ const ACTIONS: Record<string, string> = {
             }
             <button
               type="button"
-              class="btn btn-sm btn-primary"
+              class="btn btn-sm btn-primary max-sm:flex-1"
               [disabled]="busy() || !announcement().trim()"
               (click)="publish(announcement())"
             >
@@ -479,59 +567,6 @@ const ACTIONS: Record<string, string> = {
             <p class="pb-3 text-xs text-muted">
               {{ 'In force:' | t }} <span class="text-fg">{{ now.text }}</span>
             </p>
-          }
-        </section>
-        <section class="settings-card">
-          <h2 class="settings-card-title">{{ 'Administrators' | t }}</h2>
-          <p class="mb-3 text-xs text-muted">
-            {{
-              'Only an owner (set in the server) makes or removes administrators. Administrators manage the beta program, the accounts and the announcements.'
-                | t
-            }}
-          </p>
-          @if (beta.owner()) {
-            <form class="flex flex-wrap gap-2 pb-3" (submit)="addAdmin($event)">
-              <input
-                class="input min-w-0 flex-1"
-                type="text"
-                maxlength="24"
-                autocomplete="off"
-                [placeholder]="'Username' | t"
-                [value]="adminName()"
-                (input)="adminName.set($any($event.target).value)"
-              />
-              <button
-                type="submit"
-                class="btn btn-primary"
-                [disabled]="busy() || !adminName().trim()"
-              >
-                <app-icon name="user-plus" [size]="16" /> {{ 'Add administrator' | t }}
-              </button>
-            </form>
-          }
-          @for (a of beta.admins(); track a.id) {
-            <div class="ad-person">
-              <span class="ad-avatar">{{ initialsOf(a.displayName) }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">{{ a.displayName }}</div>
-                <div class="truncate text-xs text-muted">
-                  &#64;{{ a.username }}
-                  @if (a.fixed) {
-                    · {{ 'Owner' | t }}
-                  }
-                </div>
-              </div>
-              @if (!a.fixed && beta.owner()) {
-                <button
-                  type="button"
-                  class="btn btn-icon btn-sm btn-ghost"
-                  [attr.aria-label]="'Remove' | t"
-                  (click)="removeAdmin(a.id)"
-                >
-                  <app-icon name="x" [size]="16" />
-                </button>
-              }
-            </div>
           }
         </section>
       }
@@ -595,18 +630,28 @@ export class AdminSectionComponent implements OnInit {
   ];
   protected readonly query = signal('');
   protected readonly filter = signal<AdminFilter>('all');
-  protected readonly adminName = signal('');
   protected readonly announcement = signal('');
   protected readonly tone = signal<'info' | 'warning'>('info');
   protected readonly busy = signal(false);
   /** The person whose sessions are open on screen, and their sessions (null while they load). */
   protected readonly expanded = signal<string | null>(null);
   protected readonly sessionList = signal<AdminSession[] | null>(null);
+  /** The accounts as a list: the person looking first, then the rest in the order they were made (the newest last). */
+  protected readonly people = computed(this.sortPeople.bind(this));
   /** The id of the person looking (they cannot act on themselves). */
   private readonly myself = computed(this.readMyself.bind(this));
 
   ngOnInit(): void {
     void this.refresh();
+  }
+
+  private sortPeople(): AdminUser[] {
+    const me = this.myself();
+    return [...this.admin.users()].sort(function order(a, b) {
+      if (a.id === me) return b.id === me ? 0 : -1;
+      if (b.id === me) return 1;
+      return a.createdAt - b.createdAt;
+    });
   }
 
   private readMyself(): string {
@@ -761,6 +806,24 @@ export class AdminSectionComponent implements OnInit {
     await this.act(this.admin.deleteAccount.bind(this.admin, person.id), 'Account deleted');
   }
 
+  /** Sets a temporary password for a person who cannot sign in; they choose their own when they use it. */
+  protected async resetPassword(person: AdminUser): Promise<void> {
+    const password = await this.dialog.prompt(
+      this.i18n.t('Reset the password of @{name}', { name: person.username }),
+      this.i18n.t(
+        'Write a temporary password (10 characters or more) and give it to them by another way. They choose their own when they sign in. Their old encrypted messages cannot be recovered, and their sessions end now.',
+      ),
+      '',
+      this.i18n.t('Temporary password'),
+    );
+    if (password === null) return;
+    if (password.length < 10) {
+      this.toast.error(this.i18n.t('Could not do it'), this.i18n.t('Use 10 characters or more.'));
+      return;
+    }
+    await this.act(this.admin.resetPassword.bind(this.admin, person.id, password), 'Password reset');
+  }
+
   protected async restore(person: AdminUser): Promise<void> {
     await this.act(this.admin.restore.bind(this.admin, person.id), 'Account restored');
   }
@@ -813,32 +876,6 @@ export class AdminSectionComponent implements OnInit {
       this.admin.announce.bind(this.admin, text, this.tone()),
       text.trim() ? 'Announcement published' : 'Announcement removed',
     );
-  }
-
-  protected async addAdmin(event: Event): Promise<void> {
-    event.preventDefault();
-    const username = this.adminName().trim().replace(/^@/, '');
-    if (!username) return;
-    this.busy.set(true);
-    try {
-      await this.beta.addAdmin(username);
-      this.adminName.set('');
-    } catch (e) {
-      this.toast.error(
-        this.i18n.t('Could not add the administrator'),
-        this.i18n.t(describeError(e)),
-      );
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  protected async removeAdmin(id: string): Promise<void> {
-    try {
-      await this.beta.removeAdmin(id);
-    } catch (e) {
-      this.toast.error(this.i18n.t('Could not remove it'), this.i18n.t(describeError(e)));
-    }
   }
 
   // ── Texts ─────────────────────────────────────────────────────────────────────────────────────

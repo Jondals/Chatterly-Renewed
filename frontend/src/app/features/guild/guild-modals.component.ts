@@ -132,10 +132,12 @@ import { SocialStore } from '../../store/social.store';
                 class="btn btn-sm btn-primary"
                 type="button"
                 (click)="invite(u.id)"
-                [disabled]="inviting() === u.id"
+                [disabled]="inviting() === u.id || invited().has(u.id)"
               >
                 @if (inviting() === u.id) {
                   …
+                } @else if (invited().has(u.id)) {
+                  {{ 'Invited' | t }}
                 } @else {
                   {{ 'Invite' | t }}
                 }
@@ -411,6 +413,8 @@ export class GuildModalsComponent {
   protected readonly createPreview = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly inviting = signal<string | null>(null);
+  /** The friends invited from this window (the invitation waits until they accept). */
+  protected readonly invited = signal<Set<string>>(new Set());
   protected readonly channelName = signal('');
   protected readonly channelType = signal<'text' | 'voice'>('text');
   protected readonly editName = signal('');
@@ -568,7 +572,10 @@ export class GuildModalsComponent {
     this.inviting.set(userId);
     try {
       await this.guilds.invite(g.id, userId);
-      this.toast.success(this.i18n.t('Invited'));
+      this.invited.update(function add(set) {
+        return new Set(set).add(userId);
+      });
+      this.toast.success(this.i18n.t('Invited'), this.i18n.t('They join when they accept.'));
     } catch (e) {
       this.toast.error(this.i18n.t('Invite failed'), describeError(e));
     } finally {

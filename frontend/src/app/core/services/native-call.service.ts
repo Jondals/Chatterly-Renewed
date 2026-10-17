@@ -66,6 +66,14 @@ export class NativeCallService {
 
   /** Whether a ringing call may fill the screen over the lock screen (Android 14+ asks the person). */
   readonly fullScreenAllowed = signal(true);
+  /** What the app is allowed to do (the screen of permissions in Settings). */
+  readonly permissions = signal<{ microphone: boolean; camera: boolean; notifications: boolean }>({
+    microphone: true,
+    camera: true,
+    notifications: true,
+  });
+  /** The phone lets the app run without battery limits (when it does not, swiping the app away may end a call on some phones). */
+  readonly batteryUnrestricted = signal(true);
 
   /** The page is on screen (not minimized, screen on). */
   private readonly visible = signal(!document.hidden);
@@ -85,7 +93,6 @@ export class NativeCallService {
   private shownRoom: string | null = null;
   private ringingRoom: string | null = null;
   private lastSecure: boolean | null = null;
-  private lastListen: boolean | null = null;
 
   /** The name the notification of the call shows: the other person of a direct chat, or the voice channel. */
   private readonly callTitle = computed(
@@ -105,7 +112,6 @@ export class NativeCallService {
     document.addEventListener('visibilitychange', this.onVisibility.bind(this));
     effect(this.followCall.bind(this));
     effect(this.followIncoming.bind(this));
-    effect(this.followListen.bind(this));
     effect(this.followSecure.bind(this));
     void this.plugin.addListener('action', this.onActionOutside.bind(this));
     void this.plugin.takePendingAction().then(this.onActionOutside.bind(this));
@@ -114,6 +120,7 @@ export class NativeCallService {
     void this.takeRejoin(0);
     void this.plugin.notifications().catch(this.ignore);
     void this.checkFullScreen();
+    void this.checkBattery();
     inject(DestroyRef).onDestroy(this.stopAll.bind(this));
   }
 
@@ -121,7 +128,7 @@ export class NativeCallService {
   private onVisibility(): void {
     this.visible.set(!document.hidden);
     if (!document.hidden) {
-      void this.checkFullScreen();
+      void this.checkPermissions();
     }
   }
 
@@ -132,6 +139,47 @@ export class NativeCallService {
     } catch {
       this.fullScreenAllowed.set(true);
     }
+  }
+
+  /** Reads what the app is allowed to do. */
+  async checkPermissions(): Promise<void> {
+    try {
+      const state = await this.plugin?.permissionStates?.();
+      if (state) this.permissions.set(state);
+    } catch {
+      /* the list keeps what it had */
+    }
+    await Promise.all([this.checkFullScreen(), this.checkBattery()]);
+  }
+
+  /** Asks for a permission; when Android no longer asks (refused for good) its page about the app opens instead. */
+  async askPermission(which: 'microphone' | 'camera' | 'notifications'): Promise<void> {
+    try {
+      const answer = await this.plugin?.askPermission?.({ permission: which });
+      if (!answer?.granted) void this.plugin?.appSettings?.().catch(this.ignore);
+    } catch {
+      void this.plugin?.appSettings?.().catch(this.ignore);
+    }
+    await this.checkPermissions();
+  }
+
+  /** Opens the page of Android about this app. */
+  openAppSettings(): void {
+    void this.plugin?.appSettings?.().catch(this.ignore);
+  }
+
+  /** Reads whether the phone lets the app run without battery limits. */
+  async checkBattery(): Promise<void> {
+    try {
+      this.batteryUnrestricted.set((await this.plugin?.batteryUnrestricted?.())?.unrestricted ?? true);
+    } catch {
+      this.batteryUnrestricted.set(true);
+    }
+  }
+
+  /** Opens the page of Android where the person lets the app run without battery limits. */
+  openBatterySettings(): void {
+    void this.plugin?.batterySettings?.().catch(this.ignore);
   }
 
   /** Opens the page of Android where the person allows calls to fill the screen. */
@@ -151,7 +199,7 @@ export class NativeCallService {
         if (room && this.shownRoom !== room) {
           this.shownRoom = room;
           void plugin
-            .call({ title, startedAt: Date.now(), muted, deafened })
+            .call({ title, startedAt: this.call.connectedSince() || Date.now(), muted, deafened })
             .then(this.applyPreferredRoute.bind(this))
             .catch(this.ignore);
         } else if (room) {
@@ -184,20 +232,6 @@ export class NativeCallService {
         }
       }.bind(this),
     );
-  }
-
-  /**
-   * Stays connected in the background while signed in and the person wants calls to ring. Android only lets the app
-   * start it while it is on screen, so it is asked when the page is visible.
-   */
-  private followListen(): void {
-    const on = this.auth.isAuthenticated() && this.settings.backgroundCalls();
-    const visible = this.visible();
-    if (on === this.lastListen || (on && !visible)) {
-      return;
-    }
-    this.lastListen = on;
-    void this.plugin!.listen({ on }).catch(this.ignore);
   }
 
   /**
@@ -404,7 +438,6 @@ export class NativeCallService {
 
   /** The page goes away: nothing stays connected or showing for it. */
   private stopAll(): void {
-    void this.plugin?.listen({ on: false }).catch(this.ignore);
     void this.plugin?.end().catch(this.ignore);
   }
 

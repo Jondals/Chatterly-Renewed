@@ -5,6 +5,7 @@
 import { DecimalPipe } from '@angular/common';
 import {
   Component,
+  DestroyRef,
   ElementRef,
   OnDestroy,
   computed,
@@ -59,7 +60,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
       <div class="mt-2 w-80 max-w-full rounded-ui border border-white/8 bg-black/30 p-2.5">
         <div class="flex items-center gap-3">
           @if (mark.thumb) {
-            <img
+            <img decoding="async"
               [src]="mark.thumb"
               alt=""
               class="h-12 w-[4.75rem] shrink-0 rounded-lg border border-white/12 object-cover"
@@ -118,7 +119,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
         @case ('image') {
           @if (att().sticker) {
             @if (url(); as src) {
-              <img
+              <img decoding="async"
                 [src]="src"
                 alt=""
                 draggable="false"
@@ -140,7 +141,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
               class="group relative mt-2 max-w-sm overflow-hidden rounded-ui border border-white/8 bg-black/30"
             >
               @if (url(); as src) {
-                <img
+                <img decoding="async"
                   [src]="src"
                   [alt]="att().name"
                   class="anim-fade-in max-h-80 w-full cursor-zoom-in object-cover transition duration-500 group-hover:scale-[1.02]"
@@ -180,7 +181,7 @@ const SPEEDS = [1, 1.25, 1.5, 2, 3, 5];
               class="anim-fade-in fixed inset-0 z-[95] flex cursor-zoom-out items-center justify-center bg-black/85 p-6 backdrop-blur"
               (click)="lightbox.set(false)"
             >
-              <img
+              <img decoding="async"
                 [src]="url()!"
                 [alt]="att().name"
                 class="anim-pop max-h-full max-w-full rounded-ui shadow-2xl"
@@ -386,13 +387,18 @@ export class AttachmentComponent implements OnDestroy {
     }.bind(this),
   );
 
+  /** True once the attachment is near the screen: a long chat does not download and decrypt every picture at once. */
+  private readonly near = signal(false);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   constructor() {
     effect(this.checkOwned.bind(this));
-    // Images and audio load eagerly; plain files wait for the user.
+    this.watchScreen();
+    // Images and audio load when they come near the screen; plain files wait for the user.
     effect(
       function (this: AttachmentComponent) {
         const att = this.att();
-        if (att.kind === 'file') return;
+        if (att.kind === 'file' || !this.near()) return;
         untracked(
           function (this: AttachmentComponent) {
             this.store.attachmentUrl(att).then(
@@ -409,6 +415,29 @@ export class AttachmentComponent implements OnDestroy {
         );
       }.bind(this),
     );
+  }
+
+  /** Says when the attachment is within a screen or so of what is visible (and stops looking after that). */
+  private watchScreen(): void {
+    if (typeof IntersectionObserver === 'undefined') {
+      this.near.set(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      function (this: AttachmentComponent, entries: IntersectionObserverEntry[]): void {
+        if (
+          entries.some(function visible(entry) {
+            return entry.isIntersecting;
+          })
+        ) {
+          this.near.set(true);
+          observer.disconnect();
+        }
+      }.bind(this),
+      { rootMargin: '800px 0px' },
+    );
+    observer.observe(this.host.nativeElement);
+    inject(DestroyRef).onDestroy(observer.disconnect.bind(observer));
   }
 
   /** Looks whether the preset of this message is already in the library of the person (and again when the library changes). */

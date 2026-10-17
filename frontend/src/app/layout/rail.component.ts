@@ -211,9 +211,9 @@ export class RailComponent {
   private readonly dialog = inject(DialogService);
   private readonly toast = inject(ToastService);
   private readonly settings = inject(SettingsService);
-  /** Back to the first page of the web with the same transition as signing out (not with a cut). */
+  /** Back to the first page of the web with its own transition, not the one of signing out (and not with a cut). */
   protected async toWebsite(): Promise<void> {
-    await this.arrival.play('logout');
+    await this.arrival.play('leave');
     await this.router.navigateByUrl('/');
   }
 

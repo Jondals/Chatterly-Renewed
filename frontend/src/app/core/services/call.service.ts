@@ -183,6 +183,11 @@ interface Link {
   clearSeconds: number;
   /** Packets of our video the other side reported lost and sent, at the last measure. */
   lastVideoLoss: { lost: number; sent: number };
+  /** The most pictures per second the camera sent to this person may use now: it goes down while the computer cannot keep up (see adaptCpu). */
+  fpsCap?: number;
+  /** Seconds in a row the encoder said it was limited by the processor, and seconds in a row it said it was not limited at all. */
+  cpuSeconds: number;
+  freeSeconds: number;
 }
 
 /**
@@ -668,6 +673,8 @@ export class CallService {
 
   /** True while the shared player is paused (the stage keeps it up to date, the floating bar reads it). */
   readonly musicPaused = signal(false);
+  /** The moment this call connected (0 while there is none): the timer of the call counts from it. */
+  readonly connectedSince = signal(0);
   /** Counts the times somebody outside the stage asks to pause or resume the shared player. */
   readonly pauseRequest = signal(0);
   /** What the player of the stage reports about the playlist it plays (empty when it is not one). */
@@ -1090,7 +1097,7 @@ export class CallService {
       }.bind(this),
     );
     try {
-      const stream = await startAndroidScreen(quality, withSound);
+      const stream = await startAndroidScreen(quality, withSound, this.sound.context);
       this.localScreen.set(stream);
       this.screenOn.set(true);
       this.lightenCameraFx(true);
@@ -1411,7 +1418,8 @@ export class CallService {
       function (this: CallService) {
         return this.measure();
       }.bind(this),
-      80,
+      // 10 times a second is as much as an eye follows a level meter; 12 (every 80 ms) woke the screen of the call more often.
+      100,
     );
     this.statsTimer = setInterval(
       function (this: CallService) {
@@ -1531,7 +1539,7 @@ export class CallService {
     const ids = Object.keys(next);
     if (ids.length !== Object.keys(shown).length) return true;
     for (const id of ids) {
-      if (Math.abs((shown[id] ?? -1) - next[id]!) > 0.02) return true;
+      if (Math.abs((shown[id] ?? -1) - next[id]!) > 0.035) return true;
     }
     return false;
   }
@@ -1570,6 +1578,7 @@ export class CallService {
     );
     // (On Android, NativeCallService follows this status: the notification of the call and the service that keeps the
     // microphone alive with the screen off.)
+    if (!this.connectedSince()) this.connectedSince.set(Date.now());
     this.status.set('connected');
     // Mute/deafen are personal and persist between calls: tell the room how we joined.
     this.applyMute();
@@ -1697,6 +1706,8 @@ export class CallService {
       baseRtt: Infinity,
       clearSeconds: 0,
       lastVideoLoss: { lost: 0, sent: 0 },
+      cpuSeconds: 0,
+      freeSeconds: 0,
     };
     link.ephReady = crypto.subtle
       .generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits'])
@@ -1881,7 +1892,7 @@ export class CallService {
     };
     if (!params.encodings?.length) return;
     params.encodings[0]!.maxBitrate = Math.round(this.cameraCeiling() * link.videoScale);
-    params.encodings[0]!.maxFramerate = this.cameraShape().fps;
+    params.encodings[0]!.maxFramerate = Math.min(link.fpsCap ?? 60, this.cameraShape().fps);
     params.degradationPreference = 'maintain-framerate';
     void sender.setParameters(params).catch(function ignore(): void {
       return undefined;
@@ -1915,6 +1926,53 @@ export class CallService {
     if (Math.abs(next - link.videoScale) < 0.01) return;
     link.videoScale = next;
     this.applyVideoCeilings(link);
+  }
+
+  /**
+   * The camera follows the processor, not only the line: when the encoder says it is limited by the processor (a phone doing 720p at
+   * 60 with the frame cipher on top) the pictures per second come down a step, and they go back up when it has room again. The call
+   * keeps its sound and its delay instead of the camera making the whole phone, and so the call, late.
+   */
+  private async adaptCpu(link: Link): Promise<void> {
+    const STEPS = [60, 45, 30, 24, 15];
+    const wanted = this.cameraShape().fps;
+    for (const sender of link.senders.camera ?? []) {
+      if (sender.track?.kind !== 'video') continue;
+      let reason = 'none';
+      try {
+        (await sender.getStats()).forEach(function read(stat) {
+          if (stat.type === 'outbound-rtp' && typeof stat.qualityLimitationReason === 'string') {
+            reason = stat.qualityLimitationReason;
+          }
+        });
+      } catch {
+        return;
+      }
+      link.cpuSeconds = reason === 'cpu' ? link.cpuSeconds + 1 : 0;
+      link.freeSeconds = reason === 'none' ? link.freeSeconds + 1 : 0;
+      let cap = link.fpsCap ?? wanted;
+      if (link.cpuSeconds >= 3) {
+        const lower = STEPS.find(function below(step) {
+          return step < cap;
+        });
+        if (lower !== undefined) cap = lower;
+        link.cpuSeconds = 0;
+      } else if (link.freeSeconds >= 20 && cap < wanted) {
+        const higher = [...STEPS].reverse().find(function above(step) {
+          return step > cap;
+        });
+        cap = Math.min(wanted, higher ?? wanted);
+        link.freeSeconds = 0;
+      }
+      if (cap === (link.fpsCap ?? wanted)) continue;
+      link.fpsCap = cap;
+      const params = sender.getParameters();
+      if (!params.encodings?.length) continue;
+      params.encodings[0]!.maxFramerate = cap;
+      void sender.setParameters(params).catch(function ignore(): void {
+        return undefined;
+      });
+    }
   }
 
   /** Puts the current share of the ceilings on the camera and the screen sent to a person. */
@@ -2503,6 +2561,7 @@ export class CallService {
       );
       if (link.senders.camera?.length || link.senders.screen?.length) {
         this.adaptVideo(link, linkRtt, videoLoss);
+        void this.adaptCpu(link);
       }
       const seconds = Math.max(0.2, (now - link.lastBytes.at) / 1000);
       inn += Math.max(0, ((bytesIn - link.lastBytes.in) * 8) / 1000 / seconds);
@@ -2585,6 +2644,7 @@ export class CallService {
     this.stats.set({ ...EMPTY_STATS });
     this.rttHistory.set([]);
     this.previousParticipants = new Set();
+    this.connectedSince.set(0);
     this.status.set('idle');
     this.worker?.terminate();
     this.worker = null;

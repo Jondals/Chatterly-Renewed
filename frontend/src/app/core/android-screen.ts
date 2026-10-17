@@ -56,15 +56,16 @@ export function onScreenSilent(listener: (() => void) | null): void {
 
 /** Plays the pieces of sound of the phone into an audio track (the track goes to the call with the screen). */
 class ScreenSound {
-  private readonly context = new AudioContext({
-    sampleRate: AUDIO_RATE,
-    latencyHint: 'interactive',
-  });
-  private readonly output = this.context.createMediaStreamDestination();
+  private readonly output: MediaStreamAudioDestinationNode;
   private next = 0;
 
-  constructor() {
-    // ! It must be running: a context that the WebView left suspended plays nothing, and the others heard nothing.
+  /**
+   * ! It plays in the audio context of the app (the one the person already woke up with a press), not in a new one: the sharing
+   * starts after the dialog of Android, when that press is long gone, and a context made then stays suspended in the WebView:
+   * nothing was heard. The pieces are 48 kHz and the context may run at another rate: the buffer is resampled by the browser.
+   */
+  constructor(private readonly context: AudioContext) {
+    this.output = this.context.createMediaStreamDestination();
     void this.context.resume().catch(function ignored(): void {
       return undefined;
     });
@@ -107,7 +108,8 @@ class ScreenSound {
   /** Stops the sound. */
   close(): void {
     this.track.stop();
-    void this.context.close().catch(noop);
+    // The context is the one of the app: it is not closed, only this destination is let go.
+    this.output.disconnect();
   }
 }
 
@@ -132,14 +134,17 @@ export function stopAndroidScreen(): void {
 export async function startAndroidScreen(
   quality: string,
   withSound: boolean,
+  audioContext: AudioContext,
 ): Promise<MediaStream> {
   const plugin = screenPlugin();
   if (!plugin) throw new Error('screen sharing is not available');
   const channel = window.chatterlyScreen ?? null;
   const chosen = screenQuality(quality, true);
   // The longest side of the picture is the width of the quality (the phone may be held either way).
+  // ! Never more than 1600 pixels on the long side: every picture is a JPEG made on the phone and decoded on the page, and 1920 at 60 per
+  // second kept both busy (the whole phone stuttered). The pace adapts on its own (one picture in flight, and the quality of the JPEG).
   const base = {
-    longSide: chosen.width,
+    longSide: Math.min(chosen.width, 1600),
     fps: chosen.fps,
     quality: JPEG_QUALITY[chosen.height] ?? 58,
   };
@@ -156,7 +161,7 @@ export async function startAndroidScreen(
   const handles: { remove(): Promise<void> }[] = [];
   let ended = false;
   let drawing = false;
-  const sound = withSound ? new ScreenSound() : null;
+  const sound = withSound ? new ScreenSound(audioContext) : null;
   if (sound) stream.addTrack(sound.track);
   // A canvas only sends a video frame when it changes, and a screen that does not change sends no picture: touching the
   // canvas once a second keeps the video alive (a person who joins later still gets an image, the call sees no freeze).

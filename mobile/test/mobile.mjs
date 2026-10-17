@@ -201,8 +201,9 @@ function checkWebFolder(work) {
     "the page may connect only to itself and to the exact API origin (https and wss)",
   );
   check(
-    (csp.get("frame-src") ?? []).join(" ") === "'none'",
-    "no third-party frames (embedded players)",
+    (csp.get("frame-src") ?? []).join(" ") ===
+      "https://www.youtube-nocookie.com https://open.spotify.com",
+    "no third-party frames but the two players of listening and watching together",
   );
   check((csp.get("object-src") ?? []).join(" ") === "'none'", "no plugins");
   // ! Every source of every directive is on a closed list: a scheme alone (https:, wss:), a wildcard or localhost is
@@ -217,6 +218,8 @@ function checkWebFolder(work) {
     "mediastream:",
     API,
     "wss://chat.example.test",
+    "https://www.youtube-nocookie.com",
+    "https://open.spotify.com",
   ]);
   const unexpected = [];
   for (const [name, sources] of csp) {

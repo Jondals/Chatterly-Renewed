@@ -17,6 +17,7 @@ import { DirectoryService } from '../../core/services/directory.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { MessageStore, type ViewMessage } from '../../store/message.store';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
+import { GuildInviteCardComponent } from '../guild/guild-invite-card.component';
 import { MessageInputComponent } from './message-input.component';
 import { MessageListComponent } from './message-list.component';
 
@@ -28,7 +29,7 @@ import { MessageListComponent } from './message-list.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-chat-panel',
   standalone: true,
-  imports: [MessageListComponent, MessageInputComponent, IconComponent, TranslatePipe],
+  imports: [GuildInviteCardComponent, MessageListComponent, MessageInputComponent, IconComponent, TranslatePipe],
   host: {
     class: 'relative flex h-full min-h-0 flex-col',
     '(dragover)': 'onDragOver($event)',
@@ -59,6 +60,9 @@ import { MessageListComponent } from './message-list.component';
       [canModerate]="canModerate()"
       (replyTo)="replying.set($event)"
     />
+    @if (peerId(); as peer) {
+      <app-guild-invites [from]="peer" />
+    }
     <app-message-input
       [channelId]="channelId()"
       [placeholder]="placeholder()"
@@ -89,6 +93,8 @@ export class ChatPanelComponent implements OnDestroy {
   protected readonly directory = inject(DirectoryService);
   protected readonly replying = signal<ViewMessage | null>(null);
   protected readonly dragging = signal(false);
+  /** The chat this panel showed last (when it changes, the one it leaves keeps only its latest messages). */
+  private shown = '';
   private readonly composer = viewChild(MessageInputComponent);
 
   /** The friend whose security code changed, if the chat is with them, to warn the person. */
@@ -104,7 +110,10 @@ export class ChatPanelComponent implements OnDestroy {
         untracked(
           function (this: ChatPanelComponent) {
             this.replying.set(null);
+            const left = this.shown;
+            this.shown = id;
             this.store.viewing.set(id);
+            if (left && left !== id) this.store.trim(left);
             void this.store.open(id).catch(function () {
               return undefined;
             });
@@ -132,5 +141,6 @@ export class ChatPanelComponent implements OnDestroy {
   /** Forgets that the chat was in view. */
   ngOnDestroy(): void {
     if (this.store.viewing() === this.channelId()) this.store.viewing.set(null);
+    this.store.trim(this.channelId());
   }
 }

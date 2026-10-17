@@ -252,7 +252,7 @@ const SCROLL_AHEAD_PX = 320;
                 (click)="activePackId.set(p.id)"
                 [attr.title]="p.name"
               >
-                <img
+                <img loading="lazy"
                   decoding="async"
                   [src]="stickers.url(p.items[0]!)"
                   alt=""

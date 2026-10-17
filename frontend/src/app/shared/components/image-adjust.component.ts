@@ -4,6 +4,8 @@
  * move it, scroll or use the slider to zoom, and see exactly what will be kept (a circle for square pictures, a wide
  * frame for banners). It is loaded only when a picture is chosen, and opened by `adjustImage`.
  */
+import { I18nService } from '../../core/i18n/i18n.service';
+import { ToastService } from '../../core/services/toast.service';
 import {
   ApplicationRef,
   AfterViewInit,
@@ -13,6 +15,7 @@ import {
   OnDestroy,
   OnInit,
   createComponent,
+  inject,
   computed,
   input,
   output,
@@ -26,6 +29,7 @@ import {
   type ImageKind,
   type ImageService,
 } from '../../core/services/image.service';
+import { encodeGif, type GifFrame } from '../util/gif-encoder';
 import { chooseImageSource, sourceToBlob } from './image-source.component';
 import { ModalComponent } from './modal.component';
 
@@ -33,6 +37,10 @@ import { ModalComponent } from './modal.component';
 const ANIMATED_MAX_BYTES = 8 * 1024 * 1024 - 2048;
 /** The biggest original picture that is sent as it is when the canvas cannot be read (the server accepts up to 8 MB). */
 const MAX_ORIGINAL_BYTES = 8 * 1024 * 1024 - 2048;
+/** A picture that moves is cut at most this wide (a GIF has 256 colors and no compression of the movement: smaller keeps it light). */
+const ANIMATED_MAX_WIDTH = 640;
+/** The most frames of a picture that moves that are kept (the others are merged into the one before: it plays at the same speed). */
+const ANIMATED_MAX_FRAMES = 90;
 /** The most the picture can be zoomed in (times the size that just covers the frame). */
 const MAX_ZOOM = 4;
 
@@ -86,9 +94,16 @@ const MAX_ZOOM = 4;
         />
       </label>
       <div class="mt-5 flex justify-end gap-2">
-        <button class="btn" type="button" (click)="cancel()">{{ 'Cancel' | t }}</button>
-        <button class="btn btn-primary" type="button" [disabled]="!ready()" (click)="save()">
-          {{ 'Save' | t }}
+        <button class="btn" type="button" [disabled]="saving()" (click)="cancel()">
+          {{ 'Cancel' | t }}
+        </button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="!ready() || saving()"
+          (click)="save()"
+        >
+          {{ (saving() ? 'Saving…' : 'Save') | t }}
         </button>
       </div>
     </app-modal>
@@ -128,6 +143,8 @@ const MAX_ZOOM = 4;
   `,
 })
 export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
+  private readonly toast = inject(ToastService);
+  private readonly i18n = inject(I18nService);
   readonly file = input.required<Blob>();
   readonly target = input.required<{ width: number; height: number }>();
   /** The result: the adjusted picture, or null when the person cancels. */
@@ -137,6 +154,8 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly frame = viewChild.required<ElementRef<HTMLElement>>('frame');
   private readonly picture = viewChild.required<ElementRef<HTMLImageElement>>('picture');
   protected readonly zoom = signal(1);
+  /** A picture that moves is being cut frame by frame. */
+  protected readonly saving = signal(false);
   protected readonly offsetX = signal(0);
   protected readonly offsetY = signal(0);
   private readonly frameWidth = signal(0);
@@ -261,8 +280,132 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
     this.keepInside();
   }
 
-  /** Cuts what the frame shows and hands it over. */
-  protected save(): void {
+  /** Cuts what the frame shows and hands it over (a picture that moves is cut frame by frame and stays a moving one). */
+  protected async save(): Promise<void> {
+    if (this.saving()) {
+      return;
+    }
+    if (await isAnimated(this.file())) {
+      this.saving.set(true);
+      try {
+        this.done.emit(await this.cutAnimated());
+      } finally {
+        this.saving.set(false);
+      }
+      return;
+    }
+    this.saveStill();
+  }
+
+  /**
+   * Cuts a picture that moves: every frame is decoded, drawn where the frame shows it and written again as a GIF. If this browser
+   * cannot decode the frames, or the result is too big even when small, the picture is kept as it was (or, when that is too big
+   * too, saved still).
+   */
+  private async cutAnimated(): Promise<Blob | null> {
+    const file = this.file();
+    for (const scale of [1, 0.75, 0.55, 0.4]) {
+      let blob: Blob | null = null;
+      try {
+        blob = await this.renderAnimated(Math.min(1, (ANIMATED_MAX_WIDTH / this.target().width) * scale));
+      } catch {
+        blob = null;
+      }
+      if (!blob) {
+        break;
+      }
+      if (blob.size <= ANIMATED_MAX_BYTES) {
+        return blob;
+      }
+    }
+    if (file.size <= ANIMATED_MAX_BYTES) {
+      return file;
+    }
+    // ! Said, not silent: a picture that moves but is too big is saved as a still one, and the person must know why it does not move.
+    this.toast.info(
+      this.i18n.t('This picture is too big to keep moving'),
+      this.i18n.t('Pictures that move can weigh up to 8 MB: this one is saved still.'),
+      '🖼️',
+    );
+    return this.stillBlob();
+  }
+
+  /** Decodes every frame of the picture and writes the cut ones as a GIF, `scale` times the size of the target. Null when it cannot. */
+  private async renderAnimated(scale: number): Promise<Blob | null> {
+    const Decoder = (
+      window as unknown as {
+        ImageDecoder?: new (init: { data: ArrayBuffer; type: string }) => {
+          tracks: { ready: Promise<void>; selectedTrack: { frameCount: number } };
+          decode(options: { frameIndex: number }): Promise<{
+            image: { duration: number | null; close(): void } & CanvasImageSource;
+          }>;
+          close(): void;
+        };
+      }
+    ).ImageDecoder;
+    if (!Decoder) {
+      return null;
+    }
+    const bytes = await this.file().arrayBuffer();
+    const head = String.fromCharCode(...new Uint8Array(bytes.slice(0, 4)));
+    const decoder = new Decoder({ data: bytes, type: head === 'GIF8' ? 'image/gif' : 'image/webp' });
+    try {
+      await decoder.tracks.ready;
+      const count = decoder.tracks.selectedTrack.frameCount;
+      if (count < 2) {
+        return null;
+      }
+      const target = this.target();
+      const width = Math.max(16, Math.round(target.width * scale));
+      const height = Math.max(16, Math.round(target.height * scale));
+      const ratio = width / this.frameWidth();
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) {
+        return null;
+      }
+      context.imageSmoothingQuality = 'high';
+      const drawW = this.drawWidth() * ratio;
+      const drawH = this.drawHeight() * ratio;
+      const step = Math.max(1, Math.ceil(count / ANIMATED_MAX_FRAMES));
+      const frames: GifFrame[] = [];
+      for (let index = 0; index < count; index++) {
+        const { image } = await decoder.decode({ frameIndex: index });
+        // Every `step`-th frame is kept, and the time of the ones left out is added to it (the speed does not change).
+        const delay = Math.max(1, Math.round((image.duration ?? 100_000) / 10_000));
+        if (index % step === 0) {
+          context.fillStyle = '#10131c';
+          context.fillRect(0, 0, width, height);
+          context.drawImage(
+            image,
+            width / 2 + this.offsetX() * ratio - drawW / 2,
+            height / 2 + this.offsetY() * ratio - drawH / 2,
+            drawW,
+            drawH,
+          );
+          frames.push({ data: context.getImageData(0, 0, width, height).data, delay });
+        } else if (frames.length > 0) {
+          frames[frames.length - 1]!.delay += delay;
+        }
+        image.close();
+      }
+      return encodeGif(frames, width, height);
+    } finally {
+      decoder.close();
+    }
+  }
+
+  /** The first frame, cut like a still picture (when a picture that moves cannot be kept moving). */
+  private stillBlob(): Promise<Blob | null> {
+    return new Promise<Blob | null>((resolve) => {
+      this.saveStill(resolve);
+    });
+  }
+
+  /** Cuts what the frame shows as a still picture and hands it over. */
+  private saveStill(deliver: (blob: Blob | null) => void = this.done.emit.bind(this.done)): void {
     const target = this.target();
     const ratio = target.width / this.frameWidth();
     const canvas = document.createElement('canvas');
@@ -270,7 +413,7 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
     canvas.height = target.height;
     const context = canvas.getContext('2d');
     if (!context) {
-      this.done.emit(null);
+      deliver(null);
       return;
     }
     context.imageSmoothingQuality = 'high';
@@ -286,10 +429,10 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
     // Browsers that protect against fingerprinting (Firefox with that option, Brave) hand back a blank canvas: then the
     // ? picture that was chosen is kept as it is instead of a blank one (the server checks its type and size).
     if (this.isBlank(context, target) && this.file().size <= MAX_ORIGINAL_BYTES) {
-      this.done.emit(this.file());
+      deliver(this.file());
       return;
     }
-    canvas.toBlob(this.done.emit.bind(this.done), 'image/webp', 0.86);
+    canvas.toBlob(deliver, 'image/webp', 0.86);
   }
 
   /** Whether what was drawn on the canvas reads back as one single color (a blank canvas). */
@@ -362,8 +505,7 @@ async function isAnimated(file: Blob): Promise<boolean> {
 }
 
 /**
- * Gets a picture ready: a picture that moves (up to 8 MB) is kept as it is so it keeps moving; any other is adjusted
- * in the window and cut to the target.
+ * Gets a picture ready: it is adjusted in the window (moved and zoomed) and cut to the target; a picture that moves keeps moving.
  * @returns The picture, or null when the person cancels.
  */
 export async function prepareImage(
@@ -371,9 +513,7 @@ export async function prepareImage(
   file: Blob,
   target: { width: number; height: number },
 ): Promise<Blob | null> {
-  if (file.size <= ANIMATED_MAX_BYTES && (await isAnimated(file))) {
-    return file;
-  }
+  // A picture that moves is adjusted too: the window cuts every frame and keeps it moving (see ImageAdjustComponent.cutAnimated).
   return adjustImage(injector, file, target);
 }
 

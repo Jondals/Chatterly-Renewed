@@ -270,7 +270,7 @@ const LONG_PRESS_MS = 450;
         (hovered() || tapped() || pickerOpen())
       ) {
         <div
-          class="msg-actions absolute -top-4 z-10 flex items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl"
+          class="msg-actions absolute top-1 z-10 flex items-center gap-0.5 rounded-ui border border-white/10 bg-ink-800 p-1 shadow-xl"
           [class.right-4]="!(bubbles() && mine())"
           [class.left-4]="bubbles() && mine()"
         >

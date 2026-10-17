@@ -23,6 +23,29 @@ const COLOR = /^#[0-9a-fA-F]{6}$/;
  * version"; each member holds an envelope of it wrapped for their own key pair. The server only
  * ever sees those envelopes.
  */
+/** An invitation as the server sends it. */
+interface RawGuildInvite {
+  guildId: string;
+  inviterId: string;
+  keyVersion: number;
+  createdAt: number;
+  name: string;
+  iconImage: string | null;
+  iconKey: { keyVersion: number; iv: string; data: string } | null;
+  tagColor: string;
+  envelope: { iv: string; data: string };
+}
+
+/** An invitation ready to show. */
+export interface GuildInviteView {
+  guildId: string;
+  inviterId: string;
+  name: string;
+  iconImage: string | null;
+  tagColor: string;
+  createdAt: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GuildStore {
   private readonly api = inject(ApiService);
@@ -63,6 +86,7 @@ export class GuildStore {
     this.socket.events$.subscribe(
       function (this: GuildStore, event: ServerEvent) {
         if (event.t === 'ready' || event.t === 'guild.update') void this.refresh();
+        if (event.t === 'ready' || event.t === 'guild.invite') void this.loadInvites();
         if (event.t === 'guild.removed') {
           const id = (event as unknown as { guildId: string }).guildId;
           this.guilds.update(function (list) {
@@ -79,6 +103,7 @@ export class GuildStore {
   /** Forgets every group and key (sign out). */
   reset(): void {
     this.guilds.set([]);
+    this.invites.set([]);
     this.keys.clear();
     this.loaded.set(false);
   }
@@ -466,6 +491,76 @@ export class GuildStore {
     return this.guild(guildId)!;
   }
 
+  /** The invitations the person has: they are not in those groups until they accept. */
+  readonly invites = signal<GuildInviteView[]>([]);
+
+  /** Reads the invitations and opens what each one shows (the name and the icon of the group, sealed with the key it carries). */
+  async loadInvites(): Promise<void> {
+    let answer: { invites: RawGuildInvite[]; users: User[] };
+    try {
+      answer = await this.api.get<{ invites: RawGuildInvite[]; users: User[] }>('/api/guild-invites');
+    } catch {
+      return; // a server that is older than this app has no invitations
+    }
+    this.directory.merge(answer.users);
+    const me = this.auth.user()!;
+    const views: GuildInviteView[] = [];
+    for (const raw of answer.invites) {
+      let name = '';
+      try {
+        const inviter = await this.directory.require(raw.inviterId);
+        const key = await unwrapGuildKey(
+          raw.envelope,
+          this.auth.identity.ecdhPrivate,
+          this.auth.identity.publicKeys.ecdh,
+          inviter.publicKeys.ecdh,
+          { guildId: raw.guildId, keyVersion: raw.keyVersion, recipientId: me.id },
+        );
+        const opened = isSealedText(raw.name)
+          ? await openMeta<unknown>(key, raw.guildId, 'name', raw.guildId, raw.name)
+          : raw.name;
+        name = typeof opened === 'string' ? opened : '';
+        if (raw.iconKey && raw.iconImage) {
+          const icon = await openBytes(
+            key,
+            { iv: raw.iconKey.iv, ciphertext: raw.iconKey.data },
+            this.iconContext(raw.guildId, raw.iconKey.keyVersion, raw.iconImage),
+          );
+          await this.images.learnGroupIcon(raw.iconImage, icon);
+        }
+      } catch (error) {
+        console.warn('Could not open an invitation', raw.guildId, error);
+      }
+      if (!name) continue; // what cannot be opened is not shown: nobody can be tricked with a name that was not sealed for them
+      views.push({
+        guildId: raw.guildId,
+        inviterId: raw.inviterId,
+        name,
+        iconImage: raw.iconImage,
+        tagColor: /^#[0-9a-fA-F]{6}$/.test(raw.tagColor) ? raw.tagColor : '',
+        createdAt: raw.createdAt,
+      });
+    }
+    this.invites.set(views);
+  }
+
+  /** Accepts an invitation: the person joins the group. */
+  async acceptInvite(guildId: string): Promise<void> {
+    try {
+      await this.api.post('/api/guild-invites/' + encodeURIComponent(guildId) + '/accept');
+    } finally {
+      await this.loadInvites();
+    }
+    await this.refresh();
+    this.setActive(guildId);
+  }
+
+  /** Says no to an invitation. */
+  async declineInvite(guildId: string): Promise<void> {
+    await this.api.post('/api/guild-invites/' + encodeURIComponent(guildId) + '/decline');
+    await this.loadInvites();
+  }
+
   /** Invites a friend: the key of the group is wrapped for their public key, so only they can open it. */
   async invite(guildId: string, userId: string): Promise<void> {
     const guild = this.guild(guildId)!;
@@ -479,7 +574,6 @@ export class GuildStore {
       { guildId, keyVersion: guild.keyVersion, recipientId: userId },
     );
     await this.api.post(`/api/guilds/${guildId}/members`, { userId, envelope });
-    await this.refresh();
   }
 
   /** Removes a member; the key must be changed afterwards so they cannot read what comes next. */

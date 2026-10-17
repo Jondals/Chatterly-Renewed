@@ -458,7 +458,8 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
     return reply.code(204).send();
   });
 
-  // Any member may bring in one of their own friends: they hold the key, so they can wrap it.
+  // Any member may invite one of their own friends: they hold the key, so they can wrap it. The friend is not in the group until
+  // they accept (see /api/guild-invites below).
   app.post(
     '/api/guilds/:id/members',
     {
@@ -475,7 +476,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         },
       },
     },
-    /** POST /api/guilds/:id/members: adds a friend of the caller with the group key wrapped for them. */
+    /** POST /api/guilds/:id/members: invites a friend of the caller, with the group key wrapped for them. */
     async function (req, reply) {
       const guild = requireMember(req, reply);
       if (!guild) return;
@@ -488,16 +489,126 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
       if (isMember(guild.id, body.userId)) return reply.code(409).send({ error: 'already_member' });
       if (!areFriends(db, self, body.userId)) return reply.code(403).send({ error: 'not_friends' });
       if (memberIds(guild.id).length >= 50) return reply.code(403).send({ error: 'guild_full' });
-      db.transaction(function () {
+      const waiting = (
+        db.prepare('SELECT COUNT(*) AS n FROM guild_invites WHERE guild_id = ?').get(guild.id) as {
+          n: number;
+        }
+      ).n;
+      if (waiting >= 50) return reply.code(403).send({ error: 'too_many_invites' });
+      db.prepare(
+        'INSERT OR REPLACE INTO guild_invites (guild_id, user_id, inviter_id, key_version, iv, data, created_at) VALUES (?,?,?,?,?,?,?)',
+      ).run(
+        guild.id,
+        body.userId,
+        self,
+        guild.key_version,
+        body.envelope.iv,
+        body.envelope.data,
+        Date.now(),
+      );
+      hub.sendTo(body.userId, { t: 'guild.invite', guildId: guild.id });
+      return reply.code(201).send({ ok: true, pending: true });
+    },
+  );
+
+  /** GET /api/guild-invites: the invitations the caller has (what the card shows is sealed with the key inside each one). */
+  app.get('/api/guild-invites', auth, async function (req) {
+    const self = me(req);
+    const rows = db
+      .prepare(
+        `SELECT i.guild_id, i.inviter_id, i.key_version, i.iv, i.data, i.created_at, g.*
+           FROM guild_invites i JOIN guilds g ON g.id = i.guild_id
+          WHERE i.user_id = ? ORDER BY i.created_at DESC LIMIT 50`,
+      )
+      .all(self) as (GuildRow & {
+      guild_id: string;
+      inviter_id: string;
+      iv: string;
+      data: string;
+    })[];
+    const invites = rows.map(function describe(row) {
+      return {
+        guildId: row.guild_id,
+        inviterId: row.inviter_id,
+        keyVersion: row.key_version,
+        createdAt: row.created_at,
+        name: row.name,
+        iconImage: row.icon_image,
+        iconKey: row.icon_key_data
+          ? { keyVersion: row.icon_key_version, iv: row.icon_key_iv, data: row.icon_key_data }
+          : null,
+        tagColor: row.tag_color,
+        envelope: { iv: row.iv, data: row.data },
+      };
+    });
+    return {
+      invites,
+      users: getUsers(
+        db,
+        invites.map(function inviter(invite) {
+          return invite.inviterId;
+        }),
+      ),
+    };
+  });
+
+  const inviteParams = {
+    params: {
+      type: 'object',
+      required: ['guildId'],
+      properties: { guildId: { type: 'string', maxLength: 64 } },
+    },
+  };
+
+  /** POST /api/guild-invites/:guildId/accept: the person joins the group with the key they were given. */
+  app.post(
+    '/api/guild-invites/:guildId/accept',
+    { ...auth, schema: inviteParams },
+    async function (req, reply) {
+      const self = me(req);
+      const { guildId } = req.params as { guildId: string };
+      const invite = db
+        .prepare('SELECT * FROM guild_invites WHERE guild_id = ? AND user_id = ?')
+        .get(guildId, self) as
+        | { inviter_id: string; key_version: number; iv: string; data: string }
+        | undefined;
+      const guild = getGuild(guildId);
+      if (!invite || !guild) return reply.code(404).send({ error: 'not_found' });
+      if (guild.key_version !== invite.key_version || guild.needs_rotation) {
+        // The key of the group changed after the invitation: what it carries opens nothing any more.
+        db.prepare('DELETE FROM guild_invites WHERE guild_id = ? AND user_id = ?').run(guildId, self);
+        return reply.code(409).send({ error: 'invite_expired' });
+      }
+      if (isMember(guildId, self)) {
+        db.prepare('DELETE FROM guild_invites WHERE guild_id = ? AND user_id = ?').run(guildId, self);
+        return reply.code(409).send({ error: 'already_member' });
+      }
+      if (memberIds(guildId).length >= 50) return reply.code(403).send({ error: 'guild_full' });
+      db.transaction(function join() {
         db.prepare(
           "INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?,?, 'member', ?)",
-        ).run(guild.id, body.userId, Date.now());
+        ).run(guildId, self, Date.now());
         db.prepare(
           'INSERT INTO guild_keys (guild_id, user_id, key_version, wrapper_id, iv, data) VALUES (?,?,?,?,?,?)',
-        ).run(guild.id, body.userId, guild.key_version, self, body.envelope.iv, body.envelope.data);
+        ).run(guildId, self, invite.key_version, invite.inviter_id, invite.iv, invite.data);
+        db.prepare('DELETE FROM guild_invites WHERE guild_id = ? AND user_id = ?').run(guildId, self);
       })();
-      notifyGuild(guild.id);
-      return reply.code(201).send({ ok: true });
+      notifyGuild(guildId);
+      return { ok: true };
+    },
+  );
+
+  /** POST /api/guild-invites/:guildId/decline: the person says no; nothing is left of the invitation. */
+  app.post(
+    '/api/guild-invites/:guildId/decline',
+    { ...auth, schema: inviteParams },
+    async function (req, reply) {
+      const { guildId } = req.params as { guildId: string };
+      db.prepare('DELETE FROM guild_invites WHERE guild_id = ? AND user_id = ?').run(
+        guildId,
+        me(req),
+      );
+      return reply.code(204).send();
     },
   );
 
@@ -771,6 +882,7 @@ export function registerGuildRoutes(app: FastifyInstance, ctx: AppContext): void
         );
         for (const e of body.envelopes)
           insert.run(guild.id, e.userId, body.keyVersion, guild.owner_id, e.iv, e.data);
+        db.prepare('DELETE FROM guild_invites WHERE guild_id = ?').run(guild.id);
         db.prepare('UPDATE guilds SET key_version = ?, needs_rotation = 0 WHERE id = ?').run(
           body.keyVersion,
           guild.id,

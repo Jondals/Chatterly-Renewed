@@ -3,9 +3,7 @@
  * The one foreground service of the app, with one notification that changes with what the app is doing:
  *   - CALL: a call is on. The notification shows who the call is with (only on an unlocked phone), how long it has
  *     lasted and three buttons: mute, deafen and hang up (layout/notification_call.xml). A tap opens the call.
- *   - LISTEN: no call, but the person turned on "Calls in the background" (Settings > Appearance > Performance, off by
- *     default). A quiet, minimized notification keeps the app connected, so a call rings with the app minimized or the
- *     screen off.
+ *   There is no notification while no call is on: the app does not keep itself connected in the background.
  *
  * * Why: since Android 9 an app in the background cannot use the microphone (it records silence), Android 14 requires a
  *   foreground service of type "microphone" started while the app is on screen to keep it, and an app in the background
@@ -25,7 +23,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.widget.RemoteViews;
 import androidx.core.app.NotificationCompat;
@@ -42,7 +42,6 @@ public class CallForegroundService extends Service {
     /** The channel of a call in progress (quiet: no sound, no vibration). */
     static final String CHANNEL_ID = "calls";
     /** The channel of the connection kept in the background (the least visible one). */
-    static final String LISTEN_CHANNEL_ID = "listening";
 
     /** The id of the notification while the service runs. */
     private static final int NOTIFICATION_ID = 1001;
@@ -60,11 +59,21 @@ public class CallForegroundService extends Service {
 
     // The state the notification shows, set by the plugin before it asks the service to refresh.
     static volatile boolean inCall;
-    static volatile boolean listening;
     static volatile String title = "";
     static volatile long startedAt;
     static volatile boolean muted;
     static volatile boolean deafened;
+
+    /** Draws the notification again every minute while the call lasts, so the color of its time follows how long it is. */
+    private final Handler ticker = new Handler(Looper.getMainLooper());
+    private final Runnable tick = new Runnable() {
+        @Override
+        public void run() {
+            if (inCall) {
+                repost();
+            }
+        }
+    };
 
     /** Nothing binds to this service: it only runs. */
     @Override
@@ -78,7 +87,7 @@ public class CallForegroundService extends Service {
      *   start a foreground service from the background, and a press on "mute" in the notification happens exactly there.
      */
     static void refresh(Context context) {
-        if (!inCall && !listening) {
+        if (!inCall) {
             // A page kept only for the call is not needed any more.
             CallKeeper.release();
             context.stopService(new Intent(context, CallForegroundService.class));
@@ -99,9 +108,13 @@ public class CallForegroundService extends Service {
 
     /** Draws the notification again with the current state (the kind of notification did not change). */
     private void repost() {
+        ticker.removeCallbacks(tick);
+        if (inCall) {
+            ticker.postDelayed(tick, 60_000);
+        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
-            manager.notify(NOTIFICATION_ID, inCall ? callNotification() : listenNotification());
+            manager.notify(NOTIFICATION_ID, callNotification());
         }
     }
 
@@ -118,7 +131,7 @@ public class CallForegroundService extends Service {
                 inCall = false;
             }
         }
-        if (!inCall && !listening) {
+        if (!inCall) {
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
@@ -132,13 +145,14 @@ public class CallForegroundService extends Service {
             type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
         }
         try {
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, inCall ? callNotification() : listenNotification(), type);
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, callNotification(), type);
             running = this;
             shownAsCall = inCall;
+            ticker.removeCallbacks(tick);
+            ticker.postDelayed(tick, 60_000);
         } catch (RuntimeException refused) {
             // Android refused (no microphone permission, or started from the background): nothing is kept alive.
             inCall = false;
-            listening = false;
             stopSelf();
         }
         // ! If the system kills the app, its page is gone: the service is not brought back by itself.
@@ -148,6 +162,7 @@ public class CallForegroundService extends Service {
     /** Forgets this service when it ends. */
     @Override
     public void onDestroy() {
+        ticker.removeCallbacks(tick);
         if (running == this) {
             running = null;
         }
@@ -165,7 +180,6 @@ public class CallForegroundService extends Service {
             return;
         }
         inCall = false;
-        listening = false;
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
         super.onTaskRemoved(rootIntent);
@@ -228,6 +242,15 @@ public class CallForegroundService extends Service {
             .build();
     }
 
+    /** The color of the time of the call: green at first, then yellow, orange and red as it gets longer. */
+    static int timerColor(long elapsedMs) {
+        long minutes = elapsedMs / 60000;
+        if (minutes < 15) return 0xFF2EF2B0;
+        if (minutes < 60) return 0xFFFACC15;
+        if (minutes < 120) return 0xFFFB923C;
+        return 0xFFF87171;
+    }
+
     /**
      * The inside of the call notification with the current state: folded (layout/notification_call.xml, small buttons) or
      * open (layout/notification_call_big.xml, wide buttons with their names).
@@ -241,6 +264,8 @@ public class CallForegroundService extends Service {
         // The chronometer counts from a moment of the clock since boot: the start of the call moved to that clock.
         long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - since);
         view.setChronometer(R.id.call_timer, base, null, true);
+        // The time of the call changes color the longer it lasts (the same steps as the indicator inside the app).
+        view.setTextColor(R.id.call_timer, timerColor(System.currentTimeMillis() - since));
         view.setTextViewText(R.id.call_state, state.isEmpty() ? "" : " · " + state);
         int muteIcon = muted ? R.drawable.ic_call_mic_off : R.drawable.ic_call_mic;
         int deafenIcon = deafened ? R.drawable.ic_call_headphones_off : R.drawable.ic_call_headphones;
@@ -270,23 +295,6 @@ public class CallForegroundService extends Service {
         return view;
     }
 
-    /** The notification while only connected: as small as Android allows (the person can hide it in the system settings). */
-    private Notification listenNotification() {
-        return new NotificationCompat.Builder(this, LISTEN_CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.listening))
-            .setSmallIcon(R.drawable.ic_stat_chatterly)
-            .setColor(0xFF2EF2B0)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setOngoing(true)
-            .setSilent(true)
-            .setShowWhen(false)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setContentIntent(openApp())
-            .build();
-    }
-
     /** Creates the channels once (Android 8 and later need a channel for every notification). */
     static void createChannels(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -303,13 +311,5 @@ public class CallForegroundService extends Service {
         );
         calls.setShowBadge(false);
         manager.createNotificationChannel(calls);
-        NotificationChannel listen = new NotificationChannel(
-            LISTEN_CHANNEL_ID,
-            context.getString(R.string.listening_channel_name),
-            NotificationManager.IMPORTANCE_MIN
-        );
-        listen.setShowBadge(false);
-        listen.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
-        manager.createNotificationChannel(listen);
     }
 }

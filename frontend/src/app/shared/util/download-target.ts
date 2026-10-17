@@ -6,11 +6,12 @@
  */
 import { API_BASE } from '../../core/config';
 
-/** Where the releases live (for a device with no app). */
-const RELEASES = 'https://github.com/Jondals/ChatterlyRenewed/releases';
+/** Where the project lives, and its releases (for a device with no app). */
+const REPOSITORY = 'https://github.com/Jondals/ChatterlyRenewed';
+const RELEASES = REPOSITORY + '/releases';
 
 /** The apps that exist. */
-export type AppId = 'windows' | 'mac' | 'linux' | 'android' | 'ios';
+type AppId = 'windows' | 'mac' | 'linux' | 'android' | 'ios';
 
 /** One app: what it is called, the file of the release and the icon of the landing page. */
 export interface AppTarget {
@@ -63,6 +64,9 @@ export function detectApp(): AppTarget | null {
 export function downloadUrl(app: AppTarget): string {
   return API_BASE + '/api/download/' + app.id;
 }
+
+/** The repository of the project. */
+export const REPOSITORY_URL = REPOSITORY;
 
 /** The page of all the releases. */
 export const RELEASES_URL = RELEASES;

@@ -29,6 +29,7 @@ const { parseServerUrl } = require('./server-url.cjs');
 const bundle = require('./bundle.cjs');
 const graphics = require('./graphics.cjs');
 const overlay = require('./overlay.cjs');
+const shortcuts = require('./shortcuts.cjs');
 const updater = require('./updater.cjs');
 const { trace } = require('./trace.cjs');
 const windowState = require('./window-state.cjs');
@@ -127,7 +128,7 @@ const graphicsApplied = graphics.apply(app, process.platform);
 // * Every renderer runs in the Chromium sandbox, also the ones created later.
 app.enableSandbox();
 // ! Must happen before the app is ready.
-bundle.registerScheme();
+bundle.registerScheme([overlay.PAGE_SCHEME_ENTRY]);
 // * Windows works out which windows are covered by others and slows those down; a call in a window that is behind
 //   another one must not be slowed down (the same switch VS Code uses).
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
@@ -702,6 +703,7 @@ function onActivate() {
 
 function onWillQuit() {
   overlay.stop();
+  shortcuts.stop();
 }
 
 function onWindowAllClosed() {
@@ -726,6 +728,17 @@ async function start() {
 
   const ses = session.defaultSession;
   if (webDir) bundle.install(ses, webDir, serverUrl.origin);
+  // ! YouTube does not play in a frame whose referrer is not an http(s) address ("error 153"), and the page of the installed app is
+  //   app://chatterly. The frame of its player (listen and watch together in a call) is asked for with the address of the server as
+  //   its referrer, as a browser on the web would send it. Nothing else changes, and only that one kind of request.
+  ses.webRequest.onBeforeSendHeaders(
+    { urls: ['https://www.youtube-nocookie.com/*', 'https://www.youtube.com/*'] },
+    function onPlayerRequest(details, callback) {
+      const headers = { ...details.requestHeaders };
+      if (details.resourceType === 'subFrame') headers['Referer'] = serverUrl.origin + '/';
+      callback({ requestHeaders: headers });
+    },
+  );
   ipcMain.handle('screen:surface', onScreenSurface);
   ipcMain.handle('screen:choose', onPickChoose);
   ipcMain.handle('screen:cancel', onPickCancel);
@@ -744,6 +757,7 @@ async function start() {
   createWindow();
   updater.start(mainWindow, isAppOrigin, serverUrl.origin);
   overlay.start(mainWindow, isAppOrigin, app.getPath('userData'), QUIET, showMainWindow);
+  shortcuts.start(mainWindow, isAppOrigin);
 }
 
 if (!app.requestSingleInstanceLock()) {

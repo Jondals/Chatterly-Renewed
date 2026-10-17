@@ -25,17 +25,23 @@ export async function step10(world) {
   });
   await b.reload();
   await b.waitForSelector('button.msg-name', { timeout: 20000 });
-  check(
-    /\d{1,2}:\d{2} (AM|PM)/.test(
-      await b
-        .locator('button.msg-name')
-        .first()
-        .locator('xpath=following-sibling::span')
-        .first()
-        .innerText(),
-    ),
-    'in 12 h format the time carries AM or PM',
-  );
+  // (the list draws in steps after a reload: the time is waited for, not read at once)
+  const twelve = await b
+    .waitForFunction(function () {
+      const name = document.querySelector('button.msg-name');
+      let time = name && name.nextElementSibling;
+      while (time && time.tagName !== 'SPAN') time = time.nextElementSibling;
+      return !!time && /\d{1,2}:\d{2} (AM|PM)/.test(time.textContent || '');
+    }, null, { timeout: 8000 })
+    .then(
+      function ok() {
+        return true;
+      },
+      function late() {
+        return false;
+      },
+    );
+  check(twelve, 'in 12 h format the time carries AM or PM');
   // sent, delivered and read marks: Bob has the chat open, so Alice sees "read"
   await a.waitForSelector('.status-dot.status-read', { timeout: 20000 });
   check(true, 'read marks arrive: Alice sees her message as read by Bob');

@@ -22,6 +22,9 @@ import { GifService, type GifResult } from '../../core/services/gif.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gif-thumb',
   standalone: true,
+  // ! A block that is not split between columns: as an inline element inside "columns-2" it could end up with no size, never count as
+  //   visible and never ask for its picture (the column of GIFs stayed empty on a phone).
+  host: { class: 'block break-inside-avoid' },
   template: `
     <button
       type="button"
@@ -56,6 +59,7 @@ export class GifThumbComponent {
   /** True once the thumbnail is near the screen. */
   private readonly near = signal(false);
   private observer: IntersectionObserver | null = null;
+  private fallback: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     if (typeof IntersectionObserver === 'undefined') {
@@ -63,6 +67,8 @@ export class GifThumbComponent {
     } else {
       this.observer = new IntersectionObserver(this.seen.bind(this), { rootMargin: '240px' });
       this.observer.observe(this.host.nativeElement);
+      // If the observer never says anything (a list inside a window that is still moving in), the picture is asked for anyway.
+      this.fallback = setTimeout(this.seen.bind(this, [{ isIntersecting: true } as IntersectionObserverEntry]), 1500);
     }
     inject(DestroyRef).onDestroy(this.stop.bind(this));
     effect(this.load.bind(this));
@@ -82,6 +88,7 @@ export class GifThumbComponent {
 
   /** Stops watching. */
   private stop(): void {
+    clearTimeout(this.fallback);
     this.observer?.disconnect();
     this.observer = null;
   }

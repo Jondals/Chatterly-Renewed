@@ -296,7 +296,7 @@ const GRADIENTS = [
 
       @if (toolbar() && !recording()) {
         <div
-          class="anim-fade-up mb-1.5 flex flex-wrap items-center gap-1 rounded-ui border border-white/10 bg-ink-800 p-1.5"
+          class="anim-fade-up mb-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden rounded-ui border border-white/10 bg-ink-800 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <button
             class="btn btn-icon btn-sm btn-ghost tip"
@@ -337,7 +337,7 @@ const GRADIENTS = [
           <span class="mx-1 h-5 w-px bg-white/10"></span>
           @for (c of colors; track c) {
             <button
-              class="h-5 w-5 dot rounded-full ring-offset-1 ring-offset-ink-850 hover:scale-110 hover:ring-1"
+              class="h-5 w-5 shrink-0 dot rounded-full ring-offset-1 ring-offset-ink-850 hover:scale-110 hover:ring-1 max-[400px]:hidden"
               [style.background]="c"
               [style.--tw-ring-color]="c"
               type="button"
@@ -359,16 +359,16 @@ const GRADIENTS = [
           <span class="mx-1 h-5 w-px bg-white/10"></span>
           <button
             type="button"
-            class="btn btn-sm btn-ghost gap-1.5"
+            class="btn btn-sm btn-ghost max-w-full shrink-0 gap-1.5"
             [class.btn-active]="gradientOpen()"
             (mousedown)="$event.preventDefault()"
             (click)="gradientOpen.set(!gradientOpen())"
           >
             <span
-              class="h-3.5 w-6 rounded-full ring-1 ring-white/30"
+              class="h-3.5 w-6 shrink-0 rounded-full ring-1 ring-white/30"
               [style.background]="gradientCss()"
             ></span>
-            {{ 'Gradient' | t }}
+            <span class="min-w-0 truncate">{{ 'Gradient' | t }}</span>
           </button>
         </div>
         @if (gradientOpen()) {
@@ -438,7 +438,7 @@ const GRADIENTS = [
           </button>
         </div>
       } @else {
-        <div class="panel flex items-end gap-1 p-1.5">
+        <div class="panel flex items-end gap-1 p-1.5 max-sm:gap-1.5">
           <input
             #file
             type="file"
@@ -500,6 +500,22 @@ const GRADIENTS = [
               </div>
             }
           </div>
+          @for (it of barItems(); track it.id) {
+            <button
+              class="btn btn-icon btn-ghost tip"
+              type="button"
+              [attr.data-tip]="it.label | t"
+              [attr.aria-label]="it.label | t"
+              (mousedown)="$event.preventDefault()"
+              (click)="act(it.id, photo, file)"
+            >
+              @if (it.id === 'spinly') {
+                <app-spinly-logo [size]="22" />
+              } @else {
+                <app-icon [name]="it.icon" />
+              }
+            </button>
+          }
           <div class="relative">
             <button
               class="btn btn-icon btn-ghost tip"
@@ -513,7 +529,7 @@ const GRADIENTS = [
             </button>
             @if (plusOpen()) {
               <div
-                class="anim-pop absolute bottom-12 right-0 z-30 w-80 max-w-[calc(100vw-1.5rem)] origin-bottom-right overflow-hidden rounded-ui-lg border border-white/10 bg-ink-800 shadow-2xl"
+                class="anim-pop absolute bottom-12 right-0 z-30 w-72 max-w-[calc(100vw-1.5rem)] origin-bottom-right overflow-hidden rounded-ui-lg border border-white/10 bg-ink-800 shadow-2xl"
                 (mousedown)="$event.stopPropagation()"
               >
                 @if (plusView() === 'sounds') {
@@ -580,114 +596,88 @@ const GRADIENTS = [
                     </div>
                   }
                 } @else {
-                  <div
-                    class="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
-                  >
-                    {{ 'Add to your message' | t }}
-                  </div>
-                  <div class="grid grid-cols-4 gap-1.5 px-2.5 pb-1 pt-1.5">
+                  <div class="flex items-center gap-1.5 px-3 pb-1 pt-2.5">
+                    <span
+                      class="flex-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-dim"
+                      [attr.title]="'Encrypted before they leave your device. Up to 10 MB each.' | t"
+                      >{{ plusView() === 'customize' ? ('Show in the bar' | t) : ('Add' | t) }}</span
+                    >
                     <button
                       type="button"
-                      class="sb-tile anim-fade-up"
-                      style="--d: 0ms"
-                      (click)="plusOpen.set(false); photo.click()"
+                      class="btn btn-icon btn-sm btn-ghost !h-7 !w-7"
+                      [class.btn-active]="plusView() === 'customize'"
+                      [attr.aria-label]="'Customize' | t"
+                      (click)="plusView.set(plusView() === 'customize' ? 'main' : 'customize')"
                     >
-                      <span class="menu-icon !h-10 !w-10 bg-sky/15 text-sky"
-                        ><app-icon name="image" [size]="19"
-                      /></span>
-                      <span class="text-[0.6875rem] font-semibold">{{ 'Photo or video' | t }}</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="sb-tile anim-fade-up"
-                      style="--d: 30ms"
-                      (click)="plusOpen.set(false); file.click()"
-                    >
-                      <span class="menu-icon !h-10 !w-10 bg-violet/15 text-violet"
-                        ><app-icon name="paperclip" [size]="19"
-                      /></span>
-                      <span class="text-[0.6875rem] font-semibold">{{ 'File' | t }}</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="sb-tile anim-fade-up"
-                      style="--d: 60ms"
-                      (click)="plusOpen.set(false); startRecording()"
-                    >
-                      <span class="menu-icon !h-10 !w-10 bg-coral/15 text-coral"
-                        ><app-icon name="mic" [size]="19"
-                      /></span>
-                      <span class="text-[0.6875rem] font-semibold">{{ 'Voice note' | t }}</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="sb-tile anim-fade-up"
-                      style="--d: 90ms"
-                      (click)="openSounds()"
-                    >
-                      <span class="menu-icon !h-10 !w-10 bg-amber/15 text-amber"
-                        ><app-icon name="waveform" [size]="19"
-                      /></span>
-                      <span class="text-[0.6875rem] font-semibold">{{ 'Sounds' | t }}</span>
+                      <app-icon [name]="plusView() === 'customize' ? 'check' : 'settings'" [size]="15" />
                     </button>
                   </div>
-                  <p class="px-4 pb-2 pt-1 text-[0.6875rem] leading-snug text-dim">
-                    {{
-                      'Encrypted before they leave your device. Up to 10 MB each. You can also paste or drop them in the chat.'
-                        | t
-                    }}
-                  </p>
-                  <div class="mx-3 border-t border-white/6"></div>
-                  <div class="p-1.5">
-                    <button
-                      type="button"
-                      class="menu-card anim-fade-up"
-                      style="--d: 90ms"
-                      (click)="plusOpen.set(false); openSpinly()"
-                    >
-                      <span class="menu-icon !bg-white/5"><app-spinly-logo [size]="28" /></span>
-                      <span class="min-w-0 flex-1"
-                        ><b class="block text-sm">Spinly</b
-                        ><span class="block text-xs text-muted">{{
-                          'A wheel or tournament everybody can run' | t
-                        }}</span></span
-                      >
-                    </button>
-                    <button
-                      type="button"
-                      class="menu-card anim-fade-up"
-                      style="--d: 120ms"
-                      (click)="plusOpen.set(false); presetShareOpen.set(true)"
-                    >
-                      <span class="menu-icon bg-violet/15 text-violet"
-                        ><app-icon name="palette" [size]="18"
-                      /></span>
-                      <span class="min-w-0 flex-1"
-                        ><b class="block text-sm">{{ 'Share a preset' | t }}</b
-                        ><span class="block text-xs text-muted">{{
-                          'Your profile or the look of the app, to import with one button' | t
-                        }}</span></span
-                      >
-                    </button>
+                  <div class="p-1.5 pt-0.5">
+                    @if (plusView() === 'customize') {
+                      @for (it of addItems; track it.id) {
+                        <button
+                          type="button"
+                          class="menu-card !py-1.5"
+                          role="switch"
+                          [attr.aria-checked]="inBar(it.id)"
+                          (click)="toggleInBar(it.id)"
+                        >
+                          <span class="menu-icon !h-8 !w-8" [class]="it.tone">
+                            @if (it.id === 'spinly') {
+                              <app-spinly-logo [size]="22" />
+                            } @else {
+                              <app-icon [name]="it.icon" [size]="16" />
+                            }
+                          </span>
+                          <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ it.label | t }}</span>
+                          <span class="chip" [class.chip-accent]="inBar(it.id)">{{
+                            (inBar(it.id) ? 'In the bar' : 'In the menu') | t
+                          }}</span>
+                        </button>
+                      }
+                    } @else {
+                      @for (it of menuItems(); track it.id) {
+                        <button type="button" class="menu-card !py-1.5" (click)="act(it.id, photo, file)">
+                          <span class="menu-icon !h-8 !w-8" [class]="it.tone">
+                            @if (it.id === 'spinly') {
+                              <app-spinly-logo [size]="22" />
+                            } @else {
+                              <app-icon [name]="it.icon" [size]="16" />
+                            }
+                          </span>
+                          <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ it.label | t }}</span>
+                        </button>
+                      } @empty {
+                        <p class="px-2 py-3 text-xs text-dim">{{ 'Everything is in the bar.' | t }}</p>
+                      }
+                    }
                   </div>
                 }
               </div>
             }
           </div>
-          <!-- only on a phone (on a computer Enter sends); always there, so that typing never moves what is beside it -->
+          <!-- only on a phone (on a computer Enter sends): always there, a microphone while nothing is written and the arrow when there is something to send, so nothing appears or moves -->
           <button
-            class="btn btn-icon btn-primary transition-[opacity,transform] duration-200 sm:!hidden"
-            [class.pointer-events-none]="!canSend()"
-            [class.scale-75]="!canSend()"
-            [class.opacity-0]="!canSend()"
+            class="btn btn-icon btn-primary relative max-sm:ml-1.5 sm:!hidden"
             type="button"
-            (click)="send()"
-            [disabled]="sending() || !canSend()"
-            [attr.tabindex]="canSend() ? 0 : -1"
-            [attr.aria-hidden]="!canSend()"
-            [attr.aria-label]="'Send' | t"
+            (click)="canSend() ? send() : startRecording()"
+            [disabled]="sending()"
+            [attr.aria-label]="(canSend() ? 'Send' : 'Voice note') | t"
           >
-            <app-icon name="send" [size]="17" />
+            <app-icon
+              name="send"
+              [size]="17"
+              class="absolute transition-[opacity,transform] duration-150"
+              [class.opacity-0]="!canSend()"
+              [class.scale-50]="!canSend()"
+            />
+            <app-icon
+              name="mic"
+              [size]="17"
+              class="absolute transition-[opacity,transform] duration-150"
+              [class.opacity-0]="canSend()"
+              [class.scale-50]="canSend()"
+            />
           </button>
         </div>
       }
@@ -734,7 +724,67 @@ export class MessageInputComponent implements OnDestroy {
   }
   protected readonly plusOpen = signal(false);
   /** What the "+" menu shows: its buttons, or the sounds of the person to send one. */
-  protected readonly plusView = signal<'main' | 'sounds'>('main');
+  protected readonly plusView = signal<'main' | 'sounds' | 'customize'>('main');
+
+  /** Everything the "+" menu can add, in order. */
+  protected readonly addItems: { id: string; icon: string; label: string; tone: string }[] = [
+    { id: 'photo', icon: 'image', label: 'Photo or video', tone: 'bg-sky/15 text-sky' },
+    { id: 'file', icon: 'paperclip', label: 'File', tone: 'bg-violet/15 text-violet' },
+    { id: 'voice', icon: 'mic', label: 'Voice note', tone: 'bg-coral/15 text-coral' },
+    { id: 'sounds', icon: 'waveform', label: 'Sounds', tone: 'bg-amber/15 text-amber' },
+    { id: 'spinly', icon: 'spinly', label: 'Spinly', tone: '!bg-white/5' },
+    { id: 'preset', icon: 'palette', label: 'Share a preset', tone: 'bg-violet/15 text-violet' },
+  ];
+  /** The ones the person put in the bar as an icon (the rest stay in the menu). */
+  protected readonly barItems = computed(
+    function (this: MessageInputComponent) {
+      const chosen = this.appSettings.composerBar();
+      return this.addItems.filter(function inBar(item) {
+        return chosen.includes(item.id);
+      });
+    }.bind(this),
+  );
+  protected readonly menuItems = computed(
+    function (this: MessageInputComponent) {
+      const chosen = this.appSettings.composerBar();
+      return this.addItems.filter(function inMenu(item) {
+        return !chosen.includes(item.id);
+      });
+    }.bind(this),
+  );
+
+  protected inBar(id: string): boolean {
+    return this.appSettings.composerBar().includes(id);
+  }
+
+  /** Puts one of the items in the bar, or takes it back to the menu. */
+  protected toggleInBar(id: string): void {
+    const chosen = this.appSettings.composerBar();
+    this.appSettings.composerBar.set(
+      chosen.includes(id)
+        ? chosen.filter(function other(item) {
+            return item !== id;
+          })
+        : [...chosen, id],
+    );
+  }
+
+  /** Runs an item of the menu or of the bar. */
+  protected act(id: string, photo: HTMLInputElement, file: HTMLInputElement): void {
+    if (id === 'sounds') {
+      this.pickerOpen.set(false);
+      this.toolbar.set(false);
+      this.plusOpen.set(true);
+      this.openSounds();
+      return;
+    }
+    this.plusOpen.set(false);
+    if (id === 'photo') photo.click();
+    else if (id === 'file') file.click();
+    else if (id === 'voice') void this.startRecording();
+    else if (id === 'spinly') this.openSpinly();
+    else if (id === 'preset') this.presetShareOpen.set(true);
+  }
   /** The category of sounds shown in that list (null: all of them). */
   protected readonly soundCategory = signal<string | null>(null);
   private readonly soundboard = inject(SoundboardStore);

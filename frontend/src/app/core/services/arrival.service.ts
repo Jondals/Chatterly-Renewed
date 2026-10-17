@@ -10,7 +10,10 @@ import { isDesktopApp } from '../desktop-bridge';
 import { preloadSounds } from '../sound-library';
 
 /** Which animation plays. */
-export type ArrivalKind = 'intro' | 'login' | 'register' | 'logout';
+export type ArrivalKind = 'intro' | 'login' | 'register' | 'logout' | 'enter' | 'leave';
+// ('enter' and 'leave' are the ones of the first page of the web: going into the app from it, and signing out or going back to it.
+// They look different from 'login' and 'logout' on purpose: the person who signs in or out is shown those, and the first page
+// must not repeat the same animation right after.)
 
 /** The animation that is on screen and the name of the person it greets. */
 export interface Arrival {

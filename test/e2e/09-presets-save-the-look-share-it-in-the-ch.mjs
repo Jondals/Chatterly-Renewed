@@ -28,6 +28,24 @@ export async function step09(world) {
       (await a.locator('button:has-text("Voice note")').count()) >= 1,
     'the + menu has photo or video, file and voice note',
   );
+  // What the menu offers can be put in the bar as an icon, and taken back
+  await a.click('button[aria-label="Customize"]');
+  await a.click('button[role=switch]:has-text("Voice note")');
+  await a.click('button[aria-label="Customize"]');
+  await a.waitForTimeout(400);
+  check(
+    (await a.locator('button.menu-card:has-text("Voice note")').count()) === 0 &&
+      (await a.locator('button[aria-label="Voice note"]:visible').count()) === 1,
+    'an item put in the bar is an icon there and leaves the menu',
+  );
+  await a.click('button[aria-label="Customize"]');
+  await a.click('button[role=switch]:has-text("Voice note")');
+  await a.click('button[aria-label="Customize"]');
+  await a.waitForTimeout(400);
+  check(
+    (await a.locator('button.menu-card:has-text("Voice note")').count()) === 1,
+    'and goes back to the menu when it is taken out of the bar',
+  );
   await a.click('button.menu-card:has-text("Share a preset")');
   await a.click('[role=dialog] [role=tab]:has-text("Theme of the app")');
   await a.click('[role=dialog] button:has-text("Night")');

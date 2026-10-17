@@ -558,16 +558,16 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                   </button>
                   <button
                     type="button"
-                    class="btn btn-sm btn-ghost gap-1.5"
+                    class="btn btn-sm btn-ghost max-w-full gap-1.5"
                     [class.btn-active]="bioPanel() === 'gradient'"
                     (mousedown)="$event.preventDefault()"
                     (click)="toggleBioPanel('gradient')"
                   >
                     <span
-                      class="h-3.5 w-6 rounded-full ring-1 ring-white/30"
+                      class="h-3.5 w-6 shrink-0 rounded-full ring-1 ring-white/30"
                       [style.background]="'linear-gradient(90deg,' + bioA() + ',' + bioB() + ')'"
                     ></span>
-                    {{ 'Gradient' | t }}
+                    <span class="min-w-0 truncate">{{ 'Gradient' | t }}</span>
                   </button>
                 </div>
 

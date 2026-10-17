@@ -950,7 +950,18 @@ button:disabled,
 .stk[data-move='5'] {
   --stk: stk-5;
 }
-.stk:hover,
-.stk.stk-live {
+.stk:hover {
   animation: var(--stk, none) 1.8s ease-in-out infinite;
+}
+/* ! In a conversation only the stickers of the latest messages move all the time: a screen full of animated pictures kept the
+   processor busy on computers without a graphics card (the ones further up still move under the pointer). */
+app-message-item:nth-last-child(-n + 8) .stk.stk-live {
+  animation: var(--stk, none) 1.8s ease-in-out infinite;
+}
+
+/* A long conversation: the messages that are off screen are not laid out or painted (the browser keeps the size it measured, so the
+   scroll does not jump). Only the ones in view cost anything, however many there are. */
+app-message-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5rem;
 }

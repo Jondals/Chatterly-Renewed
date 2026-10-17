@@ -18,8 +18,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppContext } from '../context';
+import { hashAuthSecret } from '../security/password';
 import type { Db } from '../db';
-import { callerId } from '../validation';
+import { authSecretField, b64Field, callerId } from '../validation';
 import { isBetaAdmin } from './beta';
 
 /** How many entries of the record are kept. */
@@ -137,6 +138,7 @@ interface AccountRow {
   sessions: number;
   tester: number;
   added_admin: number;
+  recovery_at: number | null;
 }
 
 /** Registers the routes of the administration. */
@@ -271,13 +273,14 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void
         .prepare(
           `SELECT u.id, u.username, u.display_name, u.created_at, u.suspended_at, u.suspended_reason,
                   (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) AS sessions,
-                  (b.user_id IS NOT NULL) AS tester, (a.user_id IS NOT NULL) AS added_admin
+                  (b.user_id IS NOT NULL) AS tester, (a.user_id IS NOT NULL) AS added_admin,
+                  (SELECT at FROM recovery_requests r WHERE r.user_id = u.id) AS recovery_at
              FROM users u
              LEFT JOIN beta_testers b ON b.user_id = u.id
              LEFT JOIN admins a ON a.user_id = u.id
             WHERE u.deleted_at IS NULL
               AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\') ${where}
-            ORDER BY u.created_at DESC
+            ORDER BY u.created_at ASC
             LIMIT ?`,
         )
         .all(Date.now(), like, like, filter === 'admins' ? 1000 : MAX_RESULTS) as AccountRow[];
@@ -294,6 +297,7 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void
             reason: row.suspended_reason ?? '',
             sessions: row.sessions,
             tester: row.tester === 1,
+            recoveryAt: row.recovery_at ?? 0,
             admin: owner || row.added_admin === 1,
             owner,
           };
@@ -451,6 +455,56 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void
       if (done.changes === 0) return reply.code(404).send({ error: 'session_not_found' });
       audit(db, actor, 'close-session', userId);
       hub.closeSession(userId, sessionId);
+      return { ok: true };
+    },
+  );
+
+  /**
+   * Sets a temporary password on an account whose person cannot sign in (they asked for it from the sign-in page). The browser of
+   * the administrator makes the proof of the password: the server never sees it. The person makes new keys when they sign in
+   * (see routes/recovery.ts): what was encrypted for the old ones is lost.
+   */
+  app.post(
+    '/api/admin/users/:userId/reset-password',
+    {
+      ...changing,
+      schema: {
+        params: userParams,
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['authSecret', 'kdfSalt', 'kdfIterations'],
+          properties: {
+            authSecret: authSecretField,
+            kdfSalt: b64Field(16, 64),
+            kdfIterations: { type: 'integer', maximum: 5_000_000 },
+          },
+        },
+      },
+    },
+    async function (req, reply) {
+      const actor = adminOrNotFound(req, reply);
+      if (!actor) return reply;
+      const { userId } = req.params as { userId: string };
+      const problem = mayActOn(actor, userId);
+      if (problem === 'user_not_found') return reply.code(404).send({ error: problem });
+      if (problem) return reply.code(403).send({ error: problem });
+      const body = req.body as { authSecret: string; kdfSalt: string; kdfIterations: number };
+      if (body.kdfIterations < config.minKdfIterations) {
+        return reply.code(400).send({ error: 'kdf_too_weak', minIterations: config.minKdfIterations });
+      }
+      const guest = db.prepare('SELECT guest FROM users WHERE id = ?').get(userId) as { guest: number };
+      if (guest.guest === 1) return reply.code(403).send({ error: 'guest' });
+      const authHash = await hashAuthSecret(body.authSecret, config.scrypt, config.serverSecret);
+      db.transaction(function reset() {
+        db.prepare(
+          'UPDATE users SET auth_hash = ?, kdf_salt = ?, kdf_iterations = ?, identity_reset = 1 WHERE id = ?',
+        ).run(authHash, body.kdfSalt, body.kdfIterations, userId);
+        db.prepare('DELETE FROM recovery_requests WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+      })();
+      hub.closeSessions(userId);
+      audit(db, actor, 'reset-password', userId);
       return { ok: true };
     },
   );

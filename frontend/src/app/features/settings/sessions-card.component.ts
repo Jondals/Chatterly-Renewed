@@ -9,6 +9,7 @@ import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { ToastService } from '../../core/services/toast.service';
+import { CollapseComponent } from '../../shared/components/collapse.component';
 import { IconComponent } from '../../shared/components/icon.component';
 
 /** One session of the person. */
@@ -24,54 +25,55 @@ interface MySession {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sessions-card',
   standalone: true,
-  imports: [IconComponent, TranslatePipe],
+  imports: [CollapseComponent, IconComponent, TranslatePipe],
   template: `
     <section class="settings-card">
-      <h2 class="settings-card-title">{{ 'Your sessions' | t }}</h2>
-      <p class="pb-2 text-xs text-muted">
-        {{
-          'The devices where you are signed in. Close the ones you do not use or do not know: they have to sign in again.'
-            | t
-        }}
-      </p>
-      @for (item of list(); track item.id) {
-        <div class="flex items-center gap-3 border-t border-white/6 py-2.5 first:border-t-0">
-          <app-icon name="smartphone" [size]="16" class="shrink-0 text-muted" />
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
-              {{ 'Session' | t }} · {{ item.id.slice(0, 4) }}
-              @if (item.current) {
-                <span class="chip chip-accent">{{ 'This device' | t }}</span>
-              } @else if (item.online) {
-                <span class="chip">{{ 'Connected now' | t }}</span>
-              }
+      <app-collapse title="Your sessions" [summary]="summary()">
+        <p class="pb-2 text-xs text-muted">
+          {{
+            'Every time you sign in on a device a session is made, and signing out deletes it. A session also stays open when you close the app or clear the browser without signing out: it ends by itself after 30 days. A device that signs in again replaces its own old session. Close here the ones you do not use or do not know: they have to sign in again.'
+              | t
+          }}
+        </p>
+        @for (item of list(); track item.id) {
+          <div class="flex items-center gap-3 border-t border-white/6 py-2.5 first:border-t-0">
+            <app-icon name="smartphone" [size]="16" class="shrink-0 text-muted" />
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
+                {{ 'Session' | t }} · {{ item.id.slice(0, 4) }}
+                @if (item.current) {
+                  <span class="chip chip-accent">{{ 'This device' | t }}</span>
+                } @else if (item.online) {
+                  <span class="chip">{{ 'Connected now' | t }}</span>
+                }
+              </div>
+              <div class="text-xs text-dim">{{ dates(item) }}</div>
             </div>
-            <div class="text-xs text-dim">{{ dates(item) }}</div>
+            @if (!item.current) {
+              <button
+                type="button"
+                class="btn btn-sm btn-soft-danger"
+                [disabled]="busy()"
+                (click)="close(item)"
+              >
+                {{ 'Close' | t }}
+              </button>
+            }
           </div>
-          @if (!item.current) {
-            <button
-              type="button"
-              class="btn btn-sm btn-soft-danger"
-              [disabled]="busy()"
-              (click)="close(item)"
-            >
-              {{ 'Close' | t }}
-            </button>
-          }
-        </div>
-      } @empty {
-        <p class="py-2 text-xs text-muted">{{ 'Loading…' | t }}</p>
-      }
-      @if (list().length > 1) {
-        <button
-          type="button"
-          class="btn btn-sm btn-soft-danger mt-3 gap-1.5"
-          [disabled]="busy()"
-          (click)="closeOthers()"
-        >
-          <app-icon name="logout" [size]="13" /> {{ 'Close all the other sessions' | t }}
-        </button>
-      }
+        } @empty {
+          <p class="py-2 text-xs text-muted">{{ 'Loading…' | t }}</p>
+        }
+        @if (list().length > 1) {
+          <button
+            type="button"
+            class="btn btn-sm btn-soft-danger mt-3 gap-1.5"
+            [disabled]="busy()"
+            (click)="closeOthers()"
+          >
+            <app-icon name="logout" [size]="13" /> {{ 'Close all the other sessions' | t }}
+          </button>
+        }
+      </app-collapse>
     </section>
   `,
 })
@@ -83,6 +85,12 @@ export class SessionsCardComponent implements OnInit {
 
   protected readonly list = signal<MySession[]>([]);
   protected readonly busy = signal(false);
+
+  /** What the closed card says: how many devices are signed in. */
+  protected summary(): string {
+    const n = this.list().length;
+    return n === 0 ? '' : this.i18n.t(n === 1 ? '1 session' : '{n} sessions', { n: String(n) });
+  }
 
   ngOnInit(): void {
     void this.load();

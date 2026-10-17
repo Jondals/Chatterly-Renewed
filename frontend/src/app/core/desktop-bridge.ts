@@ -138,6 +138,8 @@ export interface OverlaySettings {
   hideFromCapture: boolean;
   /** The screen it covers: the main one, or the one the app window is on. */
   display: 'primary' | 'app';
+  /** How the cameras of the video widget are laid out. */
+  videoLayout?: 'vertical' | 'horizontal';
   /** When it shows: in every call, or only while one of the registered games is open. */
   mode: 'always' | 'games';
   /** The names of the registered games (the overlay opens when an open window has one of them in its name). */
@@ -254,6 +256,14 @@ export interface DesktopOverlay {
   onEvent(callback: (event: OverlayEvent) => void): () => void;
 }
 
+/** The shortcuts of the call that work while the app is not the window in front (an older shell has none). */
+export interface DesktopShortcuts {
+  /** Gives the combinations to hold ("Ctrl+Alt+M" by action; {} lets go). Answers with the actions that were taken. */
+  set(list: Record<string, string>): Promise<string[]>;
+  /** Calls back with the action that was pressed. */
+  onPress(callback: (action: string) => void): () => void;
+}
+
 /** Everything the desktop app puts on the page. */
 export interface DesktopBridge {
   isDesktop: boolean;
@@ -262,6 +272,7 @@ export interface DesktopBridge {
   screen?: DesktopScreen;
   graphics?: DesktopGraphics;
   overlay?: DesktopOverlay;
+  shortcuts?: DesktopShortcuts;
   titlebar?: DesktopTitlebar;
 }
 

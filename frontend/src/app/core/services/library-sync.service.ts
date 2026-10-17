@@ -51,7 +51,8 @@ interface LocalThing {
   ref: string;
   name: string;
   createdAt: number;
-  bytes: Uint8Array<ArrayBuffer>;
+  /** Makes the packed bytes (only an upload needs them: an unchanged item is not packed on every comparison). */
+  pack: () => Promise<Uint8Array<ArrayBuffer>>;
   hash: string;
 }
 
@@ -343,44 +344,90 @@ export class LibrarySyncService {
     return out;
   }
 
-  /** A sticker pack, packed and hashed. */
-  private async packThing(pack: StickerPack): Promise<LocalThing> {
-    const bytes = await packStickers(pack);
+  /**
+   * What was packed and hashed already, by item and by a cheap signature of what is in it. ! An item that did not change is not
+   * packed and hashed again: doing that for every sound, pack and preset at every comparison froze the page for seconds with a big
+   * library (the comparison runs a few seconds after any change, on the same thread as the screen).
+   */
+  private readonly hashed = new Map<string, { sig: string; hash: string }>();
+
+  /** Gives the page a turn between two items, so a big library never blocks the screen. */
+  private breathe(): Promise<void> {
+    return new Promise<void>(function wait(resolve) {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  /** One thing of this device: from the cache when its signature is the same, packed and hashed (once) when it is not. */
+  private async thing(
+    kind: BackupMeta['kind'],
+    ref: string,
+    name: string,
+    createdAt: number,
+    sig: string,
+    build: () => Promise<Uint8Array<ArrayBuffer>>,
+  ): Promise<LocalThing> {
+    const key = kind + ':' + ref;
+    const known = this.hashed.get(key);
+    if (known && known.sig === sig) {
+      return { kind, ref, name, createdAt, hash: known.hash, pack: build };
+    }
+    const bytes = await build();
+    const hash = await sha256(bytes);
+    this.hashed.set(key, { sig, hash });
+    await this.breathe();
     return {
-      kind: 'stickers',
-      ref: pack.id,
-      name: pack.name,
-      createdAt: pack.createdAt,
-      bytes,
-      hash: await sha256(bytes),
+      kind,
+      ref,
+      name,
+      createdAt,
+      hash,
+      pack: function packed() {
+        return Promise.resolve(bytes);
+      },
     };
   }
 
-  /** A sound, packed and hashed. */
-  private async soundThing(clip: CustomSound): Promise<LocalThing> {
-    const bytes = await packSound(clip);
-    return {
-      kind: 'sound',
-      ref: clip.id,
-      name: clip.name,
-      createdAt: clip.createdAt,
-      bytes,
-      hash: await sha256(bytes),
-    };
+  /** A sticker pack. */
+  private packThing(pack: StickerPack): Promise<LocalThing> {
+    const sig =
+      pack.name +
+      '|' +
+      pack.items
+        .map(function describe(item) {
+          return item.id + ':' + item.blob.size + ':' + (item.move ?? '');
+        })
+        .join(',');
+    return this.thing('stickers', pack.id, pack.name, pack.createdAt, sig, packStickers.bind(null, pack));
   }
 
-  /** A preset, packed and hashed. */
-  private async presetThing(preset: Preset): Promise<LocalThing> {
-    const { file } = await packPreset(preset);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    return {
-      kind: 'preset',
-      ref: preset.id,
-      name: preset.name,
-      createdAt: preset.createdAt,
-      bytes,
-      hash: await sha256(bytes),
-    };
+  /** A sound. */
+  private soundThing(clip: CustomSound): Promise<LocalThing> {
+    const sig = [
+      clip.name,
+      clip.emoji ?? '',
+      clip.category ?? '',
+      clip.start ?? '',
+      clip.end ?? '',
+      clip.duration ?? '',
+      clip.blob.size,
+      clip.original?.size ?? '',
+    ].join('|');
+    return this.thing('sound', clip.id, clip.name, clip.createdAt, sig, packSound.bind(null, clip));
+  }
+
+  /** A preset. */
+  private presetThing(preset: Preset): Promise<LocalThing> {
+    const assets = Object.entries(preset.assets)
+      .map(function describe([name, blob]) {
+        return name + ':' + (blob?.size ?? 0);
+      })
+      .join(',');
+    const sig = preset.name + '|' + JSON.stringify(preset.data) + '|' + assets;
+    return this.thing('preset', preset.id, preset.name, preset.createdAt, sig, async function build() {
+      const { file } = await packPreset(preset);
+      return new Uint8Array(await file.arrayBuffer());
+    });
   }
 
   /** The newest copy of each pack and preset in the account (older duplicates are removed). */
@@ -465,7 +512,8 @@ export class LibrarySyncService {
     memory: Record<string, Remembered>,
     key: string,
   ): Promise<boolean> {
-    if (thing.bytes.length > MAX_COPY_BYTES) {
+    const bytes = await thing.pack();
+    if (bytes.length > MAX_COPY_BYTES) {
       return false;
     }
     try {
@@ -477,7 +525,7 @@ export class LibrarySyncService {
           createdAt: thing.createdAt,
           hash: thing.hash,
         },
-        thing.bytes,
+        bytes,
       );
       memory[key] = { id, hash: thing.hash };
       return true;

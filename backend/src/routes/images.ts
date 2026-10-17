@@ -260,9 +260,13 @@ export function registerImageRoutes(app: FastifyInstance, ctx: AppContext): void
       row.owner_id !== me(req) &&
       !(
         row.guild_id &&
-        db
+        // (whoever was invited sees it too: the invitation shows the icon of the group)
+        (db
           .prepare('SELECT 1 FROM guild_members WHERE guild_id = ? AND user_id = ?')
-          .get(row.guild_id, me(req))
+          .get(row.guild_id, me(req)) ||
+          db
+            .prepare('SELECT 1 FROM guild_invites WHERE guild_id = ? AND user_id = ?')
+            .get(row.guild_id, me(req)))
       )
     ) {
       return reply.code(404).send({ error: 'not_found' });

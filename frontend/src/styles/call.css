@@ -544,3 +544,15 @@
   background: color-mix(in oklab, var(--accent) 22%, transparent);
   color: var(--accent);
 }
+
+/* A phone turned sideways: little height, so the controls take less of it and the shared screen gets the rest. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .call-controls {
+    padding-top: 0.25rem;
+    padding-bottom: 0.4rem;
+  }
+  .call-controls .call-bar {
+    padding: 0.3rem 0.75rem;
+    gap: 0.5rem;
+  }
+}

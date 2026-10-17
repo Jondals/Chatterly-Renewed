@@ -7,6 +7,8 @@ import { ANDROID_APP, IOS_APP } from './config';
 import { isDesktopApp } from './desktop-bridge';
 
 export function isWebTab(): boolean {
-  const installed = window.matchMedia('(display-mode: standalone)').matches;
+  const installed =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
   return !ANDROID_APP && !IOS_APP && !isDesktopApp() && !installed;
 }

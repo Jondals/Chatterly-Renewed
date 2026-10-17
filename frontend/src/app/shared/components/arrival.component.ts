@@ -19,6 +19,7 @@ import {
 } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { ArrivalService, type ArrivalKind } from '../../core/services/arrival.service';
+import { AuthService } from '../../core/services/auth.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { SoundService } from '../../core/services/sound.service';
 import { playArrivalSounds } from '../util/arrival-sounds';
@@ -30,6 +31,8 @@ const TIMELINE: Record<ArrivalKind, { reveal: number; leave: number; end: number
   login: { reveal: 1000, leave: 1700, end: 2300 },
   register: { reveal: 2200, leave: 3500, end: 4100 },
   logout: { reveal: 1100, leave: 1900, end: 2500 },
+  enter: { reveal: 900, leave: 1700, end: 2300 },
+  leave: { reveal: 900, leave: 1700, end: 2300 },
 };
 
 /** Whether an animation belongs to the given part (::before or ::after) of the dark layer of the HTML. */
@@ -63,6 +66,7 @@ function followCover(part: string, element: Element | null): void {
       [class]="'arr-' + kind()"
       [class.is-leaving]="leaving()"
       [class.arr-warm]="warm"
+      [class.arr-default]="kind() === 'leave' && !auth.isAuthenticated()"
       role="status"
       aria-live="polite"
       (click)="skip()"
@@ -115,7 +119,7 @@ function followCover(part: string, element: Element | null): void {
         </svg>
         @switch (kind()) {
           @case ('intro') {
-            <h1 class="arr-title" aria-label="Chatterly-Renewed">
+            <h1 class="arr-title" aria-label="Chatterly">
               @for (letter of letters; track $index) {
                 <span [style.--i]="$index">{{ letter }}</span>
               }
@@ -128,6 +132,14 @@ function followCover(part: string, element: Element | null): void {
           @case ('logout') {
             <p class="arr-line a">{{ 'Locking your keys…' | t }}</p>
             <p class="arr-line b">{{ 'See you soon, {name}' | t: { name: name() } }}</p>
+          }
+          @case ('enter') {
+            <p class="arr-line a">{{ 'Opening the app…' | t }}</p>
+            <p class="arr-line b">{{ 'Hello, {name}' | t: { name: name() } }}</p>
+          }
+          @case ('leave') {
+            <p class="arr-line a">{{ 'Signing you out…' | t }}</p>
+            <p class="arr-line b">{{ 'See you soon' | t }}</p>
           }
           @case ('register') {
             <p class="arr-line a">{{ 'Your account is ready' | t }}</p>
@@ -175,6 +187,45 @@ function followCover(part: string, element: Element | null): void {
       to {
         clip-path: circle(150% at 50% 50%);
       }
+    }
+    /* The first page of the web: a curtain that comes down (going in) or goes up (leaving), over the grid of the floor, with the logo
+       alone: no padlock, no rings. It is not the circle that opens of the sign-in and the sign-out. */
+    .arr-enter {
+      animation: curtain-down 0.75s var(--ease) both;
+    }
+    .arr-leave {
+      animation: curtain-up 0.75s var(--ease) both;
+    }
+    /* Signed out: the colors are the default ones, not the theme of whoever just left. */
+    .arr-leave.arr-default {
+      --a: #2ef2b0;
+      --b: #a78bfa;
+    }
+    @keyframes curtain-down {
+      from {
+        clip-path: inset(0 0 100% 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+    @keyframes curtain-up {
+      from {
+        clip-path: inset(100% 0 0 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+    .arr-enter .arr-ripple,
+    .arr-leave .arr-ripple,
+    .arr-enter .arr-orbit,
+    .arr-leave .arr-orbit,
+    .arr-enter .arr-wave,
+    .arr-leave .arr-wave,
+    .arr-enter .arr-badge,
+    .arr-leave .arr-badge {
+      display: none;
     }
     .arr.is-leaving {
       opacity: 0;
@@ -437,11 +488,15 @@ function followCover(part: string, element: Element | null): void {
         blink 3s 2s infinite;
     }
     .arr-login .fill,
-    .arr-logout .fill {
+    .arr-logout .fill,
+    .arr-enter .fill,
+    .arr-leave .fill {
       animation-delay: 0.5s;
     }
     .arr-login .eye,
-    .arr-logout .eye {
+    .arr-logout .eye,
+    .arr-enter .eye,
+    .arr-leave .eye {
       animation-delay: 0.7s, 1.6s;
     }
     @keyframes blink {
@@ -647,13 +702,17 @@ function followCover(part: string, element: Element | null): void {
       animation-delay: 0.5s;
     }
     .arr-login .arr-line.a,
-    .arr-logout .arr-line.a {
+    .arr-logout .arr-line.a,
+    .arr-enter .arr-line.a,
+    .arr-leave .arr-line.a {
       animation:
         fade 0.3s 0.4s forwards,
         gone 0.3s 0.95s forwards;
     }
     .arr-login .arr-line.b,
-    .arr-logout .arr-line.b {
+    .arr-logout .arr-line.b,
+    .arr-enter .arr-line.b,
+    .arr-leave .arr-line.b {
       position: absolute;
       bottom: 0.6rem;
       color: var(--a);
@@ -700,6 +759,8 @@ function followCover(part: string, element: Element | null): void {
     /* light mode: the dark layer comes in with a fade (the circle that opens is drawn again every frame) and the aurora stays still */
     :root[data-perf='low'] .arr-login,
     :root[data-perf='low'] .arr-logout,
+    :root[data-perf='low'] .arr-enter,
+    :root[data-perf='low'] .arr-leave,
     :root[data-perf='low'] .arr-register {
       animation: fade 0.45s both;
     }
@@ -721,6 +782,7 @@ function followCover(part: string, element: Element | null): void {
 })
 export class ArrivalComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly arrival = inject(ArrivalService);
+  protected readonly auth = inject(AuthService);
   private readonly sound = inject(SoundService);
   private readonly settings = inject(SettingsService);
   private silence: (() => void) | null = null;
@@ -731,7 +793,7 @@ export class ArrivalComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly leaving = signal(false);
   /** The dark layer of the HTML already shows the aurora: this one continues it (same turn, no fade) instead of starting over. */
   protected readonly warm = !!document.getElementById('boot-cover');
-  protected readonly letters = Array.from('Chatterly-Renewed');
+  protected readonly letters = Array.from('Chatterly');
   private fx: Fx | null = null;
   private timers: ReturnType<typeof setTimeout>[] = [];
 
@@ -756,21 +818,41 @@ export class ArrivalComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     // The sounds (the padlock, the lights, the fireworks) follow the interface sounds, and wait for the first press of the
     // person: before it the browser does not allow any sound.
-    if (this.settings.sounds() && this.sound.activated) {
-      this.silence = playArrivalSounds(this.sound.context, this.sound.output, kind);
+    const withSound = this.settings.sounds() && this.sound.activated;
+    // ? The fireworks follow the soundtrack, not the clock: its file has to be decoded first, so it starts a little after the
+    //   animation, and the blasts are timed to its hits (sign-up-fireworks.ogg: a swell, then hits at 0.4, 0.8, 1.2 and 1.6 s).
+    //   If it does not start (no sound), they run on the clock after a short wait.
+    let scheduled = false;
+    const fireworks = function (this: ArrivalComponent): void {
+      if (scheduled) return;
+      scheduled = true;
+      this.at(400, this.blast.bind(this, 0.5, 0.45, 70));
+      this.at(800, this.firework.bind(this, 0.25, 0.35));
+      this.at(1200, this.firework.bind(this, 0.75, 0.3));
+      this.at(1600, this.firework.bind(this, 0.5, 0.2));
+      this.at(1850, this.firework.bind(this, 0.18, 0.55));
+    }.bind(this);
+    if (withSound) {
+      this.silence = playArrivalSounds(
+        this.sound.context,
+        this.sound.output,
+        kind,
+        kind === 'register' ? fireworks : undefined,
+      );
     }
-    this.fx = startFx(this.canvas().nativeElement, kind === 'logout' ? 'login' : kind);
+    const mode = kind === 'logout' || kind === 'enter' || kind === 'leave' ? 'login' : kind;
+    this.fx = startFx(this.canvas().nativeElement, mode);
     if (kind === 'intro') {
       this.at(1550, this.blast.bind(this, 0.5, 0.42, 40));
     } else if (kind === 'login' || kind === 'logout') {
       this.at(kind === 'login' ? 800 : 1000, this.blast.bind(this, 0.5, 0.45, 0));
+    } else if (kind === 'enter' || kind === 'leave') {
+      // No explosion: the lights only drift behind the curtain.
+      return;
+    } else if (withSound) {
+      this.at(900, fireworks);
     } else {
-      this.at(1100, this.blast.bind(this, 0.5, 0.45, 70));
-      this.at(1500, this.firework.bind(this, 0.25, 0.35));
-      this.at(1850, this.firework.bind(this, 0.75, 0.3));
-      this.at(2250, this.firework.bind(this, 0.5, 0.2));
-      this.at(2650, this.firework.bind(this, 0.18, 0.55));
-      this.at(2900, this.firework.bind(this, 0.82, 0.5));
+      fireworks();
     }
   }
 

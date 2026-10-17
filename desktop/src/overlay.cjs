@@ -34,15 +34,29 @@ const {
   globalShortcut,
   ipcMain,
   screen,
+  session,
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+
+/**
+ * The page of the overlay is served by its own scheme, not by file://. ! In the installed app the files live inside app.asar and
+ * the fuse that takes the extra privileges from file:// (see package.json) also stops it from reading inside an asar: the window
+ * got ERR_FILE_NOT_FOUND, stayed blank and still took the mouse. Only these three files are served, read by this process.
+ */
+const PAGE_SCHEME = 'chatterly-overlay';
+const PAGE_URL = PAGE_SCHEME + '://page/overlay.html';
+const PAGE_FILES = {
+  '/overlay.html': 'text/html; charset=utf-8',
+  '/overlay.css': 'text/css; charset=utf-8',
+  '/overlay.js': 'text/javascript; charset=utf-8',
+};
 
 /** The widgets, where they start (fractions of the screen) and whether they stay visible while you play. */
 const WIDGETS = {
   notifications: { x: 0.02, y: 0.03, pinned: true },
   voice: { x: 0.02, y: 0.24, pinned: true },
-  controls: { x: 0.36, y: 0.8, pinned: false },
+  controls: { x: 0.36, y: 0.8, pinned: true },
   activity: { x: 0.8, y: 0.44, pinned: false },
   streams: { x: 0.8, y: 0.6, pinned: true },
 };
@@ -64,6 +78,8 @@ const DEFAULTS = {
   //   screen too (a window that took the clicks and showed nothing). The person can still turn it on.
   hideFromCapture: false,
   display: 'primary',
+  // How the cameras are laid out in the video widget (changed with a right click on it while unlocked).
+  videoLayout: 'vertical',
   mode: 'always',
   games: [],
   // The place and size of the video widget (they were the place of the only panel before the widgets).
@@ -74,10 +90,13 @@ const DEFAULTS = {
   widgets: WIDGETS,
 };
 const SIZES = ['small', 'medium', 'large'];
+const VIDEO_LAYOUTS = ['vertical', 'horizontal'];
 const DISPLAYS = ['primary', 'app'];
 /** When it shows: during every call, or only while one of the registered games is open. */
 const MODES = ['always', 'games'];
 const MAX_GAMES = 30;
+/** The biggest the cameras can be made (times their size); the overlay page also keeps them inside the screen. */
+const MAX_SCALE = 4;
 const MAX_GAME_CHARS = 80;
 /** How often the open windows are read while the overlay waits for a game. */
 const WATCH_MS = 4000;
@@ -90,11 +109,13 @@ const MAX_AVATAR_CHARS = 60000;
 const MAX_SIGNAL_CHARS = 30000;
 /** The version of overlay.json. Files of an older version get "hide from captures" off once (see DEFAULTS), and from
  *  before the widgets they also get "show me" on and the video widget at its new place. */
-const FILE_VERSION = 3;
+const FILE_VERSION = 4;
 const MAX_STREAMS = 8;
 const MAX_TEXT = 140;
 /** What the overlay may ask the page to do (only while it is unlocked). */
 const ACTIONS = ['mute', 'deafen', 'camera', 'screen', 'leave', 'open-chat', 'stream-volume'];
+/** The buttons of the controls: they work while you play, with the mouse over them, without unlocking the overlay. */
+const CONTROL_ACTIONS = ['mute', 'deafen', 'camera', 'screen', 'leave'];
 
 let settings = { ...DEFAULTS };
 let mainWindow = null;
@@ -103,6 +124,8 @@ let userData = '';
 let quiet = false;
 let overlayWindow = null;
 let editing = false;
+/** The mouse is over the controls of the call (then the window takes the mouse for them, still without taking the focus). */
+let hoverControls = false;
 let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
@@ -117,10 +140,36 @@ let forced = false;
 /** The person pressed the shortcut with nothing to show (no call): the overlay is open on its own until they lock it. */
 let summoned = false;
 let watchTimer = null;
+/** Safety net: the overlay page says it is alive every second; while unlocked (it holds the mouse) a silence means it is stuck. */
+let lastAlive = 0;
+let aliveTimer = null;
+/** When the overlay was last rebuilt after a failure (ms), so a window that fails again and again is not rebuilt in a loop. */
+const recoveries = [];
+const ALIVE_EVERY_MS = 2000;
+const ALIVE_LIMIT_MS = 6000;
+const MAX_RECOVERIES = 3;
 /** Esc is taken from the system while the overlay is unlocked (see setEscape). */
 let escapeRegistered = false;
 /** Brings the main window to the front (given by main.cjs). */
 let showMain = null;
+
+/** The scheme of the page, to be registered (before the app is ready) together with the others: see bundle.registerScheme. */
+const PAGE_SCHEME_ENTRY = { scheme: PAGE_SCHEME, privileges: { standard: true, secure: true } };
+
+/** Answers the requests of the overlay page: its html, css and script, nothing else. */
+async function servePage(request) {
+  const url = new URL(request.url);
+  const type = url.hostname === 'page' ? PAGE_FILES[url.pathname] : undefined;
+  if (!type || request.method !== 'GET') return new Response('Not found', { status: 404 });
+  try {
+    const body = await fs.promises.readFile(path.join(__dirname, url.pathname.slice(1)));
+    return new Response(body, {
+      headers: { 'content-type': type, 'x-content-type-options': 'nosniff' },
+    });
+  } catch (error) {
+    return new Response('Not found', { status: 404 });
+  }
+}
 
 /** Where the choices are kept. */
 function fileOf() {
@@ -155,12 +204,13 @@ function sanitizeSettings(raw, base) {
   if (typeof wanted.hotkey === 'string' && HOTKEY.test(wanted.hotkey)) next.hotkey = wanted.hotkey;
   if (SIZES.includes(wanted.size)) next.size = wanted.size;
   if (DISPLAYS.includes(wanted.display)) next.display = wanted.display;
+  if (VIDEO_LAYOUTS.includes(wanted.videoLayout)) next.videoLayout = wanted.videoLayout;
   if (MODES.includes(wanted.mode)) next.mode = wanted.mode;
   if (Array.isArray(wanted.games)) next.games = cleanGames(wanted.games);
   next.opacity = Math.round(clamp(wanted.opacity, 30, 100, next.opacity));
   next.x = clamp(wanted.x, 0, 1, next.x);
   next.y = clamp(wanted.y, 0, 1, next.y);
-  next.scale = clamp(wanted.scale, 0.5, 3, next.scale);
+  next.scale = clamp(wanted.scale, 0.5, MAX_SCALE, next.scale);
   next.widgets = cleanWidgets(wanted.widgets, next.widgets || WIDGETS);
   return next;
 }
@@ -201,8 +251,12 @@ function load() {
   try {
     const raw = JSON.parse(fs.readFileSync(fileOf(), 'utf8'));
     const loaded = sanitizeSettings(raw, DEFAULTS);
+    if (!raw || !(raw.version >= 4)) {
+      // The controls of the call are shown (and can be pressed) while you play: they were only there while unlocked.
+      loaded.widgets = { ...loaded.widgets, controls: { ...loaded.widgets.controls, pinned: true } };
+    }
     if (!raw || raw.version !== FILE_VERSION) {
-      loaded.hideFromCapture = false;
+      if (!raw || !(raw.version >= 3)) loaded.hideFromCapture = false;
       if (!raw || !(raw.version >= 3)) {
         loaded.showSelf = true;
         loaded.x = DEFAULTS.x;
@@ -387,6 +441,8 @@ function labelsFor(spanish, keys) {
           keys +
           ', Esc o un clic fuera para volver al juego',
         toast: 'Overlay de Chatterly activo · ' + keys + ' para desbloquearlo',
+        layoutVertical: 'Cámaras en vertical',
+        layoutHorizontal: 'Cámaras en horizontal',
         pin: 'Fijar: se ve mientras juegas',
         unpin: 'Fijado: pulsa para que solo se vea aquí',
         widgets: {
@@ -433,6 +489,8 @@ function labelsFor(spanish, keys) {
           keys +
           ', Esc or a click outside to go back to the game',
         toast: 'Chatterly overlay is on · ' + keys + ' to unlock it',
+        layoutVertical: 'Cameras stacked',
+        layoutHorizontal: 'Cameras side by side',
         pin: 'Pin: it shows while you play',
         unpin: 'Pinned: press so it only shows here',
         widgets: {
@@ -506,7 +564,7 @@ function publishScene() {
  */
 function applyMouse() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  overlayWindow.setIgnoreMouseEvents(!editing, { forward: true });
+  overlayWindow.setIgnoreMouseEvents(!(editing || hoverControls), { forward: true });
 }
 
 /** Opens the overlay window (transparent, on top, click-through, never taking the focus). */
@@ -552,13 +610,82 @@ function openWindow() {
   // ! If the window never says it is ready (a transparent window can stay unpainted on some graphics drivers), it is shown anyway.
   setTimeout(showIfHidden.bind(null, win), 1500);
   win.on('show', applyMouse);
+  win.on('show', kickPainting.bind(null, win));
   win.on('resize', applyMouse);
   win.on('closed', onOverlayClosed);
   // Never keeps the focus: if something gives it to the overlay (outside the editing mode), it goes straight back to the game.
   win.on('focus', onOverlayFocus);
   // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
   win.on('page-title-updated', preventDefault);
-  win.loadFile(path.join(__dirname, 'overlay.html'));
+  // ! If the page of the overlay dies, hangs or does not load, the window is thrown away and rebuilt: an overlay that is
+  //   stuck while it holds the mouse leaves the person with a screen they cannot click.
+  win.webContents.on('render-process-gone', recoverOverlay);
+  win.webContents.on('did-fail-load', onOverlayLoadFailed);
+  win.on('unresponsive', recoverOverlay);
+  lastAlive = Date.now();
+  clearInterval(aliveTimer);
+  aliveTimer = setInterval(checkAlive, ALIVE_EVERY_MS);
+  win.loadURL(PAGE_URL);
+}
+
+/** The page of the overlay did not load (the address changed, a file is missing): same as a page that died. */
+function onOverlayLoadFailed(event, code, description, address, isMainFrame) {
+  // -3 is "aborted": a new load replaced this one, not a failure.
+  if (isMainFrame === true && code !== -3) recoverOverlay();
+}
+
+/** The page of the overlay says it is alive. */
+function handleAlive(event) {
+  if (isOverlay(event)) lastAlive = Date.now();
+}
+
+/** While unlocked, a page that has not answered for a while is stuck: it is rebuilt. */
+function checkAlive() {
+  if (editing && Date.now() - lastAlive > ALIVE_LIMIT_MS) recoverOverlay();
+}
+
+/**
+ * Gives the mouse back at once and rebuilds the overlay window (it opens again by itself when it should). At most MAX_RECOVERIES
+ * times a minute: past that it stays closed rather than flickering forever.
+ */
+function recoverOverlay() {
+  editing = false;
+  hoverControls = false;
+  summoned = false;
+  setEscape(false);
+  const window = overlayWindow;
+  if (window && !window.isDestroyed()) {
+    try {
+      window.setIgnoreMouseEvents(true, { forward: true });
+    } catch (error) {
+      // The window is already going away.
+    }
+    window.destroy();
+  }
+  const now = Date.now();
+  while (recoveries.length > 0 && now - recoveries[0] > 60000) recoveries.shift();
+  if (recoveries.length >= MAX_RECOVERIES) return;
+  recoveries.push(now);
+  setTimeout(sync, 800);
+}
+
+/**
+ * ! A transparent window that never takes the focus can stay blank on Windows after it is shown: the page is drawn (it is there, and
+ * the screen would show it) but the system never puts it on the screen until the window changes. So, once shown, the window is
+ * made one pixel wider and back, the page is told to paint again and the window goes to the top: the same thing moving it would do.
+ */
+function kickPainting(win) {
+  for (const wait of [60, 400, 1200]) setTimeout(repaint.bind(null, win), wait);
+}
+
+function repaint(win) {
+  if (win.isDestroyed() || !win.isVisible() || quiet) return;
+  const bounds = win.getBounds();
+  win.setBounds({ ...bounds, width: bounds.width + 1 });
+  win.setBounds(bounds);
+  win.webContents.invalidate();
+  win.moveTop();
+  applyMouse();
 }
 
 /** Shows a window that is still hidden (see openWindow). */
@@ -586,9 +713,11 @@ function onOverlayLoaded() {
 
 /** The overlay window is gone (closed by us, or by the system). */
 function onOverlayClosed() {
+  clearInterval(aliveTimer);
   overlayWindow = null;
   setEscape(false);
   editing = false;
+  hoverControls = false;
   tellPage({ type: 'closed' });
   tellPage({ type: 'state', state: state() });
 }
@@ -668,7 +797,11 @@ async function watchGames() {
  * games") and to show the activity.
  */
 function updateWatch() {
-  const needed = settings.enabled && settings.games.length > 0 && tiles.length > 0;
+  // In "only with my games" the open windows are read also outside a call: the shortcut only works while one of them is open.
+  const needed =
+    settings.enabled &&
+    settings.games.length > 0 &&
+    (tiles.length > 0 || settings.mode === 'games');
   if (needed && !watchTimer) {
     watchTimer = setInterval(watchGames, WATCH_MS);
     void watchGames();
@@ -716,6 +849,7 @@ function setEditing(on) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   if (editing === on) return;
   editing = on;
+  hoverControls = false;
   overlayWindow.setFocusable(on);
   applyMouse();
   setEscape(on);
@@ -734,6 +868,8 @@ function setEditing(on) {
  * press locks it again. If the overlay was waiting for a registered game during a call, this opens it too.
  */
 function onHotkey() {
+  // ! "Only with my games": the shortcut does nothing while none of them is open.
+  if (!overlayWindow && settings.enabled && settings.mode === 'games' && !gameOpen) return;
   if (!overlayWindow && settings.enabled) {
     if (tiles.length > 0) forced = true;
     else summoned = true;
@@ -747,6 +883,11 @@ function onHotkey() {
 
 /** The person went back to the window of Chatterly: the overlay locks (it must never keep the mouse behind their back). */
 function onMainFocus() {
+  setEditing(false);
+}
+
+/** The main page died or stopped answering: the overlay locks (the mouse goes back to whatever is under it). */
+function onMainGone() {
   setEditing(false);
 }
 
@@ -880,11 +1021,16 @@ function handleLayout(event, layout, finished) {
   else publish();
 }
 
-/** The person changed a choice from the bar of the overlay while editing (only the size, who is shown and the names). */
+/** The person changed a choice from the overlay while editing (only the size, who is shown, the names and the layout of the cameras). */
 function handleChoose(event, patch) {
   if (!isOverlay(event) || !editing || !patch || typeof patch !== 'object') return;
   settings = sanitizeSettings(
-    { size: patch.size, onlySpeaking: patch.onlySpeaking, showNames: patch.showNames },
+    {
+      size: patch.size,
+      onlySpeaking: patch.onlySpeaking,
+      showNames: patch.showNames,
+      videoLayout: patch.videoLayout,
+    },
     settings,
   );
   save();
@@ -897,14 +1043,23 @@ function handleChoose(event, patch) {
  * as if it was pressed in the app. Opening a chat or sharing the screen brings the window of Chatterly to the front.
  */
 function handleAction(event, raw) {
-  if (!isOverlay(event) || !editing) return;
+  if (!isOverlay(event)) return;
   const action = sanitizeAction(raw);
   if (!action) return;
+  // Locked: only the buttons of the controls, and only while the mouse is over them.
+  if (!editing && !(hoverControls && CONTROL_ACTIONS.includes(action.type))) return;
   if (action.type === 'open-chat' || (action.type === 'screen' && !(callInfo && callInfo.screen))) {
     setEditing(false);
     if (showMain) showMain();
   }
   tellPage({ type: 'action', action });
+}
+
+/** The overlay page says the mouse is over (or left) the controls of the call: the window takes the mouse only then. */
+function handleHover(event, over) {
+  if (!isOverlay(event) || editing) return;
+  hoverControls = over === true;
+  applyMouse();
 }
 
 /** The person ended editing with the mouse (a click outside, Esc or the button of the overlay). */
@@ -924,6 +1079,8 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   quiet = quietMode === true;
   showMain = typeof showMainFn === 'function' ? showMainFn : null;
   settings = quiet ? { ...DEFAULTS } : load();
+  if (!session.defaultSession.protocol.isProtocolHandled(PAGE_SCHEME))
+    session.defaultSession.protocol.handle(PAGE_SCHEME, servePage);
   ipcMain.handle('overlay:get', handleGet);
   ipcMain.handle('overlay:set', handleSet);
   ipcMain.handle('overlay:tiles', handleTiles);
@@ -936,18 +1093,27 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   ipcMain.on('overlay:stop-editing', handleStopEditing);
   ipcMain.on('overlay:choose', handleChoose);
   ipcMain.on('overlay:action', handleAction);
-  if (mainWindow) mainWindow.on('focus', onMainFocus);
+  ipcMain.on('overlay:hover', handleHover);
+  ipcMain.on('overlay:alive', handleAlive);
+  if (mainWindow) {
+    mainWindow.on('focus', onMainFocus);
+    // The app page itself died or hung: the overlay must not keep the mouse for a page that can no longer answer it.
+    mainWindow.webContents.on('render-process-gone', onMainGone);
+    mainWindow.on('unresponsive', onMainGone);
+  }
   registerHotkey();
 }
 
 /** Leaves nothing registered on the system when the app closes. */
 function stop() {
   clearInterval(watchTimer);
+  clearInterval(aliveTimer);
   globalShortcut.unregisterAll();
   closeWindow();
 }
 
 module.exports = {
+  PAGE_SCHEME_ENTRY,
   start,
   stop,
   mediaSourceId,

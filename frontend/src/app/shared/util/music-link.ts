@@ -4,6 +4,7 @@
  * reduced to an identifier checked against a strict pattern; the address of the player is always built from
  * that identifier, never from the text the person typed.
  */
+import { API_BASE } from '../../core/config';
 
 /** A recognized music link. */
 export interface MusicLink {
@@ -46,7 +47,15 @@ export function parseMusicLink(text: string): MusicLink | null {
 
 /** The origin of this page for the YouTube player (it refuses to play without knowing who shows it). */
 function originOption(): string {
-  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  let origin = typeof window === 'undefined' ? '' : window.location.origin;
+  if (!origin.startsWith('http')) {
+    // The installed desktop app is app://chatterly: the player is told the address of the server instead (see desktop/src/main.cjs).
+    try {
+      origin = new URL(API_BASE).origin;
+    } catch {
+      origin = '';
+    }
+  }
   return origin.startsWith('http') ? '&origin=' + encodeURIComponent(origin) : '';
 }
 

@@ -1,6 +1,6 @@
-# Chatterly-Renewed
+# Chatterly
 
-> Chatterly-Renewed is a chat application with direct messages, groups, voice and video calls and file sharing. Everything is end-to-end encrypted in the browser: the server cannot read messages or listen to calls. It is open source (ISC).
+> Chatterly is a chat application with direct messages, groups, voice and video calls and file sharing. Everything is end-to-end encrypted in the browser: the server cannot read messages or listen to calls. It is open source (ISC).
 
 The application itself is private (it needs an account); only the pages below are public.
 

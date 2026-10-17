@@ -113,7 +113,7 @@ const SEARCH_DELAY_MS = 350;
             } @else {
               <div class="columns-2 gap-2 sm:columns-3">
                 @for (g of shown(); track g.id) {
-                  <app-gif-thumb class="anim-fade-up" [gif]="g" (chosen)="pick($event)" />
+                  <app-gif-thumb [gif]="g" (chosen)="pick($event)" />
                 }
               </div>
               @if (loading()) {

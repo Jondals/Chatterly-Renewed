@@ -35,6 +35,19 @@ export type ThemeId =
 /** How opaque the big blocks of the interface are for each level of "background visibility", in percent. */
 const GLASS_LEVELS = [94, 80, 64, 46, 28];
 
+/**
+ * A device with few cores or little memory (a cheap phone, an old computer). Its camera starts at 480p: every picture is encoded and
+ * ciphered on the device itself, and 720p was too much for it (the call stuttered). Whoever picks another quality keeps it.
+ */
+function isLowEndDevice(): boolean {
+  try {
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    return (navigator.hardwareConcurrency || 8) <= 4 || (memory !== undefined && memory <= 4);
+  } catch {
+    return false;
+  }
+}
+
 /** The animations to start with: off for whoever had "reduce motion" on before this setting existed, all of them otherwise. */
 function initialAnimations(): 'off' | 'quick' | 'full' {
   try {
@@ -207,6 +220,8 @@ export class SettingsService {
   /** Volume (0 to 100) of the soundboard effects of a call, on top of the general volume. */
   readonly callEffectsVolume = persisted('pref.callEffectsVolume', 100);
   /** The categories the person made to sort the sounds of the soundboard. */
+  /** The items of the + menu of the chat that are shown in the bar as an icon (the rest stay in the menu). */
+  readonly composerBar = persisted<string[]>('pref.composerBar', []);
   readonly soundCategories = persisted<{ id: string; name: string }[]>('pref.soundCategories', []);
   /** Volume of the music shared in a call (only YouTube can be controlled from outside). */
   readonly musicVolume = persisted('pref.musicVolume', 80);
@@ -308,7 +323,12 @@ export class SettingsService {
     /** A `ScreenQuality` (see screen-quality.ts); an older version saved standard, high or max. */
     quality: string;
     audio: boolean;
-  }>('pref.screenShare', { surface: 'any', quality: '1080-30', audio: true });
+  }>('pref.screenShare', {
+    surface: 'any',
+    // A phone starts light (720p at 30); a computer at 1080p.
+    quality: ANDROID_APP || IOS_APP ? '720-30' : '1080-30',
+    audio: true,
+  });
   /** How much the interface animates: nothing, short transitions, or everything. Apart from the motion of the background. */
   readonly animations = persisted<'off' | 'quick' | 'full'>('pref.animations', initialAnimations());
   /**
@@ -323,9 +343,9 @@ export class SettingsService {
   readonly introOnStart = persisted('pref.introOnStart', true);
   /**
    * Android: stay connected in the background (with a fixed notification) so calls ring with the app minimized. Off by
-   * default: the person did not want a notification only for being connected. ? A new key, so the old "on" is not kept.
+   * default: the person did not want a notification only for being connected. ? A new key (it was pref.keepConnected, which an
+   * old version also copied to the account, and every device that signed in got the "on" back), so everybody starts off.
    */
-  readonly backgroundCalls = persisted('pref.keepConnected', false);
   /**
    * Signing out keeps on this device what the person made (stickers, sounds, presets, fonts, wallpaper, preferences); only
    * the session and the keys go. On by default in the apps (a device of the person), off in a browser (it may be shared).
@@ -375,7 +395,10 @@ export class SettingsService {
     'natural',
   );
   /** The quality of the camera in calls (the height of the picture in pixels). */
-  readonly cameraQuality = persisted<'480' | '720' | '1080'>('pref.cameraQuality', '720');
+  readonly cameraQuality = persisted<'480' | '720' | '1080'>(
+    'pref.cameraQuality',
+    isLowEndDevice() ? '480' : '720',
+  );
   /** Pictures per second of the camera. */
   readonly cameraFps = persisted<'15' | '30' | '60'>('pref.cameraFps', '30');
   /** What is behind the person in the camera of a call: 'none', 'blur', 'custom', 'preset:<id>' or 'vault:<id>' (a picture of the library). */

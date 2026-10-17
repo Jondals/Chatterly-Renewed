@@ -384,7 +384,13 @@ export class SettingsSyncService {
 
   /** Puts the settings of a set on this device. */
   private applyProfile(profile: Profile): void {
-    applyPersisted(profile.prefs);
+    // ! What belongs to one device is never taken from the account, even when an old copy has it (the "stay connected" of a phone
+    // came back on every device that signed in).
+    const prefs: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(profile.prefs)) {
+      if (!DEVICE_ONLY.has(key)) prefs[key] = value;
+    }
+    applyPersisted(prefs);
     this.lastSent = JSON.stringify(this.snapshot());
   }
 

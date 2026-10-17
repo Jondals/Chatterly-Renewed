@@ -104,6 +104,22 @@ function onOverlayEvent(callback) {
   };
 }
 
+/** The shortcuts of the call that work while Chatterly is not in front: the page gives the ones to hold ({} to let go). */
+function setShortcuts(list) {
+  return ipcRenderer.invoke('shortcuts:set', list);
+}
+/** Calls `callback(action)` when one of them is pressed ('mute', 'deafen', 'camera', 'screen' or 'hangup'). */
+function onShortcut(callback) {
+  if (typeof callback !== 'function') return function noop() {};
+  function listener(event, action) {
+    callback(action);
+  }
+  ipcRenderer.on('shortcuts:event', listener);
+  return function stop() {
+    ipcRenderer.removeListener('shortcuts:event', listener);
+  };
+}
+
 /**
  * The menu to choose what to share is drawn by the page: the shell sends the list ('screen:pick') and the page answers with
  * the id of one of them, or cancels. The shell checks the id against the list it sent.
@@ -183,6 +199,7 @@ contextBridge.exposeInMainWorld(
       cancel: cancelPick,
       refresh: refreshPick,
     }),
+    shortcuts: Object.freeze({ set: setShortcuts, onPress: onShortcut }),
     graphics: Object.freeze({ get: getGraphics, set: setGraphics, restart: restartForGraphics }),
     overlay: Object.freeze({
       get: getOverlay,

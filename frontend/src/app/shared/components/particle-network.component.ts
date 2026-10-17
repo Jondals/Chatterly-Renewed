@@ -273,6 +273,13 @@ export class ParticleNetworkComponent implements OnDestroy {
 
   /** One frame: moves and draws the particles (nothing moves when the person asked for no motion). */
   private loop(): void {
+    // ! The app is not the window in use (a game is in front, see pauseDecorationWhenAway): nothing is drawn, and the loop only
+    //   looks again twice a second instead of waking up on every frame.
+    if (document.documentElement.dataset['idle'] === '1') {
+      this.frameId = 0;
+      this.resume = setTimeout(this.startLoop.bind(this), 500);
+      return;
+    }
     // On weak devices every other frame is skipped (30 per second) and the motion is doubled to keep its speed.
     const weak = document.documentElement.dataset['perf'] === 'low';
     if (weak && (this.skipFrame = !this.skipFrame)) {
@@ -290,6 +297,7 @@ export class ParticleNetworkComponent implements OnDestroy {
   }
 
   private skipFrame = false;
+  private resume: ReturnType<typeof setTimeout> | undefined;
 
   /** Stops the animation while the page is hidden and starts it again when it is seen. */
   private handleVisibility(): void {
@@ -344,6 +352,7 @@ export class ParticleNetworkComponent implements OnDestroy {
 
   /** Stops the animation and the listeners. */
   ngOnDestroy(): void {
+    clearTimeout(this.resume);
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
     this.resizeObserver?.disconnect();
