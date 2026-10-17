@@ -15,6 +15,7 @@ import { CallService } from '../core/services/call.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { SettingsService } from '../core/services/settings.service';
 import { UiService } from '../core/services/ui.service';
+import { CallTimerComponent } from '../shared/components/call-timer.component';
 import { IconComponent } from '../shared/components/icon.component';
 import { DockableDirective, type DockPlace } from '../shared/util/dockable.directive';
 import { MediaStreamDirective } from '../shared/util/media-stream.directive';
@@ -42,7 +43,7 @@ interface Featured {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-call-dock',
   standalone: true,
-  imports: [IconComponent, RouterLink, TranslatePipe, DockableDirective, MediaStreamDirective],
+  imports: [CallTimerComponent, IconComponent, RouterLink, TranslatePipe, DockableDirective, MediaStreamDirective],
   template: `
     @if (call.inCall() && !onVoicePage()) {
       @if (target()) {
@@ -103,6 +104,7 @@ interface Featured {
             <span class="block text-sm font-semibold hover:text-accent">{{
               'Call in progress' | t
             }}</span>
+            <app-call-timer class="block" />
             <span class="dock-ping" [attr.data-level]="ping().level">
               <span class="flex items-end gap-px" aria-hidden="true">
                 @for (bar of [1, 2, 3]; track bar) {

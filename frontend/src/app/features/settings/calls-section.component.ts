@@ -57,16 +57,6 @@ import { GeneralSectionComponent } from './general-section.component';
     @if (android) {
       <section class="settings-card">
         <h2 class="settings-card-title">{{ 'On this phone' | t }}</h2>
-        <app-setting-row
-          title="Calls in the background"
-          hint="Keeps Chatterly connected with a fixed notification, so calls ring with the app minimized or the screen off. Off: no notification, and calls ring only with the app open."
-        >
-          <app-toggle
-            [checked]="s.backgroundCalls()"
-            (checkedChange)="s.backgroundCalls.set($event)"
-            [label]="'Calls in the background' | t"
-          />
-        </app-setting-row>
         @if (!nativeCall.fullScreenAllowed()) {
           <app-setting-row
             title="Calls over the lock screen"

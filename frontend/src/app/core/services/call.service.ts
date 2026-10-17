@@ -673,6 +673,8 @@ export class CallService {
 
   /** True while the shared player is paused (the stage keeps it up to date, the floating bar reads it). */
   readonly musicPaused = signal(false);
+  /** The moment this call connected (0 while there is none): the timer of the call counts from it. */
+  readonly connectedSince = signal(0);
   /** Counts the times somebody outside the stage asks to pause or resume the shared player. */
   readonly pauseRequest = signal(0);
   /** What the player of the stage reports about the playlist it plays (empty when it is not one). */
@@ -1576,6 +1578,7 @@ export class CallService {
     );
     // (On Android, NativeCallService follows this status: the notification of the call and the service that keeps the
     // microphone alive with the screen off.)
+    if (!this.connectedSince()) this.connectedSince.set(Date.now());
     this.status.set('connected');
     // Mute/deafen are personal and persist between calls: tell the room how we joined.
     this.applyMute();
@@ -2641,6 +2644,7 @@ export class CallService {
     this.stats.set({ ...EMPTY_STATS });
     this.rttHistory.set([]);
     this.previousParticipants = new Set();
+    this.connectedSince.set(0);
     this.status.set('idle');
     this.worker?.terminate();
     this.worker = null;

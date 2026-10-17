@@ -85,7 +85,6 @@ export class NativeCallService {
   private shownRoom: string | null = null;
   private ringingRoom: string | null = null;
   private lastSecure: boolean | null = null;
-  private lastListen: boolean | null = null;
 
   /** The name the notification of the call shows: the other person of a direct chat, or the voice channel. */
   private readonly callTitle = computed(
@@ -105,7 +104,6 @@ export class NativeCallService {
     document.addEventListener('visibilitychange', this.onVisibility.bind(this));
     effect(this.followCall.bind(this));
     effect(this.followIncoming.bind(this));
-    effect(this.followListen.bind(this));
     effect(this.followSecure.bind(this));
     void this.plugin.addListener('action', this.onActionOutside.bind(this));
     void this.plugin.takePendingAction().then(this.onActionOutside.bind(this));
@@ -151,7 +149,7 @@ export class NativeCallService {
         if (room && this.shownRoom !== room) {
           this.shownRoom = room;
           void plugin
-            .call({ title, startedAt: Date.now(), muted, deafened })
+            .call({ title, startedAt: this.call.connectedSince() || Date.now(), muted, deafened })
             .then(this.applyPreferredRoute.bind(this))
             .catch(this.ignore);
         } else if (room) {
@@ -184,20 +182,6 @@ export class NativeCallService {
         }
       }.bind(this),
     );
-  }
-
-  /**
-   * Stays connected in the background while signed in and the person wants calls to ring. Android only lets the app
-   * start it while it is on screen, so it is asked when the page is visible.
-   */
-  private followListen(): void {
-    const on = this.auth.isAuthenticated() && this.settings.backgroundCalls();
-    const visible = this.visible();
-    if (on === this.lastListen || (on && !visible)) {
-      return;
-    }
-    this.lastListen = on;
-    void this.plugin!.listen({ on }).catch(this.ignore);
   }
 
   /**
@@ -404,7 +388,6 @@ export class NativeCallService {
 
   /** The page goes away: nothing stays connected or showing for it. */
   private stopAll(): void {
-    void this.plugin?.listen({ on: false }).catch(this.ignore);
     void this.plugin?.end().catch(this.ignore);
   }
 

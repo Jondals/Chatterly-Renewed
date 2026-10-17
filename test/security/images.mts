@@ -116,6 +116,7 @@ export async function checkImages(): Promise<void> {
     userId: member.id,
     envelope: envelope(),
   });
+  await call(app, member, 'POST', `/api/guild-invites/${club.id}/accept`);
   const downloaded = await call(app, member, 'GET', `/api/images/${imageId}`);
   check(
     downloaded.statusCode === 200 && downloaded.rawPayload.equals(secretIcon),

@@ -34,6 +34,7 @@ const ACTIONS: Record<string, string> = {
   suspend: 'Suspended {target}',
   restore: 'Restored {target}',
   'sign-out': 'Signed {target} out everywhere',
+  'reset-password': 'Reset the password of {target}',
   'delete-account': 'Deleted the account of {detail}',
   'audit-clear': 'Emptied the record',
   'close-session': 'Closed one session of {target}',
@@ -124,10 +125,20 @@ const ACTIONS: Record<string, string> = {
       font-weight: 700;
     }
     .ad-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
       gap: 0.4rem;
       padding-left: 3.1rem;
+    }
+    .ad-actions .btn {
+      min-width: 0;
+      height: auto;
+      min-height: 2rem;
+      justify-content: center;
+      padding-block: 0.4rem;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.2;
     }
     .ad-sessions {
       display: grid;
@@ -145,9 +156,8 @@ const ACTIONS: Record<string, string> = {
       .ad-sessions {
         padding-left: 0;
       }
-      .ad-actions .btn {
-        flex: 1 1 calc(50% - 0.2rem);
-        justify-content: center;
+      .ad-actions {
+        grid-template-columns: 1fr 1fr;
       }
     }
     .ad-entry {
@@ -299,7 +309,7 @@ const ACTIONS: Record<string, string> = {
           </div>
         </section>
         <section class="settings-card">
-          @for (person of admin.users(); track person.id) {
+          @for (person of people(); track person.id) {
             <div class="ad-person">
               <button
                 type="button"
@@ -321,6 +331,9 @@ const ACTIONS: Record<string, string> = {
                     }
                     @if (person.suspended) {
                       <span class="chip chip-red">{{ 'Suspended' | t }}</span>
+                    }
+                    @if (person.recoveryAt) {
+                      <span class="chip chip-amber">{{ 'Cannot sign in' | t }}</span>
                     }
                   </span>
                   <span class="mt-0.5 block truncate text-xs text-muted"
@@ -382,6 +395,7 @@ const ACTIONS: Record<string, string> = {
                   }
                 </div>
               }
+              @if (expanded() === person.id) {
               <div class="ad-actions">
                 <button
                   type="button"
@@ -402,6 +416,15 @@ const ACTIONS: Record<string, string> = {
                   </button>
                 }
                 @if (canAct(person)) {
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    [class.btn-primary]="person.recoveryAt > 0"
+                    [disabled]="busy()"
+                    (click)="resetPassword(person)"
+                  >
+                    <app-icon name="key" [size]="13" /> {{ 'Reset password' | t }}
+                  </button>
                   <button
                     type="button"
                     class="btn btn-sm"
@@ -441,6 +464,7 @@ const ACTIONS: Record<string, string> = {
                   }
                 }
               </div>
+              }
             </div>
           } @empty {
             <p class="py-4 text-sm text-muted">{{ 'Nobody matches.' | t }}</p>
@@ -638,11 +662,22 @@ export class AdminSectionComponent implements OnInit {
   /** The person whose sessions are open on screen, and their sessions (null while they load). */
   protected readonly expanded = signal<string | null>(null);
   protected readonly sessionList = signal<AdminSession[] | null>(null);
+  /** The accounts as a list: the person looking first, then the rest in the order they were made (the newest last). */
+  protected readonly people = computed(this.sortPeople.bind(this));
   /** The id of the person looking (they cannot act on themselves). */
   private readonly myself = computed(this.readMyself.bind(this));
 
   ngOnInit(): void {
     void this.refresh();
+  }
+
+  private sortPeople(): AdminUser[] {
+    const me = this.myself();
+    return [...this.admin.users()].sort(function order(a, b) {
+      if (a.id === me) return b.id === me ? 0 : -1;
+      if (b.id === me) return 1;
+      return a.createdAt - b.createdAt;
+    });
   }
 
   private readMyself(): string {
@@ -795,6 +830,24 @@ export class AdminSectionComponent implements OnInit {
     if (!sure) return;
     this.expanded.set(null);
     await this.act(this.admin.deleteAccount.bind(this.admin, person.id), 'Account deleted');
+  }
+
+  /** Sets a temporary password for a person who cannot sign in; they choose their own when they use it. */
+  protected async resetPassword(person: AdminUser): Promise<void> {
+    const password = await this.dialog.prompt(
+      this.i18n.t('Reset the password of @{name}', { name: person.username }),
+      this.i18n.t(
+        'Write a temporary password (10 characters or more) and give it to them by another way. They choose their own when they sign in. Their old encrypted messages cannot be recovered, and their sessions end now.',
+      ),
+      '',
+      this.i18n.t('Temporary password'),
+    );
+    if (password === null) return;
+    if (password.length < 10) {
+      this.toast.error(this.i18n.t('Could not do it'), this.i18n.t('Use 10 characters or more.'));
+      return;
+    }
+    await this.act(this.admin.resetPassword.bind(this.admin, person.id, password), 'Password reset');
   }
 
   protected async restore(person: AdminUser): Promise<void> {

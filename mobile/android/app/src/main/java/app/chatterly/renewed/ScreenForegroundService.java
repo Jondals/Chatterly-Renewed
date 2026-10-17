@@ -33,7 +33,6 @@ import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
-import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
@@ -309,13 +308,14 @@ public class ScreenForegroundService extends Service {
             return;
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            soundRefused();
             return;
         }
         try {
+            // ! Matching rules (addMatchingUsage) and exclusion rules (excludeUid) cannot be mixed: build() throws, and the sound
+            //   was lost without a word. Only the exclusion is kept: everything that other apps play is captured, and this app (the
+            //   voices of the call, the soundboard) is left out, so the others never hear themselves back.
             AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(projection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
                 .excludeUid(Process.myUid())
                 .build();
             AudioFormat format = new AudioFormat.Builder()
@@ -330,9 +330,16 @@ public class ScreenForegroundService extends Service {
                 .setAudioPlaybackCaptureConfig(config)
                 .build();
             audio.startRecording();
+            if (audio.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) {
+                throw new IllegalStateException("not recording");
+            }
         } catch (RuntimeException refused) {
-            // No sound: the screen is still shared.
+            // No sound: the screen is still shared, and the person is told (the page shows the same notice as for a silent app).
+            if (audio != null) {
+                audio.release();
+            }
             audio = null;
+            soundRefused();
             return;
         }
         AudioRecord recorder = audio;
@@ -346,6 +353,14 @@ public class ScreenForegroundService extends Service {
             "chatterly-screen-sound"
         );
         audioThread.start();
+    }
+
+    /** The sound could not be captured at all: the page tells the person (it is the notice of "the others do not hear it"). */
+    private void soundRefused() {
+        Listener target = listener;
+        if (target != null) {
+            target.onSilent();
+        }
     }
 
     /** Reads the sound until the capture ends and hands each piece to the page. */

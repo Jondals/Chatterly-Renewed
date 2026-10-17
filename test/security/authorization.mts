@@ -133,7 +133,37 @@ export async function checkAuthorization(): Promise<void> {
     userId: bob.id,
     envelope: envelope(),
   });
-  check(added.statusCode === 201, 'the owner adds a friend to the group');
+  check(added.statusCode === 201, 'the owner invites a friend to the group');
+  check(
+    (await call(app, bob, 'GET', '/api/guilds')).json().guilds.length === 0,
+    'an invited friend is not in the group until they accept',
+  );
+  const waiting = (await call(app, bob, 'GET', '/api/guild-invites')).json();
+  check(
+    waiting.invites.length === 1 &&
+      waiting.invites[0].guildId === guild.id &&
+      waiting.invites[0].inviterId === alice.id &&
+      !!waiting.invites[0].envelope,
+    'the invited friend sees the invitation with the key wrapped for them',
+  );
+  check(
+    (await call(app, mallory, 'POST', `/api/guild-invites/${guild.id}/accept`)).statusCode === 404,
+    'only the invited person can accept',
+  );
+  check(
+    (await call(app, bob, 'POST', `/api/guild-invites/${guild.id}/decline`)).statusCode === 204 &&
+      (await call(app, bob, 'GET', '/api/guild-invites')).json().invites.length === 0,
+    'declining leaves nothing of the invitation',
+  );
+  await call(app, alice, 'POST', `/api/guilds/${guild.id}/members`, {
+    userId: bob.id,
+    envelope: envelope(),
+  });
+  check(
+    (await call(app, bob, 'POST', `/api/guild-invites/${guild.id}/accept`)).statusCode === 200 &&
+      (await call(app, bob, 'GET', '/api/guilds')).json().guilds.length === 1,
+    'accepting puts the friend in the group',
+  );
   const groupFile = await app.inject({
     method: 'POST',
     url: `/api/channels/${guild.text}/files`,

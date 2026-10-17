@@ -2,7 +2,7 @@
  * src/app/shared/components/mesh-background.component.ts
  * Animated backgrounds (CSS scenes) and the shuffle mode that keeps changing them.
  */
-import { ChangeDetectionStrategy, Component, OnDestroy, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { SettingsService, type BackgroundId } from '../../core/services/settings.service';
 import { WallpaperStore } from '../../core/services/wallpaper.store';
 import { ParticleNetworkComponent } from './particle-network.component';
@@ -21,7 +21,8 @@ import { ParticleNetworkComponent } from './particle-network.component';
     <div
       class="scene absolute inset-0 overflow-hidden bg-ink-950"
       style="contain: strict; isolation: isolate"
-      [style.filter]="kind() === 'grid' ? null : 'brightness(1.55) saturate(1.4) contrast(1.08)'"
+      [style.filter]="liftsByFilter() ? 'brightness(1.55) saturate(1.4) contrast(1.08)' : null"
+      [style.--lift]="liftsByFilter() ? null : 1.55"
       aria-hidden="true"
     >
       @switch (kind()) {
@@ -410,7 +411,9 @@ import { ParticleNetworkComponent } from './particle-network.component';
     .blob {
       position: absolute;
       border-radius: 50%;
-      opacity: var(--o, 0.5);
+      /* ! The brightness of the scene is in the opacity of the blobs (brighter on a dark floor is the same as more opaque): a filter
+         over the whole scene was drawn again on every frame, because the blobs move under it, and cost more than the movement. */
+      opacity: min(1, calc(var(--o, 0.5) * var(--lift, 1)));
       will-change: transform;
       background: radial-gradient(
         circle,
@@ -593,6 +596,13 @@ export class BackgroundSceneComponent {
   protected readonly settings = inject(SettingsService);
   protected readonly wallpaper = inject(WallpaperStore);
   readonly kind = input.required<BackgroundId>();
+  /** The scenes made only of moving blobs lift their brightness in the blobs; the rest still use a filter over the scene. */
+  protected readonly liftsByFilter = computed(
+    function (this: BackgroundSceneComponent) {
+      const kind = this.kind();
+      return kind !== 'grid' && kind !== 'aurora';
+    }.bind(this),
+  );
   protected readonly waves = [
     { i: 0, s: 52, b: 7, o: 0.55, c: 'var(--accent-2)', d: BackgroundSceneComponent.ola(46, 3, 0) },
     { i: 1, s: 38, b: 9, o: 0.6, c: 'var(--accent)', d: BackgroundSceneComponent.ola(38, 4, 1.7) },

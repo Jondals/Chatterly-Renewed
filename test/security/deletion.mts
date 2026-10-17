@@ -35,6 +35,7 @@ export async function checkDeletion(): Promise<void> {
     userId: bob.id,
     envelope: envelope(),
   });
+  await call(app, bob, 'POST', `/api/guild-invites/${club.id}/accept`);
   app.ctx.db
     .prepare('UPDATE guild_members SET joined_at = 1000 WHERE guild_id = ? AND user_id = ?')
     .run(club.id, alice.id);
@@ -45,6 +46,7 @@ export async function checkDeletion(): Promise<void> {
     userId: carol.id,
     envelope: envelope(),
   });
+  await call(app, carol, 'POST', `/api/guild-invites/${club.id}/accept`);
   app.ctx.db
     .prepare('UPDATE guild_members SET joined_at = 3000 WHERE guild_id = ? AND user_id = ?')
     .run(club.id, carol.id);

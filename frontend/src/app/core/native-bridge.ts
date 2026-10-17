@@ -36,7 +36,6 @@ export interface CallPlugin {
   }): Promise<void>;
   update(state: { title?: string; muted?: boolean; deafened?: boolean }): Promise<void>;
   end(): Promise<void>;
-  listen(options: { on: boolean }): Promise<void>;
   ring(options: { roomId: string; caller: string }): Promise<void>;
   cancelRing(): Promise<void>;
   setSecure(options: { secure: boolean }): Promise<void>;

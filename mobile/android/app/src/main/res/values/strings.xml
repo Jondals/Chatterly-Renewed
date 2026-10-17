@@ -15,8 +15,6 @@
     <string name="screen_channel_name">Screen sharing</string>
     <string name="incoming_call">Incoming call</string>
     <string name="incoming_channel_name">Incoming calls</string>
-    <string name="listening">Connected: calls will ring</string>
-    <string name="listening_channel_name">Connected in the background</string>
     <string name="action_mute">Mute</string>
     <string name="action_unmute">Unmute</string>
     <string name="action_deafen">Deafen</string>

@@ -3,7 +3,6 @@
  * The native commands of calls the page can use ("ChatterlyCall"):
  *   - call / update / end: the notification of the call in progress (who, how long, mute, deafen, hang up) and the
  *     foreground service that keeps the microphone alive with the screen off;
- *   - listen: stay connected in the background so calls ring with the app minimized (a quiet notification);
  *   - ring / cancelRing: the notification of a call that rings while the app is not on screen;
  *   - audioRoutes / setAudioRoute: where the voice of the call sounds (earpiece, speaker, headset, Bluetooth);
  *   - setSecure: whether screenshots of the app are blocked (FLAG_SECURE);
@@ -77,7 +76,6 @@ public class CallServicePlugin extends Plugin {
         if (current == this) {
             current = null;
             CallForegroundService.listener = null;
-            CallForegroundService.listening = false;
             CallForegroundService.inCall = false;
             CallForegroundService.refresh(getContext());
         }
@@ -210,22 +208,6 @@ public class CallServicePlugin extends Plugin {
             audio.setMode(AudioManager.MODE_NORMAL);
         }
         call.resolve();
-    }
-
-    /** Stays connected in the background (on) so calls ring, or stops (off). Must be asked while the app is on screen. */
-    @PluginMethod
-    public void listen(PluginCall call) {
-        if (!isCurrent(call)) {
-            return;
-        }
-        CallForegroundService.listening = Boolean.TRUE.equals(call.getBoolean("on", false));
-        try {
-            CallForegroundService.refresh(getContext());
-            call.resolve();
-        } catch (RuntimeException refused) {
-            CallForegroundService.listening = false;
-            call.reject("Android refused to stay connected in the background");
-        }
     }
 
     /** A call rings while the app is not on screen: the notification with Answer and Decline. */

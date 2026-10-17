@@ -32,11 +32,14 @@ import { fontClassOf } from '../../shared/util/user-font.directive';
 
 type Tab = 'online' | 'all' | 'pending';
 
+import { GuildInviteCardComponent } from '../guild/guild-invite-card.component';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-direct-hub',
   standalone: true,
   imports: [
+    GuildInviteCardComponent,
     NameColorDirective,
     UserFontDirective,
     NameFxDirective,
@@ -156,6 +159,7 @@ type Tab = 'online' | 'all' | 'pending';
             </div>
             @if (tab() === 'pending') {
               <div class="mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2">
+                <app-guild-invites />
                 <section class="pending-card">
                   <header class="pending-head">
                     <span class="pending-icon bg-accent/15 text-accent"

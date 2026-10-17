@@ -102,6 +102,19 @@ CREATE TABLE IF NOT EXISTS guild_keys (
   PRIMARY KEY (guild_id, user_id, key_version)
 );
 
+-- An invitation to a group: the person is NOT a member until they accept. It carries the key of the group wrapped for them by
+-- whoever invited them (so the card can show the name and the icon of the group), and it is useless after the key is renewed.
+CREATE TABLE IF NOT EXISTS guild_invites (
+  guild_id     TEXT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  inviter_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key_version  INTEGER NOT NULL,
+  iv           TEXT NOT NULL,
+  data         TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS channels (
   id          TEXT PRIMARY KEY,
   guild_id    TEXT REFERENCES guilds(id) ON DELETE CASCADE,
@@ -215,6 +228,12 @@ CREATE TABLE IF NOT EXISTS server_settings (
 );
 
 -- What the administrators did (who, when, to whom): every one of them can read it, nobody can change it from the app.
+-- A person who cannot sign in tells the administrators from the sign-in page (one line per person, no more than the name and the time).
+CREATE TABLE IF NOT EXISTS recovery_requests (
+  user_id  TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  at       INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS admin_audit (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   at         INTEGER NOT NULL,
@@ -240,6 +259,8 @@ const MIGRATIONS: [table: string, column: string, definition: string][] = [
   ['sessions', 'device_hash', 'TEXT'],
   // A guest (web only): an account made to try the app, erased when the person leaves or after a few hours (see auth.ts).
   ['users', 'guest', 'INTEGER NOT NULL DEFAULT 0'],
+  // An administrator reset the password: the person must make new keys at the next sign in (see routes/recovery.ts).
+  ['users', 'identity_reset', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'pronouns', "TEXT NOT NULL DEFAULT ''"],
   ['users', 'avatar_image', 'TEXT'],
   ['users', 'banner_image', 'TEXT'],

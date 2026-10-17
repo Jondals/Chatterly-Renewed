@@ -9,6 +9,8 @@ export interface UserRow {
   id: string;
   /** 1: a guest account (erased when the person leaves). */
   guest?: number;
+  /** 1: an administrator reset the password and the person has to make new keys (see routes/recovery.ts). */
+  identity_reset?: number;
   username: string;
   display_name: string;
   auth_hash: string;

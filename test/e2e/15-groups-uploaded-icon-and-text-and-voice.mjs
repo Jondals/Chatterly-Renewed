@@ -106,6 +106,15 @@ export async function step15(world) {
   await a.click('.nav-item:has-text("bob") button:has-text("Invite")');
   await a.waitForTimeout(1500);
   await a.keyboard.press('Escape');
+  // The invitation waits until Bob accepts it: it shows the name of the group and does not put him in it.
+  await b.goto(WEB + '/direct');
+  await b.click('button.friend-tab:has-text("Pending")');
+  await b.waitForSelector('app-guild-invites button:has-text("Accept")', { timeout: 15000 });
+  check(
+    (await b.locator('app-guild-invites').innerText()).includes('Rust Crew'),
+    'the invitation shows the name of the group and does not put the friend in it yet',
+  );
+  await b.click('app-guild-invites button:has-text("Accept")');
   await b.goto(WEB + '/groups');
   await b.waitForSelector('text=First message in the group', {
     timeout: 15000,

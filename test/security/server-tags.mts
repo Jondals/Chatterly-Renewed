@@ -27,6 +27,7 @@ export async function checkServerTags(): Promise<void> {
     userId: bob.id,
     envelope: envelope(),
   });
+  await call(app, bob, 'POST', `/api/guild-invites/${club.id}/accept`);
   check(
     (await call(app, bob, 'PATCH', `/api/guilds/${club.id}`, { tag: 'BOB' })).statusCode === 403,
     'only the owner makes the tag',

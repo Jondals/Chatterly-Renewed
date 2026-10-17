@@ -15,7 +15,7 @@ import { ArrivalComponent } from './shared/components/arrival.component';
 import { MeshBackgroundComponent } from './shared/components/mesh-background.component';
 import { TitlebarComponent } from './shared/components/titlebar.component';
 import { ToastHostComponent } from './shared/components/toast-host.component';
-import { watchFramePerformance } from './shared/util/perf-monitor';
+import { pauseDecorationWhenAway, watchFramePerformance } from './shared/util/perf-monitor';
 import { PresetService } from './core/services/preset.service';
 import { PresetTryComponent } from './shared/components/preset-try.component';
 import { ViewerService } from './core/services/viewer.service';
@@ -200,6 +200,7 @@ export class AppComponent {
     this.injector.get(fonts.FontService);
     // From here on the real frames are measured: a device that stutters gets the light mode by itself.
     this.injector.get(NgZone).runOutsideAngular(watchFramePerformance);
+    this.injector.get(NgZone).runOutsideAngular(pauseDecorationWhenAway);
   }
 
   /**

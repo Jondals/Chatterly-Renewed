@@ -36,6 +36,7 @@ export async function checkPrivacy(): Promise<void> {
       userId: member.id,
       envelope: envelope(),
     });
+    await call(app, member, 'POST', `/api/guild-invites/${club.id}/accept`);
   }
   await call(app, alice, 'DELETE', `/api/friends/${dave.id}`);
 

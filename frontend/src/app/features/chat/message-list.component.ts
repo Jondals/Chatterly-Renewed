@@ -21,6 +21,8 @@ import {
 import { AuthService } from '../../core/services/auth.service';
 import { DirectoryService } from '../../core/services/directory.service';
 import { IconComponent } from '../../shared/components/icon.component';
+import type { Guild, GuildChannel } from '../../core/models';
+import { GuildStore } from '../../store/guild.store';
 import { MessageStore, type ViewMessage } from '../../store/message.store';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { MessageItemComponent } from './message-item.component';
@@ -151,6 +153,7 @@ export class MessageListComponent {
   readonly replyTo = output<ViewMessage>();
 
   protected readonly store = inject(MessageStore);
+  private readonly guilds = inject(GuildStore);
   private readonly i18n = inject(I18nService);
   private readonly auth = inject(AuthService);
   private readonly directory = inject(DirectoryService);
@@ -171,7 +174,21 @@ export class MessageListComponent {
 
   protected readonly rows = computed<Row[]>(
     function (this: MessageListComponent) {
-      const list = this.state().messages();
+      // ! In a group, what was sent before the person joined (or with a key they were never given) is not shown as a row of locks:
+      //   they could never have read it, and a wall of locks only says that nothing is wrong. In a direct chat it is shown.
+      const channelId = this.channelId();
+      const inGroup = this.guilds.guilds().some(function holds(guild: Guild) {
+        return guild.channels.some(function same(channel: GuildChannel) {
+          return channel.id === channelId;
+        });
+      });
+      const list = inGroup
+        ? this.state()
+            .messages()
+            .filter(function readable(message) {
+              return !message.undecryptable;
+            })
+        : this.state().messages();
       const i18n = this.i18n;
       return list.map(function (message, i) {
         const prev = list[i - 1];

@@ -207,6 +207,8 @@ export class SettingsService {
   /** Volume (0 to 100) of the soundboard effects of a call, on top of the general volume. */
   readonly callEffectsVolume = persisted('pref.callEffectsVolume', 100);
   /** The categories the person made to sort the sounds of the soundboard. */
+  /** The items of the + menu of the chat that are shown in the bar as an icon (the rest stay in the menu). */
+  readonly composerBar = persisted<string[]>('pref.composerBar', []);
   readonly soundCategories = persisted<{ id: string; name: string }[]>('pref.soundCategories', []);
   /** Volume of the music shared in a call (only YouTube can be controlled from outside). */
   readonly musicVolume = persisted('pref.musicVolume', 80);
@@ -331,7 +333,6 @@ export class SettingsService {
    * default: the person did not want a notification only for being connected. ? A new key (it was pref.keepConnected, which an
    * old version also copied to the account, and every device that signed in got the "on" back), so everybody starts off.
    */
-  readonly backgroundCalls = persisted('pref.listenInBackground', false);
   /**
    * Signing out keeps on this device what the person made (stickers, sounds, presets, fonts, wallpaper, preferences); only
    * the session and the keys go. On by default in the apps (a device of the person), off in a browser (it may be shared).

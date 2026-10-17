@@ -41,6 +41,7 @@ import { UiService } from '../../core/services/ui.service';
 import { AvatarComponent } from '../../shared/components/avatar.component';
 import { SpinlyLogoComponent } from '../../shared/components/spinly-logo.component';
 import { NameColorDirective } from '../../shared/util/name-color.directive';
+import { CallTimerComponent } from '../../shared/components/call-timer.component';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ModalComponent } from '../../shared/components/modal.component';
 import { PageHeaderComponent } from '../../shared/components/page-header.component';
@@ -93,6 +94,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
   selector: 'app-voice-stage',
   standalone: true,
   imports: [
+    CallTimerComponent,
     FoldComponent,
     PersonMenuComponent,
     DeviceMenuComponent,
@@ -140,6 +142,7 @@ const MUSIC_PLACES: Record<DockPlace, string> = {
               <span class="max-sm:hidden">{{ 'Encryption problem' | t }}</span>
             }
           </button>
+          <app-call-timer />
           <span class="hidden font-mono text-xs text-muted md:inline"
             >{{ call.stats().rttMs ?? '—' }} ms · {{ call.stats().outKbps }}↑
             {{ call.stats().inKbps }}↓ kbps</span
@@ -1881,9 +1884,9 @@ export class VoiceStageComponent {
   );
   protected readonly shareQualities = screenQualities(ANDROID_APP);
   /**
-   * The button of the screen: stops sharing. To start, in the desktop app and the Android app it opens the menu (what to
-   * share, quality, sound: nothing else asks for them there); in a browser it starts at once, as the browser asks what to
-   * show (the menu is on the right click).
+   * The button of the screen: stops sharing. To start, in the desktop app it opens the menu (what to share, quality, sound:
+   * nothing else asks for them there); in a browser and in the Android app it starts at once, as the system asks what to show
+   * (the menu is on the right click, or the long press on a phone).
    */
   protected screenClick(): void {
     if (this.ios) {
@@ -1906,9 +1909,10 @@ export class VoiceStageComponent {
       void this.call.toggleScreen();
       return;
     }
-    // The desktop app and the Android app open the menu first (what to share, quality, sound); then the picker of the
-    // app or the dialog of Android asks what to show.
-    if (this.desktop || this.android) {
+    // The desktop app opens the menu first (what to share, quality, sound); then its picker asks what to show.
+    // ! Android does not: its own dialog is compulsory (no app can skip it or replace it) and a menu before it was a second
+    //   screen to go through. It starts with what the person chose last time, and the options are on the long press.
+    if (this.desktop) {
       const open = !this.shareOpen();
       this.closeOthers();
       this.shareOpen.set(open);
@@ -2320,6 +2324,7 @@ export class VoiceStageComponent {
       return;
     }
     const next = !this.paused();
+    this.enforced = null;
     this.paused.set(next);
     this.commandPlayer(next ? 'pauseVideo' : 'playVideo', []);
     this.call.setMusicPaused(next, this.playerTime);
@@ -2366,19 +2371,42 @@ export class VoiceStageComponent {
     untracked(this.followControl.bind(this, control));
   }
 
+  /**
+   * What the call decided and the player must keep for a moment: YouTube often answers a jump with a play of its own, and that
+   * would be taken for the person pressing play (and sent to everybody, undoing the pause of the other one).
+   */
+  private enforced: { paused: boolean; until: number } | null = null;
+
   /** Obeys a pause, resume, seek or next song of another person without telling everybody again. */
   private followControl(control: { paused: boolean; pos: number; index?: number }): void {
-    this.quietUntil = Date.now() + 1500;
+    const now = Date.now();
+    this.quietUntil = now + 2000;
+    this.enforced = { paused: control.paused, until: now + 4000 };
     this.lastSample = null;
     this.paused.set(control.paused);
+    let moved = false;
     if (control.index !== undefined && control.index !== this.playlistIndex) {
       this.playlistIndex = control.index;
       this.commandPlayer('playVideoAt', [control.index]);
+      moved = true;
     }
     this.elapsed.set(control.pos);
-    this.commandPlayer('seekTo', [control.pos, true]);
-    this.settle();
-    this.commandPlayer(control.paused ? 'pauseVideo' : 'playVideo', []);
+    // Only a real difference is jumped to: a jump makes the player buffer, and buffering is where it forgets the pause.
+    const far = Math.abs(this.playerTime - control.pos) > (control.paused ? 0.4 : 1.5);
+    if (control.paused) {
+      this.commandPlayer('pauseVideo', []);
+      if (far || moved) {
+        this.commandPlayer('seekTo', [control.pos, true]);
+        this.settle();
+        setTimeout(this.commandPlayer.bind(this, 'pauseVideo', []), 350);
+      }
+    } else {
+      if (far || moved) {
+        this.commandPlayer('seekTo', [control.pos, true]);
+        this.settle();
+      }
+      this.commandPlayer('playVideo', []);
+    }
   }
 
   /** Keeps the time and the length the player reports, and shares a jump made inside the video or a new song of a playlist. */
@@ -2485,6 +2513,16 @@ export class VoiceStageComponent {
     if (state === 0 && this.call.music()) {
       this.call.musicEnded();
       return;
+    }
+    const hold = this.enforced;
+    if (hold && (state === 1 || state === 2)) {
+      if ((state === 2) === hold.paused) {
+        this.enforced = null; // the player did what the call decided
+      } else if (Date.now() < hold.until) {
+        // The player went the other way by itself: it is told again, and nothing is sent to anybody.
+        this.commandPlayer(hold.paused ? 'pauseVideo' : 'playVideo', []);
+        return;
+      }
     }
     if ((state !== 1 && state !== 2) || Date.now() < this.quietUntil) {
       return;

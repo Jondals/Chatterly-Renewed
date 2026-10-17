@@ -306,7 +306,7 @@ export class LandingComponent {
     this.error.set('');
     try {
       await this.auth.enterAsGuest();
-      await this.arrival.play('login', this.auth.user()?.displayName ?? '');
+      await this.arrival.play('enter', this.auth.user()?.displayName ?? '');
       await this.router.navigateByUrl('/direct');
     } catch (error) {
       this.error.set(this.i18n.t(describeError(error)));
@@ -324,7 +324,7 @@ export class LandingComponent {
     this.busy.set(true);
     try {
       if (this.auth.isAuthenticated()) {
-        await this.arrival.play('login', this.me());
+        await this.arrival.play('enter', this.me());
         await this.router.navigateByUrl('/direct');
         return;
       }
@@ -349,7 +349,9 @@ export class LandingComponent {
 
   /** Signs out and stays on this page. */
   protected async signOut(): Promise<void> {
+    // The session ends first, so the animation (and the page after it) has the default colors, not the theme of who left.
     await this.auth.logout(true);
+    await this.arrival.play('leave');
   }
 
   /** The guide to install on iOS is open. */

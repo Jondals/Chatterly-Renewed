@@ -34,7 +34,6 @@ const DEVICE_ONLY = new Set([
   'pref.clickName',
   'pref.powerMode',
   'pref.keepConnected',
-  'pref.listenInBackground',
   'pref.keepOnSignOut',
   // The update channel is the choice of each phone (a beta on one, the release on another); it must not follow the account.
   'updates.androidBeta',

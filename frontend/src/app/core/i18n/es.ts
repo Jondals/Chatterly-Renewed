@@ -301,8 +301,8 @@ export const ES: Record<string, string> = {
   'At least 10 characters': 'Al menos 10 caracteres',
   'Confirm password': 'Confirmar contraseña',
   'Passwords do not match.': 'Las contraseñas no coinciden.',
-  'Nobody can reset your password — it protects your private keys. Losing it means losing your message history.':
-    'Nadie puede restablecer tu contraseña: protege tus claves privadas. Perderla implica perder tu historial de mensajes.',
+  'If you lose your password an administrator can let you in again, but your message history is lost: the password protects your private keys.':
+    'Si pierdes la contraseña un administrador puede dejarte entrar otra vez, pero pierdes tu historial de mensajes: la contraseña protege tus claves privadas.',
   'Generating keys…': 'Generando claves…',
   'Already have an account?': '¿Ya tienes cuenta?',
   'Too short': 'Demasiado corta',
@@ -1436,6 +1436,50 @@ export const ES: Record<string, string> = {
   'It opens like any app, full screen. No store and nothing else to install.': 'Se abre como cualquier app, a pantalla completa. Sin tienda y sin instalar nada más.',
   'I prefer the file (IPA, for advanced users)': 'Prefiero el archivo (IPA, para usuarios avanzados)',
   'Got it': 'Entendido',
+  'Choose your new password':
+    'Elige tu nueva contraseña',
+  'An administrator gave you a temporary password. Choose one of your own: it makes new keys for your account. Messages that were encrypted with the old keys cannot be read any more.':
+    'Un administrador te dio una contraseña temporal. Elige una propia: crea claves nuevas para tu cuenta. Los mensajes cifrados con las claves antiguas ya no se pueden leer.',
+  'New password':
+    'Nueva contraseña',
+  'Set the password':
+    'Poner la contraseña',
+  'Cannot sign in?':
+    '¿No puedes entrar?',
+  'Tell the administrators. One of them sets a temporary password and gives it to you; then you choose your own. Your old encrypted messages cannot be recovered: nobody has your keys.':
+    'Avisa a los administradores. Uno te pone una contraseña temporal y te la da; después eliges la tuya. Tus mensajes cifrados antiguos no se pueden recuperar: nadie tiene tus claves.',
+  'Sent. When an administrator sets a temporary password, sign in with it.':
+    'Enviado. Cuando un administrador ponga una contraseña temporal, entra con ella.',
+  'Tell the administrators':
+    'Avisar a los administradores',
+  'Cannot sign in':
+    'No puede entrar',
+  'Reset password':
+    'Restablecer contraseña',
+  'Reset the password of @{name}':
+    'Restablecer la contraseña de @{name}',
+  'Write a temporary password (10 characters or more) and give it to them by another way. They choose their own when they sign in. Their old encrypted messages cannot be recovered, and their sessions end now.':
+    'Escribe una contraseña temporal (10 caracteres o más) y dásela por otra vía. Elegirá la suya al entrar. Sus mensajes cifrados antiguos no se pueden recuperar y sus sesiones terminan ahora.',
+  'Temporary password':
+    'Contraseña temporal',
+  'Use 10 characters or more.':
+    'Usa 10 caracteres o más.',
+  'Password reset':
+    'Contraseña restablecida',
+  'Customize': 'Personalizar',
+  'Show in the bar': 'Mostrar en la barra',
+  'In the bar': 'En la barra',
+  'In the menu': 'En el menú',
+  'Everything is in the bar.': 'Todo está en la barra.',
+  'Encrypted before they leave your device. Up to 10 MB each.': 'Se cifran antes de salir de tu dispositivo. Hasta 10 MB cada uno.',
+  'Invited by {name}': 'Invitado por {name}',
+  'They join when they accept.': 'Entran cuando aceptan.',
+  'Could not join': 'No se pudo entrar',
+  'The invitation is not valid any more.': 'La invitación ya no es válida.',
+  'Opening the app…': 'Abriendo la app…',
+  'Hello, {name}': 'Hola, {name}',
+  'Signing you out…': 'Cerrando tu sesión…',
+  'See you soon': 'Hasta pronto',
   'What is synced': 'Qué se sincroniza',
   'Settings, stickers, presets, your sounds and camera backgrounds. Encrypted on this device first: the server only keeps something it cannot read.':
     'Ajustes, stickers, preajustes, tus sonidos y fondos de cámara. Se cifran primero en este dispositivo: el servidor solo guarda algo que no puede leer.',
@@ -1933,6 +1977,7 @@ export const ES: Record<string, string> = {
   'Announcement removed': 'Anuncio quitado',
   'Suspended {target}': 'Suspendió a {target}',
   'Restored {target}': 'Restauró a {target}',
+  'Reset the password of {target}': 'Restableció la contraseña de {target}',
   'Signed {target} out everywhere': 'Cerró las sesiones de {target}',
   'Opened the sign-up': 'Abrió el registro',
   'Closed the sign-up': 'Cerró el registro',

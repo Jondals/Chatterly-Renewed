@@ -86,3 +86,39 @@ export function watchFramePerformance(): void {
 
   requestAnimationFrame(onFrame);
 }
+
+/** How long the window must be out of focus before the decoration stops (a click on another window and back is not a pause). */
+const IDLE_AFTER_MS = 4000;
+
+/**
+ * Stops the animated background (`data-idle`, see scenes.css) while the app is not the window in use: a game, a video or any other
+ * program is in front. ! The desktop app keeps drawing windows that are covered (a call behind another window must not be slowed
+ * down), and without this the background went on being drawn at full speed behind a game, taking the graphics card from it.
+ * Calls and chats go on as always: only the decoration stops, and it comes back at once with the focus.
+ */
+export function pauseDecorationWhenAway(): void {
+  const root = document.documentElement;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = function stop(): void {
+    root.dataset['idle'] = '1';
+  };
+  const away = function away(): void {
+    clearTimeout(timer);
+    timer = setTimeout(stop, IDLE_AFTER_MS);
+  };
+  const back = function back(): void {
+    clearTimeout(timer);
+    delete root.dataset['idle'];
+  };
+  window.addEventListener('blur', away);
+  window.addEventListener('focus', back);
+  document.addEventListener('visibilitychange', function onVisibility(): void {
+    if (document.hidden) {
+      clearTimeout(timer);
+      stop();
+    } else if (document.hasFocus()) {
+      back();
+    }
+  });
+  if (!document.hasFocus()) away();
+}

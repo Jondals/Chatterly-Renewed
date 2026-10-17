@@ -125,7 +125,7 @@ const COLORS = ['#4b5263', '#ef4444', '#fbbf24', '#2ef2b0', '#38e8ff'];
       <p class="flex gap-2 rounded-ui bg-white/[.04] p-3 text-xs text-muted">
         <app-icon name="key" [size]="15" class="mt-0.5 shrink-0 text-accent" />
         {{
-          'Nobody can reset your password — it protects your private keys. Losing it means losing your message history.'
+          'If you lose your password an administrator can let you in again, but your message history is lost: the password protects your private keys.'
             | t
         }}
       </p>

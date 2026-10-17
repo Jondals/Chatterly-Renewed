@@ -153,3 +153,20 @@ html.has-session .boot-snapshot {
   width: 22rem;
   height: 6.25rem;
 }
+
+/* The previews of the backgrounds (Settings > Appearance): still, and moving only under the pointer. A dozen scenes moving at once
+   made the window lag when it opened. */
+.bg-preview app-bg-scene * {
+  animation-play-state: paused !important;
+}
+button:hover > .bg-preview app-bg-scene *,
+button:focus-visible > .bg-preview app-bg-scene * {
+  animation-play-state: running !important;
+}
+
+/* The app is not the window in use (see pauseDecorationWhenAway): the animated background stands still until the focus is back. */
+:root[data-idle] app-mesh-background *,
+:root[data-idle] app-mesh-background *::before,
+:root[data-idle] app-mesh-background *::after {
+  animation-play-state: paused !important;
+}

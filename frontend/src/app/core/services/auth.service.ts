@@ -38,7 +38,17 @@ const SESSION_KEY = 'chatterly.session';
 const RENEW_MARGIN = 30_000;
 
 type AuthResponse = { user: User } & Tokens;
-type LoginResponse = AuthResponse & { wrappedKeys: WrappedKeys };
+type LoginResponse = AuthResponse & { wrappedKeys: WrappedKeys; identityReset?: boolean };
+
+/**
+ * Thrown by `login` when an administrator reset the password of the account: the session is open but the old keys cannot be
+ * opened, so the person has to choose a password of their own now (`finishReset`).
+ */
+export class IdentityResetPending extends Error {
+  constructor() {
+    super('identity_reset');
+  }
+}
 
 /** Where this device keeps the random id it made for itself. */
 const DEVICE_ID_KEY = 'chatterly.deviceId';
@@ -263,12 +273,41 @@ export class AuthService {
       { username, authSecret, deviceId: deviceId() },
       false,
     );
+    if (response.identityReset) {
+      // The temporary password opens the session but not the old keys: only the new keys (finishReset) can come next.
+      await this.storeSession(response);
+      throw new IdentityResetPending();
+    }
     const identity = await unlockIdentity(
       response.wrappedKeys,
       wrappingKey,
       response.user.publicKeys,
     );
     await this.startSession(response, identity);
+  }
+
+  /** Tells the administrators that this person cannot sign in (they can set a temporary password). */
+  async requestRecovery(username: string): Promise<void> {
+    await this.api.post('/api/auth/recovery-request', { username }, false);
+  }
+
+  /**
+   * After an administrator reset the password: makes new keys with a password of the person's own and starts the session.
+   * ! What was encrypted for the old keys cannot be read any more.
+   */
+  async finishReset(newPassword: string): Promise<void> {
+    const kdfSalt = toB64(randomBytes(16));
+    const { authSecret, wrappingKey } = await deriveSecrets(newPassword, kdfSalt, KDF_ITERATIONS);
+    const { identity, publicKeys, wrappedKeys } = await createIdentity(wrappingKey);
+    const answer = await this.api.post<{ user: User }>('/api/me/identity-reset', {
+      authSecret,
+      kdfSalt,
+      kdfIterations: KDF_ITERATIONS,
+      publicKeys,
+      wrappedKeys,
+    });
+    const tokens = this.session!;
+    await this.startSession({ user: answer.user, ...tokens }, identity);
   }
 
   /** Changes the password: the private keys are encrypted again with the new one. */

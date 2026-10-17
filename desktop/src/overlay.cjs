@@ -552,6 +552,7 @@ function openWindow() {
   // ! If the window never says it is ready (a transparent window can stay unpainted on some graphics drivers), it is shown anyway.
   setTimeout(showIfHidden.bind(null, win), 1500);
   win.on('show', applyMouse);
+  win.on('show', kickPainting.bind(null, win));
   win.on('resize', applyMouse);
   win.on('closed', onOverlayClosed);
   // Never keeps the focus: if something gives it to the overlay (outside the editing mode), it goes straight back to the game.
@@ -559,6 +560,25 @@ function openWindow() {
   // ! The title of the page must not rename the window: the screen picker and the list of games leave it out by this name.
   win.on('page-title-updated', preventDefault);
   win.loadFile(path.join(__dirname, 'overlay.html'));
+}
+
+/**
+ * ! A transparent window that never takes the focus can stay blank on Windows after it is shown: the page is drawn (it is there, and
+ * the screen would show it) but the system never puts it on the screen until the window changes. So, once shown, the window is
+ * made one pixel wider and back, the page is told to paint again and the window goes to the top: the same thing moving it would do.
+ */
+function kickPainting(win) {
+  for (const wait of [60, 400, 1200]) setTimeout(repaint.bind(null, win), wait);
+}
+
+function repaint(win) {
+  if (win.isDestroyed() || !win.isVisible() || quiet) return;
+  const bounds = win.getBounds();
+  win.setBounds({ ...bounds, width: bounds.width + 1 });
+  win.setBounds(bounds);
+  win.webContents.invalidate();
+  win.moveTop();
+  applyMouse();
 }
 
 /** Shows a window that is still hidden (see openWindow). */
