@@ -97,7 +97,8 @@ function nativeCsp(webCsp, api) {
     'media-src': "'self' blob: mediastream: " + api,
     // The two players of "listen and watch together" (see music-link.ts): they are the only frames the app may open. ! With
     // 'none' the call could not show them at all in the app.
-    'frame-src': 'https://www.youtube-nocookie.com https://open.spotify.com',
+    // ! iOS: the YouTube player is shown inside a page of the server (see backend/src/routes/player.ts), so that one is allowed too.
+    'frame-src': 'https://www.youtube-nocookie.com https://open.spotify.com' + (PLATFORM === 'ios' ? ' ' + api : ''),
   };
   const directives = parseCsp(webCsp);
   const names = directives.map(function name(pair) {
@@ -217,6 +218,8 @@ function main() {
   // ! Only Android: on iOS the page goes under the status bar and the home indicator, and it keeps cover so env(safe-area-inset-*)
   // gives the real insets (the styles of the app already use them).
   if (PLATFORM === 'android') html = html.replace(viewport, '$1$2');
+  // ! iOS ignores touch-action on some elements and zoomed the page with a double tap or a pinch: inside the app the zoom is off.
+  else html = html.replace('initial-scale=1', 'initial-scale=1, maximum-scale=1, user-scalable=no');
 
   fs.rmSync(target, { recursive: true, force: true });
   fs.cpSync(source, target, { recursive: true });

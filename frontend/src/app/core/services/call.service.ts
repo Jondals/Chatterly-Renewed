@@ -202,6 +202,8 @@ const CAMERA_BITRATE: Record<string, number> = {
   '1080': 3_000_000,
 };
 /** The lowest share of the ceiling the video goes down to when the line is full. */
+/** How long a call waits for the connection to the server to come back before it ends (the server keeps the place a little longer). */
+const RESUME_WAIT_MS = 22_000;
 const MIN_VIDEO_SCALE = 0.12;
 /** Seconds of a clear line before the video goes up a step again. */
 const CLEAR_SECONDS_TO_RISE = 6;
@@ -400,6 +402,42 @@ export class CallService {
     );
   }
 
+  /** True while the connection to the server is lost during a call and the place in it is being waited for. */
+  private resuming = false;
+  private resumeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** The connection dropped in a call: waits for it to come back (the server keeps the place a little longer than this). */
+  private waitForConnection(): void {
+    if (this.resuming) return;
+    this.resuming = true;
+    clearTimeout(this.resumeTimer);
+    this.resumeTimer = setTimeout(this.endLostCall.bind(this), RESUME_WAIT_MS);
+  }
+
+  /** The place was kept: the call goes on, and the server is told how this person is now (it was not told while offline). */
+  private onResumed(roomId: string, participants: CallParticipant[]): void {
+    if (!this.resuming || roomId !== this.roomId()) return;
+    this.resuming = false;
+    clearTimeout(this.resumeTimer);
+    this.onState(roomId, participants);
+    this.socket.send({
+      t: 'call.update',
+      muted: this.muted(),
+      deafened: this.deafened(),
+      video: this.cameraOn(),
+      screen: this.screenOn(),
+    });
+  }
+
+  /** The connection did not come back in time, or the server no longer has the place: the call ends. */
+  private endLostCall(): void {
+    this.resuming = false;
+    clearTimeout(this.resumeTimer);
+    if (!this.inCall()) return;
+    this.teardown();
+    this.toast.error('Call disconnected', 'The connection to the server dropped.');
+  }
+
   /** Starts listening to the server events that drive calls (joined, state, left, incoming, signals, sound effects). */
   start(): void {
     if (this.started) return;
@@ -436,10 +474,20 @@ export class CallService {
             break;
           case 'socket.closed':
             this.rooms.set({});
-            if (this.inCall()) {
-              this.teardown();
-              this.toast.error('Call disconnected', 'The connection to the server dropped.');
+            // ! The call is not ended at once: the media does not go through the server and the server keeps the place for a while,
+            //   so a phone that went to the background or changed network gets the call back when the connection returns.
+            if (this.inCall()) this.waitForConnection();
+            break;
+          case 'ready':
+            if (this.resuming && this.roomId()) {
+              this.socket.send({ t: 'call.resume', roomId: this.roomId() });
             }
+            break;
+          case 'call.resumed':
+            this.onResumed(e['roomId'] as string, e['participants'] as CallParticipant[]);
+            break;
+          case 'call.resume.failed':
+            if (this.resuming) this.endLostCall();
             break;
           case 'error':
             if (this.status() === 'connecting') {
@@ -2608,6 +2656,8 @@ export class CallService {
 
   /** Ends everything about the call: timers, connections, microphone, camera and screen. */
   private teardown(): void {
+    this.resuming = false;
+    clearTimeout(this.resumeTimer);
     this.clipsSentTo.clear();
     this.incomingClips.clear();
     this.receivedClips.clear();

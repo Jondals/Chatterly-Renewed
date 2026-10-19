@@ -2,6 +2,21 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.36.1
+
+- **iPhone and iPad: the send button is always there.** It was hidden from 640 px of width up (an iPad, or a phone on its side), so there was no way to send; the apps now always show it (and the "Enter to send" hint is gone there).
+- **iPhone and iPad: no zoom with a double tap.** The page is marked `touch-action: manipulation` everywhere and the iOS app also turns the zoom of the page off.
+- **iPhone and iPad: Settings > Permissions.** The section only existed on Android. It now shows the microphone and the camera (read with the Permissions API), asks for them with a button, and the button of the settings opens Settings > Chatterly of the system for one that was refused (iOS asks only once).
+- **iPhone and iPad: the camera starts lighter.** The device was not recognized as a weak one (Safari hides its cores and memory), so it started at 720p and lagged; it now starts at 480p like the others (whoever chose another quality keeps it).
+- **The third column of GIFs no longer breaks.** The lists of GIFs (the picker and the window of banners and pictures) used CSS columns, which Safari laid out again every time more GIFs arrived. They are now real columns where each GIF goes to the shortest one, and the ones already placed never move.
+- **iPad: the "Pending" tab is balanced.** The (empty) card of group invitations took the first cell of the grid and pushed "Received" to the right and "Sent" under it; empty, it now takes no space.
+- **The middle finger emoji is no longer in the picker.**
+- **The adjustment of a GIF in a banner or picture is respected.** Where the browser has no ImageDecoder (Firefox, iPhone, iPad) the window kept the original GIF as it was, ignoring the move and the zoom you chose. Now the frames are read by the app itself and cut as adjusted; and when they cannot be read at all, the picture is saved still but adjusted, with a message, never the original.
+- **Overlay: the mouse behaves normally in the game.** The window asked the system to forward every mouse move over the whole screen (to know when the cursor was over the controls), which made the mouse of some games behave oddly. It now only reads the cursor position and compares it with the controls, and the window takes the mouse only while it is over them.
+- **iPhone and iPad: watch and listen together (YouTube).** Probable cause: the page of the app (capacitor://localhost) sends no Referer, and YouTube refuses to play without one (error 153). The frame now shows a page of the server (/api/player/youtube) that holds the player and passes the messages along (it only accepts valid identifiers and only the iOS app may frame it). ! It needs the server updated AND the new Caddyfile (deploy/Caddyfile.*: the page is the only one without `Referrer-Policy: no-referrer` and `X-Frame-Options`). Not tested on a real iPhone.
+- **A call survives a short loss of the connection.** Going to the background, opening the control center or changing from Wi-Fi to data closed the connection to the server, and that took you out of the call at once (the app and the server both ended it). Now the server keeps your place for 25 s, the app waits up to 22 s and asks for it back (`call.resume`) when it reconnects, and the call goes on (the media does not go through the server, so it kept running). Past that time the call ends as before. It does not keep a call alive when iOS really closes the app: that closes the connection for good.
+- **The new repository.** The links, the updates of the desktop app, the downloads of the server and the Android updater now point to Jondals/Chatterly-Renewed.
+
 ## 2.36.0
 
 - **The overlay now works in the installed app.** Cause found: the installed app keeps its files inside `app.asar` and, with the extra privileges of `file://` taken away, Electron could not read the page of the overlay (ERR_FILE_NOT_FOUND): the window was transparent, took the mouse and drew nothing. It is now served by its own scheme that only hands out its three files (in development there is no asar, which is why it never failed there). Checked inside a packed copy.

@@ -656,9 +656,9 @@ const GRADIENTS = [
               </div>
             }
           </div>
-          <!-- only on a phone (on a computer Enter sends): always there, a microphone while nothing is written and the arrow when there is something to send, so nothing appears or moves -->
+          <!-- only on a touch screen (on a computer Enter sends; the apps always show it, also on an iPad or a phone on its side): always there, a microphone while nothing is written and the arrow when there is something to send, so nothing appears or moves -->
           <button
-            class="btn btn-icon btn-primary relative max-sm:ml-1.5 sm:!hidden"
+            class="btn btn-icon btn-primary send-touch relative max-sm:ml-1.5"
             type="button"
             (click)="canSend() ? send() : startRecording()"
             [disabled]="sending()"
@@ -682,7 +682,7 @@ const GRADIENTS = [
         </div>
       }
       <div
-        class="mt-1 flex items-center justify-between px-1 text-[0.625rem] text-dim max-sm:hidden"
+        class="send-hint mt-1 flex items-center justify-between px-1 text-[0.625rem] text-dim max-sm:hidden"
       >
         <span>{{ 'Enter to send · Shift+Enter for a new line' | t }}</span>
       </div>

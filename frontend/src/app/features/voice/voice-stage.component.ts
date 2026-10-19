@@ -25,7 +25,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
-import { embedUrl } from '../../shared/util/music-link';
+import { embedUrl, playerOrigin } from '../../shared/util/music-link';
 import { FrameAllowDirective } from '../../shared/util/iframe-allow';
 import { VOICE_MODES } from '../../core/audio-chain';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
@@ -2355,7 +2355,7 @@ export class VoiceStageComponent {
     try {
       this.musicFrame?.contentWindow?.postMessage(
         JSON.stringify({ event: 'command', func, args, id: 1, channel: 'widget' }),
-        'https://www.youtube-nocookie.com',
+        playerOrigin(),
       );
     } catch {
       /* the frame is changing page: the command is lost, as it would be on a page that is loading */
@@ -2637,7 +2637,7 @@ export class VoiceStageComponent {
     try {
       marco.contentWindow?.postMessage(
         JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }),
-        'https://www.youtube-nocookie.com',
+        playerOrigin(),
       );
     } catch {
       /* the frame is changing page: the next ask (they are repeated) arrives */

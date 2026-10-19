@@ -11,5 +11,5 @@ The application itself is private (it needs an account); only the pages below ar
 
 ## Project
 
-- [Source code and documentation](https://github.com/Jondals/ChatterlyRenewed#readme): features, how the security works and how to run your own server.
-- [Security policy](https://github.com/Jondals/ChatterlyRenewed/security/policy): how to report a vulnerability.
+- [Source code and documentation](https://github.com/Jondals/Chatterly-Renewed#readme): features, how the security works and how to run your own server.
+- [Security policy](https://github.com/Jondals/Chatterly-Renewed/security/policy): how to report a vulnerability.

@@ -41,6 +41,10 @@ const GLASS_LEVELS = [94, 80, 64, 46, 28];
  */
 function isLowEndDevice(): boolean {
   try {
+    // ! An iPhone or an iPad hides its real cores and memory (Safari says 4 to 6 cores and no memory at all) and its web view
+    //   encoded and ciphered 720p badly: the camera started laggy. They start at 480p like the weak devices.
+    if (IOS_APP || /iPhone|iPad|iPod/.test(navigator.userAgent)) return true;
+    if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     return (navigator.hardwareConcurrency || 8) <= 4 || (memory !== undefined && memory <= 4);
   } catch {

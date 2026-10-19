@@ -965,3 +965,17 @@ app-message-item {
   content-visibility: auto;
   contain-intrinsic-size: auto 4.5rem;
 }
+
+/* The send / voice note button of the box is for touch screens: a computer with a mouse sends with Enter, so from 640 px up it
+   is hidden there, but the phone apps always show it (an iPad or a phone on its side is wider than that and has no way to send). */
+@media (min-width: 640px) and (hover: hover) and (pointer: fine) {
+  .send-touch {
+    display: none;
+  }
+}
+html:is([data-platform='android'], [data-platform='ios']) .send-touch {
+  display: inline-flex;
+}
+html:is([data-platform='android'], [data-platform='ios']) .send-hint {
+  display: none;
+}

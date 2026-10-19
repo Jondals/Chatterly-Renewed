@@ -10,6 +10,7 @@ import {
   EnvironmentInjector,
   computed,
   createComponent,
+  HostListener,
   inject,
   input,
   output,
@@ -20,6 +21,7 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { pickFile } from '../../core/file-picker';
 import { GifService, type GifResult } from '../../core/services/gif.service';
 import { GifThumbComponent } from './gif-thumb.component';
+import { gifColumns } from '../util/gif-columns';
 import { IconComponent } from './icon.component';
 import { ModalComponent } from './modal.component';
 
@@ -111,9 +113,13 @@ const SEARCH_DELAY_MS = 350;
                 }}</span>
               </div>
             } @else {
-              <div class="columns-2 gap-2 sm:columns-3">
-                @for (g of shown(); track g.id) {
-                  <app-gif-thumb [gif]="g" (chosen)="pick($event)" />
+              <div class="flex gap-2">
+                @for (column of columns(); track $index) {
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    @for (g of column; track g.id) {
+                      <app-gif-thumb [gif]="g" (chosen)="pick($event)" />
+                    }
+                  </div>
                 }
               </div>
               @if (loading()) {
@@ -236,11 +242,25 @@ class ImageSourceComponent {
   /** How many of the results are on the screen: they come a few at a time so the window never stalls. */
   protected readonly count = signal(0);
   protected readonly shown = computed(this.sliceResults.bind(this));
+  /** Three columns from 640 px up, two below (it follows the width of the window). */
+  private readonly columnCount = signal(window.innerWidth >= 640 ? 3 : 2);
+  protected readonly columns = computed(this.splitColumns.bind(this));
   private revealTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly next = signal('');
   protected readonly loading = signal(false);
   protected readonly error = signal('');
   private timer: ReturnType<typeof setTimeout> | undefined;
+
+  /** The results on the screen spread over the columns. */
+  private splitColumns(): GifResult[][] {
+    return gifColumns(this.shown(), this.columnCount());
+  }
+
+  /** Follows the width of the window to pick two or three columns. */
+  @HostListener('window:resize')
+  protected onResize(): void {
+    this.columnCount.set(window.innerWidth >= 640 ? 3 : 2);
+  }
 
   /** The results that are on the screen. */
   private sliceResults(): GifResult[] {

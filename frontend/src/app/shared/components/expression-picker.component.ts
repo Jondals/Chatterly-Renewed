@@ -24,6 +24,7 @@ import { StickerStore, type Sticker, type StickerPack } from '../../core/service
 import { ToastService } from '../../core/services/toast.service';
 import { loadEmojiData, type EmojiEntry } from '../util/emoji-data';
 import { GifThumbComponent } from './gif-thumb.component';
+import { gifColumns } from '../util/gif-columns';
 import { IconComponent } from './icon.component';
 import { closeOnBack } from '../../core/services/back.service';
 
@@ -216,9 +217,13 @@ const SCROLL_AHEAD_PX = 320;
                 }}</span>
               </div>
             } @else {
-              <div class="columns-2 gap-2">
-                @for (g of gifResults(); track g.id) {
-                  <app-gif-thumb [gif]="g" (chosen)="pickGif($event)" />
+              <div class="flex gap-2">
+                @for (column of gifColumnList(); track $index) {
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    @for (g of column; track g.id) {
+                      <app-gif-thumb [gif]="g" (chosen)="pickGif($event)" />
+                    }
+                  </div>
                 }
               </div>
               @if (gifLoading()) {
@@ -514,6 +519,8 @@ export class ExpressionPickerComponent {
   // gifs
   protected readonly gifQuery = signal('');
   protected readonly gifResults = signal<GifResult[]>([]);
+  /** The GIFs in two columns (each to the shortest one; the ones already placed never move when more arrive). */
+  protected readonly gifColumnList = computed(this.splitGifs.bind(this));
   protected readonly gifNext = signal('');
   protected readonly gifLoading = signal(false);
   protected readonly gifError = signal('');
@@ -689,6 +696,11 @@ export class ExpressionPickerComponent {
   }
 
   // ---- gifs
+  /** The GIFs spread over two columns. */
+  private splitGifs(): GifResult[][] {
+    return gifColumns(this.gifResults(), 2);
+  }
+
   protected onGifQuery(value: string): void {
     this.gifQuery.set(value);
     clearTimeout(this.gifTimer);

@@ -1417,6 +1417,13 @@ export const ES: Record<string, string> = {
   'Close all the other sessions': 'Cerrar todas las demás sesiones',
   'Every other device has to sign in again. This one stays open.':
     'Todos los demás dispositivos tendrán que iniciar sesión otra vez. Este sigue abierto.',
+  'These are the permissions Chatterly asks of this iPhone or iPad. Allow the ones you want to use: nothing is used without them.':
+    'Estos son los permisos que Chatterly pide a este iPhone o iPad. Permite los que quieras usar: sin ellos no se usa nada.',
+  'iPhone and iPad ask only once: to change one you refused, open Settings > Chatterly in the system.':
+    'El iPhone y el iPad preguntan una sola vez: para cambiar uno que denegaste, abre Ajustes > Chatterly en el sistema.',
+  'This picture cannot keep moving here': 'Esta imagen no puede seguir en movimiento aquí',
+  'This device cannot read its frames: it is saved still, as you adjusted it.':
+    'Este dispositivo no puede leer sus fotogramas: se guarda quieta, tal como la ajustaste.',
   'This picture is too big to keep moving': 'Esta imagen es demasiado grande para seguir en movimiento',
   'Pictures that move can weigh up to 8 MB: this one is saved still.':
     'Las imágenes en movimiento pueden pesar hasta 8 MB: esta se guarda fija.',

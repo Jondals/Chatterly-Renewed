@@ -2,6 +2,21 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.36.1
+
+- **iPhone y iPad: el botón de enviar siempre está.** Se ocultaba a partir de 640 px de ancho (un iPad, o un móvil de lado), así que no había forma de enviar; las apps ahora lo muestran siempre (y el aviso "Enter para enviar" desaparece allí).
+- **iPhone y iPad: sin zoom con doble toque.** La página lleva `touch-action: manipulation` en todas partes y la app de iOS además apaga el zoom de la página.
+- **iPhone y iPad: Ajustes > Permisos.** La sección solo existía en Android. Ahora muestra el micrófono y la cámara (leídos con la API de permisos), los pide con un botón, y el botón de ajustes abre Ajustes > Chatterly del sistema para el que se denegó (iOS solo pregunta una vez).
+- **iPhone y iPad: la cámara arranca más ligera.** El dispositivo no se reconocía como débil (Safari oculta sus núcleos y su memoria), así que arrancaba a 720p y iba a tirones; ahora arranca a 480p como los demás (quien eligió otra calidad la conserva).
+- **La tercera columna de GIFs ya no se rompe.** Las listas de GIFs (el selector y la ventana de banners e imágenes) usaban columnas CSS, que Safari volvía a repartir cada vez que llegaban más GIFs. Ahora son columnas reales donde cada GIF va a la más corta, y los ya colocados no se mueven.
+- **iPad: la pestaña "Pendientes" cuadra.** La tarjeta (vacía) de invitaciones a grupos ocupaba la primera celda de la cuadrícula y empujaba "Recibidas" a la derecha y "Enviadas" debajo; vacía, ya no ocupa sitio.
+- **El emoji del dedo del medio ya no está en el selector.**
+- **El ajuste de un GIF en un banner o imagen se respeta.** Donde el navegador no tiene ImageDecoder (Firefox, iPhone, iPad) la ventana guardaba el GIF original tal cual, ignorando el movimiento y el zoom elegidos. Ahora la propia app lee los fotogramas y los recorta como los ajustaste; y cuando no se pueden leer, la imagen se guarda quieta pero ajustada, con un aviso, nunca la original.
+- **Overlay: el ratón se comporta con normalidad en el juego.** La ventana pedía al sistema reenviar cada movimiento del ratón por toda la pantalla (para saber cuándo el cursor estaba sobre los controles), y eso hacía que el ratón de algunos juegos fuera raro. Ahora solo lee la posición del cursor y la compara con los controles, y la ventana coge el ratón solo mientras está encima.
+- **iPhone y iPad: ver y escuchar juntos (YouTube).** Causa probable: la página de la app (capacitor://localhost) no envía Referer, y YouTube se niega a reproducir sin uno (error 153). El marco ahora muestra una página del servidor (/api/player/youtube) que contiene el reproductor y pasa los mensajes (solo acepta identificadores válidos y solo la app de iOS puede enmarcarla). ! Necesita el servidor actualizado Y el Caddyfile nuevo (deploy/Caddyfile.*: esa página es la única sin `Referrer-Policy: no-referrer` ni `X-Frame-Options`). No probado en un iPhone real.
+- **Una llamada sobrevive a una pérdida corta de la conexión.** Pasar a segundo plano, abrir el centro de control o cambiar de Wi-Fi a datos cerraba la conexión con el servidor y eso te sacaba de la llamada al instante (la app y el servidor la terminaban). Ahora el servidor guarda tu sitio 25 s, la app espera hasta 22 s y lo pide de vuelta (`call.resume`) al reconectar, y la llamada sigue (el audio y el vídeo no pasan por el servidor, así que seguían funcionando). Pasado ese tiempo la llamada termina como antes. No mantiene viva una llamada cuando iOS cierra la app de verdad: eso cierra la conexión para siempre.
+- **El repositorio nuevo.** Los enlaces, las actualizaciones de la app de escritorio, las descargas del servidor y el actualizador de Android apuntan ahora a Jondals/Chatterly-Renewed.
+
 ## 2.36.0
 
 - **El overlay ya funciona en la app instalada.** Causa encontrada: la app instalada guarda sus archivos dentro de `app.asar` y, con los privilegios extra de `file://` quitados, Electron no podía leer la página del overlay (ERR_FILE_NOT_FOUND): la ventana era transparente, cogía el ratón y no dibujaba nada. Ahora se sirve por un esquema propio que solo entrega sus tres archivos (en desarrollo no hay asar, por eso nunca fallaba allí). Comprobado dentro de una copia empaquetada.

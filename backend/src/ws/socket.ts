@@ -234,6 +234,17 @@ export function registerSocket(app: FastifyInstance, ctx: AppContext): void {
         return;
       }
 
+      case 'call.resume': {
+        // The app reconnected during a call: it asks for the place it had (kept for a few seconds, see Hub.holdCall).
+        const roomId = msg['roomId'];
+        if (typeof roomId !== 'string' || !hub.resume(client, roomId)) {
+          return send({ t: 'call.resume.failed', roomId: typeof roomId === 'string' ? roomId : null });
+        }
+        send({ t: 'call.resumed', roomId, participants: hub.participants(roomId) });
+        announceRoom(roomId);
+        return;
+      }
+
       case 'call.leave': {
         // A device whose call already moved to another one cannot end it there.
         if (!hub.isCallClient(client)) return;

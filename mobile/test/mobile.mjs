@@ -575,7 +575,7 @@ function checkAndroidProject() {
   check(
     updater.includes("^/api/beta/dl/Chatterly-[0-9A-Za-z.-]{1,60}\\\\.apk$") &&
       updater.includes(
-        "^/Jondals/ChatterlyRenewed/releases/download/v[0-9A-Za-z.-]{1,60}/Chatterly-[0-9A-Za-z.-]{1,60}\\\\.apk$",
+        "^/Jondals/Chatterly-Renewed/releases/download/v[0-9A-Za-z.-]{1,60}/Chatterly-[0-9A-Za-z.-]{1,60}\\\\.apk$",
       ) &&
       /host\.equals\(BuildConfig\.CHATTERLY_API_HOST\)/.test(updater) &&
       /"https"\.equals\(parsed\.getProtocol\(\)\)/.test(updater),
