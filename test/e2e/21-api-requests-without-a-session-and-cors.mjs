@@ -23,7 +23,7 @@ export async function step21(world) {
     const r = await fetch(API + '/api/download/' + app, { redirect: 'manual' });
     const to = r.headers.get('location') ?? '';
     check(
-      r.status === 302 && /^https:\/\/github\.com\/Jondals\/ChatterlyRenewed\/releases(\/|$)/.test(to),
+      r.status === 302 && /^https:\/\/github\.com\/Jondals\/Chatterly-Renewed\/releases(\/|$)/.test(to),
       `/api/download/${app} sends to the releases of the project (${r.status} ${to.slice(0, 60)})`,
     );
   }

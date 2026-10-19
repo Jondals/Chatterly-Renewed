@@ -65,7 +65,7 @@ const DEFAULT_SETTINGS = {
 const START_DELAY_MS = 5000;
 const STATE_CHANNEL = 'updates:state';
 /** The repository whose releases are the stable channel. */
-const GITHUB = { owner: 'Jondals', repo: 'ChatterlyRenewed' };
+const GITHUB = { owner: 'Jondals', repo: 'Chatterly-Renewed' };
 /** The longest manifest or signature the app reads, and how long it waits for one. */
 const MANIFEST_MAX_BYTES = 64 * 1024;
 const MANIFEST_TIMEOUT_MS = 20000;
