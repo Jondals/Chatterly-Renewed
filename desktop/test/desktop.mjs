@@ -251,7 +251,7 @@ function auditSource() {
   );
   check(
     overlayChannels.sort().join(',') ===
-      'overlay:action,overlay:alive,overlay:choose,overlay:hover,overlay:layout,overlay:signal-out,overlay:stop-editing',
+      'overlay:action,overlay:alive,overlay:choose,overlay:controls-rect,overlay:hover,overlay:layout,overlay:signal-out,overlay:stop-editing',
     'the overlay window can only send its signalling, its layout, the choices of its bar, one of its fixed actions and "editing ended"',
   );
   check(
@@ -266,7 +266,7 @@ function auditSource() {
   }
   check(
     [...mainChannels].sort().join(',') ===
-      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:alive,overlay:call,overlay:choose,overlay:get,overlay:hover,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,shortcuts:set,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
+      'graphics:get,graphics:restart,graphics:set,overlay:action,overlay:alive,overlay:call,overlay:choose,overlay:controls-rect,overlay:get,overlay:hover,overlay:layout,overlay:notify,overlay:set,overlay:signal,overlay:signal-out,overlay:stop-editing,overlay:tiles,overlay:windows,screen:cancel,screen:choose,screen:refresh,screen:surface,shortcuts:set,updates:beta-token,updates:check,updates:download,updates:get,updates:install,updates:settings,window:titlebar',
     'the main process listens on exactly the expected channels: ' +
       [...mainChannels].sort().join(', '),
   );
