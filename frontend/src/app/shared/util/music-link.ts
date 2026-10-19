@@ -4,7 +4,7 @@
  * reduced to an identifier checked against a strict pattern; the address of the player is always built from
  * that identifier, never from the text the person typed.
  */
-import { API_BASE } from '../../core/config';
+import { API_BASE, IOS_APP } from '../../core/config';
 
 /** A recognized music link. */
 export interface MusicLink {
@@ -91,10 +91,39 @@ function parseSpotify(url: URL): MusicLink | null {
   return null;
 }
 
-/** Address of the embedded player; `start` is the second to start from (YouTube only). */
+/** The origin of the page that shows the YouTube player: YouTube itself, or the server in the iOS app (see embedUrl). */
+export function playerOrigin(): string {
+  if (IOS_APP) {
+    try {
+      return new URL(API_BASE).origin;
+    } catch {
+      return 'https://www.youtube-nocookie.com';
+    }
+  }
+  return 'https://www.youtube-nocookie.com';
+}
+
+/**
+ * Address of the embedded player; `start` is the second to start from (YouTube only).
+ * ! In the iOS app the page is capacitor://localhost, which sends no Referer, and YouTube refuses to play without one (error 153): the
+ *   frame shows a page of the server (backend/src/routes/player.ts) that holds the player and passes the messages along.
+ */
 export function embedUrl(link: MusicLink, start = 0): string {
   if (link.kind === 'spotify') {
     return 'https://open.spotify.com/embed/' + link.type + '/' + link.id + '?theme=0';
+  }
+  if (IOS_APP) {
+    const seconds = start > 1 && link.type !== 'list' ? '&start=' + Math.floor(start) : '';
+    if (link.type === 'list') {
+      return API_BASE + '/api/player/youtube?list=' + encodeURIComponent(link.id);
+    }
+    return (
+      API_BASE +
+      '/api/player/youtube?v=' +
+      encodeURIComponent(link.id) +
+      (link.list ? '&list=' + encodeURIComponent(link.list) : '') +
+      seconds
+    );
   }
   const options =
     // controls=0: the bar of the call (play, time, timeline) is the only one; the one of YouTube hid itself in some browsers

@@ -59,7 +59,7 @@ public class UpdatePlugin extends Plugin {
 
     /** An APK of a release of this repository in GitHub. */
     private static final Pattern RELEASE_PATH = Pattern.compile(
-        "^/Jondals/ChatterlyRenewed/releases/download/v[0-9A-Za-z.-]{1,60}/Chatterly-[0-9A-Za-z.-]{1,60}\\.apk$"
+        "^/Jondals/Chatterly-Renewed/releases/download/v[0-9A-Za-z.-]{1,60}/Chatterly-[0-9A-Za-z.-]{1,60}\\.apk$"
     );
 
     /** Where GitHub sends the download of a release file. */

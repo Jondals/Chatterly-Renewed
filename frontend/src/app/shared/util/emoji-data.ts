@@ -112,6 +112,9 @@ async function onlyDrawn(list: EmojiEntry[]): Promise<EmojiEntry[]> {
 /** The lists already asked for, by language. */
 const lists = new Map<string, Promise<EmojiEntry[]>>();
 
+/** Emoji that the picker does not offer (the middle finger, with all its skin tones): 1F595. */
+const NOT_OFFERED = new Set(['1F595']);
+
 /** Downloads one list (never the "components" group, which holds only skin tone and hair modifiers). */
 async function download(lang: string): Promise<EmojiEntry[]> {
   const module =
@@ -121,7 +124,7 @@ async function download(lang: string): Promise<EmojiEntry[]> {
   const data = ((module as { default?: unknown }).default ?? module) as EmojiEntry[];
   return onlyDrawn(
     data.filter(function keep(entry: EmojiEntry): boolean {
-      return entry.group !== undefined && entry.group !== 2;
+      return entry.group !== undefined && entry.group !== 2 && !NOT_OFFERED.has(entry.hexcode);
     }),
   );
 }

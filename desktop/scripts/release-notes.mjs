@@ -24,7 +24,7 @@ const base = version.replace(/-.*$/, '');
 const label = process.argv[3] || 'v' + version;
 /** The part that names the files: 2.32.0 or 2.32.0-b1. */
 const fileLabel = label.replace(/^v/, '');
-const repo = process.env.GITHUB_REPOSITORY || 'Jondals/ChatterlyRenewed';
+const repo = process.env.GITHUB_REPOSITORY || 'Jondals/Chatterly-Renewed';
 const changelog = fs.readFileSync(
   path.resolve(import.meta.dirname, '..', '..', 'CHANGELOG.md'),
   'utf8',

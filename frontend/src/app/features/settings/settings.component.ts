@@ -33,7 +33,7 @@ import { ShortcutsSectionComponent } from './shortcuts-section.component';
 import { StickersSectionComponent } from './stickers-section.component';
 import { UpdatesSectionComponent } from './updates-section.component';
 import { AndroidUpdatesSectionComponent } from './android-updates-section.component';
-import { ANDROID_APP } from '../../core/config';
+import { ANDROID_APP, IOS_APP } from '../../core/config';
 import { alwaysOpen, closeOnBack } from '../../core/services/back.service';
 import { BetaService } from '../../core/services/beta.service';
 import { DesktopUpdateService } from '../../core/services/desktop-update.service';
@@ -316,7 +316,7 @@ export class SettingsComponent {
   private buildGroups(): SectionEntry[][] {
     const extra: SectionEntry[] = [];
     if (this.overlay.supported) extra.push(OVERLAY_ENTRY);
-    if (this.android) extra.push(PERMISSIONS_ENTRY);
+    if (this.android || IOS_APP) extra.push(PERMISSIONS_ENTRY);
     // Updates: the desktop app (electron-updater) and the Android app (its own plugin). The overlay stays desktop only.
     if (this.desktopUpdate.supported || this.android) extra.push(UPDATES_ENTRY);
     if (this.beta.admin()) extra.push(ADMIN_ENTRY);

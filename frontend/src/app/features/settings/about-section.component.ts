@@ -109,7 +109,7 @@ import { APP_NAME, APP_LABEL } from '../../version';
           <a
             class="gh-link anim-fade-up mt-5"
             style="--d: 1100ms"
-            href="https://github.com/Jondals/ChatterlyRenewed"
+            href="https://github.com/Jondals/Chatterly-Renewed"
             target="_blank"
             rel="noopener noreferrer"
             [attr.aria-label]="'Open the project on GitHub' | t"
@@ -436,16 +436,16 @@ export class AboutSectionComponent {
   protected readonly appName = APP_NAME;
   protected readonly version = APP_LABEL;
   protected readonly links = [
-    { label: 'Source', name: 'GitHub', url: 'https://github.com/Jondals/ChatterlyRenewed' },
+    { label: 'Source', name: 'GitHub', url: 'https://github.com/Jondals/Chatterly-Renewed' },
     {
       label: 'What is new',
       name: 'Changelog',
-      url: 'https://github.com/Jondals/ChatterlyRenewed/blob/HEAD/CHANGELOG.md',
+      url: 'https://github.com/Jondals/Chatterly-Renewed/blob/HEAD/CHANGELOG.md',
     },
     {
       label: 'Contribute',
       name: 'Documentation',
-      url: 'https://github.com/Jondals/ChatterlyRenewed/blob/HEAD/DOCS.md',
+      url: 'https://github.com/Jondals/Chatterly-Renewed/blob/HEAD/DOCS.md',
     },
   ];
   /** A text with the names of the encryption systems as links to their documents. */
@@ -476,13 +476,13 @@ export class AboutSectionComponent {
       icon: 'code',
       title: 'Open source',
       text: 'The whole code is public, so anyone can check how it protects you.',
-      url: 'https://github.com/Jondals/ChatterlyRenewed',
+      url: 'https://github.com/Jondals/Chatterly-Renewed',
     },
     {
       icon: 'shield-check',
       title: 'No tracking',
       text: 'No ads, no analytics, no profile of you. Messages are unreadable for the server.',
-      url: 'https://github.com/Jondals/ChatterlyRenewed/blob/HEAD/SECURITY.md',
+      url: 'https://github.com/Jondals/Chatterly-Renewed/blob/HEAD/SECURITY.md',
     },
   ];
   /** The logos as trusted HTML: they are constants of this code (see tech-logos.ts). */

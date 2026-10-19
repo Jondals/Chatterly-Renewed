@@ -30,6 +30,8 @@ const MAX_ROOM_SIZE = 8; // full-mesh P2P: every extra peer adds an upstream per
 
 /** The most connections (tabs, devices) one person can keep open at once. */
 const MAX_CONNECTIONS_PER_USER = 8;
+/** How long a person keeps their place in a call after their connection drops (the app asks for it back when it reconnects). */
+const HELD_CALL_MS = 25_000;
 
 /**
  * ! Tracks live sockets, presence and call rooms. It never inspects payloads of `rtc.signal`
@@ -46,6 +48,12 @@ export class Hub {
    * it may change or leave the place. Joining from another device moves the place there (see joinRoom).
    */
   private readonly callClient = new Map<string, Client>();
+  /**
+   * People whose connection dropped while they were in a call: they keep their place for a while (the media of a call does not go
+   * through this server, so it may go on) and take it back with 'call.resume' when the app reconnects. A phone that goes to the
+   * background, or changes network, closes its connection for a few seconds and used to be taken out of the call.
+   */
+  private readonly heldCalls = new Map<string, ReturnType<typeof setTimeout>>();
 
   private closed = false;
 
@@ -54,6 +62,8 @@ export class Hub {
   /** Disconnects everyone; later detach/broadcast calls become no-ops (the DB is about to close). */
   shutdown(): void {
     this.closed = true;
+    for (const timer of this.heldCalls.values()) clearTimeout(timer);
+    this.heldCalls.clear();
     for (const set of this.clients.values())
       for (const client of set) client.close(1001, 'server shutting down');
     this.clients.clear();
@@ -87,13 +97,52 @@ export class Hub {
     const set = this.clients.get(client.userId);
     if (!set) return;
     set.delete(client);
-    if (this.callClient.get(client.userId) === client) this.leaveRoom(client.userId);
+    const held = this.callClient.get(client.userId) === client;
+    if (held) this.holdCall(client.userId);
     if (set.size === 0) {
       this.clients.delete(client.userId);
-      this.leaveRoom(client.userId);
+      if (!held) this.leaveRoom(client.userId);
       this.statuses.delete(client.userId);
       this.broadcastPresence(client.userId);
     }
+  }
+
+  /**
+   * The connection that held the place of a person in a call dropped: the place is kept for HELD_CALL_MS. If they come back and
+   * ask (resume) it is theirs again; if not, they leave the call as before.
+   */
+  private holdCall(userId: string): void {
+    this.callClient.delete(userId);
+    if (!this.userRoom.has(userId)) return;
+    clearTimeout(this.heldCalls.get(userId));
+    this.heldCalls.set(
+      userId,
+      setTimeout(this.expireHeld.bind(this, userId), HELD_CALL_MS),
+    );
+  }
+
+  /** The time to come back ran out: the person leaves the call. */
+  private expireHeld(userId: string): void {
+    this.heldCalls.delete(userId);
+    this.leaveRoom(userId);
+  }
+
+  /** Forgets a kept place (the person joined again, left or came back). */
+  private clearHeld(userId: string): void {
+    clearTimeout(this.heldCalls.get(userId));
+    this.heldCalls.delete(userId);
+  }
+
+  /**
+   * A connection asks for the place its person kept in a call: true (and the place is theirs again, with the state they had) when
+   * that place is still there and it is in the room they name.
+   */
+  resume(client: Client, roomId: string): boolean {
+    const userId = client.userId;
+    if (!this.heldCalls.has(userId) || this.userRoom.get(userId) !== roomId) return false;
+    this.clearHeld(userId);
+    this.callClient.set(userId, client);
+    return true;
   }
 
   /** Closes every connection of a person (their account was erased) and takes them out of their call. */
@@ -278,6 +327,7 @@ export class Hub {
     client: Client,
   ): { ok: boolean; previousRoom?: string; replaced?: Client } {
     const userId = client.userId;
+    this.clearHeld(userId);
     const existing = this.rooms.get(roomId);
     if (existing && !existing.has(userId) && existing.size >= MAX_ROOM_SIZE) return { ok: false };
     const holder = this.callClient.get(userId);
@@ -316,6 +366,7 @@ export class Hub {
 
   /** Removes the user from their room; returns the room id they left (if any). */
   leaveRoom(userId: string): string | undefined {
+    this.clearHeld(userId);
     this.callClient.delete(userId);
     const roomId = this.userRoom.get(userId);
     if (!roomId) return undefined;

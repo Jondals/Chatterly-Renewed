@@ -7,7 +7,7 @@
 import { API_BASE } from '../../core/config';
 
 /** Where the project lives, and its releases (for a device with no app). */
-const REPOSITORY = 'https://github.com/Jondals/ChatterlyRenewed';
+const REPOSITORY = 'https://github.com/Jondals/Chatterly-Renewed';
 const RELEASES = REPOSITORY + '/releases';
 
 /** The apps that exist. */

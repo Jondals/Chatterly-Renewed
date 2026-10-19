@@ -13,7 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context';
 
 /** The repository whose releases hold the apps. */
-const REPO = process.env['RELEASES_REPO'] ?? 'Jondals/ChatterlyRenewed';
+const REPO = process.env['RELEASES_REPO'] ?? 'Jondals/Chatterly-Renewed';
 /** The extension of the file of each app. */
 const EXTENSIONS: Record<string, string> = {
   windows: 'exe',

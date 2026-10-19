@@ -1,8 +1,8 @@
 {
   "name": "chatterly-renewed-desktop",
-  "version": "2.36.0",
+  "version": "2.36.1",
   "productName": "Chatterly",
-  "homepage": "https://github.com/Jondals/ChatterlyRenewed",
+  "homepage": "https://github.com/Jondals/Chatterly-Renewed",
   "desktopName": "chatterly.desktop",
   "description": "Chatterly-Renewed desktop shell (Electron): the same end-to-end encrypted web app in a hardened window.",
   "main": "src/main.cjs",
@@ -95,7 +95,7 @@
       {
         "provider": "github",
         "owner": "Jondals",
-        "repo": "ChatterlyRenewed",
+        "repo": "Chatterly-Renewed",
         "releaseType": "release"
       }
     ],

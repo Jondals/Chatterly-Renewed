@@ -126,6 +126,12 @@ let overlayWindow = null;
 let editing = false;
 /** The mouse is over the controls of the call (then the window takes the mouse for them, still without taking the focus). */
 let hoverControls = false;
+/** Where the controls are in the window (CSS pixels), told by the page; null when they are not shown. */
+let controlsRect = null;
+/** The timer that compares the cursor with controlsRect (only runs while the overlay window exists). */
+let cursorTimer = null;
+/** How often the cursor is compared (ms). */
+const CURSOR_EVERY_MS = 50;
 let hotkeyOk = true;
 let registeredHotkey = '';
 let tiles = [];
@@ -564,7 +570,7 @@ function publishScene() {
  */
 function applyMouse() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  overlayWindow.setIgnoreMouseEvents(!(editing || hoverControls), { forward: true });
+  overlayWindow.setIgnoreMouseEvents(!(editing || hoverControls));
 }
 
 /** Opens the overlay window (transparent, on top, click-through, never taking the focus). */
@@ -603,7 +609,7 @@ function openWindow() {
   // The highest level: above windows in "borderless" full screen. On a Mac it must also follow the full-screen spaces.
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  win.setIgnoreMouseEvents(true, { forward: true });
+  win.setIgnoreMouseEvents(true);
   win.setContentProtection(settings.hideFromCapture);
   win.webContents.on('did-finish-load', onOverlayLoaded);
   win.once('ready-to-show', win.showInactive.bind(win));
@@ -656,7 +662,7 @@ function recoverOverlay() {
   const window = overlayWindow;
   if (window && !window.isDestroyed()) {
     try {
-      window.setIgnoreMouseEvents(true, { forward: true });
+      window.setIgnoreMouseEvents(true);
     } catch (error) {
       // The window is already going away.
     }
@@ -1055,11 +1061,52 @@ function handleAction(event, raw) {
   tellPage({ type: 'action', action });
 }
 
-/** The overlay page says the mouse is over (or left) the controls of the call: the window takes the mouse only then. */
-function handleHover(event, over) {
-  if (!isOverlay(event) || editing) return;
-  hoverControls = over === true;
-  applyMouse();
+/** The old way of the page to say the mouse is over the controls: ignored now (the cursor is compared here, see watchCursor). */
+function handleHover() {}
+
+/**
+ * The page says where its controls are. The window is click-through and never asks the system for the mouse moves (the forwarding
+ * of mouse moves over a whole screen made the mouse of the games behave oddly): the cursor is read here instead and compared with
+ * that rectangle, and only while it is over them does the window take the mouse.
+ */
+function handleControlsRect(event, rect) {
+  if (!isOverlay(event)) return;
+  const valid =
+    rect &&
+    [rect.x, rect.y, rect.width, rect.height].every(function finite(value) {
+      return typeof value === 'number' && Number.isFinite(value);
+    });
+  controlsRect = valid ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null;
+  if (controlsRect && !cursorTimer) cursorTimer = setInterval(watchCursor, CURSOR_EVERY_MS);
+  watchCursor();
+}
+
+/** Compares the cursor with the controls: the window takes the mouse only while it is over them (never while editing: it has it all). */
+function watchCursor() {
+  if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible() || !controlsRect) {
+    if (cursorTimer && (!overlayWindow || overlayWindow.isDestroyed() || !controlsRect)) {
+      clearInterval(cursorTimer);
+      cursorTimer = null;
+    }
+    if (hoverControls && !editing) {
+      hoverControls = false;
+      applyMouse();
+    }
+    return;
+  }
+  if (editing) return;
+  const point = screen.getCursorScreenPoint();
+  const bounds = overlayWindow.getBounds();
+  const margin = 3;
+  const over =
+    point.x >= bounds.x + controlsRect.x - margin &&
+    point.x <= bounds.x + controlsRect.x + controlsRect.width + margin &&
+    point.y >= bounds.y + controlsRect.y - margin &&
+    point.y <= bounds.y + controlsRect.y + controlsRect.height + margin;
+  if (over !== hoverControls) {
+    hoverControls = over;
+    applyMouse();
+  }
 }
 
 /** The person ended editing with the mouse (a click outside, Esc or the button of the overlay). */
@@ -1094,6 +1141,7 @@ function start(window, isAppAddressFn, userDataPath, quietMode, showMainFn) {
   ipcMain.on('overlay:choose', handleChoose);
   ipcMain.on('overlay:action', handleAction);
   ipcMain.on('overlay:hover', handleHover);
+  ipcMain.on('overlay:controls-rect', handleControlsRect);
   ipcMain.on('overlay:alive', handleAlive);
   if (mainWindow) {
     mainWindow.on('focus', onMainFocus);

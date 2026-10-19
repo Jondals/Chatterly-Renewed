@@ -29,6 +29,7 @@ import {
   type ImageKind,
   type ImageService,
 } from '../../core/services/image.service';
+import { decodeGif } from '../../core/gif-decode';
 import { encodeGif, type GifFrame } from '../util/gif-encoder';
 import { chooseImageSource, sourceToBlob } from './image-source.component';
 import { ModalComponent } from './modal.component';
@@ -298,12 +299,11 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Cuts a picture that moves: every frame is decoded, drawn where the frame shows it and written again as a GIF. If this browser
-   * cannot decode the frames, or the result is too big even when small, the picture is kept as it was (or, when that is too big
-   * too, saved still).
+   * Cuts a picture that moves: every frame is decoded, drawn where the frame shows it and written again as a GIF. If the frames
+   * cannot be read, or the result is too big even when small, it is saved still but ALWAYS as adjusted: the original file is never
+   * handed over as it was (that ignored the move and the zoom the person chose).
    */
   private async cutAnimated(): Promise<Blob | null> {
-    const file = this.file();
     for (const scale of [1, 0.75, 0.55, 0.4]) {
       let blob: Blob | null = null;
       try {
@@ -312,14 +312,17 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
         blob = null;
       }
       if (!blob) {
-        break;
+        // ! Said, not silent: this device could not read the frames (an animated WebP on a web view with no ImageDecoder).
+        this.toast.info(
+          this.i18n.t('This picture cannot keep moving here'),
+          this.i18n.t('This device cannot read its frames: it is saved still, as you adjusted it.'),
+          '🖼️',
+        );
+        return this.stillBlob();
       }
       if (blob.size <= ANIMATED_MAX_BYTES) {
         return blob;
       }
-    }
-    if (file.size <= ANIMATED_MAX_BYTES) {
-      return file;
     }
     // ! Said, not silent: a picture that moves but is too big is saved as a still one, and the person must know why it does not move.
     this.toast.info(
@@ -343,10 +346,10 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
         };
       }
     ).ImageDecoder;
-    if (!Decoder) {
-      return null;
-    }
     const bytes = await this.file().arrayBuffer();
+    if (!Decoder) {
+      return this.renderGifByHand(bytes, scale);
+    }
     const head = String.fromCharCode(...new Uint8Array(bytes.slice(0, 4)));
     const decoder = new Decoder({ data: bytes, type: head === 'GIF8' ? 'image/gif' : 'image/webp' });
     try {
@@ -395,6 +398,56 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
     } finally {
       decoder.close();
     }
+  }
+
+  /**
+   * Cuts a GIF with the decoder of the app, for the web views that have no ImageDecoder (Firefox, iPhone and iPad): the frames are
+   * read by hand and drawn where the frame shows them, like renderAnimated does. Null when it is not a GIF or cannot be read.
+   */
+  private renderGifByHand(bytes: ArrayBuffer, scale: number): Blob | null {
+    const gif = decodeGif(new Uint8Array(bytes), 180);
+    if (!gif || gif.frames.length < 2) {
+      return null;
+    }
+    const target = this.target();
+    const width = Math.max(16, Math.round(target.width * scale));
+    const height = Math.max(16, Math.round(target.height * scale));
+    const ratio = width / this.frameWidth();
+    const source = document.createElement('canvas');
+    source.width = gif.width;
+    source.height = gif.height;
+    const sourceContext = source.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!sourceContext || !context) {
+      return null;
+    }
+    context.imageSmoothingQuality = 'high';
+    const drawW = this.drawWidth() * ratio;
+    const drawH = this.drawHeight() * ratio;
+    const step = Math.max(1, Math.ceil(gif.frames.length / ANIMATED_MAX_FRAMES));
+    const frames: GifFrame[] = [];
+    for (let index = 0; index < gif.frames.length; index++) {
+      const delay = Math.max(1, Math.round(gif.frames[index]!.delay / 10));
+      if (index % step === 0) {
+        sourceContext.putImageData(gif.frames[index]!.image, 0, 0);
+        context.fillStyle = '#10131c';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(
+          source,
+          width / 2 + this.offsetX() * ratio - drawW / 2,
+          height / 2 + this.offsetY() * ratio - drawH / 2,
+          drawW,
+          drawH,
+        );
+        frames.push({ data: context.getImageData(0, 0, width, height).data, delay });
+      } else if (frames.length > 0) {
+        frames[frames.length - 1]!.delay += delay;
+      }
+    }
+    return encodeGif(frames, width, height);
   }
 
   /** The first frame, cut like a still picture (when a picture that moves cannot be kept moving). */

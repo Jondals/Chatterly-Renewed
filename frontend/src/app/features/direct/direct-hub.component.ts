@@ -159,7 +159,8 @@ import { GuildInviteCardComponent } from '../guild/guild-invite-card.component';
             </div>
             @if (tab() === 'pending') {
               <div class="mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-2">
-                <app-guild-invites />
+                <!-- empty it takes no cell: as an empty grid item it pushed "Received" to the right and "Sent" under it (off balance on an iPad) -->
+                <app-guild-invites class="empty:hidden lg:col-span-2" />
                 <section class="pending-card">
                   <header class="pending-head">
                     <span class="pending-icon bg-accent/15 text-accent"

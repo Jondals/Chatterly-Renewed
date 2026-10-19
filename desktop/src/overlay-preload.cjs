@@ -55,6 +55,10 @@ function alive() {
 function hover(over) {
   ipcRenderer.send('overlay:hover', over === true);
 }
+/** Where the controls of the call are in the window (CSS pixels), or null when they are not shown: the shell compares the cursor with it. */
+function controlsRect(rect) {
+  ipcRenderer.send('overlay:controls-rect', rect);
+}
 
 contextBridge.exposeInMainWorld(
   'chatterlyOverlay',
@@ -69,6 +73,7 @@ contextBridge.exposeInMainWorld(
     stopEditing,
     choose,
     hover,
+    controlsRect,
     alive,
     act,
   }),

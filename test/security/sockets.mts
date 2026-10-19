@@ -278,10 +278,51 @@ async function checkOneDevicePerCall(
     'a late "leave" from the old device does not take the person out of the call',
   );
   second.close();
+  // ! The place is KEPT for a while after the connection drops (a phone in the background or on another network comes back): the
+  //   person is still in the call, and a connection that asks for it with call.resume gets it again.
+  await sleep(500);
+  check(
+    stateHasAlice(),
+    'closing the connection that is in the call keeps the place of the person for a while',
+  );
+  const third = await openSocket(port, alice.access);
+  await third.ready;
+  third.send({ t: 'call.resume', roomId: 'no-such-room' });
+  check(
+    await until(function refused() {
+      return third.frames.some(function isRefused(f) {
+        return f['t'] === 'call.resume.failed';
+      });
+    }),
+    'a resume for a room the person does not hold is refused',
+  );
+  third.send({ t: 'call.resume', roomId: dm });
+  check(
+    await until(function resumed() {
+      return third.frames.some(function isResumed(f) {
+        return f['t'] === 'call.resumed' && f['roomId'] === dm;
+      });
+    }),
+    'a connection that asks for the kept place gets it back (call.resumed)',
+  );
+  third.send({ t: 'call.leave' });
   check(
     await until(function left() {
       return !stateHasAlice();
     }),
-    'closing the connection that is in the call takes the person out of it (the other device stays signed in)',
+    'after resuming, leaving takes the person out of the call as always',
   );
+  const fourth = await openSocket(port, alice.access);
+  await fourth.ready;
+  fourth.send({ t: 'call.resume', roomId: dm });
+  check(
+    await until(function refusedAgain() {
+      return fourth.frames.some(function isRefused(f) {
+        return f['t'] === 'call.resume.failed';
+      });
+    }),
+    'nothing is kept after the person left: resuming is refused',
+  );
+  third.close();
+  fourth.close();
 }

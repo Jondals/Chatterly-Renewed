@@ -249,8 +249,27 @@ function drawVideo(body) {
 let overControls = false;
 
 function onControlsOver(over) {
+  // ! Only remembered here: the shell decides when the window takes the mouse by watching the cursor against the rectangle of the
+  //   controls (see reportControls), not by the events of the page. Asking the system to forward every mouse move over the whole screen
+  //   (setIgnoreMouseEvents with forward) made the mouse of the game behave oddly.
   overControls = over;
-  window.chatterlyOverlay.hover(over);
+}
+
+/** The last rectangle of the controls told to the shell (as text, to tell only changes). */
+let lastControls = '';
+
+/** Tells the shell where the controls of the call are (or that they are not there), only when that changed. */
+function reportControls() {
+  const widget = widgets.get('controls');
+  let rect = null;
+  if (widget && widget.root.isConnected && !widget.root.hidden) {
+    const box = widget.root.getBoundingClientRect();
+    if (box.width > 0 && box.height > 0) rect = { x: box.left, y: box.top, width: box.width, height: box.height };
+  }
+  const text = JSON.stringify(rect);
+  if (text === lastControls) return;
+  lastControls = text;
+  window.chatterlyOverlay.controlsRect(rect);
 }
 
 /** A button of the controls. */
@@ -513,6 +532,7 @@ function saveLayout(finished) {
 
 /** Updates the clocks (how long the call and the game last) once a second, without drawing everything again. */
 function tick() {
+  reportControls();
   // Tells the shell the page is alive (while unlocked it watches for this, and rebuilds the window if it stops).
   window.chatterlyOverlay.alive();
   if (!config) return;
@@ -697,6 +717,7 @@ function onConfig(next) {
   config = next;
   announce();
   render();
+  setTimeout(reportControls, 60);
 }
 
 function onTiles(next) {
@@ -711,6 +732,7 @@ function onScene(next) {
     activity: next && next.activity ? next.activity : null,
   };
   render();
+  setTimeout(reportControls, 60);
 }
 
 /** A message arrived: it shows for a few seconds (the newest on top). */

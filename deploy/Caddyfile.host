@@ -9,10 +9,17 @@ chatterly.example.com {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
-		Referrer-Policy no-referrer
 		-Server
-		X-Frame-Options DENY
 		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=()"
+	}
+
+	# * No referrer and no framing for everything EXCEPT the page of the YouTube player (/api/player/*): the iPhone and iPad app frames it
+	#   and the player inside needs to receive the address of that page as Referer, or YouTube refuses to play (error 153). The page
+	#   sends its own Content-Security-Policy (frame-ancestors only for the app) and Referrer-Policy.
+	@plain not path /api/player/*
+	header @plain {
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
 	}
 
 	# ? Nothing bigger than the largest upload (12 MB of encrypted file) is passed on to the app.

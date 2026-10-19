@@ -27,6 +27,7 @@ import { registerBetaRoutes } from './routes/beta';
 import { registerBetaFileRoutes } from './routes/beta-files';
 import { registerAdminRoutes } from './routes/admin';
 import { registerDownloadRoutes } from './routes/downloads';
+import { registerPlayerRoutes } from './routes/player';
 import { registerGifRoutes } from './routes/gifs';
 import { registerPreviewRoutes } from './routes/preview';
 import { registerSocket } from './ws/socket';
@@ -206,6 +207,7 @@ export async function buildApp(overrides: Partial<AppConfig> = {}) {
   registerAdminRoutes(app, ctx);
   registerGifRoutes(app, ctx);
   registerDownloadRoutes(app, ctx);
+  registerPlayerRoutes(app);
   registerPreviewRoutes(app, ctx);
   registerSocket(app, ctx);
 

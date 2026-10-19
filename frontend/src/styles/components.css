@@ -255,6 +255,8 @@ html,
 body {
   height: 100%;
   overflow-x: hidden;
+  /* No zoom with a double tap (iOS zoomed the page when two taps came quickly, for example on the buttons of a call). */
+  touch-action: manipulation;
 }
 
 body {

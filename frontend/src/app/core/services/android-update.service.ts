@@ -41,7 +41,7 @@ export type AndroidUpdateStatus =
   | 'error';
 
 /** The GitHub releases of the project: the stable APK of a version is attached to its release. */
-const RELEASES = 'https://github.com/Jondals/ChatterlyRenewed/releases/download/';
+const RELEASES = 'https://github.com/Jondals/Chatterly-Renewed/releases/download/';
 
 /**
  * Why a step failed, in words for the person: the first rule whose pattern matches the error (the message of the native plugin,
