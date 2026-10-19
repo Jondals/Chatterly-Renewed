@@ -45,6 +45,9 @@ jobs:
           script_stop: true
           script: |
             cd ~/ChatterlyRenewed
+            # ? The server always fetches from the repository that runs this workflow (public, no credentials): when the project moved
+            #   to another repository, the folder of the server kept pointing at the old one and the fetch failed.
+            git remote set-url origin https://github.com/${{ github.repository }}.git
             git fetch origin ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
             if docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"; else COMPOSE="docker-compose"; fi
