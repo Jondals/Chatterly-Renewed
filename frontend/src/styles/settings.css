@@ -119,6 +119,16 @@ html.cursor-js.cursor-native * {
   cursor: auto !important;
 }
 
+/* ! The parts of a scrollbar are not elements: they took the marker of the cursor of the overlay (which draws nothing), and over a
+   scroll bar there was no cursor at all (the overlay steps aside there and the system one has to show). */
+html.cursor-js *::-webkit-scrollbar,
+html.cursor-js *::-webkit-scrollbar-thumb,
+html.cursor-js *::-webkit-scrollbar-track,
+html.cursor-js *::-webkit-scrollbar-button,
+html.cursor-js *::-webkit-scrollbar-corner {
+  cursor: auto !important;
+}
+
 /* Settings: soft entrance and exit (the panel rises a little and brightens; on close it fades). */
 .settings-overlay {
   animation: settings-in 0.32s var(--ease) both;

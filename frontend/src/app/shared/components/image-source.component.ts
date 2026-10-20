@@ -22,6 +22,7 @@ import { pickFile } from '../../core/file-picker';
 import { GifService, type GifResult } from '../../core/services/gif.service';
 import { GifThumbComponent } from './gif-thumb.component';
 import { gifColumns } from '../util/gif-columns';
+import { NearEndDirective } from '../util/near-end.directive';
 import { IconComponent } from './icon.component';
 import { ModalComponent } from './modal.component';
 
@@ -41,7 +42,7 @@ const SEARCH_DELAY_MS = 350;
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-image-source',
   standalone: true,
-  imports: [ModalComponent, IconComponent, GifThumbComponent, TranslatePipe],
+  imports: [ModalComponent, IconComponent, GifThumbComponent, NearEndDirective, TranslatePipe],
   template: `
     <app-modal [title]="title() | t" [subtitle]="subtitle() | t" [width]="580" (closed)="cancel()">
       <div class="isrc-tabs" role="tablist" [attr.data-tab]="tab()">
@@ -125,7 +126,8 @@ const SEARCH_DELAY_MS = 350;
               @if (loading()) {
                 <div class="shimmer mt-1 h-24 rounded-ui"></div>
               }
-              @if (next() && !loading()) {
+              @if (next() && !loading() && count() >= results().length) {
+                <div appNearEnd (nearEnd)="load(true)" class="h-8"></div>
                 <button type="button" class="btn btn-sm mt-1 w-full" (click)="load(true)">
                   {{ 'Load more' | t }}
                 </button>

@@ -314,11 +314,17 @@ button:disabled,
   border: 0 !important;
   box-shadow: none !important;
   font-size: 3.2rem !important;
-  line-height: 1.15 !important;
+  /* ! The lines are a little apart: when the emoji are selected, the highlight of one line must not touch the next one. */
+  line-height: 1.4 !important;
   padding: 0.1rem 0.25rem !important;
   animation: emoji-settle 0.4s var(--ease-suave) both;
   transform-origin: 50% 80%;
   transition: filter 0.25s var(--ease-suave);
+}
+
+.bubble-emoji ::selection,
+.bubble-emoji::selection {
+  background: color-mix(in oklab, var(--accent) 28%, transparent);
 }
 
 .bubble-emoji.is-many {
@@ -332,7 +338,7 @@ button:disabled,
 /* Many emoji: still without a bubble and bigger than text, and they wrap inside the chat (never wider than the screen). */
 .bubble-emoji.is-heaps {
   font-size: 1.55rem !important;
-  line-height: 1.3 !important;
+  line-height: 1.55 !important;
 }
 .bubble-emoji.is-many,
 .bubble-emoji.is-lots,

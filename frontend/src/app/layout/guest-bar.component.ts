@@ -6,6 +6,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslatePipe } from '../core/i18n/i18n.service';
+import { ArrivalService } from '../core/services/arrival.service';
 import { AuthService } from '../core/services/auth.service';
 import { IconComponent } from '../shared/components/icon.component';
 
@@ -36,9 +37,14 @@ import { IconComponent } from '../shared/components/icon.component';
 export class GuestBarComponent {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly arrival = inject(ArrivalService);
 
-  /** Leaves: the guest account is erased, and the first page opens. */
+  /**
+   * Leaves: the first page opens with its own goodbye (the one of going back to the website, not the one of signing out), and the
+   * guest account is erased under it. Going in had an animation and going out had none.
+   */
   protected async leave(): Promise<void> {
+    await this.arrival.play('leave');
     await this.auth.logout(true);
     await this.router.navigateByUrl('/');
   }

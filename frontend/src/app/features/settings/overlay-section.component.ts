@@ -193,16 +193,6 @@ const DISPLAYS: { id: OverlaySettings['display']; label: string }[] = [
         />
       </app-setting-row>
       <app-setting-row
-        title="Only the people who are talking"
-        hint="Everybody else disappears until they speak. Cameras and pictures keep the game clear."
-      >
-        <app-toggle
-          [checked]="settings().onlySpeaking"
-          (checkedChange)="overlay.set({ onlySpeaking: $event })"
-          [label]="'Only the people who are talking' | t"
-        />
-      </app-setting-row>
-      <app-setting-row
         title="The text of the messages"
         hint="The notifications show what the message says. Off: only who wrote it and where."
       >

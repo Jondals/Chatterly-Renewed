@@ -174,10 +174,9 @@ export class OverlayService {
     const speaking = this.call.speaking();
     const peers = this.call.peers();
     const tiles: OverlayTile[] = [];
-    const alone = this.alone();
     for (const participant of this.call.participants()) {
       const isMe = participant.userId === me;
-      if (isMe && !settings.showSelf && !alone) {
+      if (isMe && !settings.showSelf) {
         continue;
       }
       const person = this.personOf(participant.userId);
@@ -262,17 +261,6 @@ export class OverlayService {
       });
     }
     return out;
-  }
-
-  /**
-   * True when nobody else is in the call. Then you see yourself in the overlay: otherwise it would have nobody to draw and
-   * would not appear at all.
-   */
-  private alone(): boolean {
-    const me = this.auth.userId;
-    return !this.call.participants().some(function other(participant) {
-      return participant.userId !== me;
-    });
   }
 
   /** The id of the stream that carries a video to the overlay ('' when there is no live video). */
@@ -406,7 +394,8 @@ export class OverlayService {
         void this.call.toggleCamera();
         break;
       case 'screen':
-        void this.call.toggleScreen();
+        // From the overlay the whole screen is shared at once: there is no window of the app in front to choose in.
+        void this.call.toggleScreen('monitor');
         break;
       case 'leave':
         void this.call.leave();
@@ -434,11 +423,10 @@ export class OverlayService {
     const wanted = new Map<string, { track: MediaStreamTrack; screen: boolean }>();
     if (connected) {
       const me = this.auth.userId;
-      const alone = this.alone();
-      for (const participant of this.call.participants()) {
+        for (const participant of this.call.participants()) {
         const camera =
           participant.userId === me
-            ? showSelf || alone
+            ? showSelf
               ? local
               : null
             : peers[participant.userId]?.camera;

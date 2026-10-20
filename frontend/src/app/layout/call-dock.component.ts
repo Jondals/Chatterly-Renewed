@@ -11,6 +11,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { TranslatePipe } from '../core/i18n/i18n.service';
+import { persisted } from '../core/services/persisted';
 import { CallService } from '../core/services/call.service';
 import { DirectoryService } from '../core/services/directory.service';
 import { SettingsService } from '../core/services/settings.service';
@@ -59,13 +60,14 @@ interface Featured {
       }
       <div
         appDockable
-        class="anim-pop panel fixed z-50 flex max-w-[calc(100vw-1.5rem)] select-none flex-col overflow-hidden !bg-ink-850"
+        class="anim-pop panel fixed z-50 flex max-w-[calc(100vw-1.5rem)] select-none flex-col overflow-hidden !rounded-ui !bg-ink-850"
         [class]="placeClass()"
-        [style.width.px]="featured() ? size().w : null"
+        [style.width.px]="featured() && !collapsed() ? size().w : null"
         (docked)="settings.dockPlace.set($event)"
         (over)="target.set($event)"
       >
         @if (featured(); as f) {
+          @if (!collapsed()) {
           <!-- What is shared: it fills the width of the panel (no bars), and the whole block resizes from the corner far from its edge -->
           <div class="dock-view" [style.height.px]="size().h">
             @if (f.stream) {
@@ -87,8 +89,39 @@ interface Featured {
               (pointercancel)="endResize($event)"
             ></span>
           </div>
+          }
         }
-        <div class="flex items-center gap-2 p-2">
+        @if (collapsed()) {
+          <!-- Hidden: only the grip, the time and two buttons stay -->
+          <div class="flex items-center gap-2 p-1.5">
+            <span data-drag class="dock-grip flex items-center gap-2 rounded-ui px-1.5 py-1" [attr.title]="'Drag to move' | t">
+              <span class="flex items-end gap-0.5">
+                @for (d of [0, 120, 240, 60]; track $index) {
+                  <span class="eq-bar h-3 w-1 rounded-full bg-accent" [style.--d]="d + 'ms'"></span>
+                }
+              </span>
+            </span>
+            <app-call-timer class="whitespace-nowrap text-sm font-semibold" />
+            <button
+              class="btn btn-icon btn-sm shrink-0"
+              type="button"
+              (click)="collapsed.set(false)"
+              [attr.aria-label]="'Show' | t"
+              [attr.title]="'Show' | t"
+            >
+              <app-icon name="chevron-down" [size]="15" />
+            </button>
+            <button
+              class="btn btn-icon btn-sm btn-danger shrink-0"
+              type="button"
+              (click)="call.leave()"
+              [attr.aria-label]="'Hang up' | t"
+            >
+              <app-icon name="phone" [size]="15" class="rotate-[135deg]" />
+            </button>
+          </div>
+        } @else {
+        <div class="flex items-center gap-3 px-3 py-2.5">
           <span
             data-drag
             class="dock-grip flex items-center gap-2 rounded-ui px-1.5 py-1"
@@ -100,12 +133,12 @@ interface Featured {
               }
             </span>
           </span>
-          <a routerLink="/voice" class="min-w-0 max-w-[13rem] leading-tight">
+          <a routerLink="/voice" class="min-w-[9.5rem] shrink-0 whitespace-nowrap leading-snug">
             <span class="block text-sm font-semibold hover:text-accent">{{
               'Call in progress' | t
             }}</span>
             <app-call-timer class="block" />
-            <span class="dock-ping" [attr.data-level]="ping().level">
+            <span class="dock-ping mt-1" [attr.data-level]="ping().level">
               <span class="flex items-end gap-px" aria-hidden="true">
                 @for (bar of [1, 2, 3]; track bar) {
                   <i [class.is-lit]="bar <= ping().bars" [style.height.px]="3 + bar * 2.5"></i>
@@ -118,7 +151,7 @@ interface Featured {
             @if (m.link.kind === 'youtube') {
               <button
                 type="button"
-                class="btn btn-icon btn-sm"
+                class="btn btn-icon btn-sm shrink-0"
                 [attr.aria-label]="(call.musicPaused() ? 'Play' : 'Pause') | t"
                 (click)="pauseMusic()"
               >
@@ -126,9 +159,9 @@ interface Featured {
               </button>
             }
           }
-          <span class="mx-0.5 h-7 w-px bg-white/10"></span>
+          <span class="mx-0.5 h-7 w-px shrink-0 bg-white/10"></span>
           <button
-            class="btn btn-icon btn-sm"
+            class="btn btn-icon btn-sm shrink-0"
             [class.btn-soft-danger]="call.muted()"
             type="button"
             (click)="call.toggleMute()"
@@ -137,7 +170,7 @@ interface Featured {
             <app-icon [name]="call.muted() ? 'mic-off' : 'mic'" [size]="15" />
           </button>
           <button
-            class="btn btn-icon btn-sm"
+            class="btn btn-icon btn-sm shrink-0"
             [class.btn-soft-danger]="call.deafened()"
             type="button"
             (click)="call.toggleDeafen()"
@@ -147,14 +180,23 @@ interface Featured {
           </button>
           <a
             routerLink="/voice"
-            class="btn btn-icon btn-sm"
+            class="btn btn-icon btn-sm shrink-0"
             [attr.aria-label]="'Back to the call' | t"
             [attr.title]="'Back to the call' | t"
           >
             <app-icon name="maximize" [size]="15" />
           </a>
           <button
-            class="btn btn-icon btn-sm btn-danger"
+            class="btn btn-icon btn-sm shrink-0"
+            type="button"
+            (click)="collapsed.set(true)"
+            [attr.aria-label]="'Hide' | t"
+            [attr.title]="'Hide' | t"
+          >
+            <app-icon name="chevron-up" [size]="15" />
+          </button>
+          <button
+            class="btn btn-icon btn-sm btn-danger shrink-0"
             type="button"
             (click)="call.leave()"
             [attr.aria-label]="'Hang up' | t"
@@ -162,6 +204,7 @@ interface Featured {
             <app-icon name="phone" [size]="15" class="rotate-[135deg]" />
           </button>
         </div>
+        }
       </div>
     }
   `,
@@ -289,6 +332,8 @@ export class CallDockComponent {
   private readonly router = inject(Router);
   private readonly ui = inject(UiService);
   protected readonly places = PLACES;
+  /** The panel is hidden down to a small strip (the choice is kept on this device). */
+  protected readonly collapsed = persisted<boolean>('pref.dockCollapsed', false);
 
   /** Remembers the pages that are not the call: "minimize the call" goes back to the last one. */
   constructor() {

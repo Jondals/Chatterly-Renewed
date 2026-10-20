@@ -33,7 +33,7 @@ import { GifService, type GifResult } from '../../core/services/gif.service';
       (click)="pick()"
       [attr.aria-label]="gif().title"
     >
-      @if (src(); as url) {
+      @if (near() && src(); as url) {
         <img
           decoding="async"
           [src]="url"
@@ -57,7 +57,7 @@ export class GifThumbComponent {
   /** The picture could not be loaded: pressing the thumbnail asks again. */
   protected readonly failed = signal(false);
   /** True once the thumbnail is near the screen. */
-  private readonly near = signal(false);
+  protected readonly near = signal(false);
   private observer: IntersectionObserver | null = null;
   private fallback: ReturnType<typeof setTimeout> | undefined;
 
@@ -65,7 +65,7 @@ export class GifThumbComponent {
     if (typeof IntersectionObserver === 'undefined') {
       this.near.set(true);
     } else {
-      this.observer = new IntersectionObserver(this.seen.bind(this), { rootMargin: '240px' });
+      this.observer = new IntersectionObserver(this.seen.bind(this), { rootMargin: '600px 0px' });
       this.observer.observe(this.host.nativeElement);
       // If the observer never says anything (a list inside a window that is still moving in), the picture is asked for anyway.
       this.fallback = setTimeout(this.seen.bind(this, [{ isIntersecting: true } as IntersectionObserverEntry]), 1500);
@@ -74,16 +74,14 @@ export class GifThumbComponent {
     effect(this.load.bind(this));
   }
 
-  /** The thumbnail came near the screen: from now on it may load. */
+  /**
+   * The thumbnail came near the screen (it may load and is drawn) or went far from it (its picture is taken out of the page, so
+   * a long list never keeps hundreds of animations decoded and the scroll stays smooth). The box keeps its size either way.
+   */
   private seen(entries: IntersectionObserverEntry[]): void {
-    if (
-      entries.some(function visible(entry) {
-        return entry.isIntersecting;
-      })
-    ) {
-      this.near.set(true);
-      this.stop();
-    }
+    clearTimeout(this.fallback);
+    // Only the last report counts: it is the current state.
+    this.near.set(entries[entries.length - 1]!.isIntersecting);
   }
 
   /** Stops watching. */
@@ -96,7 +94,7 @@ export class GifThumbComponent {
   /** Asks for the small picture (once the thumbnail is near the screen). */
   private load(): void {
     const url = this.gif().preview;
-    if (!this.near()) {
+    if (!this.near() || untracked(this.src)) {
       return;
     }
     untracked(this.fetch.bind(this, url));

@@ -88,7 +88,7 @@ import { CollapseComponent } from '../../shared/components/collapse.component';
           @for (s of p.items; track s.id) {
             <button
               type="button"
-              class="group relative aspect-square rounded-ui bg-white/[.04] p-1 hover:bg-white/10"
+              class="lazy-cell group relative aspect-square rounded-ui bg-white/[.04] p-1 hover:bg-white/10"
               (click)="stickers.removeSticker(p.id, s.id)"
               [attr.title]="'Click to remove' | t"
             >

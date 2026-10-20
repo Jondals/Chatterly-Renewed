@@ -34,6 +34,8 @@ var MASK_MEMORY = 0.3;
 var DETECT_EVERY = 24;
 /** The longest side, in pixels, of the crop that is given to the model. */
 var CROP_SIDE = 384;
+/** On a modest device (a phone) the crop is smaller and the effort never goes below the second level (see `lowEnd`). */
+var LOW_CROP_SIDE = 256;
 /** The crop is never smaller than this fraction of the picture, in either direction. */
 var MIN_CROP = 0.34;
 var FULL_RECT = [0, 0, 1, 1];
@@ -75,6 +77,9 @@ var state = {
   bitmaps: false,
   /** How hard the effects work (see LEVELS): 0 is everything; it goes up when the computer cannot keep up and comes back down. */
   level: 0,
+  /** The lowest level of effort: 1 on a modest device (it never works at full strength), 0 elsewhere. */
+  floor: 0,
+  lowEnd: false,
   levelChanged: 0,
   lastRead: 0,
   interval: 33,
@@ -89,15 +94,16 @@ var state = {
  * computer that is slow, gets a higher level before it lags.
  */
 var LEVELS = [
-  { every: 1, rounds: 3, cheap: false, factor: 4, drop: false },
-  { every: 2, rounds: 2, cheap: false, factor: 4, drop: false },
-  { every: 3, rounds: 2, cheap: true, factor: 8, drop: false },
-  { every: 5, rounds: 1, cheap: true, factor: 8, drop: true },
+  { every: 1, rounds: 3, cheap: false, factor: 4, drop: false, scale: 1 },
+  { every: 2, rounds: 2, cheap: false, factor: 4, drop: false, scale: 1 },
+  { every: 3, rounds: 2, cheap: true, factor: 8, drop: false, scale: 0.85 },
+  { every: 4, rounds: 1, cheap: true, factor: 8, drop: false, scale: 0.7 },
+  { every: 6, rounds: 1, cheap: true, factor: 8, drop: true, scale: 0.6 },
 ];
 
 /** The level that is used now: the one the speed asks for, and at least the second when the page says the computer is busy. */
 function effort() {
-  var wanted = state.options && state.options.busy ? 1 : 0;
+  var wanted = Math.max(state.floor, state.options && state.options.busy ? 1 : 0);
   return LEVELS[Math.max(state.level, wanted)];
 }
 
@@ -114,12 +120,12 @@ function watchSpeed() {
     if (
       state.interval > slow &&
       state.level < LEVELS.length - 1 &&
-      now - state.levelChanged > 1500
+      now - state.levelChanged > 700
     ) {
       state.level++;
       state.levelChanged = now;
       self.postMessage({ type: 'level', level: state.level });
-    } else if (state.interval < quick && state.level > 0 && now - state.levelChanged > 8000) {
+    } else if (state.interval < quick && state.level > state.floor && now - state.levelChanged > 12000) {
       state.level--;
       state.levelChanged = now;
       self.postMessage({ type: 'level', level: state.level });
@@ -184,6 +190,9 @@ function releaseFrames() {
 /** Starts the work: the graphics, the reading of frames and, when needed, the model. */
 function start(message) {
   state.base = message.base;
+  state.lowEnd = !!message.lowEnd;
+  state.floor = state.lowEnd ? 1 : 0;
+  state.level = state.floor;
   state.options = message.options;
   state.bitmaps = message.mode === 'bitmaps';
   state.nominal = 1000 / Math.max(10, Math.min(60, Number(message.fps) || 30));
@@ -288,7 +297,7 @@ function segmentFrame(frame) {
   var sy = Math.round(roi.y * height);
   var sw = Math.max(8, Math.min(width - sx, Math.round(roi.w * width)));
   var sh = Math.max(8, Math.min(height - sy, Math.round(roi.h * height)));
-  var scale = Math.min(1, CROP_SIDE / Math.max(sw, sh));
+  var scale = Math.min(1, (state.lowEnd ? LOW_CROP_SIDE : CROP_SIDE) / Math.max(sw, sh));
   var cw = Math.max(8, Math.round(sw * scale));
   var ch = Math.max(8, Math.round(sh * scale));
   if (!state.crop || state.crop.width !== cw || state.crop.height !== ch) {
@@ -768,11 +777,16 @@ function render(frame) {
   var options = state.options;
   var width = frame.displayWidth || frame.width;
   var height = frame.displayHeight || frame.height;
-  if (state.canvas.width !== width || state.canvas.height !== height) {
-    state.canvas.width = width;
-    state.canvas.height = height;
+  var level = effort();
+  // ? When the computer cannot keep up, the picture that is made is smaller (the frame rate matters more than the sharpness: the
+  //   others see a smooth picture instead of a sharp one that stutters). The camera is still read at its own size.
+  var outW = Math.max(2, Math.round((width * level.scale) / 2) * 2);
+  var outH = Math.max(2, Math.round((height * level.scale) / 2) * 2);
+  if (state.canvas.width !== outW || state.canvas.height !== outH) {
+    state.canvas.width = outW;
+    state.canvas.height = outH;
   }
-  gl.viewport(0, 0, width, height);
+  gl.viewport(0, 0, outW, outH);
   gl.bindTexture(gl.TEXTURE_2D, state.textures.video);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
@@ -784,7 +798,6 @@ function render(frame) {
   if (kind !== 'none' && hasMask) {
     mode = kind === 'blur' ? 1 : 2;
   }
-  var level = effort();
   if (mode !== 0) {
     // the matte of the person, at half size, once for the whole picture
     sizeMatte(width, height);
@@ -818,7 +831,7 @@ function render(frame) {
       },
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, width, height);
+    gl.viewport(0, 0, outW, outH);
   }
   if (mode === 1) {
     sizeTargets(width, height, level.factor);
@@ -853,7 +866,7 @@ function render(frame) {
       });
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, width, height);
+    gl.viewport(0, 0, outW, outH);
   } else if (mode === 2) {
     updateBackground(width, height);
   }

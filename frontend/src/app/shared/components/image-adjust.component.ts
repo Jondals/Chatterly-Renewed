@@ -30,6 +30,7 @@ import {
   type ImageService,
 } from '../../core/services/image.service';
 import { decodeGif } from '../../core/gif-decode';
+import { lowEndDevice } from '../../core/device-tier';
 import { encodeGif, type GifFrame } from '../util/gif-encoder';
 import { chooseImageSource, sourceToBlob } from './image-source.component';
 import { ModalComponent } from './modal.component';
@@ -39,9 +40,13 @@ const ANIMATED_MAX_BYTES = 8 * 1024 * 1024 - 2048;
 /** The biggest original picture that is sent as it is when the canvas cannot be read (the server accepts up to 8 MB). */
 const MAX_ORIGINAL_BYTES = 8 * 1024 * 1024 - 2048;
 /** A picture that moves is cut at most this wide (a GIF has 256 colors and no compression of the movement: smaller keeps it light). */
-const ANIMATED_MAX_WIDTH = 640;
+const ANIMATED_MAX_WIDTH = lowEndDevice() ? 480 : 640;
 /** The most frames of a picture that moves that are kept (the others are merged into the one before: it plays at the same speed). */
-const ANIMATED_MAX_FRAMES = 90;
+const ANIMATED_MAX_FRAMES = lowEndDevice() ? 50 : 90;
+/** The longest side of a still picture shown in the window (a photo of 12 megapixels weighs a lot to move around; it is cut from this). */
+const PREVIEW_SIDE = 3072;
+/** The same on a modest device (a phone). */
+const PREVIEW_SIDE_LOW = 2048;
 /** The most the picture can be zoomed in (times the size that just covers the frame). */
 const MAX_ZOOM = 4;
 
@@ -72,10 +77,11 @@ const MAX_ZOOM = 4;
           alt=""
           draggable="false"
           [src]="url()"
-          [style.width.px]="drawWidth()"
-          [style.height.px]="drawHeight()"
+          decoding="async"
+          [style.width.px]="baseWidth()"
+          [style.height.px]="baseHeight()"
           [style.transform]="
-            'translate(calc(-50% + ' + offsetX() + 'px), calc(-50% + ' + offsetY() + 'px))'
+            'translate(calc(-50% + ' + offsetX() + 'px), calc(-50% + ' + offsetY() + 'px)) scale(' + zoom() + ')'
           "
           (load)="onLoaded()"
         />
@@ -129,6 +135,10 @@ const MAX_ZOOM = 4;
       top: 50%;
       max-width: none;
       pointer-events: none;
+      /* ! It is moved and zoomed with a transform on its own layer (the graphics card): changing its width and height at every step
+         made the browser lay it out and draw it again, which lagged on a phone, most of all with a GIF. */
+      will-change: transform;
+      transform-origin: center;
     }
     .adjust-mask {
       position: absolute;
@@ -163,6 +173,10 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly natural = signal({ width: 0, height: 0 });
   private readonly observer = new ResizeObserver(this.measure.bind(this));
   private dragging: { x: number; y: number } | null = null;
+  /** What the pointer moved since the last picture drawn (the move is applied once per frame, not once per event). */
+  private pending = { x: 0, y: 0 };
+  private frameRequest = 0;
+  private destroyed = false;
 
   /** Whether the picture is square (shown in a circle, like the profile pictures and the group icons). */
   protected readonly round = computed(this.isSquare.bind(this));
@@ -172,12 +186,57 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly frameHeight = computed(this.heightOfFrame.bind(this));
   /** Scale that makes the picture just cover the frame, times the zoom. */
   private readonly scale = computed(this.scaleOfPicture.bind(this));
+  /** Size of the picture when it just covers the frame (what is laid out; the zoom is a transform on top of it). */
+  protected readonly baseWidth = computed(this.widthOfBase.bind(this));
+  protected readonly baseHeight = computed(this.heightOfBase.bind(this));
+  /** Size of the picture on screen, zoom included (what the cut uses). */
   protected readonly drawWidth = computed(this.widthOfPicture.bind(this));
   protected readonly drawHeight = computed(this.heightOfPicture.bind(this));
 
-  /** Makes the address of the picture from the file (the inputs are set before this runs). */
+  /** Makes the address of the picture from the file (the inputs are set before this runs); a huge still photo is shown smaller. */
   ngOnInit(): void {
     this.url.set(URL.createObjectURL(this.file()));
+    void this.shrinkPreview();
+  }
+
+  /** A photo much bigger than any cut needs is drawn smaller for the window (the zoom and the move stay smooth); GIFs are left alone. */
+  private async shrinkPreview(): Promise<void> {
+    try {
+      const file = this.file();
+      if (file.size < 1_500_000 || (await isAnimated(file))) {
+        return;
+      }
+      const limit = lowEndDevice() ? PREVIEW_SIDE_LOW : PREVIEW_SIDE;
+      const bitmap = await createImageBitmap(file);
+      const longest = Math.max(bitmap.width, bitmap.height);
+      if (longest <= limit) {
+        bitmap.close();
+        return;
+      }
+      const scale = limit / longest;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      const context = canvas.getContext('2d');
+      if (!context) {
+        bitmap.close();
+        return;
+      }
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const small = await new Promise<Blob | null>(function encode(resolve) {
+        canvas.toBlob(resolve, 'image/jpeg', 0.92);
+      });
+      if (small && !this.destroyed) {
+        const old = this.url();
+        this.natural.set({ width: 0, height: 0 });
+        this.url.set(URL.createObjectURL(small));
+        URL.revokeObjectURL(old);
+      }
+    } catch {
+      // The photo is shown as it is.
+    }
   }
 
   /** Starts to watch the size of the frame. */
@@ -208,6 +267,16 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
       return 1;
     }
     return Math.max(this.frameWidth() / size.width, this.frameHeight() / size.height) * this.zoom();
+  }
+
+  /** Width of the picture when it just covers the frame. */
+  private widthOfBase(): number {
+    return this.natural().width * (this.scale() / this.zoom());
+  }
+
+  /** Height of the picture when it just covers the frame. */
+  private heightOfBase(): number {
+    return this.natural().height * (this.scale() / this.zoom());
   }
 
   /** Width of the picture on screen. */
@@ -252,14 +321,29 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.dragging) {
       return;
     }
-    this.offsetX.set(this.offsetX() + event.clientX - this.dragging.x);
-    this.offsetY.set(this.offsetY() + event.clientY - this.dragging.y);
+    this.pending.x += event.clientX - this.dragging.x;
+    this.pending.y += event.clientY - this.dragging.y;
     this.dragging = { x: event.clientX, y: event.clientY };
+    if (!this.frameRequest) {
+      this.frameRequest = requestAnimationFrame(this.applyDrag.bind(this));
+    }
+  }
+
+  /** Applies what the pointer moved since the last frame. */
+  private applyDrag(): void {
+    this.frameRequest = 0;
+    this.offsetX.set(this.offsetX() + this.pending.x);
+    this.offsetY.set(this.offsetY() + this.pending.y);
+    this.pending = { x: 0, y: 0 };
     this.keepInside();
   }
 
   /** The release ends the drag. */
   protected endDrag(event: PointerEvent): void {
+    if (this.frameRequest) {
+      cancelAnimationFrame(this.frameRequest);
+      this.applyDrag();
+    }
     this.dragging = null;
     this.frame().nativeElement.releasePointerCapture(event.pointerId);
   }
@@ -376,6 +460,7 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
       const frames: GifFrame[] = [];
       for (let index = 0; index < count; index++) {
         const { image } = await decoder.decode({ frameIndex: index });
+        await yieldToUi();
         // Every `step`-th frame is kept, and the time of the ones left out is added to it (the speed does not change).
         const delay = Math.max(1, Math.round((image.duration ?? 100_000) / 10_000));
         if (index % step === 0) {
@@ -514,6 +599,8 @@ export class ImageAdjustComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Releases the address of the picture and stops watching. */
   ngOnDestroy(): void {
+    this.destroyed = true;
+    cancelAnimationFrame(this.frameRequest);
     this.observer.disconnect();
     URL.revokeObjectURL(this.url());
   }
@@ -544,6 +631,13 @@ export function adjustImage(
       ref.destroy();
       resolve(result);
     });
+  });
+}
+
+/** Lets the page draw and answer the pointer before the next heavy step (cutting a long animation must not freeze the window). */
+function yieldToUi(): Promise<void> {
+  return new Promise<void>(function wait(resolve) {
+    setTimeout(resolve, 0);
   });
 }
 

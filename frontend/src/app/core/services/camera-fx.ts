@@ -8,6 +8,7 @@
  *
  * ! Nothing leaves the device for this: the model, the engine and the worker are files of the app itself.
  */
+import { lowEndDevice } from '../device-tier';
 import { CameraBackground, decodeBackground } from './camera-background';
 
 /** What goes behind the person. */
@@ -123,7 +124,7 @@ export function canChangeCamera(): boolean {
 }
 
 /** The longest side of the pictures sent to the worker by the bitmap way (it keeps the cost of Firefox and Safari low). */
-const BITMAP_SIDE = 1280;
+const BITMAP_SIDE = lowEndDevice() ? 640 : 1280;
 
 /** The effects made in a worker. */
 class WorkerFx implements CameraFx {
@@ -159,6 +160,7 @@ class WorkerFx implements CameraFx {
         writable: generator.writable,
         base: appUrl('mediapipe/'),
         fps: source.getVideoTracks()[0]?.getSettings().frameRate,
+        lowEnd: lowEndDevice(),
         options: this.plain(options),
       },
       [processor.readable, generator.writable],
@@ -267,6 +269,7 @@ class BitmapFx implements CameraFx {
       mode: 'bitmaps',
       base: appUrl('mediapipe/'),
       fps: source.getVideoTracks()[0]?.getSettings().frameRate,
+      lowEnd: lowEndDevice(),
       options: this.plain(options),
     });
     void this.sendFrames(options);
