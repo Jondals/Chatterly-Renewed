@@ -4,6 +4,10 @@
 #   with TRUST_PROXY=1 the rate limits and the login lockout count each person, not the tunnel. Nothing else reaches this
 #   Caddy (it is not published), so the header cannot be forged from outside Cloudflare.
 :80 {
+	# ! Plain http:// is answered by Cloudflare too, and there the browser turns off WebCrypto (the app cannot sign in): send it to https.
+	@insecure header X-Forwarded-Proto http
+	redir @insecure https://{host}{uri} 308
+
 	encode zstd gzip
 
 	# * Defensive headers: HTTPS only (HSTS), no type guessing, no referrer, no framing, camera/microphone only here.
@@ -21,8 +25,10 @@
 		X-Frame-Options DENY
 	}
 
-	# ? Nothing bigger than the largest upload (12 MB of encrypted file) is passed on to the app.
-	request_body {
+	# ? Nothing bigger than the largest upload (12 MB of encrypted file) is passed on to the app, except the beta installers that
+	#   the build uploads in pieces of 50 MB (the app checks their secret and size itself).
+	@limited not path /api/beta/upload/*
+	request_body @limited {
 		max_size 14MB
 	}
 

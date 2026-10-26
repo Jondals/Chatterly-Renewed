@@ -71,6 +71,49 @@ export async function checkBetaFiles(): Promise<void> {
     'an installer of several megabytes (more than the normal limit of the API) is uploaded whole',
   );
   fs.rmSync(path.join(dir, 'Chatterly-2.32.0-big.exe'));
+
+  const piece = function (name: string, body: string, offset: number, total: number, headers = asBuild) {
+    return app.inject({
+      method: 'PUT',
+      url: `/api/beta/upload/${name}?offset=${offset}&total=${total}`,
+      headers: { ...headers, 'content-type': 'application/x-chatterly-beta' },
+      payload: Buffer.from(body),
+    });
+  };
+  const whole = 'aaaa' + 'bbbb' + 'cc';
+  const pieced = path.join(dir, 'Chatterly-2.32.0-pieces.exe');
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'aaaa', 0, 10, {})).statusCode === 404,
+    'a piece without the build secret is refused',
+  );
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'aaaa', 0, 10)).statusCode === 202 && !fs.existsSync(pieced),
+    'a first piece is kept aside: nothing is published before the last one',
+  );
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'cc', 8, 10)).statusCode === 409 && !fs.existsSync(pieced),
+    'a piece that leaves a gap is refused',
+  );
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'bbbb', 4, 10)).statusCode === 202 &&
+      (await piece('Chatterly-2.32.0-pieces.exe', 'bbbb', 4, 10)).statusCode === 202,
+    'a piece sent twice (a retry) is taken again without duplicating it',
+  );
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'cc', 8, 10)).statusCode === 201 &&
+      fs.readFileSync(pieced, 'utf8') === whole,
+    'the last piece publishes the whole file, byte for byte',
+  );
+  check(
+    (await piece('Chatterly-2.32.0-pieces.exe', 'toolong', 0, 3)).statusCode === 400 &&
+      fs.readFileSync(pieced, 'utf8') === whole,
+    'pieces bigger than the announced size are refused and do not touch the published file',
+  );
+  check(
+    (await piece('..%2Fchatterly.db', 'x', 0, 1)).statusCode === 400,
+    'a piece with a name that is not an installer or a manifest is refused',
+  );
+  fs.rmSync(pieced);
   check(
     (await call(app, null, 'GET', '/api/beta/feed')).statusCode === 401,
     'the download token needs a session',

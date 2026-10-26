@@ -197,7 +197,12 @@ export function registerBetaFileRoutes(app: FastifyInstance, ctx: AppContext): v
       },
     );
 
-    /** The build uploads one file (an installer, a manifest or the signature of a manifest). */
+    /**
+     * The build uploads one file (an installer, a manifest or the signature of a manifest).
+     * * In pieces: with ?offset=<byte>&total=<size> each request carries the bytes from that offset on, and the file is only
+     *   published when the last one arrives. ? Why: Cloudflare (in front of the server) refuses any request bigger than 100 MB,
+     *   and the installers are bigger. A piece sent again (a retry) rewrites from its offset, so a retry never duplicates bytes.
+     */
     scope.put(
       '/api/beta/upload/:file',
       {
@@ -209,6 +214,14 @@ export function registerBetaFileRoutes(app: FastifyInstance, ctx: AppContext): v
             required: ['file'],
             properties: { file: { type: 'string', maxLength: 100 } },
           },
+          querystring: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              offset: { type: 'integer', minimum: 0, maximum: MAX_FILE_BYTES },
+              total: { type: 'integer', minimum: 1, maximum: MAX_FILE_BYTES },
+            },
+          },
         },
       },
       async function (req, reply) {
@@ -217,6 +230,10 @@ export function registerBetaFileRoutes(app: FastifyInstance, ctx: AppContext): v
         const target = filePath(name);
         if (target === null) return reply.code(400).send({ error: 'bad_name' });
         fs.mkdirSync(config.betaDir, { recursive: true });
+        const { offset, total } = req.query as { offset?: number; total?: number };
+        if (offset !== undefined || total !== undefined) {
+          return receivePiece(req, reply, name, target, offset ?? 0, total);
+        }
         const partial = path.join(config.betaDir, '.part-' + randomBytes(8).toString('hex'));
         try {
           await pipeline(
@@ -235,6 +252,51 @@ export function registerBetaFileRoutes(app: FastifyInstance, ctx: AppContext): v
       },
     );
   });
+
+  /** One piece of a file uploaded in pieces: 202 while more are missing, 201 once the whole file is published. */
+  async function receivePiece(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    name: string,
+    target: string,
+    offset: number,
+    total: number | undefined,
+  ): Promise<FastifyReply> {
+    if (total === undefined || offset >= total) return reply.code(400).send({ error: 'bad_range' });
+    // One staging file per name (the name is already one of the allowed ones), deleted by prune() if it is abandoned.
+    const partial = path.join(config.betaDir, '.part-' + name);
+    let have = 0;
+    try {
+      have = fs.statSync(partial).size;
+    } catch {
+      have = 0;
+    }
+    // ! Only a piece that continues what is there (or repeats an earlier one) is taken: a gap would publish a broken file.
+    if (offset > have) return reply.code(409).send({ error: 'bad_offset', have });
+    if (offset === 0) fs.writeFileSync(partial, '');
+    else fs.truncateSync(partial, offset);
+    const limit = new SizeLimit();
+    try {
+      await pipeline(
+        req.body as NodeJS.ReadableStream,
+        limit,
+        fs.createWriteStream(partial, { flags: 'r+', start: offset }),
+      );
+    } catch (error) {
+      fs.truncateSync(partial, offset);
+      const tooBig = error instanceof Error && error.message === 'too_big';
+      return reply.code(tooBig ? 413 : 400).send({ error: tooBig ? 'too_big' : 'bad_upload' });
+    }
+    const size = fs.statSync(partial).size;
+    if (size > total) {
+      fs.rmSync(partial, { force: true });
+      return reply.code(400).send({ error: 'bad_range' });
+    }
+    if (size < total) return reply.code(202).send({ ok: true, have: size });
+    fs.renameSync(partial, target);
+    if (MANIFEST_NAME.test(name)) prune();
+    return reply.code(201).send({ ok: true });
+  }
 
   /** Keeps what a manifest points to and deletes the installers nobody points to (and left-over partial uploads). */
   function prune(): void {
