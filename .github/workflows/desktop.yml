@@ -492,11 +492,29 @@ jobs:
           if [ "$BETA" = true ]; then
             # The server keeps no record of who downloads. Installers first, then manifests: an app that sees a
             # manifest finds everything it points to.
-            send() {
+            # ? Cloudflare (in front of the server) refuses any request bigger than 100 MB, so a bigger file goes in pieces of
+            #   50 MB (?offset=&total=): the server publishes it only when the last piece arrives, and a retried piece rewrites
+            #   from its offset instead of adding bytes twice.
+            put() {
               curl -fsS --retry 3 --retry-all-errors -X PUT -H "Authorization: Bearer $BETA_UPLOAD_TOKEN" \
-                -H 'Content-Type: application/x-chatterly-beta' --data-binary "@$1" \
-                "$BETA_URL/api/beta/upload/$(basename "$1")" > /dev/null
-              echo "uploaded $(basename "$1")"
+                -H 'Content-Type: application/x-chatterly-beta' --data-binary "@$1" "$2" > /dev/null
+            }
+            send() {
+              local NAME SIZE PIECE=$((50 * 1024 * 1024)) OFFSET=0
+              NAME=$(basename "$1")
+              SIZE=$(stat -c %s "$1")
+              if [ "$SIZE" -le "$PIECE" ]; then
+                put "$1" "$BETA_URL/api/beta/upload/$NAME" || return 1
+              else
+                while [ "$OFFSET" -lt "$SIZE" ]; do
+                  # dd, not tail | head: head closing the pipe early kills tail (SIGPIPE), and pipefail ends the job.
+                  dd if="$1" of="$RUNNER_TEMP/piece" bs=4M iflag=skip_bytes,count_bytes skip="$OFFSET" count="$PIECE" status=none
+                  put "$RUNNER_TEMP/piece" "$BETA_URL/api/beta/upload/$NAME?offset=$OFFSET&total=$SIZE" || return 1
+                  OFFSET=$((OFFSET + PIECE))
+                done
+                rm -f "$RUNNER_TEMP/piece"
+              fi
+              echo "uploaded $NAME"
             }
             for FILE in out/*.exe out/*.AppImage; do send "$FILE"; done
             # macOS: a server that still runs an older version refuses these names; the other betas are published anyway.
