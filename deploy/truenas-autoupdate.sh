@@ -3,7 +3,7 @@
 # master is always merged from beta). Run by a cron job of TrueNAS every 5 minutes. GitHub never connects here: this asks it.
 # * The new image is built while the old container keeps serving; only the swap (app.redeploy) cuts for a few seconds.
 # ! If the download or the build fails, nothing is swapped and the next run tries again.
-# Install: copy it to /mnt/Disk2TB/Applications/Chatterly/autoupdate.sh and add a cron job of TrueNAS (System > Advanced >
+# Install: copy it to /mnt/Disk2TB/Projects/Chatterly/autoupdate.sh and add a cron job of TrueNAS (System > Advanced >
 # Cron Jobs) that runs `bash <that path>` as root every 5 minutes. The app "chatterly" must build the image chatterly-renewed:local.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ REPO=Jondals/Chatterly-Renewed
 BRANCH=beta
 APP=chatterly
 IMAGE=chatterly-renewed:local
-BASE=/mnt/Disk2TB/Applications/Chatterly
+BASE=/mnt/Disk2TB/Projects/Chatterly
 STATE=$BASE/autoupdate.sha
 LOG=$BASE/autoupdate.log
 
