@@ -985,7 +985,7 @@ async function bundledApp() {
         'content-security-policy',
         route === '/ok'
           ? "frame-ancestors 'self' app://chatterly"
-          : "frame-ancestors 'self' https://chatterlyrenewed.duckdns.org",
+          : "frame-ancestors 'self' https://chatterly.dpdns.org",
       );
       res.end(
         '<!doctype html><script>parent.postMessage({ source: "spinly", type: "hello" },' +

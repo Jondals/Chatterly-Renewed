@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /** The public server: the default address of the API. */
-const DEFAULT_API = 'https://chatterlyrenewed.duckdns.org';
+const DEFAULT_API = 'https://chatterly.dpdns.org';
 
 /** The folder of the native apps. */
 const MOBILE = path.resolve(import.meta.dirname, '..');

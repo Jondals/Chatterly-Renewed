@@ -257,7 +257,7 @@ const SPLASH = {
 };
 
 /** The public address of the site (no trailing slash): the canonical link, the social cards, the sitemap and robots.txt use it. */
-const SITE_URL = (process.env.SITE_URL ?? 'https://chatterlyrenewed.duckdns.org').replace(
+const SITE_URL = (process.env.SITE_URL ?? 'https://chatterly.dpdns.org').replace(
   /\/+$/,
   '',
 );
