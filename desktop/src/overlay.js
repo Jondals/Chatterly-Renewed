@@ -183,7 +183,7 @@ function togglePin(id, event) {
 /** The people of the call, as the voice widget and the video widget show them. */
 function shownPeople() {
   return tiles.filter(function isShown(tile) {
-    return config.editing || !config.onlySpeaking || tile.speaking;
+    return true;
   });
 }
 
@@ -204,8 +204,10 @@ function drawVoice(body) {
       row.append(cam);
     }
     if (person.deafened || person.muted) {
+      // Both are shown when both are on: a person who is deafened and also muted (the mic is off too) shows the two.
       const state = el('span', 'state');
-      state.appendChild(icon(person.deafened ? 'headphonesOff' : 'micOff'));
+      if (person.muted) state.appendChild(icon('micOff'));
+      if (person.deafened) state.appendChild(icon('headphonesOff'));
       row.append(state);
     }
     list.append(row);
@@ -231,8 +233,8 @@ function drawVideo(body) {
     if (config.showNames) {
       const label = el('div', 'label');
       label.append(el('span', '', person.name));
-      if (person.muted || person.deafened)
-        label.append(icon(person.deafened ? 'headphonesOff' : 'micOff'));
+      if (person.muted) label.append(icon('micOff'));
+      if (person.deafened) label.append(icon('headphonesOff'));
       tile.append(label);
     }
     list.append(tile);

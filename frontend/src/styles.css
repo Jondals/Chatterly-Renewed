@@ -9,6 +9,17 @@
 
 @import 'tailwindcss';
 
+/* ! Tailwind only applies `hover:` where the primary pointer can hover. A computer with a touch screen or a pen reports that the pointer
+   cannot hover now and then, and the hovers of the menus and the profile stopped working at random. Here a hover counts whenever any
+   pointer of the device can hover (a phone with only a finger still has no sticky hovers). */
+@custom-variant hover {
+  @media (any-hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 /* The rest of the styles, by what they are for. The order matters: a later file may refine an earlier one. */
 @import './styles/tokens.css';
 @import './styles/cursors.css';

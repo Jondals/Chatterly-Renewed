@@ -368,6 +368,16 @@ function onPickCancel(event) {
 
 /** Of the screens that can be captured, the one the app window is on (the first one when that cannot be told). */
 function nearestScreen(sources) {
+  // The screen where the mouse is (the one the person is playing on) comes first; then the one of the window of the app.
+  try {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const under = sources.find(function onDisplay(source) {
+      return source.display_id === String(display.id);
+    });
+    if (under) return under;
+  } catch (error) {
+    // No cursor position: the window of the app decides.
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     const display = screen.getDisplayMatching(mainWindow.getBounds());
     const match = sources.find(function onDisplay(source) {

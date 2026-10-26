@@ -347,6 +347,20 @@ a:focus:not(:focus-visible) {
   border: 2px solid transparent;
 }
 
+/* A cell of a long list of pictures (GIFs, stickers): the ones off screen are neither laid out nor painted, so the list stays light
+   however long it is, and a change of color only restyles the ones in view. */
+.lazy-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 5rem;
+}
+
+/* While the colors of the theme change, nothing eases (see SettingsService.quiet): a long list of GIFs or stickers would animate every cell. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
 /* Everything interactive eases in and out — hovers never "snap". */
 a,
 button,

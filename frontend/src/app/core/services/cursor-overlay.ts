@@ -162,6 +162,9 @@ export class CursorOverlay {
     }
     document.addEventListener('pointermove', this.moveHandler, true);
     document.addEventListener('pointerdown', this.moveHandler, true);
+    // ? Coming back into the page (from another app that changes the mouse, a game, a remote session) brings the themed cursor back at once,
+    //   without waiting for the next move.
+    document.addEventListener('pointerover', this.moveHandler, true);
     document.addEventListener('mouseleave', this.leaveHandler);
     document.documentElement.addEventListener('mouseleave', this.leaveHandler);
     window.addEventListener('blur', this.leaveHandler);
@@ -176,6 +179,7 @@ export class CursorOverlay {
     }
     document.removeEventListener('pointermove', this.moveHandler, true);
     document.removeEventListener('pointerdown', this.moveHandler, true);
+    document.removeEventListener('pointerover', this.moveHandler, true);
     document.removeEventListener('mouseleave', this.leaveHandler);
     document.documentElement.removeEventListener('mouseleave', this.leaveHandler);
     window.removeEventListener('blur', this.leaveHandler);
@@ -311,6 +315,10 @@ export class CursorOverlay {
   private onPointer(event: Event): void {
     const pointer = event as PointerEvent;
     if (pointer.pointerType === 'touch') {
+      return;
+    }
+    // A page of another site never reports its moves: entering it keeps the system cursor (see onPointerOut).
+    if (pointer.type === 'pointerover' && (pointer.target as Element | null)?.tagName === 'IFRAME') {
       return;
     }
     // ! Only the last position of the frame is kept: a mouse sends hundreds of events a second, and looking at the page for

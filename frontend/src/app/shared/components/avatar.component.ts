@@ -2,7 +2,18 @@
  * src/app/shared/components/avatar.component.ts
  * Profile picture or initials, with ring, status dot and a highlight while speaking.
  */
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import type { PresenceStatus, User } from '../../core/models';
 import { ImageService } from '../../core/services/image.service';
 import { ViewerService } from '../../core/services/viewer.service';
@@ -68,8 +79,6 @@ const STATUS_COLORS: Record<PresenceStatus, string> = {
   `,
   host: {
     class: 'inline-block shrink-0 align-middle',
-    '(mouseenter)': 'hover.set(true)',
-    '(mouseleave)': 'hover.set(false)',
     '(click)': 'zoom($event)',
     '[class.cursor-zoom-in]': 'zoomable() && !!src()',
   },
@@ -87,6 +96,8 @@ export class AvatarComponent {
   /** How thick the ring of the effect is, as a part of the size of the picture (a big picture in a call wants a thinner one). */
   readonly ringRatio = input(0.14);
   readonly speaking = input(false);
+  /** True where the picture moves all the time (the preview of a profile, a profile card), not only under the pointer. */
+  readonly animated = input(false);
   /** True where pressing the picture opens it big. */
   readonly zoomable = input(false);
 
@@ -108,7 +119,7 @@ export class AvatarComponent {
   protected readonly shown = computed(
     function (this: AvatarComponent) {
       const still = this.images.still(this.resolvedImage());
-      return this.hover() || !still ? this.src() : still;
+      return this.animated() || this.hover() || !still ? this.src() : still;
     }.bind(this),
   );
   protected readonly auraClass = computed(
@@ -179,6 +190,22 @@ export class AvatarComponent {
   }
 
   constructor() {
+    // The picture moves when the pointer is over it or over the row it belongs to (a person in a list, a message), not only over
+    // the few pixels of the picture itself.
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const enter = this.hover.set.bind(this.hover, true);
+    const leave = this.hover.set.bind(this.hover, false);
+    const row = host.closest<HTMLElement>('button, a, li, [role="button"], [role="menuitem"]') ?? host;
+    row.addEventListener('pointerenter', enter);
+    row.addEventListener('pointerleave', leave);
+    if (row !== host) {
+      host.addEventListener('pointerenter', enter);
+    }
+    inject(DestroyRef).onDestroy(function release() {
+      row.removeEventListener('pointerenter', enter);
+      row.removeEventListener('pointerleave', leave);
+      host.removeEventListener('pointerenter', enter);
+    });
     effect(
       function (this: AvatarComponent) {
         const id = this.resolvedImage();

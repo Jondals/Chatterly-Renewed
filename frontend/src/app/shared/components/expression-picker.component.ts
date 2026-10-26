@@ -25,6 +25,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { loadEmojiData, type EmojiEntry } from '../util/emoji-data';
 import { GifThumbComponent } from './gif-thumb.component';
 import { gifColumns } from '../util/gif-columns';
+import { NearEndDirective } from '../util/near-end.directive';
 import { IconComponent } from './icon.component';
 import { closeOnBack } from '../../core/services/back.service';
 
@@ -60,7 +61,7 @@ const SCROLL_AHEAD_PX = 320;
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-expression-picker',
   standalone: true,
-  imports: [IconComponent, GifThumbComponent, TranslatePipe],
+  imports: [IconComponent, GifThumbComponent, NearEndDirective, TranslatePipe],
   template: `
     <div
       class="anim-pop flex h-[30rem] w-[27rem] max-md:h-[min(30rem,60dvh)] max-md:w-full rounded-ui-lg border border-white/10 bg-ink-800 shadow-2xl max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden"
@@ -230,6 +231,7 @@ const SCROLL_AHEAD_PX = 320;
                 <div class="shimmer mt-1 h-20 rounded-ui"></div>
               }
               @if (gifNext() && !gifLoading()) {
+                <div appNearEnd (nearEnd)="loadGifs(true)" class="h-8"></div>
                 <button type="button" class="btn btn-sm mt-1 w-full" (click)="loadGifs(true)">
                   {{ 'Load more' | t }}
                 </button>
@@ -290,7 +292,7 @@ const SCROLL_AHEAD_PX = 320;
                 @for (s of pack.items; track s.id) {
                   <button
                     type="button"
-                    class="group relative aspect-square rounded-ui p-1 hover:bg-white/10"
+                    class="lazy-cell group relative aspect-square rounded-ui p-1 hover:bg-white/10"
                     (click)="pickSticker(s)"
                     (contextmenu)="removeSticker($event, pack, s)"
                   >

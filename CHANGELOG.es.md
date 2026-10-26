@@ -2,6 +2,20 @@
 
 Versión en inglés (la original, la que se actualiza primero): [CHANGELOG.md](CHANGELOG.md).
 
+## 2.36.21
+
+- **Nueva dirección del servidor: chatterly.dpdns.org.** El servidor se ha mudado de la máquina de Oracle a un servidor propio detrás de un Cloudflare Tunnel: no hay ningún puerto abierto y su dirección nunca se ve. Las apps apuntan ahora a `https://chatterly.dpdns.org`; la dirección antigua (chatterlyrenewed.duckdns.org) sigue funcionando para las apps que aún no se han actualizado y desaparecerá más adelante. Las cuentas, los mensajes y los archivos son los mismos.
+- **Llamadas por la retransmisión de Cloudflare.** El servidor puede usar ahora el TURN gestionado de Cloudflare (`CLOUDFLARE_TURN_KEY_ID` y `CLOUDFLARE_TURN_API_TOKEN`) en vez de un coturn propio: pide a Cloudflare credenciales de corta duración en cada llamada y el token de la API nunca llega al navegador. Las llamadas solo por retransmisión siguen fallando de forma segura: si Cloudflare no responde, la llamada se rechaza en vez de conectarse en directo.
+- **Alojarlo detrás de un túnel.** Nuevo `deploy/Caddyfile.tunnel` para cloudflared → Caddy → app: la dirección de cada persona sale de `Cf-Connecting-IP` (así los límites cuentan personas, no el túnel), y el `http://` sin cifrar se manda a `https://` (sin eso el navegador apaga el cifrado y nadie puede iniciar sesión). `deploy/truenas-autoupdate.sh` actualiza el servidor solo con cada beta y cada versión (el servidor pregunta a GitHub; GitHub nunca se conecta a él), así que `deploy.yml` (SSH a la máquina antigua) queda desactivado.
+- **Instaladores de la beta por trozos.** Cloudflare rechaza las peticiones de más de 100 MB y los instaladores pesan más, así que la build los sube en trozos de 50 MB (`?offset=&total=`); el servidor publica un archivo solo cuando llega su último trozo, y un trozo reenviado nunca añade bytes dos veces.
+- **Panel de la llamada: se puede ocultar.** Un botón nuevo lo reduce a una tira pequeña (el tiempo, mostrar y colgar), y la elección se guarda en el dispositivo. El nombre de la llamada ya no se corta.
+- **Overlay: compartir pantalla ya no se la quita al juego.** Desde el overlay se comparte la pantalla entera directamente (la ventana de Chatterly ya no se pone encima del juego), y la pantalla elegida es la que está bajo el ratón. Silenciado y ensordecido muestran los dos iconos cuando están los dos. Desaparece la opción "solo las personas que hablan".
+- **Efectos de la cámara en móviles.** En un dispositivo modesto (un móvil, o con poca memoria o pocos núcleos) el recorte, el desenfoque y los fondos animados piden menos: la cámara baja a 480p y 24 fps mientras hay un efecto, las imágenes de los efectos son más pequeñas, y cuando el dispositivo no llega la imagen que se envía se reduce antes de ir a tirones. En todos los dispositivos los efectos se adaptan más rápido.
+- **Las listas largas de GIFs y stickers van fluidas.** Las miniaturas lejos de la pantalla se sacan de la página, y las listas cargan más solas al llegar al final.
+- **Ajustar una imagen va fluido.** La imagen se mueve y se amplía en su propia capa, una foto enorme se muestra más pequeña en la ventana, y recortar una animación larga ya no la congela.
+- **Imágenes que se mueven.** Una foto de perfil animada se mueve siempre en la vista previa del perfil y en la tarjeta de perfil, y en una lista se mueve con el puntero sobre toda la fila, no solo sobre la imagen.
+- **Pequeños arreglos.** El panel de la campana se abre justo debajo de ella (también bajo la barra de título de la app de escritorio); cambiar los colores del tema ya no va a tirones; salir del modo invitado tiene su propia animación; el cursor del tema vuelve al momento al regresar a la página.
+
 ## 2.36.1
 
 - **iPhone y iPad: el botón de enviar siempre está.** Se ocultaba a partir de 640 px de ancho (un iPad, o un móvil de lado), así que no había forma de enviar; las apps ahora lo muestran siempre (y el aviso "Enter para enviar" desaparece allí).

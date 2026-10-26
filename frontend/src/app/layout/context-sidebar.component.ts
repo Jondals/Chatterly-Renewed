@@ -269,7 +269,7 @@ import { fontClassOf } from '../shared/util/user-font.directive';
               class="btn btn-icon btn-sm btn-ghost relative tip"
               [attr.data-tip]="'Notifications' | t"
               (mousedown)="$event.stopPropagation()"
-              (click)="bell.set(!bell())"
+              (click)="toggleBell($event)"
             >
               <app-icon name="bell" [size]="17" />
               @if (notificationCount() > 0) {
@@ -280,7 +280,9 @@ import { fontClassOf } from '../shared/util/user-font.directive';
             </button>
             @if (bell()) {
               <div
-                class="panel anim-pop fixed left-3 top-16 z-[90] w-[min(18rem,calc(100vw-1.5rem))] p-2 shadow-2xl lg:left-[84px]"
+                class="panel anim-pop fixed z-[90] w-[min(18rem,calc(100vw-1.5rem))] p-2 shadow-2xl"
+                [style.top.px]="bellPos().top"
+                [style.left.px]="bellPos().left"
                 (mousedown)="$event.stopPropagation()"
               >
                 <div class="label px-2 py-1.5">{{ 'Notifications' | t }}</div>
@@ -623,6 +625,8 @@ export class ContextSidebarComponent {
   protected readonly groupMenu = signal(false);
   protected readonly statusMenu = signal(false);
   protected readonly bell = signal(false);
+  /** Where the panel of the bell goes: just under the button, wherever the button is (the title bar of the desktop app pushes it down). */
+  protected readonly bellPos = signal({ top: 64, left: 12 });
   /** Channel being dragged and channel it is passing over (to mark where it will drop). */
   protected readonly dragging = signal<string | null>(null);
   protected readonly dragOver = signal<string | null>(null);
@@ -745,6 +749,19 @@ export class ContextSidebarComponent {
       return this.guilds.channel(id)?.name ?? '';
     }.bind(this),
   );
+
+  /** Opens or closes the panel of the bell; it opens right under the button (never over it, so the button can close it again). */
+  protected toggleBell(event: Event): void {
+    if (!this.bell()) {
+      const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const width = Math.min(288, window.innerWidth - 24);
+      this.bellPos.set({
+        top: Math.round(box.bottom + 8),
+        left: Math.round(Math.max(12, Math.min(box.left, window.innerWidth - width - 12))),
+      });
+    }
+    this.bell.set(!this.bell());
+  }
 
   @HostListener('document:mousedown') closeMenus() {
     this.groupMenu.set(false);

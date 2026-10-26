@@ -34,6 +34,7 @@ import { ApiError, ApiService } from './api.service';
 import { screenQuality } from '../screen-quality';
 import { SettingsService } from './settings.service';
 import { CallBackgroundService } from './call-background.service';
+import { lowEndDevice } from '../device-tier';
 import { canChangeCamera, isNeutral, startCameraFx, type CameraFx } from './camera-fx';
 import { SocketService, type ServerEvent } from './socket.service';
 import { buildVoiceChain } from '../audio-chain';
@@ -1023,7 +1024,13 @@ export class CallService {
    * instead of failing, and the choice goes back to "default".
    */
   private async openRawCamera(): Promise<MediaStream> {
-    const { height, fps } = this.cameraShape();
+    let { height, fps } = this.cameraShape();
+    if (lowEndDevice() && this.backgrounds.active()) {
+      // ? A phone that also makes the effects (cutout, blur, an animated background) cannot do it at 720p and 30: the camera is
+      //   asked for less, and what it costs drops with the number of pixels. Without effects the camera keeps the chosen quality.
+      height = Math.min(height, 480);
+      fps = Math.min(fps, 24);
+    }
     const quality = {
       width: { ideal: Math.round((height * 16) / 9) },
       height: { ideal: height },
@@ -1061,12 +1068,14 @@ export class CallService {
   }
 
   /** Starts or stops sharing the screen. */
-  async toggleScreen(): Promise<void> {
+  async toggleScreen(surface?: 'monitor' | 'window'): Promise<void> {
     if (this.screenOn()) {
       this.stopScreen();
       return;
     }
-    const choice = this.settings.screenShare();
+    const choice = surface
+      ? { ...this.settings.screenShare(), surface }
+      : this.settings.screenShare();
     const size = screenQuality(choice.quality, androidScreenAvailable());
     const video: MediaTrackConstraints & { displaySurface?: string } = {
       width: { ideal: size.width },

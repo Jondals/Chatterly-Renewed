@@ -22,7 +22,7 @@ def chatterlyVersion() {
 
 /** The host of the API the app talks to (the same CHATTERLY_URL as mobile/scripts/prepare-web.mjs): updates come only from it. */
 def chatterlyApiHost() {
-    def url = System.getenv('CHATTERLY_URL') ?: 'https://chatterlyrenewed.duckdns.org'
+    def url = System.getenv('CHATTERLY_URL') ?: 'https://chatterly.dpdns.org'
     def host = new URI(url).getHost()
     if (!url.startsWith('https://') || !host) throw new GradleException('CHATTERLY_URL must be an https address: ' + url)
     return host.toLowerCase()

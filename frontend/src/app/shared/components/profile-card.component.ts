@@ -43,6 +43,7 @@ import { ServerTagComponent } from './server-tag.component';
                 [size]="56"
                 [status]="status()"
                 [aura]="true"
+                [animated]="true"
                 [zoomable]="true"
             /></span>
             <ng-content select="[actions]" />

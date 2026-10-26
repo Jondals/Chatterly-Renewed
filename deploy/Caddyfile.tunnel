@@ -1,0 +1,47 @@
+# Caddyfile used behind a Cloudflare Tunnel (cloudflared → caddy:80 → app). HTTPS ends at Cloudflare, so Caddy listens on
+# plain :80 inside the Docker network only (no port is published). The domain comes from the DOMAIN variable.
+# ! The client address: Cloudflare puts it in Cf-Connecting-IP. It is passed to the app as the only X-Forwarded-For entry, so
+#   with TRUST_PROXY=1 the rate limits and the login lockout count each person, not the tunnel. Nothing else reaches this
+#   Caddy (it is not published), so the header cannot be forged from outside Cloudflare.
+:80 {
+	# ! Plain http:// is answered by Cloudflare too, and there the browser turns off WebCrypto (the app cannot sign in): send it to https.
+	@insecure header X-Forwarded-Proto http
+	redir @insecure https://{host}{uri} 308
+
+	encode zstd gzip
+
+	# * Defensive headers: HTTPS only (HSTS), no type guessing, no referrer, no framing, camera/microphone only here.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		-Server
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=()"
+	}
+
+	# * No referrer and no framing for everything EXCEPT the page of the YouTube player (/api/player/*): see Caddyfile.docker.
+	@plain not path /api/player/*
+	header @plain {
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+	}
+
+	# ? Nothing bigger than the largest upload (12 MB of encrypted file) is passed on to the app, except the beta installers that
+	#   the build uploads in pieces of 50 MB (the app checks their secret and size itself).
+	@limited not path /api/beta/upload/*
+	request_body @limited {
+		max_size 14MB
+	}
+
+	# ! Extra CSP for the web: WebSockets only to this domain (see Caddyfile.docker).
+	@web not path /api/* /ws
+	header @web +Content-Security-Policy "connect-src 'self' wss://{$DOMAIN}; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+
+	# ! The API AND the WebSocket must go to the backend (3000); everything else is the web app.
+	@backend path /api/* /ws
+	reverse_proxy @backend app:3000 {
+		header_up X-Forwarded-For {http.request.header.Cf-Connecting-IP}
+	}
+	reverse_proxy app:4200 {
+		header_up X-Forwarded-For {http.request.header.Cf-Connecting-IP}
+	}
+}

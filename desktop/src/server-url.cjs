@@ -7,7 +7,7 @@
  */
 'use strict';
 
-const DEFAULT_URL = 'https://chatterlyrenewed.duckdns.org';
+const DEFAULT_URL = 'https://chatterly.dpdns.org';
 
 /** Turns the configured address into a URL object, or throws with a clear message. */
 function parseServerUrl(raw, isPackaged) {

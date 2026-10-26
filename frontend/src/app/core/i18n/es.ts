@@ -1200,6 +1200,7 @@ export const ES: Record<string, string> = {
   'Add a color': 'Añadir un color',
   'Remove this color': 'Quitar este color',
   'Hide': 'Ocultar',
+  'Show': 'Mostrar',
   'Switch on the tags this person has. The order of the list is the order of the sections.':
     'Activa las etiquetas de esta persona. El orden de la lista es el orden de las secciones.',
   'New tag for this person': 'Nueva etiqueta para esta persona',

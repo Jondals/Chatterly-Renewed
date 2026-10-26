@@ -1054,7 +1054,9 @@ function handleAction(event, raw) {
   if (!action) return;
   // Locked: only the buttons of the controls, and only while the mouse is over them.
   if (!editing && !(hoverControls && CONTROL_ACTIONS.includes(action.type))) return;
-  if (action.type === 'open-chat' || (action.type === 'screen' && !(callInfo && callInfo.screen))) {
+  // ! Sharing the screen from the overlay does not bring the window of Chatterly forward: the whole screen is shared at once (see
+  //   OverlayService), and the window coming over a game made the game lose the screen.
+  if (action.type === 'open-chat') {
     setEditing(false);
     if (showMain) showMain();
   }

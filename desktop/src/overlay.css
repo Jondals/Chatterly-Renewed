@@ -156,6 +156,8 @@ svg {
   white-space: nowrap;
 }
 .person .state {
+  display: inline-flex;
+  gap: 4px;
   color: var(--red);
 }
 .person .state svg {

@@ -572,6 +572,7 @@ export class SettingsService {
   /** Custom theme: the surfaces of the interface are calculated from a base color and the parts chosen by hand. */
   private applyCustomTheme(): void {
     const root = document.documentElement;
+    this.quiet();
     const parts = this.customThemeParts();
     if (this.theme() !== 'custom' || !isHex(this.customTheme())) {
       for (const shade of SURFACE_SHADES) {
@@ -607,8 +608,23 @@ export class SettingsService {
     this.setOrRemove('--accent-2', isHex(parts.accent2) ? parts.accent2 : '');
   }
 
+  private quietTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * ! While the colors of the theme change (a drag on the color picker changes them dozens of times a second), the transitions of
+   * every button and picture are switched off: hundreds of cells in a list of GIFs or stickers each animating its color made the
+   * change lag. They come back a moment after the last change.
+   */
+  private quiet(): void {
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    clearTimeout(this.quietTimer);
+    this.quietTimer = setTimeout(root.classList.remove.bind(root.classList, 'theme-switching'), 220);
+  }
+
   /** Sets a CSS variable on the page, or removes it when the value is empty. */
   private setOrRemove(name: string, value: string): void {
+    this.quiet();
     if (value) {
       document.documentElement.style.setProperty(name, value);
     } else {
@@ -654,6 +670,7 @@ export class SettingsService {
   /** Applies the accent color of the profile; a custom one also picks a readable text color for it. */
   applyAccent(accent: AccentId, custom = ''): void {
     const root = document.documentElement;
+    this.quiet();
     root.dataset['accent'] = accent;
     if (accent === 'custom' && isHex(custom)) {
       this.setOrRemove('--accent', custom);

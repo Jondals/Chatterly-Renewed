@@ -145,7 +145,7 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
                 (click)="uploadAvatar()"
                 [attr.aria-label]="'Change picture' | t"
               >
-                <app-avatar [user]="preview()" [size]="72" />
+                <app-avatar [user]="preview()" [size]="72" [animated]="true" />
                 <span
                   class="absolute inset-0 flex items-center justify-center rounded-full bg-black/55 text-white opacity-0 group-hover:opacity-100"
                   ><app-icon name="upload" [size]="22"
@@ -389,7 +389,7 @@ import { TopLayerDirective } from '../../shared/util/top-layer.directive';
               <div>
                 <app-collapse title="Profile effect" [summary]="currentAura()">
                   <span preview
-                    ><app-avatar [user]="preview()" [size]="30" [aura]="draft().aura !== 'void'"
+                    ><app-avatar [user]="preview()" [size]="30" [animated]="true" [aura]="draft().aura !== 'void'"
                   /></span>
                   <div class="grid grid-cols-3 gap-2.5">
                     @for (a of auras; track a.id) {

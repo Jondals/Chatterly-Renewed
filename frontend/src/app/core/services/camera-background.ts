@@ -15,6 +15,7 @@
 import type { ImageSegmenter, ImageSegmenterResult } from '@mediapipe/tasks-vision';
 
 import { decodeGif } from '../gif-decode';
+import { lowEndDevice } from '../device-tier';
 import type { CameraFx, CameraFxOptions } from './camera-fx';
 
 /** Where the engine and the model are (inside the app, so the strict security policy of the page is kept). */
@@ -28,11 +29,11 @@ const MASK_MEMORY = 0.55;
 const EDGE_LOW = 0.3;
 const EDGE_HIGH = 0.7;
 /** The most memory (bytes) the frames of an animated background may use. */
-const MAX_FRAME_BYTES = 96 * 1024 * 1024;
+const MAX_FRAME_BYTES = lowEndDevice() ? 20 * 1024 * 1024 : 64 * 1024 * 1024;
 /** The most frames of an animated background. */
-const MAX_FRAMES = 160;
+const MAX_FRAMES = lowEndDevice() ? 48 : 120;
 /** The longest side of a background picture (it is drawn at most this big; the output is rarely larger). */
-const MAX_BACKGROUND_SIDE = 1280;
+const MAX_BACKGROUND_SIDE = lowEndDevice() ? 640 : 1280;
 
 /** The segmenter is created once per session (it takes a moment and a few MB). */
 let segmenterPromise: Promise<ImageSegmenter> | null = null;

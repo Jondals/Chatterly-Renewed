@@ -39,6 +39,12 @@ export interface AppConfig {
    */
   relayOnly: boolean;
   turn: { urls: string[]; secret: string; ttlSec: number } | null;
+  /**
+   * Cloudflare's managed TURN relay (CLOUDFLARE_TURN_KEY_ID and CLOUDFLARE_TURN_API_TOKEN): the server asks Cloudflare
+   * for short-lived credentials on every call, so no relay of our own has to run or be reachable from the internet.
+   * ! The API token stays on the server; only the credentials Cloudflare returns reach the browser.
+   */
+  cloudflareTurn: { keyId: string; apiToken: string; ttlSec: number } | null;
   tls: { key: string; cert: string } | null;
   logger: boolean;
   /** Usernames (lower case) that administer the server from the app: ADMIN_USERS, separated by commas. */
@@ -49,7 +55,7 @@ export interface AppConfig {
   betaUploadToken: string;
 }
 
-const APP_VERSION = '2.36.1';
+const APP_VERSION = '2.36.21';
 
 /** ! The upload secret of the beta builds: used only when it is long enough, otherwise uploading stays off. */
 function uploadToken(value: string | undefined): string {
@@ -139,9 +145,11 @@ function isTurnUrl(url: string): boolean {
  * operator asked for relay-only calls but no usable TURN relay is configured, the server must refuse to hand out
  * ICE servers: handing out a STUN server (or nothing) would let the browsers connect directly and expose addresses.
  */
-export function relayProblem(config: Pick<AppConfig, 'relayOnly' | 'turn'>): string | null {
-  if (config.relayOnly && !config.turn) {
-    return 'RELAY_ONLY=1 needs TURN_URLS (turn:/turns: addresses) and TURN_SECRET; calls are refused until they are set';
+export function relayProblem(
+  config: Pick<AppConfig, 'relayOnly' | 'turn'> & Partial<Pick<AppConfig, 'cloudflareTurn'>>,
+): string | null {
+  if (config.relayOnly && !config.turn && !config.cloudflareTurn) {
+    return 'RELAY_ONLY=1 needs TURN_URLS (turn:/turns: addresses) and TURN_SECRET, or CLOUDFLARE_TURN_KEY_ID and CLOUDFLARE_TURN_API_TOKEN; calls are refused until they are set';
   }
   return null;
 }
@@ -157,6 +165,12 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   const turnUrls = list(process.env['TURN_URLS'], []).filter(isTurnUrl);
   const turnSecret = process.env['TURN_SECRET'];
   const relayRequested = process.env['RELAY_ONLY'] === '1';
+  const cfKeyId = process.env['CLOUDFLARE_TURN_KEY_ID'];
+  const cfToken = process.env['CLOUDFLARE_TURN_API_TOKEN'];
+  const cloudflareTurn =
+    cfKeyId && cfToken
+      ? { keyId: cfKeyId, apiToken: cfToken, ttlSec: turnTtlSec(process.env['TURN_TTL_SEC']) }
+      : null;
 
   const tlsKey = process.env['TLS_KEY'];
   const tlsCert = process.env['TLS_CERT'];
@@ -191,7 +205,7 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     // all: it would learn the address of every caller.
     stunUrls: list(
       process.env['STUN_URLS'],
-      (turnUrls.length && turnSecret) || relayRequested
+      (turnUrls.length && turnSecret) || cloudflareTurn || relayRequested
         ? []
         : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
     ),
@@ -200,6 +214,7 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       turnUrls.length && turnSecret
         ? { urls: turnUrls, secret: turnSecret, ttlSec: turnTtlSec(process.env['TURN_TTL_SEC']) }
         : null,
+    cloudflareTurn,
     tls: tlsKey && tlsCert ? { key: tlsKey, cert: tlsCert } : null,
     logger: process.env['NODE_ENV'] !== 'test',
     adminUsers: list(process.env['ADMIN_USERS'], []).map(function lower(name) {

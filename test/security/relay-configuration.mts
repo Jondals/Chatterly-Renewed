@@ -71,6 +71,71 @@ export async function checkRelayConfiguration(): Promise<void> {
   );
   await open.close();
 
+  step('calls: Cloudflare managed relay');
+  const cloudflareTurn = { keyId: 'key-id', apiToken: 't'.repeat(40), ttlSec: 3600 };
+  const asked: { url: string; auth: string; body: string }[] = [];
+  const cloudflare = await makeApp({
+    relayOnly: true,
+    turn: null,
+    stunUrls: [],
+    cloudflareTurn,
+    fetch: async function fakeCloudflare(input: string | URL | Request, init?: RequestInit) {
+      asked.push({
+        url: String(input),
+        auth: String((init?.headers as Record<string, string>)['Authorization']),
+        body: String(init?.body),
+      });
+      return new Response(
+        JSON.stringify({
+          iceServers: [
+            { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.cloudflare.com:53'] },
+            {
+              urls: [
+                'turn:turn.cloudflare.com:3478?transport=udp',
+                'turn:turn.cloudflare.com:53?transport=udp',
+                'turns:turn.cloudflare.com:443?transport=tcp',
+              ],
+              username: 'cf-user',
+              credential: 'cf-pass',
+            },
+          ],
+        }),
+        { status: 201 },
+      );
+    } as typeof fetch,
+  });
+  const cfPerson = await signUp(cloudflare, 'cloudflare');
+  const cfAnswer = (await call(cloudflare, cfPerson, 'GET', '/api/rtc/config')).json();
+  check(asked.length === 1 && asked[0]!.url.includes('/turn/keys/key-id/'), 'Cloudflare is asked with the key id');
+  check(asked[0]!.auth === `Bearer ${cloudflareTurn.apiToken}`, 'Cloudflare is asked with the API token');
+  check(JSON.parse(asked[0]!.body).ttl === 3600, 'the requested credentials are short lived');
+  check(
+    cfAnswer.iceServers.length === 1 &&
+      cfAnswer.iceServers[0].username === 'cf-user' &&
+      cfAnswer.iceServers[0].urls.length === 2 &&
+      cfAnswer.iceServers[0].urls.every(function isTurn(url: string) {
+        return /^turns?:/.test(url) && !url.includes(':53');
+      }),
+    'relay-only keeps only the Cloudflare TURN addresses (no STUN, no port 53)',
+  );
+  check(!JSON.stringify(cfAnswer).includes(cloudflareTurn.apiToken), 'the API token never reaches the browser');
+  check(relayProblem({ relayOnly: true, turn: null, cloudflareTurn }) === null, 'Cloudflare satisfies relay-only');
+  await cloudflare.close();
+
+  const cfDown = await makeApp({
+    relayOnly: true,
+    turn: null,
+    stunUrls: [],
+    cloudflareTurn,
+    fetch: async function failing() {
+      return new Response('nope', { status: 500 });
+    } as typeof fetch,
+  });
+  const cfDownPerson = await signUp(cfDown, 'cfdown');
+  const cfRefused = await call(cfDown, cfDownPerson, 'GET', '/api/rtc/config');
+  check(cfRefused.statusCode === 503, 'relay-only fails closed when Cloudflare does not answer');
+  await cfDown.close();
+
   step('configuration: environment variables');
   const saved = { ...process.env };
   try {
