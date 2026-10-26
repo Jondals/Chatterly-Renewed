@@ -25,6 +25,9 @@ services:
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
       TURN_TTL_SEC: ${TURN_TTL_SEC:-}
+      # Cloudflare's managed TURN instead of the "turn" service below (nothing to run or open on this machine).
+      CLOUDFLARE_TURN_KEY_ID: ${CLOUDFLARE_TURN_KEY_ID:-}
+      CLOUDFLARE_TURN_API_TOKEN: ${CLOUDFLARE_TURN_API_TOKEN:-}
       RELAY_ONLY: ${RELAY_ONLY:-}
     logging:
       driver: json-file

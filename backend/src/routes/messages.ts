@@ -599,11 +599,48 @@ export function registerMessageRoutes(app: FastifyInstance, ctx: AppContext): vo
       const username = `${expiresAt}:${me(req)}`;
       const credential = createHmac('sha1', config.turn.secret).update(username).digest('base64');
       iceServers.push({ urls: config.turn.urls, username, credential });
+    } else if (config.cloudflareTurn) {
+      const cf = config.cloudflareTurn;
+      try {
+        const response = await (config.fetch ?? fetch)(
+          `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(cf.keyId)}/credentials/generate-ice-servers`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${cf.apiToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ttl: cf.ttlSec }),
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        if (!response.ok) throw new Error(`Cloudflare TURN answered ${response.status}`);
+        const body = (await response.json()) as { iceServers?: unknown };
+        // Cloudflare has answered both one object and a list of them.
+        const servers = (Array.isArray(body.iceServers) ? body.iceServers : [body.iceServers]) as {
+          urls?: string | string[];
+          username?: string;
+          credential?: string;
+        }[];
+        for (const server of servers) {
+          if (!server || !server.urls) continue;
+          // ? Port 53 is blocked by browsers (Firefox waits for it until the call times out); relay-only keeps no STUN.
+          const urls = (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(function usable(url) {
+            return !/:53(\?|$)/.test(url) && (!config.relayOnly || /^turns?:/.test(url));
+          });
+          if (!urls.length) continue;
+          iceServers.push(
+            server.username ? { urls, username: server.username, credential: server.credential } : { urls },
+          );
+        }
+        expiresAt = Math.floor(Date.now() / 1000) + cf.ttlSec;
+      } catch (error) {
+        req.log.error({ err: error }, 'Cloudflare TURN credentials could not be obtained');
+        // ! FAIL CLOSED here too: relay-only never falls back to a list without the relay.
+        if (config.relayOnly) return reply.code(503).send({ error: 'relay_unavailable' });
+      }
     }
     return {
       iceServers,
       relayOnly: config.relayOnly,
-      ttlSec: config.turn?.ttlSec ?? 0,
+      ttlSec: config.turn?.ttlSec ?? config.cloudflareTurn?.ttlSec ?? 0,
       expiresAt: expiresAt * 1000,
     };
   });
