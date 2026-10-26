@@ -2,6 +2,20 @@
 
 Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; this one is updated first).
 
+## 2.36.2
+
+- **New server address: chatterly.dpdns.org.** The server moved from the Oracle machine to a server of my own behind a Cloudflare Tunnel: no port is open and its address is never shown. The apps now point to `https://chatterly.dpdns.org`; the old address (chatterlyrenewed.duckdns.org) keeps working for the apps that have not updated yet and will go away later. Accounts, messages and files are the same.
+- **Calls through Cloudflare's relay.** The server can now use Cloudflare's managed TURN (`CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN`) instead of a coturn of its own: it asks Cloudflare for short-lived credentials on every call and the API token never reaches the browser. Relay-only calls still fail closed: if Cloudflare does not answer, the call is refused instead of connecting directly.
+- **Self-hosting behind a tunnel.** New `deploy/Caddyfile.tunnel` for cloudflared → Caddy → app: the address of each person comes from `Cf-Connecting-IP` (so the limits count people, not the tunnel), and plain `http://` is sent to `https://` (without it the browser turns off the encryption and nobody can sign in).
+- **Beta installers in pieces.** Cloudflare refuses requests bigger than 100 MB and the installers are bigger, so the build uploads them in pieces of 50 MB (`?offset=&total=`); the server publishes a file only when its last piece arrives, and a retried piece never adds bytes twice.
+- **Call panel: it can be hidden.** A new button shrinks it to a small strip (the time, show and hang up), and the choice is kept on the device. The name of the call no longer gets cut.
+- **Overlay: sharing the screen no longer takes it from the game.** From the overlay the whole screen is shared at once (the window of Chatterly no longer comes over the game), and the screen chosen is the one under the mouse. Muted and deafened show both icons when both are on. The option "only the people who are talking" is gone.
+- **Camera effects on phones.** On a modest device (a phone, or little memory or few cores) the cutout, the blur and the animated backgrounds ask less: the camera goes to 480p and 24 fps while an effect is on, the pictures of the effects are smaller, and when the device cannot keep up the picture sent gets smaller before it stutters. On every device the effects adapt faster.
+- **Long lists of GIFs and stickers stay smooth.** The thumbnails far from the screen are taken out of the page, and the lists load more by themselves when you reach the end.
+- **Adjusting a picture is smooth.** The picture is moved and zoomed on its own layer, a huge photo is shown smaller in the window, and cutting a long animation no longer freezes it.
+- **Pictures that move.** A moving profile picture moves all the time in the profile preview and the profile card, and in a list it moves with the pointer over the whole row, not only over the picture.
+- **Small fixes.** The panel of the bell opens right under it (also under the title bar of the desktop app); changing the colors of the theme no longer lags; leaving guest mode has its own animation; the themed cursor comes back at once when you return to the page.
+
 ## 2.36.1
 
 - **iPhone and iPad: the send button is always there.** It was hidden from 640 px of width up (an iPad, or a phone on its side), so there was no way to send; the apps now always show it (and the "Enter to send" hint is gone there).
