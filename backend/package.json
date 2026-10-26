@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-backend",
-  "version": "2.36.2",
+  "version": "2.36.21",
   "description": "Chatterly-Renewed backend: zero-knowledge auth, E2EE message relay and WebRTC signaling.",
   "main": "dist/index.js",
   "private": true,

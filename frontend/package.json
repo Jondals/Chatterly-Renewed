@@ -1,6 +1,6 @@
 {
   "name": "chatterly-renewed-frontend",
-  "version": "2.36.2",
+  "version": "2.36.21",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",

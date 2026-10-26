@@ -96,7 +96,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}
           BETA_UPLOAD_TOKEN: ${{ secrets.BETA_UPLOAD_TOKEN }}
-          BETA_URL: ${{ vars.BETA_SERVER_URL || 'https://chatterlyrenewed.duckdns.org' }}
+          BETA_URL: ${{ vars.BETA_SERVER_URL || 'https://chatterly.dpdns.org' }}
         run: |
           VERSION=$(node -p "require('./desktop/package.json').version")
           BETA=false
@@ -437,7 +437,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           CHATTERLY_UPDATE_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
           BETA_UPLOAD_TOKEN: ${{ secrets.BETA_UPLOAD_TOKEN }}
-          BETA_URL: ${{ vars.BETA_SERVER_URL || 'https://chatterlyrenewed.duckdns.org' }}
+          BETA_URL: ${{ vars.BETA_SERVER_URL || 'https://chatterly.dpdns.org' }}
           VERSION: ${{ needs.prepare.outputs.version }}
           BETA: ${{ needs.prepare.outputs.beta }}
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
