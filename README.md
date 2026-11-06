@@ -196,7 +196,7 @@ frontend/                Angular 21 (signals) + Tailwind 4
   scripts/postbuild.mjs  pre-render and CSP hash
 scripts/                 production server used by the test and Lighthouse
 test/                    the single test, split by topic: run.mjs + e2e/ (browser), security.mts + security/ (no browser), chatterly-test.exe
-deploy/                  server and deployment: Caddy, coturn, .env template (see DOCS.md)
+deploy/                  server and deployment: Caddy (also behind a Cloudflare Tunnel), .env template, auto-update (see DOCS.md)
 .github/                 issue and pull request templates, workflows (server and apps)
 Dockerfile, docker-compose.yml   stay at the root: the server and its deployment build from here
 ```

@@ -1,5 +1,5 @@
 # Dockerfile
-# Builds Chatterly-Renewed into one small image (works on ARM, like the Always Free machines of Oracle, and on x86).
+# Builds Chatterly-Renewed into one small image (works on ARM and on x86).
 # Stage 1 compiles the backend and the web app; stage 2 keeps only what is needed to run them.
 # Inside the container: the API listens on 3000 and the web app on 4200 (a reverse proxy, Caddy, sits in front).
 

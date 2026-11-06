@@ -16,6 +16,5 @@ secrets.json
 .env.*
 *.pem
 *.key
-deploy/turnserver.generated.conf
 backups
 desktop

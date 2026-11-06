@@ -1,13 +1,11 @@
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
 # docker-compose.yml
 # ════════════════════════════════════════════════════════════════════════════════════════════════════
-# * The app in one container (API and web app). HTTPS comes from a Caddy that is already running on the machine (it can
-# serve other sites too): see deploy/Caddyfile.host. The app listens only on this machine: 3000 (API) and 3001 (web).
+# * The app in one container (API and web app). The app listens only on this machine: 3000 (API) and 3001 (web).
 #   cp deploy/.env.docker.example .env   (write your domain and secrets)
-#   docker compose up -d --build app
-# Without a Caddy of your own, this file can run one too:  docker compose --profile caddy up -d --build
-# ! Calls need the TURN relay (RELAY_ONLY=1 makes it mandatory): run  bash deploy/turn-setup.sh --private
-#   Without deploy/turnserver.generated.conf the "turn" service does not start.
+#   docker compose --profile caddy up -d --build     (the app plus a Caddy that gets the HTTPS certificate itself)
+# ! Calls need a TURN relay (RELAY_ONLY=1 makes it mandatory): Cloudflare's managed TURN, see deploy/.env.docker.example.
+# * Production runs on a TrueNAS behind a Cloudflare Tunnel instead (deploy/Caddyfile.tunnel): see DOCS.md, section 11.
 services:
   app:
     build: .
@@ -71,36 +69,6 @@ services:
       - ./deploy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
-
-  # * The TURN relay. Its settings (including the shared secret) live in deploy/turnserver.generated.conf, written by
-  #   deploy/turn-setup.sh from deploy/turnserver.conf: the secret is not in this file, not in the command line and not
-  #   in the output of "docker inspect". There are no built-in addresses: nothing starts without that file.
-  # ! Do NOT add "-n" to the command: in coturn it means "do not read the configuration file" (the relay would start
-  #   open, listening everywhere, without the secret and without the denied ranges).
-  # ! cap_drop ALL needs NET_BIND_SERVICE back: the turnserver binary carries that file capability and does not start
-  #   without it.
-  turn:
-    image: coturn/coturn:4.18.0
-    restart: unless-stopped
-    network_mode: host
-    # No "-n": in coturn that flag means "do not read any configuration file".
-    command: ['-c', '/etc/coturn/turnserver.conf']
-    volumes:
-      - ./deploy/turnserver.generated.conf:/etc/coturn/turnserver.conf:ro
-      # TLS certificate of the relay (only used with `bash deploy/turn-setup.sh --tls`): see deploy/turn-cert-sync.sh
-      - ./deploy/tls:/etc/coturn/tls:ro
-    # turnserver carries a file capability, so dropping every capability makes it fail to start.
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: '10m'
-        max-file: '5'
 
 volumes:
   chatterly-data:

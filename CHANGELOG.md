@@ -4,7 +4,7 @@ Spanish version: [CHANGELOG.es.md](CHANGELOG.es.md) (translated from this file; 
 
 ## 2.36.21
 
-- **New server address: chatterly.dpdns.org.** The server moved from the Oracle machine to a server of my own behind a Cloudflare Tunnel: no port is open and its address is never shown. The apps now point to `https://chatterly.dpdns.org`; the old address keeps working for the apps that have not updated yet and will go away later. Accounts, messages and files are the same.
+- **New server address: chatterly.dpdns.org.** The server moved to a server of my own behind a Cloudflare Tunnel: no port is open and its address is never shown. The apps now point to `https://chatterly.dpdns.org`; the old address keeps working for the apps that have not updated yet and will go away later. Accounts, messages and files are the same.
 - **Calls through Cloudflare's relay.** The server can now use Cloudflare's managed TURN (`CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN`) instead of a coturn of its own: it asks Cloudflare for short-lived credentials on every call and the API token never reaches the browser. Relay-only calls still fail closed: if Cloudflare does not answer, the call is refused instead of connecting directly.
 - **Self-hosting behind a tunnel.** New `deploy/Caddyfile.tunnel` for cloudflared → Caddy → app: the address of each person comes from `Cf-Connecting-IP` (so the limits count people, not the tunnel), and plain `http://` is sent to `https://` (without it the browser turns off the encryption and nobody can sign in). `deploy/truenas-autoupdate.sh` updates the server by itself with every beta and release (the server asks GitHub; GitHub never connects to it), so `deploy.yml` (SSH to the old machine) is turned off.
 - **Beta installers in pieces.** Cloudflare refuses requests bigger than 100 MB and the installers are bigger, so the build uploads them in pieces of 50 MB (`?offset=&total=`); the server publishes a file only when its last piece arrives, and a retried piece never adds bytes twice.
@@ -577,7 +577,7 @@ Security audit release. Nothing changes in how the app is used, except that the 
 
 ## 2.11.0
 
-- Calls on the server: the signalling (messages, ringing, the sounds of the soundboard) went through but the media (audio, camera, screen) did not connect when the two people could not reach each other directly (two people behind the same router, mobile data, firewalls; no setting of the browsers fixes it). The Docker setup now includes a TURN relay (coturn) that is set up with one command, `bash deploy/turn-setup.sh`: it writes the TURN variables of `.env` (secret, public and private IP, addresses), opens the ports of the machine and starts the relay and the app. The three rules of the Oracle Cloud network (UDP 3478, TCP 3478, UDP 49152-49252) still have to be added in the Oracle console; `deploy/DEPLOY.md` says where. The media stays end-to-end encrypted: the relay only sees encrypted frames. The automatic update also keeps the relay running.
+- Calls on the server: the signalling (messages, ringing, the sounds of the soundboard) went through but the media (audio, camera, screen) did not connect when the two people could not reach each other directly (two people behind the same router, mobile data, firewalls; no setting of the browsers fixes it). The Docker setup now includes a TURN relay (coturn) that is set up with one command, `bash deploy/turn-setup.sh`: it writes the TURN variables of `.env` (secret, public and private IP, addresses), opens the ports of the machine and starts the relay and the app. The media stays end-to-end encrypted: the relay only sees encrypted frames. The automatic update also keeps the relay running.
 - Pictures: browsers that protect against fingerprinting (Firefox with that option, Brave) hand back a blank canvas, which made a banner or a picture upload as an empty image; now, when the result is blank, the picture that was chosen is uploaded as it is (up to 8 MB).
 
 ## 2.10.0
@@ -717,7 +717,7 @@ Security audit release. Nothing changes in how the app is used, except that the 
 - Music: the bar of the shared player has a whole row for the timeline; any video of a playlist can be taken out (for everybody). The cards of the menus of activities are more compact. The soundboard has two categories (Effects and Ambient) plus yours, and it keeps its size when you change category.
 - The cursor goes back to the real one as soon as the window loses the pointer or the focus (it vanished when another window was in front). The call bar and the music card glide to the place they are dropped on.
 - Looks: the icons of the settings menu turn and shine again on hover; the links to the documents of the encryption systems are in About too; the effect ring of the avatars grows with their size, and the dot of the state sits on the edge of the picture; the stickers card is smaller and does not stretch; Plum and Tangerine's Pop swapped places.
-- Deploying: `deploy/` has the guide to run the app on a free Oracle Cloud server with HTTPS (Caddy), a systemd service and a GitHub Action that updates the server after every push to main.
+- Deploying: `deploy/` has the guide to run the app on a free cloud server with HTTPS (Caddy), a systemd service and a GitHub Action that updates the server after every push to main.
 
 ## 1.24.0
 

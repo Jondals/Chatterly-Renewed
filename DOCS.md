@@ -35,10 +35,10 @@ backend/     Fastify 5 + SQLite (better-sqlite3) + WebSocket        la oficina d
 frontend/    Angular 22 (signals, standalone) + Tailwind 4           donde viven las claves y se dibuja todo
 desktop/     Electron: la app de Windows, Linux y macOS              la misma web en su propia ventana
 mobile/      Capacitor: la app de Android                            la misma web dentro del APK (apartado 19)
-deploy/      Caddy, coturn, plantilla de .env                        cómo corre en un servidor
+deploy/      Caddy, plantilla de .env, actualización automática      cómo corre en un servidor
 scripts/     servidor de producción (estáticos) y copia de seguridad pequeñas herramientas sin dependencias
 test/        UN solo test: `pnpm test`                               ver "Tests"
-.github/     workflows (servidor y apps), acción compartida, plantillas de incidencias
+.github/     workflow de las apps, acción compartida, plantillas de incidencias
 Dockerfile, docker-compose.yml                                       en la raíz: el servidor se construye desde aquí
 ```
 
@@ -186,10 +186,10 @@ Como el de Discord, solo en la app de escritorio: tu llamada **encima del juego*
 
 **Dos ramas, dos canales.**
 
-| Rama                | Qué publica                                                                                                                                                 | Dónde vive                                                                                          | Quién lo recibe                               |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `master` (o `main`) | Release estable `v2.32.0`, marcada como la última. Además `deploy.yml` actualiza el servidor                                                                | GitHub Releases                                                                                     | Todas las apps instaladas                     |
-| `beta`              | Beta `2.32.0-b1`, `-b2`... (versión interna `2.32.0-beta.<n>`, con `desktop/scripts/beta-version.mjs`). **No** se publica en GitHub ni toca el servidor web | El servidor de Chatterly (`backend/src/routes/beta-files.ts`, carpeta `beta/` del volumen de datos) | Solo las apps de probadores y administradores |
+| Rama                | Qué publica                                                                                                                                                                 | Dónde vive                                                                                          | Quién lo recibe                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `master` (o `main`) | Release estable `v2.32.0`, marcada como la última                                                                                                                           | GitHub Releases                                                                                     | Todas las apps instaladas                     |
+| `beta`              | Beta `2.32.0-b1`, `-b2`... (versión interna `2.32.0-beta.<n>`, con `desktop/scripts/beta-version.mjs`). **No** se publica en GitHub; el servidor sí se actualiza desde aquí | El servidor de Chatterly (`backend/src/routes/beta-files.ts`, carpeta `beta/` del volumen de datos) | Solo las apps de probadores y administradores |
 
 Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`). Para sacarla a todo el mundo: fusiona `beta` en `master`. La beta es siempre mayor que la estable anterior y menor que la estable de su número (`2.32.0-beta.5` < `2.32.0`), así que la estable sustituye a cualquier beta y una beta nunca reemplaza a una estable. **Solo hay una bajada de versión permitida:** quien está en una beta y elige Release recibe la última release firmada aunque su número sea menor que el de su beta (`allowDowngrade` solo se activa en ese caso, en `updater.cjs`); cualquier otra app nunca baja. Esa release debe llevar la firma dentro de su `latest.yml` (todas desde la 2.33.0).
 
@@ -211,9 +211,9 @@ Para sacar una beta: sube tus cambios a la rama `beta` (`git push origin beta`).
 
 1. En el `.env` del servidor: `BETA_UPLOAD_TOKEN=<32 o más caracteres aleatorios>` (sin él nadie puede subir) y `ADMIN_USERS` con tu usuario.
 2. En GitHub, Settings > Secrets and variables > Actions: secreto `BETA_UPLOAD_TOKEN` (el mismo valor) y secreto `UPDATE_SIGNING_KEY` (la clave privada PEM de firma). Crea el entorno `update-signing` (Settings > Environments) si quieres exigir tu aprobación para firmar. Opcional: variable `BETA_SERVER_URL`.
-3. El backend de esta versión debe estar en el servidor antes de la primera beta (`master` lo despliega solo; `deploy.yml` **nunca** despliega otra rama, ni a mano).
+3. El backend de esta versión debe estar en el servidor antes de la primera beta (el servidor se actualiza solo desde `beta`: apartado 11).
 
-Qué conviene saber: el servidor web sigue siendo uno solo: la beta cambia la app de escritorio, no el backend ni la web (un cambio de backend en beta debe esperar a `master` para llegar al servidor). Que una beta sea privada protege su **distribución**; no demuestra que mensajes, claves o llamadas estén protegidos: eso se verifica con las pruebas de seguridad (`pnpm test`). El canal de actualizaciones es la raíz de confianza del cifrado de extremo a extremo (un cliente malicioso lo rompería): por eso la firma y que la clave privada no salga del trabajo `release` son lo más importante de todo este apartado. Riesgos que quedan: un servidor comprometido podría dar descargas a quien no debe (pero no falsificar una actualización); quien ya bajó una beta la conserva; si se roba la clave de firma hay que rotarla.
+Qué conviene saber: el servidor web sigue siendo uno solo: la beta cambia la app de escritorio; el backend y la web del servidor siguen a la rama `beta` (un cambio de backend llega al servidor en cuanto se sube a `beta`). Que una beta sea privada protege su **distribución**; no demuestra que mensajes, claves o llamadas estén protegidos: eso se verifica con las pruebas de seguridad (`pnpm test`). El canal de actualizaciones es la raíz de confianza del cifrado de extremo a extremo (un cliente malicioso lo rompería): por eso la firma y que la clave privada no salga del trabajo `release` son lo más importante de todo este apartado. Riesgos que quedan: un servidor comprometido podría dar descargas a quien no debe (pero no falsificar una actualización); quien ya bajó una beta la conserva; si se roba la clave de firma hay que rotarla.
 
 ## 10. Compilar y publicar las apps
 
@@ -222,7 +222,7 @@ Qué conviene saber: el servidor web sigue siendo uno solo: la beta cambia la ap
 1. Sube la versión **a la vez en todos los sitios** (apartado 2) y añade la entrada del CHANGELOG.
 2. Haz commit y push a `master`.
 
-Eso es todo. `deploy.yml` actualiza el servidor y `.github/workflows/desktop.yml` construye **Windows** (instalador `Chatterly-<v>.exe`), **macOS** (`Chatterly-<v>.dmg`, en un runner de Mac), **Android** (`Chatterly-<v>.apk`) y **Linux** (`Chatterly-<v>.AppImage`; `<v>` es `2.32.0` en una release y `2.32.0-b1` en una beta, y el propio build pone ese nombre también en el `.yml` de actualización), los firma y los sube a la release `v<v>` (una beta, en cambio, al servidor), y publica la release cuando terminan **todos** (si una plataforma falla no sale ninguna: todo se actualiza a la vez). Los archivos se suben en este orden: Windows, Linux, macOS, Android y después los manifiestos. Si esa versión ya tiene una release completa (un push que no subió la versión) no se construye nada; una release que se quedó a medias por un fallo la termina el siguiente push (o _Run workflow_), porque solo se rehacen las plataformas que faltan. El repositorio (o al menos sus Releases) debe ser **público** para que las apps descarguen las estables.
+Eso es todo. El servidor ya se actualizó desde `beta` y `.github/workflows/desktop.yml` construye **Windows** (instalador `Chatterly-<v>.exe`), **macOS** (`Chatterly-<v>.dmg`, en un runner de Mac), **Android** (`Chatterly-<v>.apk`) y **Linux** (`Chatterly-<v>.AppImage`; `<v>` es `2.32.0` en una release y `2.32.0-b1` en una beta, y el propio build pone ese nombre también en el `.yml` de actualización), los firma y los sube a la release `v<v>` (una beta, en cambio, al servidor), y publica la release cuando terminan **todos** (si una plataforma falla no sale ninguna: todo se actualiza a la vez). Los archivos se suben en este orden: Windows, Linux, macOS, Android y después los manifiestos. Si esa versión ya tiene una release completa (un push que no subió la versión) no se construye nada; una release que se quedó a medias por un fallo la termina el siguiente push (o _Run workflow_), porque solo se rehacen las plataformas que faltan. El repositorio (o al menos sus Releases) debe ser **público** para que las apps descarguen las estables.
 
 **Cómo está hecho el workflow.** `prepare` decide la versión (y crea la release estable en **borrador**); `web`, `windows` y `linux` **solo compilan** (sin ningún secreto y con un token de solo lectura) y entregan los archivos como artefactos; `release` es el **único trabajo con secretos** (la clave de firma, el token de la release y el secreto de subida de la beta): no ejecuta código de npm, firma los manifiestos (`desktop/scripts/sign-update.mjs`), sube y publica (como estable `--latest`, o en el servidor si es beta), y solo si todos acabaron bien. Los pasos comunes (pnpm, Node, caché, instalar, Playwright, compilar la web) están en la acción compartida `.github/actions/build-web`. Seguridad: el checkout no deja el token en la carpeta; cada acción está fijada al commit exacto de su versión; solo corre para pushes a ramas del repositorio, nunca para pull requests. Para añadir una plataforma (Android, macOS, iOS) se copia el trabajo `linux` y se añade su artefacto al trabajo `release` (hay una nota en el propio archivo). Se suben los instaladores y el `*.yml` del canal (unos cientos de bytes, con la firma dentro; las apps lo necesitan para ver la versión y comprobarla); sin blockmap.
 
@@ -259,54 +259,48 @@ El nombre del instalador lo fija `artifactName` en `desktop/package.json` (`Chat
 
 ## 11. Servidor: despliegue
 
-Producción corre en **una máquina Oracle Cloud Always Free** con Docker, un Caddy del sistema que pone el HTTPS y coturn para las llamadas. (Cuidado: solo `VM.Standard.A1.Flex` —hasta los límites actuales de Always Free— y `VM.Standard.E2.1.Micro` son gratis; cualquier otra forma, por ejemplo `E5.Flex`, se cobra. Comprueba la forma en la consola antes de crearla.)
+Producción corre en un **TrueNAS de casa**, en una app de Docker llamada `chatterly` con tres contenedores: `app` (la imagen de este `Dockerfile`), `caddy` (con `deploy/Caddyfile.tunnel`) y `cloudflared`. El dominio `chatterly.dpdns.org` está en Cloudflare (plan gratis) y llega al NAS por un **Cloudflare Tunnel**: el router no abre ningún puerto y la dirección de casa nunca se ve. Las llamadas usan el **TURN gestionado de Cloudflare** con `RELAY_ONLY=1`. Los datos están en el dataset `Disk2TB/Applications/Chatterly/data`, montado en `/data`.
 
 > **Puntos críticos**
 >
-> 1. **`RELAY_ONLY=1` debe estar en el `.env` del servidor.** Sin eso las llamadas pueden conectar directo y mostrar direcciones. Se pone con `bash deploy/turn-setup.sh --private`.
-> 2. **`deploy/turnserver.generated.conf` debe existir** (lo crea `turn-setup.sh`) o el servicio `turn` no arranca. Modo `640`, grupo `65534`: con `600` coturn (usuario `nobody`) no puede leerlo y arranca **sin configuración**.
-> 3. **Nunca añadas `-n` al comando de coturn** (significa "no leas el archivo de configuración") y mantén `NET_BIND_SERVICE` si usas `cap_drop: ALL`.
-> 4. **Los secretos** (`.env`, `TURN_SECRET`, `JWT_SECRET`, `SERVER_SECRET`) viven solo en el servidor, nunca en Git. Rota `TURN_SECRET` con `bash deploy/turn-setup.sh --rotate-secret` si alguna vez se mostró.
-> 5. **Cortafuegos y Oracle**: públicos solo TCP 22, 80, 443, UDP 443 y TCP+UDP 3478 (con `RELAY_ONLY=1` el rango UDP 49152-49252 **no** hace falta).
+> 1. **`RELAY_ONLY=1` debe estar en las variables del servidor.** Sin eso las llamadas pueden conectar directo y mostrar direcciones.
+> 2. **`CLOUDFLARE_TURN_KEY_ID` y `CLOUDFLARE_TURN_API_TOKEN`** deben estar puestos: con `RELAY_ONLY=1` y sin relay, las llamadas se rechazan.
+> 3. **`TRUST_PROXY=1`**: Caddy pasa `Cf-Connecting-IP` como única entrada de `X-Forwarded-For`; sin ella los límites castigan a todos a la vez.
+> 4. **Los secretos** (`JWT_SECRET`, `SERVER_SECRET`, `CLOUDFLARE_TURN_API_TOKEN`, el token del túnel) viven solo en el servidor, nunca en Git.
+> 5. **Ningún puerto publicado**: ni `app` ni `caddy` exponen puertos; solo `cloudflared` sale hacia Cloudflare.
 
 **Puesta en marcha**
 
-1. Crea la instancia (Ubuntu 24.04) y descarga la clave SSH. En la VCN (Security List) abre TCP 80 y 443 (y UDP 443 si quieres HTTP/3); las imágenes de Oracle además bloquean con iptables: `sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT` (igual con 443) y `sudo netfilter-persistent save`.
-2. Un dominio apuntando a la IP pública (uno gratis sirve): el navegador solo permite micrófono, cámara y cifrado en HTTPS.
-3. Instala Docker: `curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER` (sal y entra).
-4. `git clone <tu repositorio> ~/ChatterlyRenewed && cd ~/ChatterlyRenewed && cp deploy/.env.docker.example .env` y edita `.env` (al menos el dominio y `ADMIN_USERS`).
-5. `docker compose up -d --build app`. La primera compilación tarda unos minutos en ARM.
-6. HTTPS: si la máquina ya tiene un Caddy, añade el bloque de `deploy/Caddyfile.host` (la API en 3000 **Y** la web en 3001, o el inicio de sesión falla con "JSON.parse: unexpected character") y `sudo systemctl reload caddy`; si no, `docker compose --profile caddy up -d --build` arranca uno dentro de Docker (`deploy/Caddyfile.docker`).
-7. Relay para llamadas: `bash deploy/turn-setup.sh --private` (ver el apartado 12) y las reglas de entrada de la Security List de Oracle (UDP y TCP 3478, 5349 con `--tls`).
+1. Dominio en Cloudflare y un túnel en _Zero Trust > Networks > Tunnels_; su ruta pública apunta a `http://caddy:80`.
+2. Relay: _dash.cloudflare.com > Realtime > TURN Server > Create_; su id y su token van a `CLOUDFLARE_TURN_KEY_ID` y `CLOUDFLARE_TURN_API_TOKEN`.
+3. En el NAS, el código va en `/mnt/Disk2TB/Projects/Chatterly/src` y la app `chatterly` construye la imagen `chatterly-renewed:local` desde ahí. Variables de `app`: las de `deploy/.env.docker.example` más `TRUST_PROXY=1`; `caddy` (`caddy:2.11.7`) monta `deploy/Caddyfile.tunnel` y recibe `DOMAIN`; `cloudflared` corre `tunnel run` con el token del túnel.
+4. Sin NAS ni túnel (en cualquier máquina con Docker): `cp deploy/.env.docker.example .env`, edítalo y `docker compose --profile caddy up -d --build`; ese Caddy saca el certificado él mismo (`deploy/Caddyfile.docker`) y necesita los puertos 80 y 443 abiertos.
 
-**Actualizar.** `.github/workflows/deploy.yml` lo hace tras cada push a `master`/`main`: entra por SSH, `git reset --hard origin/<rama>` (el servidor queda **idéntico a GitHub**: los archivos fuera de Git, `.env` y `docker-compose.override.yml`, sobreviven), construye primero (la web sigue en pie), quita el contenedor viejo y levanta el nuevo (con docker-compose 1.x recrear falla con `KeyError: 'ContainerConfig'`), arranca el relay si no corre y limpia imágenes. Secretos de GitHub (Settings > Secrets and variables > Actions): `SSH_HOST`, `SSH_USER`, `SSH_KEY` (la clave **privada** entera, hecha solo para esto con `ssh-keygen -t ed25519`) y `SSH_PORT` si no es 22. Los cambios en `desktop/` y `mobile/` no redespliegan el servidor. A mano: `git pull && docker compose up -d --build app`; logs con `docker compose logs -f app`.
+**Actualizar.** `deploy/truenas-autoupdate.sh` corre cada 5 minutos desde una tarea cron de TrueNAS (_System > Advanced > Cron Jobs_, como root): pregunta a GitHub el último commit de `beta` (GitHub nunca entra en el NAS), descarga ese código, construye la imagen mientras la anterior sigue sirviendo y cambia el contenedor (`app.redeploy`, unos segundos de corte). Si algo falla no cambia nada y lo reintenta en la siguiente pasada. Registro en `/mnt/Disk2TB/Projects/Chatterly/autoupdate.log`.
 
-**Después de cada despliegue.** `curl -s http://127.0.0.1:3000/api/health` debe dar `{"status":"ok"}`, `docker compose ps` mostrar `app` sana y `turn` en marcha, y una llamada de prueba debe usar relay (ver el apartado 12). Los datos (BD, subidas y secretos) están en el volumen `chatterly-data`; cópialo de vez en cuando: `BACKUP_PASSPHRASE=... docker compose exec app node scripts/backup.mjs backup /data/backups` (cifrado) y sácalo de la máquina.
+**Después de cada despliegue.** `https://chatterly.dpdns.org/api/health` debe dar `{"status":"ok"}` y una llamada de prueba debe usar relay (ver el apartado 12). Haz copia del volumen de datos de vez en cuando: dentro del contenedor `app`, `BACKUP_PASSPHRASE=... node scripts/backup.mjs backup /data/backups` (cifrado), y sácala del NAS.
 
-**Lista de comprobación de seguridad de la máquina** (no se puede verificar desde el repositorio):
+**Lista de comprobación de seguridad del servidor** (no se puede verificar desde el repositorio):
 
-- [ ] Security List / NSG: entrada solo para TCP 22 (restringido a tu dirección), 80, 443, UDP 443, 3478 UDP+TCP (5349 con TLS). Nada para 3000, 3001, 4200.
-- [ ] Cortafuegos del sistema (`sudo iptables -S INPUT`) y puertos a la escucha (`sudo ss -tulpn`): 3000 y 3001 solo en `127.0.0.1`; nada más alcanzable desde fuera (ni API de Docker en 2375).
-- [ ] SSH solo con clave (`PasswordAuthentication no`, `PermitRootLogin no`); la clave de despliegue de GitHub limitada a esta máquina.
-- [ ] `.env` con permisos 600 y fuera del repositorio; secretos largos y aleatorios; si uno se subió alguna vez a Git, rotarlo y limpiar el historial (decisión del dueño: reescribe la historia).
-- [ ] TURN: `turnserver.generated.conf` modo 640 grupo 65534; una asignación sin credencial válida se rechaza (`turnutils_uclient` con mala contraseña falla).
-- [ ] TLS: `curl -I https://tu.dominio` muestra HSTS; el certificado se renueva; HTTP redirige a HTTPS; el WebSocket funciona por `wss://`.
-- [ ] Proxy inverso: la app ve un proxy (`TRUST_PROXY=1`) y Caddy reemplaza cualquier `X-Forwarded-For` del cliente.
-- [ ] `unattended-upgrades` activo; imágenes de Docker fijadas por etiqueta en `docker-compose.yml` (se cambian a propósito y se prueban).
-- [ ] Copias de seguridad probadas con una restauración real; vigilancia de disco (`df -h`) y alerta si la web o el relay dejan de responder.
-- [ ] Registros: la app no registra direcciones ni consultas; coturn registra asignaciones (direcciones) en el log de su contenedor, que rota a 5 × 10 MB; decide cuánto tiempo los conservas.
+- [ ] Router sin puertos abiertos hacia el NAS para Chatterly; `app` y `caddy` sin puertos publicados.
+- [ ] Secretos largos y aleatorios, solo en el servidor; si uno se subió alguna vez a Git, rotarlo y limpiar el historial (decisión del dueño: reescribe la historia).
+- [ ] TLS: `curl -I https://tu.dominio` muestra HSTS; `http://` redirige a `https://`; el WebSocket funciona por `wss://`.
+- [ ] Proxy inverso: la app ve un proxy (`TRUST_PROXY=1`) y Caddy reemplaza cualquier `X-Forwarded-For` del cliente por `Cf-Connecting-IP`.
+- [ ] Imágenes de Docker fijadas por etiqueta (se cambian a propósito y se prueban); TrueNAS al día.
+- [ ] Copias de seguridad probadas con una restauración real; vigilancia de disco y alerta si la web deja de responder.
+- [ ] Registros: la app no registra direcciones ni consultas; Cloudflare ve la dirección de quien conecta (web y relay).
 
-La recuperación del servidor concreto (copias, firewall, guardián, cuotas) está en `RECUPERACION-SERVIDOR.local.md`, que se guarda solo en tu equipo.
+La recuperación del servidor concreto (copias, cuotas, accesos) está en `RECUPERACION-SERVIDOR.local.md`, que se guarda solo en tu equipo.
 
 ## 12. Relay TURN
 
 - **Señalización**: el WebSocket `/ws` del backend (Caddy lo pasa solo). Lo que viaja está sellado: mensajes cifrados en el navegador y ofertas/respuestas firmadas y cifradas entre las dos personas.
-- **STUN** dice a un navegador su dirección pública; con relay propio coturn también hace de STUN y no se pregunta a Google (que aprendería la dirección de cada llamante).
-- **TURN** retransmite el medio cuando no hay camino directo (móviles, oficinas estrictas). El medio ya va cifrado fotograma a fotograma, así que el relay no puede leerlo. El backend entrega credenciales de una hora hechas con `TURN_SECRET`; nadie recibe el secreto.
+- **STUN** dice a un navegador su dirección pública; con relay el STUN lo da el mismo relay y no se pregunta a Google (que aprendería la dirección de cada llamante).
+- **TURN** retransmite el medio cuando no hay camino directo (móviles, oficinas estrictas), y siempre con `RELAY_ONLY=1`. El medio ya va cifrado fotograma a fotograma, así que el relay no puede leerlo. En cada llamada el backend pide a Cloudflare credenciales de corta duración (`TURN_TTL_SEC`, una hora por defecto) con `CLOUDFLARE_TURN_API_TOKEN`; el navegador solo recibe esas credenciales, nunca el token.
 
-`bash deploy/turn-setup.sh` escribe las variables TURN del `.env`, abre puertos con iptables y levanta coturn y la app a partir de la plantilla `deploy/turnserver.conf` (nunca pongas valores reales en esa plantilla: está en Git). Opciones: `--private` (pone `RELAY_ONLY=1`), `--tls` (el relay responde solo por `turns:` TCP 5349 con el certificado que Caddy ya obtuvo; abre 5349 y **no** 3478; `deploy/turn-cert-sync.sh` copia el certificado tras cada renovación, cada ~60 días, mejor con un temporizador diario), `--no-logs` (coturn no escribe ningún log) y `--rotate-secret`. Máxima privacidad: `bash deploy/turn-setup.sh --private --tls --no-logs`. Quien observe la red ya no lee usuarios ni mensajes de control del relay, pero sigue viendo que alguien habla con tu servidor y cuánto; el operador del relay ve las direcciones mientras dura la llamada. TLS va sobre TCP: con pérdidas, algo más de retardo que UDP.
+El backend también acepta un relay propio compatible con coturn (`TURN_URLS` y `TURN_SECRET`, esquema `use-auth-secret`), pero producción no lo usa.
 
-**Comprobar que una llamada usa de verdad el relay**: abre `chrome://webrtc-internals` (Firefox: `about:webrtc`) antes de llamar; el par de candidatos seleccionado debe tener candidato local de tipo `relay` y la rejilla solo candidatos `relay`. Para la prueba negativa para el relay (`docker compose stop turn`) e intenta llamar: debe salir "Private call unavailable" y la llamada no empezar. No copies direcciones de esas páginas en chats ni incidencias.
+**Comprobar que una llamada usa de verdad el relay**: abre `chrome://webrtc-internals` (Firefox: `about:webrtc`) antes de llamar; el par de candidatos seleccionado debe tener candidato local de tipo `relay` y la rejilla solo candidatos `relay`. Para la prueba negativa, quita `CLOUDFLARE_TURN_KEY_ID` en un servidor de pruebas e intenta llamar: debe salir "Private call unavailable" y la llamada no empezar. No copies direcciones de esas páginas en chats ni incidencias.
 
 ## 13. Tests
 
@@ -354,7 +348,7 @@ Origen y licencia: los cuatro clics `click-tap`, `click-switch`, `click-pluck` y
 
 **Decisiones**
 
-- **Sin cuentas ni suscripciones de pago de terceros** siempre que se pueda: Windows por instalador (o Store gratis), Linux por AppImage; solo Apple (99 USD/año) es inevitable cuando llegue macOS. El servidor es Oracle Always Free (plan B: un VPS europeo barato; un dominio propio es mejor que uno de DNS dinámico gratuito).
+- **Sin cuentas ni suscripciones de pago de terceros** siempre que se pueda: Windows por instalador (o Store gratis), Linux por AppImage; solo Apple (99 USD/año) es inevitable cuando llegue macOS. El servidor es un TrueNAS propio tras un Cloudflare Tunnel y el relay de llamadas es el TURN gestionado de Cloudflare: coste cero y ningún puerto abierto en casa.
 - **Orden de plataformas**: Windows (Electron) → Android (Capacitor) → macOS → iOS, en este mismo repositorio (`desktop/`, `mobile/`), no en repos nuevos. Linux salió gratis del mismo código de Electron.
 - **El overlay es una ventana, no una inyección**: más limitado (no cubre pantalla completa exclusiva) pero sin riesgo de baneo y sin código nativo que mantener.
 - **El programa beta reutiliza GitHub Releases** (pre-releases) en vez de un servidor de actualizaciones propio: cero infraestructura nueva; el coste es que no es un secreto.
@@ -378,8 +372,8 @@ Código de conducta: sé respetuoso (nada de insultos, acoso ni discriminación)
 | El WebSocket se cierra al momento (1008, "origin not allowed")                              | Lo mismo: el origen no está en `CORS_ORIGINS`                                                                                                                                                                    |
 | "La sesión caducó" todo el rato, o todos parecen tener la misma IP                          | Falta `TRUST_PROXY=1`: el backend ve a Caddy como único cliente y los límites castigan a todos                                                                                                                   |
 | El micrófono o la cámara nunca preguntan                                                    | La página no está en HTTPS (o la abriste por IP). Usa el dominio                                                                                                                                                 |
-| Las llamadas solo conectan entre personas de la misma red                                   | Hay STUN pero no TURN, o sus puertos están cerrados (también en la Security List de Oracle)                                                                                                                      |
-| "Private call unavailable"                                                                  | El relay está caído o no leyó su configuración: `docker compose logs --tail 50 turn` (un arranque sano muestra `Default realm: <tu dominio>`)                                                                    |
+| Las llamadas solo conectan entre personas de la misma red                                   | Hay STUN pero no TURN: faltan `CLOUDFLARE_TURN_KEY_ID` y `CLOUDFLARE_TURN_API_TOKEN`                                                                                                                             |
+| "Private call unavailable"                                                                  | `RELAY_ONLY=1` sin relay configurado, o Cloudflare rechazó el token: mira el registro del contenedor `app`                                                                                                       |
 | _Frames rejected_ o "Securing…" para siempre                                                | Los dos navegadores no se pusieron de acuerdo con las claves: recarga ambos; si se repite, mira la consola y `docker compose logs app`                                                                           |
 | `502` de Caddy                                                                              | El backend o el servidor web está caído: `docker compose ps` y `docker compose logs app`                                                                                                                         |
 | Tras actualizar no cambia nada                                                              | El navegador guarda archivos viejos: recarga forzada (Ctrl+Mayús+R)                                                                                                                                              |
@@ -389,7 +383,7 @@ Código de conducta: sé respetuoso (nada de insultos, acoso ni discriminación)
 | La app instalada no inicia sesión                                                           | El servidor no lista `app://chatterly` en `CORS_ORIGINS`                                                                                                                                                         |
 | SmartScreen bloquea el instalador                                                           | No está firmado: _Más información_, _Ejecutar de todos modos_, o usa la Store                                                                                                                                    |
 | La actualización no llega                                                                   | La release no es pública, le falta el `.yml` de su canal, su versión no es mayor que la instalada, o la app no está en el canal beta                                                                             |
-| El overlay no aparece sobre mi juego                                                        | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa (cámbialo en Ajustes > Overlay de juego)            |
+| El overlay no aparece sobre mi juego                                                        | Está en pantalla completa exclusiva (pásalo a sin bordes), no hay llamada o el overlay está apagado en Ajustes; si el atajo no responde, otro programa lo usa (cámbialo en Ajustes > Overlay de juego)           |
 
 ## 19. App de Android
 

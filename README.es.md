@@ -106,12 +106,12 @@ backend/     Fastify 5 + SQLite (better-sqlite3) + WebSocket
 frontend/    Angular 21 (signals) + Tailwind 4
 scripts/     servidor de producción, copias de seguridad
 test/        el único test, dividido por temas: run.mjs + e2e/ (navegador), security.mts + security/ (sin navegador)
-deploy/      guía para un servidor gratuito (Oracle Cloud), Caddy, coturn y comprobaciones
+deploy/      Caddy (también tras un Cloudflare Tunnel), plantilla de .env y actualización automática
 ```
 
 ## Despliegue
 
-La guía completa está en [`DOCS.md`](DOCS.md): Docker, Caddy con HTTPS automático, relay TURN con `deploy/turn-setup.sh --private`, lista de comprobación de seguridad para Oracle Cloud, copias de seguridad y cómo verificar que una llamada usa de verdad el relay.
+La guía completa está en [`DOCS.md`](DOCS.md): Docker, Caddy con HTTPS automático, el TURN gestionado de Cloudflare, lista de comprobación de seguridad del servidor, copias de seguridad y cómo verificar que una llamada usa de verdad el relay.
 
 ## Contribuir
 

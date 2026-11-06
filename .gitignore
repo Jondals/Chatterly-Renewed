@@ -19,6 +19,4 @@ secrets.json
 !.env.docker.example
 *.pem
 *.key
-deploy/turnserver.generated.conf
-deploy/tls/
 backups/
