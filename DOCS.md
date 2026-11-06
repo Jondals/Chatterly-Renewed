@@ -272,7 +272,7 @@ Producción corre en **una máquina Oracle Cloud Always Free** con Docker, un Ca
 **Puesta en marcha**
 
 1. Crea la instancia (Ubuntu 24.04) y descarga la clave SSH. En la VCN (Security List) abre TCP 80 y 443 (y UDP 443 si quieres HTTP/3); las imágenes de Oracle además bloquean con iptables: `sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT` (igual con 443) y `sudo netfilter-persistent save`.
-2. Un dominio apuntando a la IP pública (uno gratis de duckdns.org sirve): el navegador solo permite micrófono, cámara y cifrado en HTTPS.
+2. Un dominio apuntando a la IP pública (uno gratis sirve): el navegador solo permite micrófono, cámara y cifrado en HTTPS.
 3. Instala Docker: `curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER` (sal y entra).
 4. `git clone <tu repositorio> ~/ChatterlyRenewed && cd ~/ChatterlyRenewed && cp deploy/.env.docker.example .env` y edita `.env` (al menos el dominio y `ADMIN_USERS`).
 5. `docker compose up -d --build app`. La primera compilación tarda unos minutos en ARM.
@@ -354,7 +354,7 @@ Origen y licencia: los cuatro clics `click-tap`, `click-switch`, `click-pluck` y
 
 **Decisiones**
 
-- **Sin cuentas ni suscripciones de pago de terceros** siempre que se pueda: Windows por instalador (o Store gratis), Linux por AppImage; solo Apple (99 USD/año) es inevitable cuando llegue macOS. El servidor es Oracle Always Free (plan B: un VPS europeo barato; un dominio propio es mejor que DuckDNS).
+- **Sin cuentas ni suscripciones de pago de terceros** siempre que se pueda: Windows por instalador (o Store gratis), Linux por AppImage; solo Apple (99 USD/año) es inevitable cuando llegue macOS. El servidor es Oracle Always Free (plan B: un VPS europeo barato; un dominio propio es mejor que uno de DNS dinámico gratuito).
 - **Orden de plataformas**: Windows (Electron) → Android (Capacitor) → macOS → iOS, en este mismo repositorio (`desktop/`, `mobile/`), no en repos nuevos. Linux salió gratis del mismo código de Electron.
 - **El overlay es una ventana, no una inyección**: más limitado (no cubre pantalla completa exclusiva) pero sin riesgo de baneo y sin código nativo que mantener.
 - **El programa beta reutiliza GitHub Releases** (pre-releases) en vez de un servidor de actualizaciones propio: cero infraestructura nueva; el coste es que no es un secreto.
